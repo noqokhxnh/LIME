@@ -1,0 +1,14 @@
+node_modules/
+dist/
+tmp/
+.cache/
+*.mp4
+*.mp3
+*.wav
+.env
+dump.rdb
+docs/comparison
+docs/plans/
+.agents/
+docs/uml
+.claude/
