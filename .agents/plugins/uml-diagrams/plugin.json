@@ -1,0 +1,4 @@
+{
+  "name": "uml-diagrams",
+  "description": "MCP Server Plugin for generating and validating UML diagrams (Sequence, Class, Activity, Component, State, etc.) with PlantUML"
+}

@@ -1,0 +1,8 @@
+{
+  "mcpServers": {
+    "plantuml": {
+      "command": "npx",
+      "args": ["-y", "@plantuml/mcp-js"]
+    }
+  }
+}
