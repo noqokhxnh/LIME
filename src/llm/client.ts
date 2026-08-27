@@ -31,7 +31,7 @@ class OpenAIClient implements LLMClient {
                     { role: "user", content: userPrompt }
                 ],
                 temperature: 0.7,
-                max_token: 32000,
+                max_tokens: 32000,
                 response_format: { type: "json_object" },
             }),
         });
@@ -44,3 +44,79 @@ class OpenAIClient implements LLMClient {
     }
 }
 
+class DeepSeekClient implements LLMClient {
+    provider: 'deepseek';
+    private apikey: string;
+    private model: string;
+
+    constructor(config: Config) {
+        if (!config.DeepSeek_APIKEY) {
+            throw new Error("DeepSeek API key is required");
+        }
+        this.apikey = config.DeepSeek_APIKEY;
+        this.model = config.DeepSeek_Model;
+    }
+    async generate(systemPrompt: string, userPrompt: string): Promise<string> {
+        const res = await fetch("https://api.deepseek.com/chat/completions", {
+            method: "POST",
+            headers: {
+                "Authorization": `Bearer ${this.apikey}`,
+                "Content-Type": "application/json"
+            },
+            body: JSON.stringify({
+                model: this.model,
+                messages: [
+                    { role: "system", content: systemPrompt },
+                    { role: "user", content: userPrompt }
+                ],
+                temperature: 0.3,
+                max_tokens: 16000,
+                response_format: { type: "json_object" },
+            }),
+        });
+        if (!res.ok) {
+            const err = await res.text();
+            throw new Error(`DeepSeek API Error: ${res.status} - ${err}`);
+        }
+        const data = await res.json() as any;
+        return data.choices[0].message.content;
+    }
+}
+
+class GeminiClient implements LLMClient {
+    provider: 'gemini';
+    private apikey: string;
+    private model: string;
+
+    constructor(config: Config) {
+        if (!config.GEMINI_APIKEY) {
+            throw new Error("Gemini API key is required");
+        }
+        this.apikey = config.GEMINI_APIKEY;
+        this.model = config.GEMINI_Model;
+    }
+    async generate(systemPrompt: string, userPrompt: string): Promise<string> {
+        const res = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${this.model}:generateContent?key=${this.apikey}`, {
+            method: "POST",
+            headers: {
+                "Content-Type": "application/json"
+            },
+            body: JSON.stringify({
+                contents: [
+                    { role: "user", parts: [{ text: `${systemPrompt}\n\n${userPrompt}` }] }
+                ],
+                generationConfig: {
+                    responseMimeType: "application/json",
+                    temperature: 0.7,
+                    maxOutputTokens: 16000
+                },
+            }),
+        });
+        if (!res.ok) {
+            const err = await res.text();
+            throw new Error(`Gemini API Error: ${res.status} - ${err}`);
+        }
+        const data = await res.json() as any;
+        return data.candidates[0].content.parts[0].text;
+    }
+}
