@@ -8,7 +8,7 @@ const envSchema = z.object({
     NODE_ENV: z.enum(['production', 'development']).default('development'),
 
 
-    LLM_Provider: z.enum(['OpenAI', 'Deepseek', 'Gemini', 'Claude']).default('Gemini'),
+    LLM_Provider: z.enum(['openai', 'deepseek', 'gemini', 'claude']).default('gemini'),
 
     OpenAI_APIKEY: z.string().optional(),
     OpenAI_Model: z.string().default('gpt-5.3-codex'),

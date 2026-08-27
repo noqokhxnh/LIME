@@ -1,4 +1,4 @@
-import { Config } from "../config.ts";
+import { Config, getConfig } from "../config.ts";
 
 export interface LLMClient {
     generate(systemPrompt: string, userPrompt: string): Promise<string>;
@@ -119,4 +119,69 @@ class GeminiClient implements LLMClient {
         const data = await res.json() as any;
         return data.candidates[0].content.parts[0].text;
     }
+}
+
+class ClaudeClient implements LLMClient {
+    provider: 'claude';
+    private apikey: string;
+    private model: string;
+
+    constructor(config: Config) {
+        if (!config.CLAUDE_APIKEY) {
+            throw new Error("Claude API key is required");
+        }
+        this.apikey = config.CLAUDE_APIKEY;
+        this.model = config.CLAUDE_Model;
+    }
+    async generate(systemPrompt: string, userPrompt: string): Promise<string> {
+        const res = await fetch("https://api.anthropic.com/v1/messages", {
+            method: "POST",
+            headers: {
+                "x-api-key": this.apikey,
+                "anthropic-version": "2023-06-01",
+                "Content-Type": "application/json"
+            },
+            body: JSON.stringify({
+                model: this.model,
+                system: systemPrompt,
+                messages: [
+                    { role: "user", content: userPrompt }
+                ],
+                temperature: 0.3,
+                max_tokens: 16000,
+            }),
+        });
+        if (!res.ok) {
+            const err = await res.text();
+            throw new Error(`Claude API Error: ${res.status} - ${err}`);
+        }
+        const data = await res.json() as any;
+        return data.content[0].text;
+    }
+}
+
+let _client: LLMClient | null = null;
+
+export function getLLMClient(): LLMClient {
+    if (!_client) {
+        const provider = getConfig().LLM_Provider;
+        switch (provider) {
+            case 'openai':
+                _client = new OpenAIClient(getConfig());
+                break;
+            case 'deepseek':
+                _client = new DeepSeekClient(getConfig());
+                break;
+            case 'gemini':
+                _client = new GeminiClient(getConfig());
+                break;
+            case 'claude':
+                _client = new ClaudeClient(getConfig());
+                break;
+            default:
+                throw new Error(`Unsupported LLM provider: ${provider}`);
+        }
+        console.log(`Using LLM: ${_client.provider}`);
+    }
+    return _client;
 }
