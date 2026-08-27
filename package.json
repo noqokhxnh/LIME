@@ -1,0 +1,42 @@
+{
+    "name": "html-to-vid",
+    "version": "1.0.0",
+    "description": "AI-powered video generation from HTML animations",
+    "main": "src/index.ts",
+    "scripts": {
+        "dev": "tsx watch src/index.ts",
+        "start": "tsx src/index.ts",
+        "build": "tsc",
+        "test": "tsx tests/integration/pipeline.test.ts"
+    },
+    "keywords": [
+        "video",
+        "html",
+        "animation",
+        "ai",
+        "tts"
+    ],
+    "type": "module",
+    "dependencies": {
+        "@fastify/cors": "^11.3.0",
+        "@fastify/static": "^10.1.3",
+        "@types/fluent-ffmpeg": "^2.1.28",
+        "@types/uuid": "^10.0.0",
+        "acorn": "^8.18.0",
+        "cheerio": "^1.2.0",
+        "dotenv": "^17.4.2",
+        "fastify": "^5.11.3",
+        "fluent-ffmpeg": "^2.1.3",
+        "playwright": "^1.62.1",
+        "tsx": "^4.23.11",
+        "uuid": "^14.0.1",
+        "zod": "^4.4.3"
+    },
+    "devDependencies": {
+        "@types/node": "^26.2.0",
+        "typescript": "^7.0.2"
+    },
+    "allowScripts": {
+        "esbuild@0.28.2": true
+    }
+}
