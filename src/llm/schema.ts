@@ -8,8 +8,8 @@ export const sceneSchema = z.object({
     htmlCode: z.string(),
     cssCode: z.string(),
     jsCode: z.string(),
-    transition: z.enum['fade', 'slide-left', 'slide-right', 'slide-up', 'zoom-in', 'zoom-out', 'none']
-    backgroundColor: z.string.default('#000000')
+    transition: z.enum(['fade', 'slide-left', 'slide-right', 'slide-up', 'zoom-in', 'zoom-out', 'none']),
+    backgroundColor: z.string().default('#000000')
 })
 
 export type scene = z.infer<typeof sceneSchema>;
@@ -21,7 +21,7 @@ export const videoScriptSchema = z.object({
     description: z.string(),
     globalStyles: z.string(),
     globalSetupJs: z.string(),
-    scenes: z.array(SceneSchema),
+    scenes: z.array(sceneSchema),
     colorPalette: z.object({
         primary: z.string(),
         secondary: z.string(),
