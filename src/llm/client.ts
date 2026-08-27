@@ -1,7 +1,7 @@
 import { Config } from "../config.ts";
 
 export interface LLMClient {
-    generate(systemPrompt: string, userPrompt: string): Promise<String>;
+    generate(systemPrompt: string, userPrompt: string): Promise<string>;
     provider: string;
 }
 
@@ -17,7 +17,7 @@ class OpenAIClient implements LLMClient {
         this.apikey = config.OPENAI_APIKEY;
         this.model = config.OPENAI_Model;
     }
-    async generate(systemPrompt: string, userPrompt: string): Promise<String> {
+    async generate(systemPrompt: string, userPrompt: string): Promise<string> {
         const res = await fetch("https://api.openai.com/v1/chat/completions", {
             method: "POST",
             headers: {
