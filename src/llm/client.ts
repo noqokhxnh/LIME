@@ -1,4 +1,4 @@
-import { Config, getConfig } from "../config.ts";
+import { Config, getConfig } from "../config";
 
 export interface LLMClient {
     generate(systemPrompt: string, userPrompt: string): Promise<string>;
@@ -6,16 +6,16 @@ export interface LLMClient {
 }
 
 class OpenAIClient implements LLMClient {
-    provider: 'openai';
+    readonly provider = 'openai';
     private apikey: string;
     private model: string;
 
     constructor(config: Config) {
-        if (!config.OPENAI_APIKEY) {
+        if (!config.OpenAI_APIKEY) {
             throw new Error("OpenAI API key is required");
         }
-        this.apikey = config.OPENAI_APIKEY;
-        this.model = config.OPENAI_Model;
+        this.apikey = config.OpenAI_APIKEY;
+        this.model = config.OpenAI_Model;
     }
     async generate(systemPrompt: string, userPrompt: string): Promise<string> {
         const res = await fetch("https://api.openai.com/v1/chat/completions", {
@@ -45,7 +45,7 @@ class OpenAIClient implements LLMClient {
 }
 
 class DeepSeekClient implements LLMClient {
-    provider: 'deepseek';
+    readonly provider = 'deepseek';
     private apikey: string;
     private model: string;
 
@@ -84,16 +84,16 @@ class DeepSeekClient implements LLMClient {
 }
 
 class GeminiClient implements LLMClient {
-    provider: 'gemini';
+    readonly provider = 'gemini';
     private apikey: string;
     private model: string;
 
     constructor(config: Config) {
-        if (!config.GEMINI_APIKEY) {
+        if (!config.Gemini_APIKEY) {
             throw new Error("Gemini API key is required");
         }
-        this.apikey = config.GEMINI_APIKEY;
-        this.model = config.GEMINI_Model;
+        this.apikey = config.Gemini_APIKEY;
+        this.model = config.Gemini_Model;
     }
     async generate(systemPrompt: string, userPrompt: string): Promise<string> {
         const res = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${this.model}:generateContent?key=${this.apikey}`, {
@@ -122,16 +122,16 @@ class GeminiClient implements LLMClient {
 }
 
 class ClaudeClient implements LLMClient {
-    provider: 'claude';
+    readonly provider = 'claude';
     private apikey: string;
     private model: string;
 
     constructor(config: Config) {
-        if (!config.CLAUDE_APIKEY) {
+        if (!config.Claude_APIKEY) {
             throw new Error("Claude API key is required");
         }
-        this.apikey = config.CLAUDE_APIKEY;
-        this.model = config.CLAUDE_Model;
+        this.apikey = config.Claude_APIKEY;
+        this.model = config.Claude_Model;
     }
     async generate(systemPrompt: string, userPrompt: string): Promise<string> {
         const res = await fetch("https://api.anthropic.com/v1/messages", {
