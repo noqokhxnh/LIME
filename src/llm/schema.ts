@@ -1,6 +1,6 @@
 import { z } from 'zod';
 
-export const SceneSchema = z.object({
+export const sceneSchema = z.object({
     id: z.string(),
     title: z.string(),
     voiceOverText: z.string(),
@@ -12,7 +12,7 @@ export const SceneSchema = z.object({
     backgroundColor: z.string.default('#000000')
 })
 
-export type Scene = z.infer<typeof SceneSchema>;
+export type scene = z.infer<typeof sceneSchema>;
 
 
 export const videoScriptSchema = z.object({
@@ -32,7 +32,49 @@ export const videoScriptSchema = z.object({
     fontFamily: z.string().default('Inter')
 })
 
-export type VideoScript = z.infer<typeof videoScriptSchema>;
+export type videoScript = z.infer<typeof videoScriptSchema>;
 
-export const DurationMapSchema = z.record(z.string(), z.number());
-export type DurationMap = z.infer<typeof DurationMapSchema>;
+export const durationMapSchema = z.record(z.string(), z.number());
+export type durationMap = z.infer<typeof durationMapSchema>;
+
+export const pipelineResultSchema = z.object({
+    videoPath: z.string(),
+    durationSec: z.number(),
+    scences: z.array(sceneSchema),
+    resolution: z.string(),
+});
+
+export type pipelineResult = z.infer<typeof pipelineResultSchema>;
+
+export interface AudioResult {
+    scencesDuration: durationMap,
+    audioFiles: Record<string, string>,
+    totalDurationSec: number,
+    mixAudioPath: string,
+
+}
+
+export interface renderOptions {
+    htmlPath: string,
+    outputPath: string,
+    width: number,
+    height: number,
+    fps: number,
+    totalDurationSec: number,
+}
+
+export type pipelinePhase = ''
+    | 'script_generation'
+    | 'audio_synthesis'
+    | 'code_assembly'
+    | 'preview'
+    | 'render'
+    | 'mux';
+
+export interface pipelineProgess {
+    phase: pipelinePhase,
+    progress: number, // 0 - 100
+    message: string,
+}
+
+export type progressCallback = (progress: pipelineProgess) => void;
