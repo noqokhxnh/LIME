@@ -45,7 +45,7 @@ export const videoRequestSchema = z.object({
     style: z.enum(['modern', 'classic', 'stickman']),  // string hoac enum  
     customStyle: z.string().max(5000).optional()
 })
-
+export type videoRequest = z.infer<typeof videoRequestSchema>
 
 
 export const pipelineResultSchema = z.object({
@@ -74,7 +74,7 @@ export interface renderOptions {
     totalDurationSec: number,
 }
 
-export type pipelinePhase = ''
+export type pipelinePhase =
     | 'script_generation'
     | 'audio_synthesis'
     | 'code_assembly'
