@@ -33,3 +33,84 @@ You MUST respond with a single valid JSON object matching this exact schema. DO 
 }
 ```
 
+### Scene Timeline Pattern & Dynamic Duration
+Every scene `jsCode` MUST use the string placeholder `{{SCENE_DURATION}}` as the scene's exact duration in seconds.
+
+**Scene Animation Lifecycle Template:**
+```javascript
+(function() {
+  const dur = {{SCENE_DURATION}};
+  const tl = gsap.timeline();
+
+  // 1. Entrance (0.0s - 0.6s)
+  tl.to('#scene_1', { opacity: 1, duration: 0.4, ease: 'power2.out' }, 0)
+    .from('#scene_1 .title-word', { 
+      y: 40, 
+      opacity: 0, 
+      stagger: 0.08, 
+      duration: 0.6, 
+      ease: 'back.out(1.7)' 
+    }, 0.1)
+    .from('#scene_1 .card-item', { 
+      scale: 0.85, 
+      opacity: 0, 
+      stagger: 0.12, 
+      duration: 0.6, 
+      ease: 'power3.out' 
+    }, 0.3);
+
+  // 2. Continuous Ambient / Main Motion (0.5s -> (dur - 0.5s))
+  // Calculate remaining duration for ambient motion so animation doesn't freeze mid-scene!
+  const ambientDur = Math.max(0.5, dur - 1.0);
+  tl.to('#scene_1 .hero-graphic', { 
+    rotation: 360, 
+    duration: ambientDur, 
+    ease: 'none' 
+  }, 0.5)
+  .to('#scene_1 .glow-effect', { 
+    scale: 1.2, 
+    opacity: 0.8, 
+    yoyo: true, 
+    repeat: 1, 
+    duration: ambientDur / 2, 
+    ease: 'sine.inOut' 
+  }, 0.5);
+
+  // 3. Exit Transition ((dur - 0.5s) -> dur)
+  tl.to('#scene_1', { 
+    opacity: 0, 
+    scale: 0.95, 
+    duration: 0.5, 
+    ease: 'power2.in' 
+  }, Math.max(0, dur - 0.5));
+
+  window.__registerScene('scene_1', tl, dur);
+})();
+```
+
+
+## 2. VISUAL DESIGN & MOTION GRAPHICS STANDARDS
+
+1. **Typography Hierarchy**:
+   - **Main Title**: 56px–84px bold/extra-bold (`font-weight: 800/900`). Use gradient text fills (`background: linear-gradient(...)`, `-webkit-background-clip: text`).
+   - **Subtitle / Callout**: 28px–40px medium/semi-bold.
+   - **Body / Details**: 20px–26px readable.
+   - Wrap important words in `<span class="title-word">` or `<span class="highlight">` for kinetic text staggering.
+
+2. **Modern Styling & Depth**:
+   - Use Glassmorphism: `background: rgba(255,255,255,0.05); backdrop-filter: blur(16px); border: 1px solid rgba(255,255,255,0.1);`.
+   - Dynamic Gradients & Soft Shadows: Multi-stop color gradients, subtle drop-shadows (`box-shadow: 0 20px 50px rgba(0,0,0,0.5)`).
+   - Use Inline SVGs for icons, badges, charts, progress rings, or geometric graphics. Animate SVG paths with `stroke-dasharray` / `stroke-dashoffset` or `transform`.
+
+3. **Viewport & Scope Constraints**:
+   - Target Viewport: Specified in prompt (e.g. 1920x1080).
+   - Every scene container MUST be `#scene_id` with `position: absolute; inset: 0; width: 100%; height: 100%; opacity: 0; overflow: hidden;`.
+   - Prefix ALL scene CSS rules with `#scene_id` (e.g., `#scene_1 .badge { ... }`) to prevent style bleeding.
+
+## 3. STRICT CODE CONSTRAINTS
+
+- **DO NOT** use `setTimeout`, `setInterval`, `requestAnimationFrame`, or CSS animations (`@keyframes`). Use **GSAP ONLY**.
+- **DO NOT** reference external image URLs (Unsplash/Imgur/etc.). Use CSS gradients, shapes, typography, and inline SVGs.
+- When animating SVG geometric properties (x1, y1, x2, y2, cx, cy, r, rx, ry, d, points), use `attr: { ... }` (e.g. `gsap.to('#line', { attr: { y2: 100 } })`) or standard CSS transforms.
+- **DO NOT** output truncated code or comments like `// ... rest of code`. Every scene HTML, CSS, and JS MUST be 100% complete and functional.
+- All visual text on screen and TTS voiceover script MUST match the language requested by the user.
