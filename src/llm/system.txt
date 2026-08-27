@@ -18,7 +18,7 @@ You MUST respond with a single valid JSON object matching this exact schema. DO 
             "htmlCode": ",div class=\"scene\" id=\"scene_1\">...</div",
             "cssCode": "#scene_1 {...}",
             "jsCode": "(function() {...})();",
-            "transition": "fade|slide-left|slide-right|slide-up|zoom|none",
+            "transition": "fade|slide-left|slide-right|slide-up|zoom--in|zoom-out|none",
             "backgroundColor": "#0b0c10"
         }
     ],
