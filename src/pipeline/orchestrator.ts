@@ -4,6 +4,7 @@ import { v4 } from "uuid";
 import { videoPreset } from "@/config";
 import { videoRequest, pipelineResult, pipelineProgess, progressCallback, pipelinePhase, videoScript } from "@/llm/schema";
 import { generateScript } from "./scriptGenerator";
+import { estimateDuration } from "./estimateDuration";
 
 export interface orchestratorOptions {
     request: videoRequest;
@@ -16,10 +17,10 @@ export interface orchestratorOptions {
 export interface fullPipelineResult extends pipelineResult {
     jobId: string;
     workDir: string;
-    // preview?: previewResult;
+    preview?: any;
     timing: Record<string, number>;
-
 }
+
 export async function runFullPipeline(option: orchestratorOptions): Promise<fullPipelineResult> {
     const { request, bgmPath, skipPreview, onProgress, outputDir } = option;
 
@@ -38,7 +39,7 @@ export async function runFullPipeline(option: orchestratorOptions): Promise<full
     const logProgress = (phase: pipelinePhase, progress: number, msg: string) => {
         onProgress?.({ phase, progress, message: msg });
         timing[phase] = Date.now() - startTime;
-    }
+    };
     mkdirSync(workDir, { recursive: true });
 
     let script: videoScript;
@@ -60,39 +61,22 @@ export async function runFullPipeline(option: orchestratorOptions): Promise<full
         timing["script_generation"] = Date.now() - phaseStart;
 
         phaseStart = Date.now();
-        logProgress("estimate_duration", 10, "Estimating duration")
-        const estimateDuration = estimateDuration(script); // Tinh thoi gian tam thoi
-        if (estimateDuration > request.targetDurationSec * 1.5) {
-            throw new Error(`estimate duration too long, try again`);
+        logProgress("estimate_duration", 10, "Estimating duration");
+        const estimated = estimateDuration(script, { language: request.language });
+        if (estimated.totalDurationSec > request.targetDurationSec * 1.5) {
+            throw new Error(`Estimated duration (${estimated.totalDurationSec}s) exceeds target (${request.targetDurationSec}s) by more than 50%`);
         }
+        timing["estimate_duration"] = Date.now() - phaseStart;
 
-        phaseStart = Date.now();
-        const tempAssembly = await assembleHTML(script, estimateDuration, preset.width, preset.height, workDir, (msg) => {
-            logProgress("html_assembly", 20, msg);
-        });
-        timing["html-assembly"] = Date.now() - phaseStart;
-
-
-        phaseStart = Date.now();
-        const previewResult = await generatePreview(tempAssembly.htmlPath, estimateDuration, script.scence.map(s => s.id), preset.width, preset.height, workDir, (msg) => {
-            logProgress("html_assembly", 30, msg);
-        });
-        timing["html-assembly"] = Date.now() - phaseStart;
-
-        // user accepted
-        // phase 5: audio sysnthesis
-        // phase 6: re-assemble html with actual duration
-        // phase 7: render video
-        // phase 8: mux final mp4
 
         return {
             jobId,
             workDir,
             videoPath: join(workDir, 'final_video.mp4'),
-            durationSec: estimateDuration,
+            durationSec: estimated.totalDurationSec,
             scences: script.scenes,
             resolution: `${preset.width}x${preset.height}`,
-            preview: previewResult,
+            preview: previeResult,
             timing: timing,
         };
     } catch (err) {
@@ -100,3 +84,4 @@ export async function runFullPipeline(option: orchestratorOptions): Promise<full
         throw err;
     }
 }
+
