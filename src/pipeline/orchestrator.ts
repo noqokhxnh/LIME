@@ -5,6 +5,7 @@ import { videoPreset } from "@/config";
 import { videoRequest, pipelineResult, pipelineProgess, progressCallback, pipelinePhase, videoScript } from "@/llm/schema";
 import { generateScript } from "./scriptGenerator";
 import { estimateDuration } from "./estimateDuration";
+import { assembleHTML } from "./asembleHml";
 
 export interface orchestratorOptions {
     request: videoRequest;
@@ -68,6 +69,18 @@ export async function runFullPipeline(option: orchestratorOptions): Promise<full
         }
         timing["estimate_duration"] = Date.now() - phaseStart;
 
+        // phase 3: assemble html tam thoi de preview
+        phaseStart = Date.now();
+        logProgress("html_assembly", 20, "Assembling temporary HTML bundle");
+        const tempAssembly = await assembleHTML(
+            script,
+            estimated.sceneDurations,
+            preset.width,
+            preset.height,
+            workDir,
+            (msg) => logProgress("html_assembly", 25, msg)
+        );
+        timing["html_assembly"] = Date.now() - phaseStart;
 
         return {
             jobId,
@@ -76,7 +89,6 @@ export async function runFullPipeline(option: orchestratorOptions): Promise<full
             durationSec: estimated.totalDurationSec,
             scences: script.scenes,
             resolution: `${preset.width}x${preset.height}`,
-            preview: previeResult,
             timing: timing,
         };
     } catch (err) {
@@ -84,4 +96,5 @@ export async function runFullPipeline(option: orchestratorOptions): Promise<full
         throw err;
     }
 }
+
 
