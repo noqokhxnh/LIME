@@ -49,3 +49,39 @@ export function getConfig(): Config {
     }
     return _config;
 }
+
+
+export type videoPreset = {
+    name: string;
+    width: number;
+    height: number;
+    label: string;
+};
+
+export const videoPreset: Record<string, videoPreset> = {
+    "16:9": {
+        name: "16:9",
+        width: 1920,
+        height: 1080,
+        label: "16:9",
+    },
+    "9:16": {
+        name: "9:16",
+        width: 1080,
+        height: 1920,
+        label: "9:16",
+    },
+    "4:3": {
+        name: "4:3",
+        width: 1440,
+        height: 1920,
+        label: "4:3",
+    },
+    "1:1": {
+        name: "1:1",
+        width: 1920,
+        height: 1920,
+        label: "1:1",
+    },
+
+};
