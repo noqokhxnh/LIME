@@ -1,6 +1,8 @@
+import { execFile as execFileCb } from "node:child_process";
 import { createHash, randomBytes } from "node:crypto";
 import { copyFileSync, existsSync, mkdirSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
+import { promisify } from "node:util";
 import { v4 as uuidv4 } from "uuid";
 import ffmpeg from "fluent-ffmpeg";
 import { Config, getConfig } from "@/config";
@@ -21,8 +23,7 @@ export interface TTSClient {
 const EDGE_TTS_WS_URL =
     "wss://speech.platform.bing.com/consumer/speech/synthesize/readaloud/edge/v1";
 const EDGE_TTS_CLIENT_TOKEN = "6A5AA1D4EAFF4E9FB37E23D68491D6F4";
-const EDGE_TTS_VERSION = "1-130.0.2849.68";
-const EDGE_TTS_OUTPUT_FORMAT = "audio-24khz-48kbitrate-mono-mp3";
+const EDGE_TTS_VERSION = "1-143.0.3650.75";
 
 const DEFAULT_EDGE_VOICES: Record<string, string> = {
     vi: "vi-VN-HoaiMyNeural",
@@ -35,23 +36,73 @@ const DEFAULT_EDGE_VOICES: Record<string, string> = {
     es: "es-ES-ElviraNeural",
 };
 
-// Edge TTS yêu cầu token Sec-MS-GEC: base64(sha256(dateUTC + roundedTicks + salt)) + salt
+// Edge TTS token Sec-MS-GEC (thuật toán mới từ 2024): Windows file time epoch
+// (1601-01-01), làm tròn xuống 5 phút, đơn vị 100ns, hash sha256 hex viết hoa, không salt.
+// Số ~1.3e17 vượt quá độ chính xác của Number nên dùng BigInt.
 function generateSecMsGecToken(): string {
-    const ticks = Math.floor(Date.now() / 1000);
-    const roundedTicks = Math.floor(ticks / 300) * 300;
-    const salt = randomBytes(5).toString("hex");
-    const input = `${new Date(ticks * 1000).toUTCString()}${roundedTicks}${salt}`;
-    const hash = createHash("sha256").update(input).digest("base64");
-    return `${hash}${salt}`;
+    const ticks = Math.floor(Date.now() / 1000) + 11644473600;
+    const roundedTicks = BigInt(ticks) - (BigInt(ticks) % 300n);
+    const input = `${roundedTicks * 10_000_000n}${EDGE_TTS_CLIENT_TOKEN}`;
+    return createHash("sha256").update(input).digest("hex").toUpperCase();
 }
 
-function escapeXml(text: string): string {
+// Service không hỗ trợ một số control char (đặc biệt vertical tab từ text OCR) — thay bằng space
+function sanitizeXmlText(text: string): string {
     return text
+        .split("")
+        .map((c) => {
+            const code = c.charCodeAt(0);
+            return code <= 8 || (code >= 11 && code <= 12) || (code >= 14 && code <= 31) ? " " : c;
+        })
+        .join("")
         .replace(/&/g, "&amp;")
         .replace(/</g, "&lt;")
-        .replace(/>/g, "&gt;")
-        .replace(/"/g, "&quot;")
-        .replace(/'/g, "&apos;");
+        .replace(/>/g, "&gt;");
+}
+
+function dateToString(): string {
+    const d = new Date();
+    const days = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
+    const months = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
+    const p = (n: number) => String(n).padStart(2, "0");
+    return `${days[d.getUTCDay()]} ${months[d.getUTCMonth()]} ${p(d.getUTCDate())} ${d.getUTCFullYear()} ${p(d.getUTCHours())}:${p(d.getUTCMinutes())}:${p(d.getUTCSeconds())} GMT+0000 (Coordinated Universal Time)`;
+}
+
+// Mọi frame gửi tới service đều là text frame dạng headers \r\n\r\n body
+function buildSpeechConfigFrame(): string {
+    return (
+        `X-Timestamp:${dateToString()}\r\n` +
+        "Content-Type:application/json; charset=utf-8\r\n" +
+        "Path:speech.config\r\n\r\n" +
+        '{"context":{"synthesis":{"audio":{"metadataoptions":{"sentenceBoundaryEnabled":"true","wordBoundaryEnabled":"false"},"outputFormat":"audio-24khz-48kbitrate-mono-mp3"}}}}\r\n'
+    );
+}
+
+function buildSsmlFrame(text: string, voice: string): string {
+    return (
+        `X-RequestId:${uuidv4()}\r\n` +
+        "Content-Type:application/ssml+xml\r\n" +
+        `X-Timestamp:${dateToString()}Z\r\n` +
+        "Path:ssml\r\n\r\n" +
+        `<speak version='1.0' xmlns='http://www.w3.org/2001/10/synthesis' xml:lang='en-US'>` +
+        `<voice name='${voice}'><prosody pitch='+0Hz' rate='+0%' volume='+0%'>${sanitizeXmlText(text)}</prosody></voice></speak>`
+    );
+}
+
+// Frame nhận về (text) cũng dạng headers \r\n\r\n body, Path: turn.start/response/audio.metadata/turn.end
+function parseFrameHeaders(frame: string): { headers: Record<string, string>; body: string } {
+    const sepIndex = frame.indexOf("\r\n\r\n");
+    if (sepIndex === -1) {
+        return { headers: {}, body: frame };
+    }
+    const headers: Record<string, string> = {};
+    for (const line of frame.slice(0, sepIndex).split("\r\n")) {
+        const colon = line.indexOf(":");
+        if (colon > 0) {
+            headers[line.slice(0, colon).toLowerCase()] = line.slice(colon + 1);
+        }
+    }
+    return { headers, body: frame.slice(sepIndex + 4) };
 }
 
 function looksLikeEdgeVoice(name: string): boolean {
@@ -61,14 +112,6 @@ function looksLikeEdgeVoice(name: string): boolean {
 function resolveEdgeVoice(configured: string | undefined, language: string): string {
     if (configured && looksLikeEdgeVoice(configured)) return configured;
     return DEFAULT_EDGE_VOICES[language.toLowerCase()] ?? DEFAULT_EDGE_VOICES["en"];
-}
-
-function buildSsml(text: string, voice: string): string {
-    const language = voice.split("-").slice(0, 2).join("-");
-    return (
-        `<speak version='1.0' xmlns='http://www.w3.org/2001/10/synthesis' xml:lang='${language}'>` +
-        `<voice name='${voice}'><prosody pitch='+0Hz' rate='+0%' volume='+0%'>${escapeXml(text)}</prosody></voice></speak>`
-    );
 }
 
 // Node's global WebSocket accepts a { headers } option, but the DOM lib type doesn't — type it locally
@@ -98,21 +141,26 @@ class EdgeTTSClient implements TTSClient {
         options?: { voice?: string; language?: string; signal?: AbortSignal }
     ): Promise<void> {
         const voice = resolveEdgeVoice(options?.voice ?? this.config.TTS_Voice, options?.language ?? "vi");
-        const connectionId = uuidv4();
+        const connectionId = uuidv4().replace(/-/g, "");
         const url =
             `${EDGE_TTS_WS_URL}?TrustedClientToken=${EDGE_TTS_CLIENT_TOKEN}` +
+            `&ConnectionId=${connectionId}` +
             `&Sec-MS-GEC=${generateSecMsGecToken()}` +
-            `&Sec-MS-GEC-Version=${EDGE_TTS_VERSION}` +
-            `&ConnectionId=${connectionId}`;
+            `&Sec-MS-GEC-Version=${EDGE_TTS_VERSION}`;
 
         const chunks: Buffer[] = [];
         await new Promise<void>((resolve, reject) => {
             let settled = false;
             const ws = new EdgeWebSocketImpl(url, {
                 headers: {
+                    Pragma: "no-cache",
+                    "Cache-Control": "no-cache",
                     Origin: "chrome-extension://jdiccldimpdaibmpdkjnbmckianbfold",
                     "User-Agent":
-                        "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/130.0.0.0 Safari/537.36 Edg/130.0.0.0",
+                        "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/143.0.0.0 Safari/537.36 Edg/143.0.0.0",
+                    "Accept-Encoding": "gzip, deflate, br, zstd",
+                    "Accept-Language": "en-US,en;q=0.9",
+                    Cookie: `muid=${randomBytes(16).toString("hex").toUpperCase()};`,
                 },
             });
             ws.binaryType = "arraybuffer";
@@ -126,53 +174,31 @@ class EdgeTTSClient implements TTSClient {
             }, 60_000);
 
             ws.onopen = () => {
-                ws.send(
-                    JSON.stringify({
-                        context: {
-                            synthesis: {
-                                audio: {
-                                    metadataoptions: {
-                                        sentenceBoundaryEnabled: "false",
-                                        wordBoundaryEnabled: "false",
-                                    },
-                                    outputFormat: EDGE_TTS_OUTPUT_FORMAT,
-                                },
-                            },
-                        },
-                    })
-                );
-                ws.send(buildSsml(text, voice));
+                ws.send(buildSpeechConfigFrame());
+                ws.send(buildSsmlFrame(text, voice));
             };
 
             ws.onmessage = (event) => {
                 const data = event.data;
                 if (typeof data === "string") {
-                    try {
-                        const msg = JSON.parse(data);
-                        if (msg?.type === "turn.end") {
-                            settled = true;
-                            clearTimeout(timeout);
-                            ws.close();
-                            resolve();
-                        }
-                    } catch {
-                        // ignore malformed control messages
+                    const { headers } = parseFrameHeaders(data);
+                    if (headers["path"] === "turn.end") {
+                        settled = true;
+                        clearTimeout(timeout);
+                        ws.close();
+                        resolve();
                     }
                     return;
                 }
                 if (data instanceof ArrayBuffer) {
                     const buf = Buffer.from(data);
                     if (buf.length < 2) return;
-                    const headerLength = buf.readUInt16LE(0);
+                    // 2 byte đầu là độ dài header (big-endian); header đã gồm cả CRLF cuối,
+                    // nên payload bắt đầu ngay tại 2 + headerLength (MP3 sync 0xFF ở đây)
+                    const headerLength = buf.readUInt16BE(0);
                     const header = buf.subarray(2, 2 + headerLength).toString("utf-8");
-                    try {
-                        const meta = JSON.parse(header);
-                        if (meta?.type === "audio") {
-                            chunks.push(buf.subarray(2 + headerLength));
-                        }
-                    } catch {
-                        // ignore malformed audio headers
-                    }
+                    if (!header.includes("Path:audio")) return;
+                    chunks.push(buf.subarray(2 + headerLength));
                 }
             };
 
@@ -397,7 +423,7 @@ function concatAudios(inputFiles: string[], outputPath: string): Promise<void> {
         command
             .complexFilter(filters)
             .outputOptions(["-map", "[out]", "-c:a", "libmp3lame", "-b:a", "128k", "-ar", "44100"])
-            .on("end", resolve)
+            .on("end", () => resolve())
             .on("error", reject)
             .save(outputPath);
     });
@@ -407,29 +433,33 @@ function mixBgm(voicePath: string, bgmPath: string, outputPath: string, volume: 
     return new Promise((resolve, reject) => {
         const command = ffmpeg().input(voicePath);
         // stream_loop -1 giúp nhạc nền ngắn hơn lời đọc vẫn kéo dài đến hết video
-        command.inputOptions(["-stream_loop", "-1"]).input(bgmPath);
+        command.input(bgmPath).inputOptions(["-stream_loop", "-1"]);
         command
             .complexFilter([
                 `[1:a]volume=${volume}[bgm]`,
                 `[0:a][bgm]amix=inputs=2:duration=first:dropout_transition=0:normalize=0[out]`,
             ])
             .outputOptions(["-map", "[out]", "-c:a", "libmp3lame", "-b:a", "128k"])
-            .on("end", resolve)
+            .on("end", () => resolve())
             .on("error", reject)
             .save(outputPath);
     });
 }
 
-function generateSilence(outputPath: string, durationSec: number): Promise<void> {
-    return new Promise((resolve, reject) => {
-        ffmpeg()
-            .input("anullsrc=r=44100:cl=stereo")
-            .inputOptions(["-f", "lavfi", "-t", durationSec.toFixed(2)])
-            .outputOptions(["-c:a", "libmp3lame", "-b:a", "128k"])
-            .on("end", resolve)
-            .on("error", reject)
-            .save(outputPath);
-    });
+const execFile = promisify(execFileCb);
+
+// fluent-ffmpeg 2.x không nhận dạng format lavfi trên FFmpeg 8 (parser -formats
+// không hiểu cột cờ "device" mới) nên chạy ffmpeg trực tiếp cho trường hợp này
+async function generateSilence(outputPath: string, durationSec: number): Promise<void> {
+    await execFile("ffmpeg", [
+        "-y",
+        "-f", "lavfi",
+        "-i", "anullsrc=r=44100:cl=stereo",
+        "-t", durationSec.toFixed(2),
+        "-c:a", "libmp3lame",
+        "-b:a", "128k",
+        outputPath,
+    ]);
 }
 
 // ---------------------------------------------------------------- Main
