@@ -76,8 +76,10 @@ export interface renderOptions {
 
 export type pipelinePhase =
     | 'script_generation'
+    | 'estimate_duration'
     | 'audio_synthesis'
     | 'code_assembly'
+    | 'html_assembly'
     | 'preview'
     | 'render'
     | 'mux';
