@@ -2,11 +2,12 @@ import { existsSync, mkdirSync, rmSync } from "node:fs";
 import { join } from "node:path";
 import { v4 } from "uuid";
 import { videoPreset } from "@/config";
-import { videoRequest, pipelineResult, pipelineProgess, progressCallback, pipelinePhase, videoScript } from "@/llm/schema";
+import { videoRequest, pipelineResult, pipelineProgess, progressCallback, pipelinePhase, videoScript, AudioResult } from "@/llm/schema";
 import { generateScript } from "./scriptGenerator";
 import { estimateDuration } from "./estimateDuration";
 import { assembleHTML } from "./asembleHml";
 import { generatePreviews, PreviewResult } from "./preview";
+import { synthesizeAudio } from "./audioSysnthesis";
 
 export interface orchestratorOptions {
     request: videoRequest;
@@ -21,6 +22,8 @@ export interface fullPipelineResult extends pipelineResult {
     jobId: string;
     workDir: string;
     preview?: PreviewResult;
+    audio: AudioResult;
+    finalHtmlPath: string;
     timing: Record<string, number>;
 }
 
@@ -112,15 +115,45 @@ export async function runFullPipeline(option: orchestratorOptions): Promise<full
             timing["preview"] = Date.now() - phaseStart;
         }
 
+        // phase 5: audio synthesis — TTS từng scene, duration đo bằng ffprobe là nguồn sự thật
+        phaseStart = Date.now();
+        logProgress("audio_synthesis", 45, "Synthesizing voice-over audio");
+        const audio = await synthesizeAudio({
+            script,
+            outputDir: workDir,
+            bgmPath,
+            language: request.language,
+            onProgress: (msg, prog) => {
+                const scaledProg = prog !== undefined ? Math.round(45 + prog * 0.2) : 50;
+                logProgress("audio_synthesis", scaledProg, msg);
+            },
+        });
+        timing["audio_synthesis"] = Date.now() - phaseStart;
+
+        // phase 6: re-assemble HTML với duration thực từ audio 
+        phaseStart = Date.now();
+        logProgress("html_assembly", 70, "Re-assembling HTML with actual durations");
+        await assembleHTML(
+            script,
+            audio.scencesDuration,
+            preset.width,
+            preset.height,
+            workDir,
+            (msg) => logProgress("html_assembly", 75, msg)
+        );
+        timing["html_assembly"] = Date.now() - phaseStart;
+
         return {
             jobId,
             workDir,
             videoPath: join(workDir, "final_video.mp4"),
-            durationSec: estimated.totalDurationSec,
+            durationSec: audio.totalDurationSec,
             scences: script.scenes,
             resolution: `${preset.width}x${preset.height}`,
             timing,
             preview: previews,
+            audio,
+            finalHtmlPath: join(workDir, "index.html"),
         };
     } catch (err: any) {
         logProgress("script_generation", 100, `Pipeline failed: ${err.message}`);
