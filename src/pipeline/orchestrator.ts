@@ -6,9 +6,11 @@ import { videoRequest, pipelineResult, pipelineProgess, progressCallback, pipeli
 import { generateScript } from "./scriptGenerator";
 import { estimateDuration } from "./estimateDuration";
 import { assembleHTML } from "./asembleHml";
+import { generatePreviews, PreviewResult } from "./preview";
 
 export interface orchestratorOptions {
     request: videoRequest;
+    script?: videoScript;
     bgmPath?: string;
     skipPreview?: boolean;
     onProgress?: progressCallback;
@@ -18,15 +20,15 @@ export interface orchestratorOptions {
 export interface fullPipelineResult extends pipelineResult {
     jobId: string;
     workDir: string;
-    preview?: any;
+    preview?: PreviewResult;
     timing: Record<string, number>;
 }
 
 export async function runFullPipeline(option: orchestratorOptions): Promise<fullPipelineResult> {
-    const { request, bgmPath, skipPreview, onProgress, outputDir } = option;
+    const { request, script: inputScript, bgmPath, skipPreview, onProgress, outputDir } = option;
 
     const jobId = v4();
-    const workDir = outputDir ?? join(process.cwd(), "temp", `job-${jobId}`);
+    const workDir = outputDir ?? join(process.cwd(), "tmp", `job-${jobId}`);
 
     if (existsSync(workDir)) {
         rmSync(workDir, { recursive: true, force: true });
@@ -55,17 +57,25 @@ export async function runFullPipeline(option: orchestratorOptions): Promise<full
     // phase 8: mux final mp4
     try {
         let phaseStart = Date.now();
-        logProgress("script_generation", 0, "Generating script");
-        script = await generateScript(request, (msg: string) => {
-            logProgress("script_generation", 10, msg);
-        });
-        timing["script_generation"] = Date.now() - phaseStart;
+        if (inputScript) {
+            logProgress("script_generation", 10, "Sử dụng kịch bản đã có sẵn");
+            script = inputScript;
+            timing["script_generation"] = 0;
+        } else {
+            logProgress("script_generation", 0, "Generating script");
+            script = await generateScript(request, (msg: string) => {
+                logProgress("script_generation", 10, msg);
+            });
+            timing["script_generation"] = Date.now() - phaseStart;
+        }
 
         phaseStart = Date.now();
-        logProgress("estimate_duration", 10, "Estimating duration");
+        logProgress("estimate_duration", 15, "Estimating duration");
         const estimated = estimateDuration(script, { language: request.language });
         if (estimated.totalDurationSec > request.targetDurationSec * 1.5) {
-            throw new Error(`Estimated duration (${estimated.totalDurationSec}s) exceeds target (${request.targetDurationSec}s) by more than 50%`);
+            throw new Error(
+                `Estimated duration (${estimated.totalDurationSec}s) exceeds target (${request.targetDurationSec}s) by more than 50%`
+            );
         }
         timing["estimate_duration"] = Date.now() - phaseStart;
 
@@ -82,19 +92,38 @@ export async function runFullPipeline(option: orchestratorOptions): Promise<full
         );
         timing["html_assembly"] = Date.now() - phaseStart;
 
+        // phase 4: generate preview thumbnails
+        let previews: PreviewResult | undefined;
+        if (!skipPreview) {
+            phaseStart = Date.now();
+            logProgress("preview", 30, "Generating scene preview screenshots");
+            previews = await generatePreviews({
+                htmlPath: tempAssembly.htmlPath,
+                script,
+                durations: estimated.sceneDurations,
+                width: preset.width,
+                height: preset.height,
+                outputDir: join(workDir, "previews"),
+                onProgress: (msg, prog) => {
+                    const scaledProg = prog !== undefined ? Math.round(30 + (prog * 0.15)) : 35;
+                    logProgress("preview", scaledProg, msg);
+                },
+            });
+            timing["preview"] = Date.now() - phaseStart;
+        }
+
         return {
             jobId,
             workDir,
-            videoPath: join(workDir, 'final_video.mp4'),
+            videoPath: join(workDir, "final_video.mp4"),
             durationSec: estimated.totalDurationSec,
             scences: script.scenes,
             resolution: `${preset.width}x${preset.height}`,
-            timing: timing,
+            timing,
+            preview: previews,
         };
-    } catch (err) {
-        logProgress("script_generation", 100, "Failed to generate script");
+    } catch (err: any) {
+        logProgress("script_generation", 100, `Pipeline failed: ${err.message}`);
         throw err;
     }
 }
-
-
