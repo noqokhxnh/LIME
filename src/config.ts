@@ -29,6 +29,7 @@ const envSchema = z.object({
     Elevenlabs_Voice_ID: z.string().optional(),
     OpenAI_TTS_Model: z.string().optional(),
     Google_TTS_Model: z.string().optional(),
+    Google_TTS_APIKEY: z.string().optional(),
 
     Default_FPS: z.coerce.number().default(30),
     Default_Width: z.coerce.number().default(1920),
