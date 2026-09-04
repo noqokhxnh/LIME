@@ -47,6 +47,4 @@ jobs:
         run: npm run build
 
       - name: Run Test Suite
-        env:
-          NODE_ENV: test
         run: npm run test:unit
