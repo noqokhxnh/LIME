@@ -16,16 +16,16 @@ export interface assembleResult {
     htmlContent: string;
 }
 
-const DEFAULT_TRANSPARENT_GIF = "data:image/gif;base64,R0lGODlhAQABAIAAAAAAAP///yH5BAEAAAAALAAAAAABAAEAAAIBRAA7";
+export const DEFAULT_TRANSPARENT_GIF = "data:image/gif;base64,R0lGODlhAQABAIAAAAAAAP///yH5BAEAAAAALAAAAAABAAEAAAIBRAA7";
 
-const GSAP_CDN = "https://cdnjs.cloudflare.com/ajax/libs/gsap/3.12.5/gsap.min.js";
-const GSAP_TEXT_PLUGIN_CDN = "https://cdnjs.cloudflare.com/ajax/libs/gsap/3.12.5/TextPlugin.min.js";
-const GSAP_MOTION_PATH_PLUGIN_CDN = "https://cdnjs.cloudflare.com/ajax/libs/gsap/3.12.5/MotionPathPlugin.min.js";
+export const GSAP_CDN = "https://cdnjs.cloudflare.com/ajax/libs/gsap/3.12.5/gsap.min.js";
+export const GSAP_TEXT_PLUGIN_CDN = "https://cdnjs.cloudflare.com/ajax/libs/gsap/3.12.5/TextPlugin.min.js";
+export const GSAP_MOTION_PATH_PLUGIN_CDN = "https://cdnjs.cloudflare.com/ajax/libs/gsap/3.12.5/MotionPathPlugin.min.js";
 
 /**
  * Stickman va FX helpers ho tro ve nhan vat va hieu ung comic
  */
-const STICKMAN_HELPERS_JS = `
+export const STICKMAN_HELPERS_JS = `
 window.__sm = function(opts) {
     opts = opts || {};
     var scale = opts.scale || 1;
@@ -88,7 +88,7 @@ window.__fx = function(type, opts) {
 /**
  * Replace placeholders {{SCENE_DURATION}}, {{SCENE_IMAGE}} trong tung scene
  */
-function processSceneCode(
+export function processSceneCode(
     scene: scene,
     duration: number,
     imageUrls: string[] = []

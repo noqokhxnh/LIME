@@ -84,7 +84,7 @@ export function calculateSceneTimestamps(
 /**
  * Khởi tạo trình duyệt Playwright Chromium tối ưu cho chụp ảnh preview
  */
-async function launchPreviewBrowser(): Promise<Browser> {
+export async function launchPreviewBrowser(): Promise<Browser> {
     return await chromium.launch({
         headless: true,
         args: [
@@ -103,7 +103,7 @@ async function launchPreviewBrowser(): Promise<Browser> {
 /**
  * Điều hướng trang HTML đã đóng gói và chờ đến khi GSAP timeline sẵn sàng (__ready = true)
  */
-async function loadAndPreparePage(
+export async function loadAndPreparePage(
     page: Page,
     htmlPath: string,
     width: number,
@@ -148,7 +148,7 @@ async function loadAndPreparePage(
 /**
  * Tua timeline đến mốc thời gian chỉ định và chờ render
  */
-async function seekToTimestamp(page: Page, timeSec: number): Promise<void> {
+export async function seekToTimestamp(page: Page, timeSec: number): Promise<void> {
     await page.evaluate((targetTime) => {
         const win = window as unknown as {
             __seekTo?: (t: number) => void;

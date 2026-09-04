@@ -30,7 +30,7 @@ const DEFAULT_MIN_SCENE_DURATION_SEC = 2.5;
 const DEFAULT_SCENE_PADDING_SEC = 0.6;
 
 
-function countEffectiveWords(text: string, language: string): number {
+export function countEffectiveWords(text: string, language: string): number {
     const trimmed = text.trim();
     if (!trimmed) return 0;
 
@@ -60,7 +60,7 @@ function countEffectiveWords(text: string, language: string): number {
     return wordCount;
 }
 
-function calculatePunctuationPauseSec(text: string): number {
+export function calculatePunctuationPauseSec(text: string): number {
     let pauseSec = 0;
 
 
