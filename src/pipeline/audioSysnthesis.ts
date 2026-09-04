@@ -39,15 +39,15 @@ const DEFAULT_EDGE_VOICES: Record<string, string> = {
 // Edge TTS token Sec-MS-GEC (thuật toán mới từ 2024): Windows file time epoch
 // (1601-01-01), làm tròn xuống 5 phút, đơn vị 100ns, hash sha256 hex viết hoa, không salt.
 // Số ~1.3e17 vượt quá độ chính xác của Number nên dùng BigInt.
-function generateSecMsGecToken(): string {
-    const ticks = Math.floor(Date.now() / 1000) + 11644473600;
+export function generateSecMsGecToken(timestampMs: number = Date.now()): string {
+    const ticks = Math.floor(timestampMs / 1000) + 11644473600;
     const roundedTicks = BigInt(ticks) - (BigInt(ticks) % 300n);
     const input = `${roundedTicks * 10_000_000n}${EDGE_TTS_CLIENT_TOKEN}`;
     return createHash("sha256").update(input).digest("hex").toUpperCase();
 }
 
 // Service không hỗ trợ một số control char (đặc biệt vertical tab từ text OCR) — thay bằng space
-function sanitizeXmlText(text: string): string {
+export function sanitizeXmlText(text: string): string {
     return text
         .split("")
         .map((c) => {
@@ -69,7 +69,7 @@ function dateToString(): string {
 }
 
 // Mọi frame gửi tới service đều là text frame dạng headers \r\n\r\n body
-function buildSpeechConfigFrame(): string {
+export function buildSpeechConfigFrame(): string {
     return (
         `X-Timestamp:${dateToString()}\r\n` +
         "Content-Type:application/json; charset=utf-8\r\n" +
@@ -78,7 +78,7 @@ function buildSpeechConfigFrame(): string {
     );
 }
 
-function buildSsmlFrame(text: string, voice: string): string {
+export function buildSsmlFrame(text: string, voice: string): string {
     return (
         `X-RequestId:${uuidv4()}\r\n` +
         "Content-Type:application/ssml+xml\r\n" +
@@ -90,7 +90,7 @@ function buildSsmlFrame(text: string, voice: string): string {
 }
 
 // Frame nhận về (text) cũng dạng headers \r\n\r\n body, Path: turn.start/response/audio.metadata/turn.end
-function parseFrameHeaders(frame: string): { headers: Record<string, string>; body: string } {
+export function parseFrameHeaders(frame: string): { headers: Record<string, string>; body: string } {
     const sepIndex = frame.indexOf("\r\n\r\n");
     if (sepIndex === -1) {
         return { headers: {}, body: frame };
@@ -105,11 +105,11 @@ function parseFrameHeaders(frame: string): { headers: Record<string, string>; bo
     return { headers, body: frame.slice(sepIndex + 4) };
 }
 
-function looksLikeEdgeVoice(name: string): boolean {
+export function looksLikeEdgeVoice(name: string): boolean {
     return /^[a-z]{2,3}-[A-Z]{2,3}-[A-Za-z0-9]+Neural$/i.test(name);
 }
 
-function resolveEdgeVoice(configured: string | undefined, language: string): string {
+export function resolveEdgeVoice(configured: string | undefined, language: string): string {
     if (configured && looksLikeEdgeVoice(configured)) return configured;
     return DEFAULT_EDGE_VOICES[language.toLowerCase()] ?? DEFAULT_EDGE_VOICES["en"];
 }
@@ -130,7 +130,7 @@ const EdgeWebSocketImpl = globalThis.WebSocket as unknown as new (
     options?: { headers?: Record<string, string> }
 ) => EdgeWebSocket;
 
-class EdgeTTSClient implements TTSClient {
+export class EdgeTTSClient implements TTSClient {
     readonly provider = "edge";
 
     constructor(private readonly config: Config) {}
@@ -228,7 +228,7 @@ class EdgeTTSClient implements TTSClient {
 
 // ---------------------------------------------------------------- OpenAI TTS
 
-class OpenAITTSClient implements TTSClient {
+export class OpenAITTSClient implements TTSClient {
     readonly provider = "openai";
 
     constructor(private readonly config: Config) {}
@@ -276,7 +276,7 @@ const DEFAULT_GOOGLE_VOICES: Record<string, string> = {
     es: "es-ES-Standard-A",
 };
 
-class GoogleTTSClient implements TTSClient {
+export class GoogleTTSClient implements TTSClient {
     readonly provider = "google";
 
     constructor(private readonly config: Config) {}
@@ -323,7 +323,7 @@ class GoogleTTSClient implements TTSClient {
 
 // ---------------------------------------------------------------- ElevenLabs
 
-class ElevenLabsTTSClient implements TTSClient {
+export class ElevenLabsTTSClient implements TTSClient {
     readonly provider = "elevenlabs";
 
     constructor(private readonly config: Config) {}
@@ -364,6 +364,14 @@ class ElevenLabsTTSClient implements TTSClient {
 
 let _ttsClient: TTSClient | null = null;
 
+export function resetTTSClient(): void {
+    _ttsClient = null;
+}
+
+export function setTTSClient(client: TTSClient | null): void {
+    _ttsClient = client;
+}
+
 export function getTTSClient(): TTSClient {
     if (!_ttsClient) {
         const config = getConfig();
@@ -390,7 +398,7 @@ export function getTTSClient(): TTSClient {
 
 // ---------------------------------------------------------------- ffmpeg helpers
 
-function probeDuration(filePath: string): Promise<number> {
+export function probeDuration(filePath: string): Promise<number> {
     return new Promise((resolve, reject) => {
         ffmpeg.ffprobe(filePath, (err, metadata) => {
             if (err) {
@@ -402,7 +410,7 @@ function probeDuration(filePath: string): Promise<number> {
     });
 }
 
-function concatAudios(inputFiles: string[], outputPath: string): Promise<void> {
+export function concatAudios(inputFiles: string[], outputPath: string): Promise<void> {
     if (inputFiles.length === 1) {
         copyFileSync(inputFiles[0], outputPath);
         return Promise.resolve();
@@ -429,7 +437,7 @@ function concatAudios(inputFiles: string[], outputPath: string): Promise<void> {
     });
 }
 
-function mixBgm(voicePath: string, bgmPath: string, outputPath: string, volume: number): Promise<void> {
+export function mixBgm(voicePath: string, bgmPath: string, outputPath: string, volume: number): Promise<void> {
     return new Promise((resolve, reject) => {
         const command = ffmpeg().input(voicePath);
         // stream_loop -1 giúp nhạc nền ngắn hơn lời đọc vẫn kéo dài đến hết video
@@ -450,7 +458,7 @@ const execFile = promisify(execFileCb);
 
 // fluent-ffmpeg 2.x không nhận dạng format lavfi trên FFmpeg 8 (parser -formats
 // không hiểu cột cờ "device" mới) nên chạy ffmpeg trực tiếp cho trường hợp này
-async function generateSilence(outputPath: string, durationSec: number): Promise<void> {
+export async function generateSilence(outputPath: string, durationSec: number): Promise<void> {
     await execFile("ffmpeg", [
         "-y",
         "-f", "lavfi",

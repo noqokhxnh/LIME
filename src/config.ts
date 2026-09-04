@@ -39,6 +39,8 @@ const envSchema = z.object({
 
 export type Config = z.infer<typeof envSchema>;
 
+export { envSchema };
+
 let _config: Config | null = null;
 export function getConfig(): Config {
     if (!_config) {
@@ -49,6 +51,10 @@ export function getConfig(): Config {
         _config = result.data;
     }
     return _config;
+}
+
+export function resetConfig(): void {
+    _config = null;
 }
 
 
