@@ -16,7 +16,7 @@ const VIDEO_PRESETS: Record<string, string> = {
     '4:3': '1440x1080'
 };
 
-function buildUserPrompt(request: videoRequest, preset: string): string {
+export function buildUserPrompt(request: videoRequest, preset: string): string {
     return `Create a high-quality video script with the following requirements:
 Topic/Prompt: ${request.promt}
 Aspect Ratio: ${request.aspectRatio} (${preset})
@@ -26,6 +26,16 @@ Style: ${request.style}
 ${request.customStyle ? `Custom Style Instructions: ${request.customStyle}` : ''}
 
 Remember to output ONLY valid JSON matching the schema, with GSAP animation code included.`;
+}
+
+export function stripMarkdownJson(responseText: string): string {
+    let jsonText = responseText.trim();
+    if (jsonText.startsWith('```json')) {
+        jsonText = jsonText.replace(/^```json\n?/, '').replace(/\n?```$/, '');
+    } else if (jsonText.startsWith('```')) {
+        jsonText = jsonText.replace(/^```\n?/, '').replace(/\n?```$/, '');
+    }
+    return jsonText.trim();
 }
 
 export async function generateScript(
@@ -49,12 +59,7 @@ export async function generateScript(
 
             const responseText = await llm.generate(systemPrompt, promtToSend);
 
-            let jsonText = responseText;
-            if (jsonText.startsWith('```json')) {
-                jsonText = jsonText.replace(/^```json\n?/, '').replace(/\n?```$/, '');
-            } else if (jsonText.startsWith('```')) {
-                jsonText = jsonText.replace(/^```\n?/, '').replace(/\n?```$/, '');
-            }
+            const jsonText = stripMarkdownJson(responseText);
 
             const parsedData = JSON.parse(jsonText);
             const script = videoScriptSchema.parse(parsedData);

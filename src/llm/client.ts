@@ -5,7 +5,7 @@ export interface LLMClient {
     provider: string;
 }
 
-class OpenAIClient implements LLMClient {
+export class OpenAIClient implements LLMClient {
     readonly provider = 'openai';
     private apikey: string;
     private model: string;
@@ -44,7 +44,7 @@ class OpenAIClient implements LLMClient {
     }
 }
 
-class DeepSeekClient implements LLMClient {
+export class DeepSeekClient implements LLMClient {
     readonly provider = 'deepseek';
     private apikey: string;
     private model: string;
@@ -83,7 +83,7 @@ class DeepSeekClient implements LLMClient {
     }
 }
 
-class GeminiClient implements LLMClient {
+export class GeminiClient implements LLMClient {
     readonly provider = 'gemini';
     private apikey: string;
     private model: string;
@@ -121,7 +121,7 @@ class GeminiClient implements LLMClient {
     }
 }
 
-class ClaudeClient implements LLMClient {
+export class ClaudeClient implements LLMClient {
     readonly provider = 'claude';
     private apikey: string;
     private model: string;
@@ -161,6 +161,14 @@ class ClaudeClient implements LLMClient {
 }
 
 let _client: LLMClient | null = null;
+
+export function resetLLMClient(): void {
+    _client = null;
+}
+
+export function setLLMClient(client: LLMClient | null): void {
+    _client = client;
+}
 
 export function getLLMClient(): LLMClient {
     if (!_client) {
