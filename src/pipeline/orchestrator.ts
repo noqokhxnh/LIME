@@ -7,13 +7,15 @@ import { generateScript } from "./scriptGenerator";
 import { estimateDuration } from "./estimateDuration";
 import { assembleHTML } from "./asembleHml";
 import { generatePreviews, PreviewResult } from "./preview";
-import { synthesizeAudio } from "./audioSysnthesis";
+import { synthesizeAudio } from "./audioSysnthesis.js";
+import { renderVideo } from "./renderer.js";
 
 export interface orchestratorOptions {
     request: videoRequest;
     script?: videoScript;
     bgmPath?: string;
     skipPreview?: boolean;
+    skipRender?: boolean;
     onProgress?: progressCallback;
     outputDir?: string;
 }
@@ -143,10 +145,31 @@ export async function runFullPipeline(option: orchestratorOptions): Promise<full
         );
         timing["html_assembly"] = Date.now() - phaseStart;
 
+        // phase 7: render video frames & mux final MP4
+        const videoPath = join(workDir, "final_video.mp4");
+        if (!option.skipRender) {
+            phaseStart = Date.now();
+            logProgress("render", 80, "Rendering video frames and muxing MP4");
+            await renderVideo({
+                htmlPath: join(workDir, "index.html"),
+                audioPath: audio.mixAudioPath,
+                outputPath: videoPath,
+                width: preset.width,
+                height: preset.height,
+                fps,
+                durationSec: audio.totalDurationSec,
+                onProgress: (msg, pct) => {
+                    const scaled = pct !== undefined ? Math.round(80 + pct * 0.19) : 85;
+                    logProgress("render", scaled, msg);
+                },
+            });
+            timing["render"] = Date.now() - phaseStart;
+        }
+
         return {
             jobId,
             workDir,
-            videoPath: join(workDir, "final_video.mp4"),
+            videoPath,
             durationSec: audio.totalDurationSec,
             scences: script.scenes,
             resolution: `${preset.width}x${preset.height}`,
