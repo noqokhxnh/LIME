@@ -5,7 +5,7 @@ import { videoPreset } from "@/config";
 import { videoRequest, pipelineResult, pipelineProgess, progressCallback, pipelinePhase, videoScript, AudioResult } from "@/llm/schema";
 import { generateScript } from "./scriptGenerator";
 import { estimateDuration } from "./estimateDuration";
-import { assembleHTML } from "./asembleHml";
+import { assembleHTML } from "./assembleHtml.js";
 import { generatePreviews, PreviewResult } from "./preview";
 import { synthesizeAudio } from "./audioSysnthesis.js";
 import { renderVideo } from "./renderer.js";

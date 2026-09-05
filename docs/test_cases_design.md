@@ -18,7 +18,7 @@ Tài liệu này xác định chiến lược kiểm thử toàn diện, kiến 
   * Module LLM Client & Cơ chế Self-Correction Retry (`src/llm/client.ts`, `src/pipeline/scriptGenerator.ts`).
   * Thuật toán Ước lượng Thời lượng Giọng đọc (`src/pipeline/estimateDuration.ts`).
   * Hệ thống Tổng hợp Âm thanh TTS, Đo đạc ffprobe & Trộn nhạc nền FFmpeg (`src/pipeline/audioSysnthesis.ts`).
-  * Trình Đóng gói Mã nguồn HTML, CSS & GSAP Master Timeline (`src/pipeline/asembleHml.ts`).
+  * Trình Đóng gói Mã nguồn HTML, CSS & GSAP Master Timeline (`src/pipeline/assembleHtml.ts`).
   * Module Sinh Ảnh Xem Trước Thumbnail qua Playwright (`src/pipeline/preview.ts`).
   * Điều Phối Toàn Trình Pipeline Orchestrator (`src/pipeline/orchestrator.ts`).
   * API Server Fastify & Healthcheck Endpoint (`src/index.ts`).
@@ -313,8 +313,8 @@ endif
 | **REQ-TTS-01**: Tạo token Edge TTS `Sec-MS-GEC` & giao tiếp WebSocket | `src/pipeline/audioSysnthesis.ts` | AudioTestSuite | TC-TTS-001, TC-TTS-002, TC-TTS-003 | P0 (Blocker) |
 | **REQ-TTS-02**: Xử lý scene im lặng & đo đạc ffprobe chính xác | `src/pipeline/audioSysnthesis.ts` | AudioTestSuite | TC-TTS-004, TC-TTS-005 | P1 (Critical) |
 | **REQ-TTS-03**: Ghép nối âm thanh & trộn nhạc nền BGM | `src/pipeline/audioSysnthesis.ts` | AudioTestSuite | TC-TTS-006, TC-TTS-007, TC-TTS-008 | P1 (Critical) |
-| **REQ-ASM-01**: Thay thế biến placeholder & fallback ảnh trong suốt | `src/pipeline/asembleHml.ts` | AssemblerTestSuite | TC-ASM-001, TC-ASM-002, TC-ASM-003 | P0 (Blocker) |
-| **REQ-ASM-02**: Đóng gói GSAP Master Timeline & Helper APIs | `src/pipeline/asembleHml.ts` | AssemblerTestSuite | TC-ASM-004 to TC-ASM-007 | P0 (Blocker) |
+| **REQ-ASM-01**: Thay thế biến placeholder & fallback ảnh trong suốt | `src/pipeline/assembleHtml.ts` | AssemblerTestSuite | TC-ASM-001, TC-ASM-002, TC-ASM-003 | P0 (Blocker) |
+| **REQ-ASM-02**: Đóng gói GSAP Master Timeline & Helper APIs | `src/pipeline/assembleHtml.ts` | AssemblerTestSuite | TC-ASM-004 to TC-ASM-007 | P0 (Blocker) |
 | **REQ-PRV-01**: Playwright Chromium khởi tạo an toàn & chụp midpoint | `src/pipeline/preview.ts` | PreviewTestSuite | TC-PRV-001 to TC-PRV-006 | P1 (Critical) |
 | **REQ-ORC-01**: Điều phối toàn trình, quản lý thư mục tmp & timing | `src/pipeline/orchestrator.ts` | OrchestratorTestSuite | TC-ORC-001 to TC-ORC-006 | P0 (Blocker) |
 | **REQ-API-01**: Máy chủ Fastify khởi động, CORS & endpoint health | `src/index.ts` | APIServerTestSuite | TC-API-001, TC-API-002 | P2 (Normal) |
@@ -592,7 +592,7 @@ endif
 
 ---
 
-### 5.6 Module 6: Đóng Gói Mã Nguồn HTML & GSAP (`src/pipeline/asembleHml.ts`)
+### 5.6 Module 6: Đóng Gói Mã Nguồn HTML & GSAP (`src/pipeline/assembleHtml.ts`)
 
 #### Test Case TC-ASM-001: Thay thế placeholder `{{SCENE_DURATION}}` chuẩn xác
 * **Mục đích:** Đảm bảo toàn bộ các token thời lượng trong `jsCode` được thay bằng số thực tế.
@@ -839,7 +839,7 @@ describe("estimateDuration Module", () => {
 #### Mẫu 2: Integration Test cho Hợp Đồng HTML Renderer
 ```typescript
 import { describe, it, expect } from "vitest";
-import { assembleHTML } from "@/pipeline/asembleHml";
+import { assembleHTML } from "@/pipeline/assembleHtml";
 import { chromium } from "playwright";
 import { join } from "node:path";
 import { readFileSync, rmSync, existsSync } from "node:fs";
@@ -900,7 +900,7 @@ describe("assembleHTML & Renderer Contract", () => {
 
 1. **Độ Bao Phủ Mã Nguồn (Code Coverage Goals):**
    * Tất cả các file logic tính toán (`src/pipeline/estimateDuration.ts`, `src/llm/schema.ts`, `src/config.ts`): **Tối thiểu 90% Branch Coverage**.
-   * Các module pipeline (`src/pipeline/asembleHml.ts`, `src/pipeline/scriptGenerator.ts`): **Tối thiểu 85% Line Coverage**.
+   * Các module pipeline (`src/pipeline/assembleHtml.ts`, `src/pipeline/scriptGenerator.ts`): **Tối thiểu 85% Line Coverage**.
    * Toàn bộ dự án: **Tối thiểu 80% Overall Coverage**.
 2. **Tiêu Chí Đạt (Pass Criteria):**
    * 100% Test Case mức độ **P0 (Blocker)** và **P1 (Critical)** phải vượt qua (PASS).

@@ -163,14 +163,43 @@ export async function assembleHTML(
 
     const allScenesJs = processedScenes
         .map(
-            (s) => `
+            (s) => {
+                const safeId = s.id.replace(/[^a-zA-Z0-9_]/g, "_");
+                return `
 // --- Scene: ${s.id} (Duration: ${s.duration}s) ---
 try {
+    let __capturedSceneTl_${safeId} = null;
+    const __origTimeline_${safeId} = gsap.timeline;
+    gsap.timeline = function(...args) {
+        const tl = __origTimeline_${safeId}.apply(this, args);
+        if (!__capturedSceneTl_${safeId}) {
+            __capturedSceneTl_${safeId} = tl;
+        }
+        return tl;
+    };
+
 ${s.js}
+
+    gsap.timeline = __origTimeline_${safeId};
+    if (!window.__sceneTimelines['${s.id}']) {
+        if (__capturedSceneTl_${safeId}) {
+            window.__registerScene('${s.id}', __capturedSceneTl_${safeId}, ${s.duration});
+        } else {
+            const fallbackTl = gsap.timeline();
+            fallbackTl.to('#${s.id}', { opacity: 1, duration: 0.4 }, 0);
+            window.__registerScene('${s.id}', fallbackTl, ${s.duration});
+        }
+    }
 } catch (err) {
     console.error("[Scene Error] ${s.id}:", err);
+    if (!window.__sceneTimelines['${s.id}']) {
+        const fallbackTl = gsap.timeline();
+        fallbackTl.to('#${s.id}', { opacity: 1, duration: 0.4 }, 0);
+        window.__registerScene('${s.id}', fallbackTl, ${s.duration});
+    }
 }
-`
+`;
+            }
         )
         .join("\n");
 
@@ -255,9 +284,18 @@ ${allScenesHtml}
         window.__totalDuration = 0;
 
         window.__registerScene = function(sceneId, tl, duration) {
+            if (!tl) return;
+            if (window.__sceneTimelines[sceneId]) return;
             window.__sceneTimelines[sceneId] = tl;
             window.__sceneDurations[sceneId] = duration;
-            window.__masterTimeline.add(tl, window.__totalDuration);
+
+            const startTime = window.__totalDuration;
+            const endTime = startTime + duration;
+
+            window.__masterTimeline.set('#' + sceneId, { zIndex: 10 }, startTime);
+            window.__masterTimeline.add(tl, startTime);
+            window.__masterTimeline.set('#' + sceneId, { opacity: 0, zIndex: 1 }, endTime);
+
             window.__totalDuration += duration;
         };
 
@@ -270,6 +308,14 @@ ${allScenesHtml}
         window.__getTotalDuration = function() {
             return window.__totalDuration || window.__masterTimeline.duration();
         };
+
+        // Prevent accidental overwrite by script.globalSetupJs
+        try {
+            Object.defineProperty(window, '__registerScene', { writable: false, configurable: false });
+            Object.defineProperty(window, '__masterTimeline', { writable: false, configurable: false });
+            Object.defineProperty(window, '__seekTo', { writable: false, configurable: false });
+            Object.defineProperty(window, '__getTotalDuration', { writable: false, configurable: false });
+        } catch (e) {}
 
         // Kinetic text and utility helpers
         window.__splitTextChars = function(selector) {
@@ -299,8 +345,10 @@ ${allScenesHtml}
         // Stickman & FX Helpers Injection
         ${STICKMAN_HELPERS_JS}
 
-        // Global Setup JS from LLM Script
-        ${script.globalSetupJs || ""}
+        // Global Setup JS from LLM Script (sanitized)
+        ${(script.globalSetupJs || "")
+            .replace(/window\.__registerScene\s*=[^;]+;/g, "/* sanitized __registerScene */")
+            .replace(/window\.__masterTimeline\s*=[^;]+;/g, "/* sanitized __masterTimeline */")}
 
         // Scene Timeline Executions
         ${allScenesJs}

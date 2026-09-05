@@ -9,7 +9,7 @@ You MUST respond with a single valid JSON object matching this exact schema. DO 
     "title": "string - video title",
     "description": "string - video description",
     "globalStyles": "string - Global CSS (Google Fonts @import, CSS variables, resets, core utility classes)",
-    "globalSetupJs": "string - Global JS setup code initializing master GSAP timeline",
+    "globalSetupJs": "string - Optional helper JS (custom math/visual helpers). Master timeline is handled by system, DO NOT overwrite window.__registerScene or window.__masterTimeline",
     "scenes": [
         {
             "id": "scene_1",
@@ -88,6 +88,11 @@ Every scene `jsCode` MUST use the string placeholder `{{SCENE_DURATION}}` as the
   window.__registerScene('scene_1', tl, dur);
 })();
 ```
+
+**CRITICAL MOTION RULES:**
+- **NEVER** use `repeat: -1` in any GSAP tween or timeline. Any repeating motion must have a finite count (e.g. `repeat: 1`, `repeat: 2`) or use durations bounded by `ambientDur`. Infinite repeats corrupt timeline seeking and blackout subsequent scenes.
+- Every scene must end with `window.__registerScene('<scene_id>', tl, dur);`.
+- Do not redefine or overwrite `window.__registerScene`, `window.__masterTimeline`, or `window.__ready`.
 
 
 ## 2. VISUAL DESIGN & MOTION GRAPHICS STANDARDS
