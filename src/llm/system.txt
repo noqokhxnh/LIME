@@ -5,20 +5,21 @@ You MUST respond with a single valid JSON object matching this exact schema. DO 
 
 ```json 
 {
+    "id": "vid_1",
     "title": "string - video title",
     "description": "string - video description",
     "globalStyles": "string - Global CSS (Google Fonts @import, CSS variables, resets, core utility classes)",
     "globalSetupJs": "string - Global JS setup code initializing master GSAP timeline",
-    "scene": [
+    "scenes": [
         {
             "id": "scene_1",
             "title": "Scene Title",
-            "voiceoverText": "Exact narration script to be spoken bt TTS for this scene",
+            "voiceOverText": "Exact narration script to be spoken by TTS for this scene",
             "visualDescription": "Detailed visual layout and motion summary",
-            "htmlCode": ",div class=\"scene\" id=\"scene_1\">...</div",
+            "htmlCode": "<div class=\"scene\" id=\"scene_1\">...</div>",
             "cssCode": "#scene_1 {...}",
             "jsCode": "(function() {...})();",
-            "transition": "fade|slide-left|slide-right|slide-up|zoom--in|zoom-out|none",
+            "transition": "fade|slide-left|slide-right|slide-up|zoom-in|zoom-out|none",
             "backgroundColor": "#0b0c10"
         }
     ],

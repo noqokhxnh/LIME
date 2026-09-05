@@ -62,6 +62,21 @@ export async function generateScript(
             const jsonText = stripMarkdownJson(responseText);
 
             const parsedData = JSON.parse(jsonText);
+            if (parsedData && typeof parsedData === "object") {
+                if (!parsedData.id && typeof parsedData.title === "string") {
+                    parsedData.id = `script-${Date.now()}`;
+                }
+                if (!parsedData.scenes && Array.isArray(parsedData.scene)) {
+                    parsedData.scenes = parsedData.scene;
+                }
+                if (Array.isArray(parsedData.scenes)) {
+                    for (const s of parsedData.scenes) {
+                        if (s && typeof s === "object" && !s.voiceOverText && s.voiceoverText) {
+                            s.voiceOverText = s.voiceoverText;
+                        }
+                    }
+                }
+            }
             const script = videoScriptSchema.parse(parsedData);
 
             onProgress?.(`[Script] Attempt ${attempt}/3 - success`);
