@@ -13,7 +13,7 @@ import {
     previewScenes,
     generateScenePreviews,
 } from '../../src/pipeline/preview.js';
-import { assembleHTML } from '../../src/pipeline/asembleHml.js';
+import { assembleHTML } from '../../src/pipeline/assembleHtml.js';
 import { type scene, type videoScript, type durationMap } from '../../src/llm/schema.js';
 
 describe('Module 7: Playwright Thumbnail Preview (src/pipeline/preview.ts)', () => {

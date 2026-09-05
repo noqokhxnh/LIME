@@ -2,11 +2,59 @@ import { describe, it, before, after } from 'node:test';
 import assert from 'node:assert/strict';
 import { type FastifyInstance } from 'fastify';
 import { buildApp } from '../../src/index.js';
+import { setLLMClient, resetLLMClient, type LLMClient } from '../../src/llm/client.js';
+import { setTTSClient, resetTTSClient, generateSilence, type TTSClient } from '../../src/pipeline/audioSysnthesis.js';
+
+class MockApiLLMClient implements LLMClient {
+    readonly provider = 'mock-llm';
+    constructor(private response: string) {}
+    async generate(): Promise<string> {
+        return this.response;
+    }
+}
+
+class MockApiTTSClient implements TTSClient {
+    readonly provider = 'mock-tts';
+    async synthesize(_text: string, outputPath: string): Promise<void> {
+        await generateSilence(outputPath, 0.5);
+    }
+}
+
+const sampleScript = {
+    id: 'api-script-01',
+    title: 'API Test Video',
+    description: 'API test description',
+    globalStyles: 'body { margin: 0; }',
+    globalSetupJs: 'console.log("ready");',
+    scenes: [
+        {
+            id: 'scene-1',
+            title: 'Scene 1',
+            voiceOverText: 'Xin chao Viet Nam.',
+            visualDescription: '',
+            htmlCode: '<div class="scene" id="scene-1"><h1>Test</h1></div>',
+            cssCode: '',
+            jsCode: 'tl.to("#scene-1", { duration: {{SCENE_DURATION}}, opacity: 1 });',
+            transition: 'fade',
+            backgroundColor: '#000000',
+        }
+    ],
+    colorPalette: {
+        primary: '#3b82f6',
+        secondary: '#1d4ed8',
+        accent: '#f59e0b',
+        background: '#0f172a',
+        text: '#ffffff',
+    },
+    fontFamily: 'Inter',
+};
 
 describe('Module 9: Fastify API Server & Health Endpoint (src/index.ts)', () => {
     let app: FastifyInstance;
 
     before(async () => {
+        setLLMClient(new MockApiLLMClient(JSON.stringify(sampleScript)));
+        setTTSClient(new MockApiTTSClient());
         app = await buildApp({ logger: false });
         app.post('/test-body-size', async (request) => {
             const body = request.body as { data: string };
@@ -16,6 +64,8 @@ describe('Module 9: Fastify API Server & Health Endpoint (src/index.ts)', () => 
     });
 
     after(async () => {
+        resetLLMClient();
+        resetTTSClient();
         await app.close();
     });
 
@@ -114,6 +164,133 @@ describe('Module 9: Fastify API Server & Health Endpoint (src/index.ts)', () => 
             });
 
             assert.strictEqual(response.statusCode, 413, 'Phải trả về mã 413 Payload Too Large');
+        });
+    });
+
+    describe('TC-API-003: Endpoint kiểm tra chẩn đoán hệ thống (GET /api/health)', () => {
+        it('phải trả về status ok cùng thông tin llmProvider và ttsProvider', async () => {
+            const response = await app.inject({
+                method: 'GET',
+                url: '/api/health',
+            });
+
+            assert.strictEqual(response.statusCode, 200);
+            const body = response.json();
+            assert.strictEqual(body.status, 'ok');
+            assert.ok(typeof body.llmProvider === 'string');
+            assert.ok(typeof body.ttsProvider === 'string');
+            assert.ok(typeof body.timestamp === 'string');
+        });
+    });
+
+    describe('TC-API-004: Endpoint sinh kịch bản nháp (POST /api/script/draft)', () => {
+        it('phải từ chối yêu cầu khi dữ liệu body không hợp lệ (prompt quá ngắn)', async () => {
+            const response = await app.inject({
+                method: 'POST',
+                url: '/api/script/draft',
+                payload: {
+                    promt: 'ngan',
+                    aspectRatio: '16:9',
+                    targetDurationSec: 30,
+                    language: 'vi',
+                    style: 'modern',
+                },
+            });
+
+            assert.strictEqual(response.statusCode, 400);
+            const body = response.json();
+            assert.strictEqual(body.success, false);
+            assert.ok(body.error);
+        });
+    });
+
+    describe('TC-API-005: Endpoint thực thi pipeline (POST /api/pipeline)', () => {
+        it('phải trả về lỗi 400 khi thiếu thông số videoRequest', async () => {
+            const response = await app.inject({
+                method: 'POST',
+                url: '/api/pipeline',
+                payload: {},
+            });
+
+            assert.strictEqual(response.statusCode, 400);
+            const body = response.json();
+            assert.strictEqual(body.error, 'Invalid video request');
+        });
+
+        it('phải hỗ trợ chế độ bất đồng bộ (async: true) và trả về 202 Accepted', async () => {
+            const response = await app.inject({
+                method: 'POST',
+                url: '/api/pipeline',
+                payload: {
+                    promt: 'Video gioi thieu du lich Ha Noi 3 canh',
+                    aspectRatio: '16:9',
+                    targetDurationSec: 20,
+                    language: 'vi',
+                    style: 'modern',
+                    async: true,
+                    skipPreview: true,
+                },
+            });
+
+            assert.strictEqual(response.statusCode, 202);
+            const body = response.json();
+            assert.strictEqual(body.message, 'Video generation queued');
+            assert.ok(body.jobId);
+            assert.ok(body.checkStatusUrl.includes(body.jobId));
+        });
+    });
+
+    describe('TC-API-006: Endpoint truy xuất danh sách và chi tiết công việc (GET /api/jobs)', () => {
+        it('phải trả về danh sách các công việc đã ghi nhận', async () => {
+            const response = await app.inject({
+                method: 'GET',
+                url: '/api/jobs',
+            });
+
+            assert.strictEqual(response.statusCode, 200);
+            const body = response.json();
+            assert.ok(Array.isArray(body));
+        });
+
+        it('phải trả về lỗi 404 khi jobId không tồn tại', async () => {
+            const response = await app.inject({
+                method: 'GET',
+                url: '/api/jobs/non-existent-uuid',
+            });
+
+            assert.strictEqual(response.statusCode, 404);
+            const body = response.json();
+            assert.strictEqual(body.error, 'Job not found');
+        });
+    });
+
+    describe('TC-API-007: Giao diện Web Studio (GET /ui và GET / với Accept text/html)', () => {
+        it('phải phục vụ giao diện HTML khi truy cập GET /ui', async () => {
+            const response = await app.inject({
+                method: 'GET',
+                url: '/ui',
+            });
+
+            assert.strictEqual(response.statusCode, 200);
+            assert.ok(response.headers['content-type']?.includes('text/html'));
+            assert.ok(response.body.includes('prompt-input'));
+            assert.ok(response.body.includes('generate-btn'));
+            assert.ok(response.body.includes('log-viewer'));
+            assert.ok(response.body.includes('video-player'));
+        });
+
+        it('phải phục vụ giao diện HTML khi trình duyệt truy cập GET / với header Accept text/html', async () => {
+            const response = await app.inject({
+                method: 'GET',
+                url: '/',
+                headers: {
+                    accept: 'text/html,application/xhtml+xml',
+                },
+            });
+
+            assert.strictEqual(response.statusCode, 200);
+            assert.ok(response.headers['content-type']?.includes('text/html'));
+            assert.ok(response.body.includes('prompt-input'));
         });
     });
 });
