@@ -102,18 +102,22 @@ export async function runFullPipeline(option: orchestratorOptions): Promise<full
         if (!skipPreview) {
             phaseStart = Date.now();
             logProgress("preview", 30, "Generating scene preview screenshots");
-            previews = await generatePreviews({
-                htmlPath: tempAssembly.htmlPath,
-                script,
-                durations: estimated.sceneDurations,
-                width: preset.width,
-                height: preset.height,
-                outputDir: join(workDir, "previews"),
-                onProgress: (msg, prog) => {
-                    const scaledProg = prog !== undefined ? Math.round(30 + (prog * 0.15)) : 35;
-                    logProgress("preview", scaledProg, msg);
-                },
-            });
+            try {
+                previews = await generatePreviews({
+                    htmlPath: tempAssembly.htmlPath,
+                    script,
+                    durations: estimated.sceneDurations,
+                    width: preset.width,
+                    height: preset.height,
+                    outputDir: join(workDir, "previews"),
+                    onProgress: (msg, prog) => {
+                        const scaledProg = prog !== undefined ? Math.round(30 + (prog * 0.15)) : 35;
+                        logProgress("preview", scaledProg, msg);
+                    },
+                });
+            } catch (previewErr: any) {
+                logProgress("preview", 35, `Warning: Scene preview generation skipped: ${previewErr?.message || previewErr}`);
+            }
             timing["preview"] = Date.now() - phaseStart;
         }
 

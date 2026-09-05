@@ -43,12 +43,25 @@ export async function renderVideo(options: RenderVideoOptions): Promise<string> 
         const page = await context.newPage();
 
         const fileUrl = pathToFileURL(resolve(htmlPath)).href;
+        process.env.PW_TEST_SCREENSHOT_NO_FONTS_READY = "1";
         await page.goto(fileUrl, { waitUntil: "domcontentloaded" });
         await page.waitForFunction(
             () => (window as unknown as { __ready?: boolean }).__ready === true,
             undefined,
             { timeout: 15000 }
         );
+
+        // Pre-wait web fonts once with a safe fallback
+        await page.evaluate(async () => {
+            if (document.fonts && document.fonts.ready) {
+                try {
+                    await Promise.race([
+                        document.fonts.ready,
+                        new Promise((r) => setTimeout(r, 4000)),
+                    ]);
+                } catch (e) {}
+            }
+        });
 
         const hasAudio = existsSync(audioPath);
 
@@ -88,11 +101,28 @@ export async function renderVideo(options: RenderVideoOptions): Promise<string> 
         });
 
         const reportStep = Math.max(1, Math.floor(totalFrames / 10));
+        let lastBuf: Buffer | null = null;
 
         for (let i = 0; i < totalFrames; i++) {
             const t = i / fps;
             await seekToTimestamp(page, t);
-            const buf = await page.screenshot({ type: "jpeg", quality: 90 });
+            let buf: Buffer;
+            try {
+                buf = await page.screenshot({
+                    type: "jpeg",
+                    quality: 90,
+                    animations: "disabled",
+                    timeout: 8000,
+                });
+                lastBuf = buf;
+            } catch (err) {
+                if (lastBuf) {
+                    buf = lastBuf;
+                } else {
+                    throw err;
+                }
+            }
+
             if (!ff.stdin.write(buf)) {
                 await new Promise((r) => ff.stdin.once("drain", r));
             }
