@@ -1,5 +1,6 @@
 import fastify, { FastifyInstance, FastifyRequest, FastifyReply } from "fastify";
 import fastifyCors from "@fastify/cors";
+import fastifyStatic from "@fastify/static";
 import { existsSync, createReadStream, statSync } from "node:fs";
 import { join } from "node:path";
 import { v4 } from "uuid";
@@ -29,9 +30,36 @@ export async function buildApp(options: { logger?: boolean } = {}): Promise<Fast
 
     await app.register(fastifyCors, { origin: true });
 
-    // Root health endpoint
-    app.get("/", async () => {
+    const frontendDir = join(process.cwd(), "frontend");
+    if (existsSync(frontendDir)) {
+        await app.register(fastifyStatic, {
+            root: frontendDir,
+            prefix: "/",
+            index: false,
+        });
+    }
+
+    // Root web UI & health endpoint
+    app.get("/", async (request: FastifyRequest, reply: FastifyReply) => {
+        const accept = request.headers.accept || "";
+        if (accept.startsWith("text/html")) {
+            const htmlPath = join(frontendDir, "index.html");
+            if (existsSync(htmlPath)) {
+                reply.type("text/html; charset=utf-8").send(createReadStream(htmlPath));
+                return reply;
+            }
+        }
         return { status: "ok", timestamp: new Date().toISOString() };
+    });
+
+    // Dedicated UI endpoint
+    app.get("/ui", async (_request: FastifyRequest, reply: FastifyReply) => {
+        const htmlPath = join(frontendDir, "index.html");
+        if (existsSync(htmlPath)) {
+            reply.type("text/html; charset=utf-8").send(createReadStream(htmlPath));
+            return reply;
+        }
+        reply.status(404).send("Frontend not found");
     });
 
     // API health and provider status
