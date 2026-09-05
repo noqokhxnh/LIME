@@ -4,6 +4,8 @@ import { pathToFileURL } from "node:url";
 import { chromium, type Browser, type BrowserContext, type Page } from "playwright";
 import { videoScript, scene, durationMap } from "@/llm/schema";
 
+process.env.PW_TEST_SCREENSHOT_NO_FONTS_READY = "1";
+
 export interface ScenePreview {
     sceneId: string;
     sceneIndex: number;
@@ -132,10 +134,17 @@ export async function loadAndPreparePage(
         { timeout: timeoutMs }
     );
 
-    // Chờ load xong web fonts nếu có
+    // Chờ load xong web fonts nếu có (an toàn với timeout 3s)
     await page.evaluate(async () => {
-        if (document.fonts && document.fonts.ready) {
-            await document.fonts.ready;
+        try {
+            if (document.fonts && document.fonts.ready) {
+                await Promise.race([
+                    document.fonts.ready,
+                    new Promise((resolve) => setTimeout(resolve, 3000)),
+                ]);
+            }
+        } catch {
+            // ignore
         }
     });
 
@@ -241,6 +250,8 @@ export async function generatePreviews(options: PreviewOptions): Promise<Preview
                 path: imagePath,
                 type: format,
                 quality: format === "png" ? undefined : quality,
+                animations: "disabled",
+                timeout: 10000,
             });
 
             let dataUri: string | undefined;
@@ -319,6 +330,8 @@ export async function captureScenePreview(
             path: outputPath,
             type: format,
             quality: format === "png" ? undefined : quality,
+            animations: "disabled",
+            timeout: 10000,
         });
 
         return {

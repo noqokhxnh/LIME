@@ -13,10 +13,10 @@ import {
     GSAP_TEXT_PLUGIN_CDN,
     GSAP_MOTION_PATH_PLUGIN_CDN,
     STICKMAN_HELPERS_JS,
-} from '../../src/pipeline/asembleHml.js';
+} from '../../src/pipeline/assembleHtml.js';
 import { type scene, type videoScript } from '../../src/llm/schema.js';
 
-describe('Module 6: HTML & GSAP Packaging (src/pipeline/asembleHml.ts)', () => {
+describe('Module 6: HTML & GSAP Packaging (src/pipeline/assembleHtml.ts)', () => {
     let testTempDir: string;
 
     const mockScene: scene = {

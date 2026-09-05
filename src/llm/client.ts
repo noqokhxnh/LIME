@@ -1,7 +1,7 @@
-import { Config, getConfig } from "../config";
+import { Config, getConfig } from "../config.js";
 
 export interface LLMClient {
-    generate(systemPrompt: string, userPrompt: string): Promise<string>;
+    generate(systemPrompt: string, userPrompt: string, signal?: AbortSignal): Promise<string>;
     provider: string;
 }
 
@@ -17,13 +17,14 @@ export class OpenAIClient implements LLMClient {
         this.apikey = config.OpenAI_APIKEY;
         this.model = config.OpenAI_Model;
     }
-    async generate(systemPrompt: string, userPrompt: string): Promise<string> {
+    async generate(systemPrompt: string, userPrompt: string, signal?: AbortSignal): Promise<string> {
         const res = await fetch("https://api.openai.com/v1/chat/completions", {
             method: "POST",
             headers: {
                 "Authorization": `Bearer ${this.apikey}`,
                 "Content-Type": "application/json"
             },
+            signal,
             body: JSON.stringify({
                 model: this.model,
                 messages: [
@@ -31,7 +32,7 @@ export class OpenAIClient implements LLMClient {
                     { role: "user", content: userPrompt }
                 ],
                 temperature: 0.7,
-                max_tokens: 32000,
+                max_tokens: 16000,
                 response_format: { type: "json_object" },
             }),
         });
@@ -40,7 +41,11 @@ export class OpenAIClient implements LLMClient {
             throw new Error(`OpenAI API Error: ${res.status} - ${err}`);
         }
         const data = await res.json() as any;
-        return data.choices[0].message.content;
+        const content = data.choices?.[0]?.message?.content;
+        if (!content) {
+            throw new Error(`OpenAI API Error: No content in response. Raw: ${JSON.stringify(data)}`);
+        }
+        return content;
     }
 }
 
@@ -56,13 +61,14 @@ export class DeepSeekClient implements LLMClient {
         this.apikey = config.DeepSeek_APIKEY;
         this.model = config.DeepSeek_Model;
     }
-    async generate(systemPrompt: string, userPrompt: string): Promise<string> {
+    async generate(systemPrompt: string, userPrompt: string, signal?: AbortSignal): Promise<string> {
         const res = await fetch("https://api.deepseek.com/chat/completions", {
             method: "POST",
             headers: {
                 "Authorization": `Bearer ${this.apikey}`,
                 "Content-Type": "application/json"
             },
+            signal,
             body: JSON.stringify({
                 model: this.model,
                 messages: [
@@ -79,7 +85,11 @@ export class DeepSeekClient implements LLMClient {
             throw new Error(`DeepSeek API Error: ${res.status} - ${err}`);
         }
         const data = await res.json() as any;
-        return data.choices[0].message.content;
+        const content = data.choices?.[0]?.message?.content;
+        if (!content) {
+            throw new Error(`DeepSeek API Error: No content in response. Raw: ${JSON.stringify(data)}`);
+        }
+        return content;
     }
 }
 
@@ -95,15 +105,19 @@ export class GeminiClient implements LLMClient {
         this.apikey = config.Gemini_APIKEY;
         this.model = config.Gemini_Model;
     }
-    async generate(systemPrompt: string, userPrompt: string): Promise<string> {
+    async generate(systemPrompt: string, userPrompt: string, signal?: AbortSignal): Promise<string> {
         const res = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${this.model}:generateContent?key=${this.apikey}`, {
             method: "POST",
             headers: {
                 "Content-Type": "application/json"
             },
+            signal,
             body: JSON.stringify({
+                systemInstruction: {
+                    parts: [{ text: systemPrompt }]
+                },
                 contents: [
-                    { role: "user", parts: [{ text: `${systemPrompt}\n\n${userPrompt}` }] }
+                    { role: "user", parts: [{ text: userPrompt }] }
                 ],
                 generationConfig: {
                     responseMimeType: "application/json",
@@ -117,7 +131,11 @@ export class GeminiClient implements LLMClient {
             throw new Error(`Gemini API Error: ${res.status} - ${err}`);
         }
         const data = await res.json() as any;
-        return data.candidates[0].content.parts[0].text;
+        const text = data.candidates?.[0]?.content?.parts?.[0]?.text;
+        if (!text) {
+            throw new Error(`Gemini API Error: No candidate text received. Raw: ${JSON.stringify(data)}`);
+        }
+        return text;
     }
 }
 
@@ -133,7 +151,7 @@ export class ClaudeClient implements LLMClient {
         this.apikey = config.Claude_APIKEY;
         this.model = config.Claude_Model;
     }
-    async generate(systemPrompt: string, userPrompt: string): Promise<string> {
+    async generate(systemPrompt: string, userPrompt: string, signal?: AbortSignal): Promise<string> {
         const res = await fetch("https://api.anthropic.com/v1/messages", {
             method: "POST",
             headers: {
@@ -141,6 +159,7 @@ export class ClaudeClient implements LLMClient {
                 "anthropic-version": "2023-06-01",
                 "Content-Type": "application/json"
             },
+            signal,
             body: JSON.stringify({
                 model: this.model,
                 system: systemPrompt,
@@ -156,7 +175,11 @@ export class ClaudeClient implements LLMClient {
             throw new Error(`Claude API Error: ${res.status} - ${err}`);
         }
         const data = await res.json() as any;
-        return data.content[0].text;
+        const text = data.content?.[0]?.text;
+        if (!text) {
+            throw new Error(`Claude API Error: No text in response. Raw: ${JSON.stringify(data)}`);
+        }
+        return text;
     }
 }
 

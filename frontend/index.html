@@ -1,0 +1,81 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>HTML to Video Generator</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="style.css">
+</head>
+<body>
+    <div class="container">
+        <header class="header">
+            <h1>HTML to Video Generator</h1>
+            <p class="subtitle">Nhập ý tưởng để AI tự động tạo chuyển động HTML và render video MP4</p>
+        </header>
+
+        <div class="main-grid">
+            <!-- Cột trái: Nhập prompt và xem log -->
+            <div class="card left-panel">
+                <div class="form-group">
+                    <label for="prompt-input">Prompt / Ý tưởng video:</label>
+                    <textarea 
+                        id="prompt-input" 
+                        placeholder="Nhập ít nhất 10 ký tự. Ví dụ: Video giới thiệu du lịch vịnh Hạ Long 3 cảnh đẹp kỳ vĩ..."
+                    ></textarea>
+                </div>
+
+                <div class="quick-prompts">
+                    <button type="button" class="btn-chip" onclick="setPrompt('Video giới thiệu du lịch vịnh Hạ Long 3 cảnh đẹp kỳ vĩ')">🏝️ Hạ Long</button>
+                    <button type="button" class="btn-chip" onclick="setPrompt('Video giới thiệu phố cổ Hà Nội ngàn năm văn hiến')">🏮 Hà Nội</button>
+                    <button type="button" class="btn-chip" onclick="setPrompt('Video đồ họa công nghệ trí tuệ nhân tạo AI tương lai 2026')">🤖 Công nghệ AI</button>
+                </div>
+
+                <button id="generate-btn" class="btn-primary">
+                    <span id="btn-spinner" class="spinner"></span>
+                    <span id="btn-text">Tạo Video</span>
+                </button>
+
+                <div class="log-section">
+                    <div class="log-header">
+                        <span>Nhật ký (Logs):</span>
+                        <span id="progress-percent">0%</span>
+                    </div>
+                    <div class="progress-bar-bg">
+                        <div id="progress-bar-fill" class="progress-bar-fill"></div>
+                    </div>
+                    <div id="log-viewer" class="log-box">
+                        <div class="log-item info">[Hệ thống] Sẵn sàng nhận prompt.</div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Cột phải: Khung hiển thị Video -->
+            <div class="card right-panel">
+                <label>Video đầu ra:</label>
+                <div class="video-wrapper">
+                    <div id="video-empty" class="video-empty-state">
+                        <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
+                            <polygon points="5 3 19 12 5 21 5 3"></polygon>
+                        </svg>
+                        <span>Chưa có video. Nhập prompt và nhấn "Tạo Video".</span>
+                    </div>
+                    <video id="video-player" controls playsinline></video>
+                </div>
+                <div class="video-actions">
+                    <a id="btn-download" class="btn-action" style="display: none;" download>
+                        ⬇️ Tải file MP4
+                    </a>
+                    <a id="btn-preview-html" class="btn-action secondary" style="display: none;" target="_blank">
+                        🌐 Xem bản HTML
+                    </a>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script src="app.js"></script>
+</body>
+</html>
