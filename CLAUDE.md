@@ -9,7 +9,10 @@ VidTML is an AI-powered video generator: a user prompt → LLM generates a struc
 The system is actively developed and still missing planned features (tests, BGM UI). See `docs/architecture.md` (roadmap section) and `docs/api.md` for the full picture; this file is the working summary.
 
 ## Github
-Whenever you commit code, never add Claude as a co-author; just list me as the sole author.
+
+- Each pull request must focus on a single feature or change; do not bundle multiple features into one PR.
+- Whenever you commit code, never add Claude or any another LLM Agents as a co-author; just list me as the sole author.
+
 
 ## Commands
 
