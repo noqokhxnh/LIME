@@ -34,13 +34,14 @@ const api = {
         return res.json();
     },
     
-    async renderPipeline(jobId, modifiedScript) {
+    async renderPipeline(jobId, modifiedScript, originalPrompt) {
         // Sẽ gọi lại pipeline, lúc này truyền jobId cũ để ghi đè hoặc tiếp tục tiến trình
         const res = await fetch(`${API_BASE}/api/pipeline`, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({
                 jobId: jobId,
+                promt: originalPrompt, // Bắt buộc phải có do Backend yêu cầu
                 script: modifiedScript,
                 async: true
             })

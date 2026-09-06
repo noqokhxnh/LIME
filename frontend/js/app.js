@@ -24,6 +24,7 @@ const logViewer = document.getElementById('log-viewer');
 let pollInterval = null;
 let activeJobId = null;
 let lastLogMessage = '';
+let currentSessionPrompt = null; // Guardrail workaround
 
 // --- TAB LOGIC ---
 tabBtns.forEach(btn => {
@@ -85,8 +86,11 @@ function clearWorkspace() {
 
 // --- APP CONTROLLER ---
 window.appController = {
+    getCurrentPrompt() { return currentSessionPrompt; },
+
     // 1. Luồng load dữ liệu từ History
     async loadJob(jobId) {
+        currentSessionPrompt = null; // Khi load từ history, ta không có prompt
         clearWorkspace();
         activeJobId = jobId;
         currentJobIdBadge.style.display = 'inline-block';
@@ -135,6 +139,7 @@ window.appController = {
         const prompt = promptInput.value.trim();
         if (prompt.length < 5) return alert('Nhập prompt dài hơn chút nhé!');
 
+        currentSessionPrompt = prompt; // Lưu lại prompt để dùng cho step Render
         btnGenerate.disabled = true;
         clearWorkspace(); // Dọn dẹp dữ liệu cũ
         addLog('Đang yêu cầu AI tạo kịch bản...', 'info');
@@ -157,10 +162,10 @@ window.appController = {
     },
 
     // 3. Luồng gửi Script đã sửa lên để Render (Step 2)
-    async startRender(jobId, modifiedScript) {
+    async startRender(jobId, modifiedScript, originalPrompt) {
         addLog('Đang gửi kịch bản đã duyệt lên server...', 'info');
         try {
-            const res = await api.renderPipeline(jobId, modifiedScript);
+            const res = await api.renderPipeline(jobId, modifiedScript, originalPrompt);
             // Bắt đầu Render, switch sang Video tab cho UX tốt
             switchTab('tab-video');
             videoEmpty.style.display = 'block';

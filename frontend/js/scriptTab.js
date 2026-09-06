@@ -88,8 +88,15 @@ const scriptTab = {
 
 btnRenderVideo.addEventListener('click', () => {
     if (!currentJobIdForScript) return;
-    const editedScript = scriptTab.getEditedScript();
+    
     if (window.appController) {
-        window.appController.startRender(currentJobIdForScript, editedScript);
+        const originalPrompt = window.appController.getCurrentPrompt();
+        if (!originalPrompt) {
+             alert("LỖI GIỚI HẠN BACKEND:\nKhông thể Render lại Job cũ từ History vì Backend chưa trả về Prompt ban đầu. Vui lòng tạo Draft mới ở cột bên phải để tiếp tục.");
+             return;
+        }
+        
+        const editedScript = scriptTab.getEditedScript();
+        window.appController.startRender(currentJobIdForScript, editedScript, originalPrompt);
     }
 });
