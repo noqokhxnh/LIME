@@ -6,6 +6,7 @@ dotenv.config();
 const envSchema = z.object({
     PORT: z.coerce.number().default(3000),
     NODE_ENV: z.enum(['production', 'development']).default('development'),
+    REDIS_URL: z.string().default('redis://localhost:6379'),
 
 
     LLM_Provider: z.enum(['openai', 'deepseek', 'gemini', 'claude']).default('gemini'),

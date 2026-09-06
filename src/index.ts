@@ -6,21 +6,16 @@ import { join } from "node:path";
 import { v4 } from "uuid";
 import { getConfig } from "./config.js";
 import { videoRequestSchema, type videoRequest, type videoScript } from "./llm/schema.js";
-import { generateScript } from "./pipeline/scriptGenerator.js";
-import { runFullPipeline, type fullPipelineResult } from "./pipeline/orchestrator.js";
+import { runFullPipeline } from "./pipeline/orchestrator.js";
+import { Queue } from "bullmq";
+import IORedis from "ioredis";
+import { jobsStore, type JobRecord } from "./jobsStore.js";
 
-export interface JobRecord {
-    jobId: string;
-    status: 'queued' | 'running' | 'completed' | 'failed';
-    request: videoRequest;
-    createdAt: string;
-    updatedAt: string;
-    progress?: { phase: string; progress: number; message: string };
-    result?: fullPipelineResult;
-    error?: string;
-}
+const config = getConfig();
+const connection = new IORedis(config.REDIS_URL, { maxRetriesPerRequest: null });
 
-export const jobsStore = new Map<string, JobRecord>();
+const draftQueue = new Queue("script-draft", { connection });
+const videoQueue = new Queue("video-generation", { connection });
 
 export async function buildApp(options: { logger?: boolean } = {}): Promise<FastifyInstance> {
     const app = fastify({
@@ -39,7 +34,6 @@ export async function buildApp(options: { logger?: boolean } = {}): Promise<Fast
         });
     }
 
-    // Root web UI & health endpoint
     app.get("/", async (request: FastifyRequest, reply: FastifyReply) => {
         const accept = request.headers.accept || "";
         if (accept.startsWith("text/html")) {
@@ -52,7 +46,6 @@ export async function buildApp(options: { logger?: boolean } = {}): Promise<Fast
         return { status: "ok", timestamp: new Date().toISOString() };
     });
 
-    // Dedicated UI endpoint
     app.get("/ui", async (_request: FastifyRequest, reply: FastifyReply) => {
         const htmlPath = join(frontendDir, "index.html");
         if (existsSync(htmlPath)) {
@@ -62,7 +55,6 @@ export async function buildApp(options: { logger?: boolean } = {}): Promise<Fast
         reply.status(404).send("Frontend not found");
     });
 
-    // API health and provider status
     app.get("/api/health", async () => {
         const config = getConfig();
         return {
@@ -73,7 +65,6 @@ export async function buildApp(options: { logger?: boolean } = {}): Promise<Fast
         };
     });
 
-    // Generate script draft only
     app.post("/api/script/draft", async (request: FastifyRequest, reply: FastifyReply) => {
         try {
             const body = request.body as any;
@@ -82,10 +73,24 @@ export async function buildApp(options: { logger?: boolean } = {}): Promise<Fast
                 promt: body?.promt || body?.prompt,
             };
             const reqData = videoRequestSchema.parse(normalized);
-            const script = await generateScript(reqData);
+            const jobId = v4();
+
+            const job: JobRecord = {
+                jobId,
+                status: 'queued',
+                request: reqData,
+                createdAt: new Date().toISOString(),
+                updatedAt: new Date().toISOString(),
+            };
+            await jobsStore.set(jobId, job);
+            await draftQueue.add("draft", { request: reqData }, { jobId });
+
+            reply.status(202);
             return {
                 success: true,
-                script,
+                jobId,
+                message: "Draft generation queued",
+                checkStatusUrl: `/api/jobs/${jobId}`
             };
         } catch (err: any) {
             reply.status(400);
@@ -96,7 +101,6 @@ export async function buildApp(options: { logger?: boolean } = {}): Promise<Fast
         }
     });
 
-    // Pipeline runner endpoint (supports both sync and async)
     const handlePipelineRequest = async (request: FastifyRequest, reply: FastifyReply) => {
         const body = (request.body as any) || {};
         const isAsync = Boolean(body.async || (request.query as any)?.async === 'true');
@@ -125,36 +129,10 @@ export async function buildApp(options: { logger?: boolean } = {}): Promise<Fast
             createdAt: new Date().toISOString(),
             updatedAt: new Date().toISOString(),
         };
-        jobsStore.set(jobId, job);
+        await jobsStore.set(jobId, job);
 
-        const outputDir = join(process.cwd(), "tmp", `job-${jobId}`);
-
-        if (isAsync) {
-            // Run asynchronously in background
-            (async () => {
-                job.status = 'running';
-                job.updatedAt = new Date().toISOString();
-                try {
-                    const result = await runFullPipeline({
-                        request: reqData,
-                        script: inputScript,
-                        bgmPath,
-                        skipPreview,
-                        outputDir,
-                        onProgress: (p) => {
-                            job.progress = p;
-                            job.updatedAt = new Date().toISOString();
-                        },
-                    });
-                    job.status = 'completed';
-                    job.result = result;
-                    job.updatedAt = new Date().toISOString();
-                } catch (err: any) {
-                    job.status = 'failed';
-                    job.error = err.message;
-                    job.updatedAt = new Date().toISOString();
-                }
-            })();
+        if (isAsync || true) { // Defaulting to async via BullMQ as per plan
+            await videoQueue.add("render", { script: inputScript, bgmPath, skipPreview }, { jobId });
 
             reply.status(202);
             return {
@@ -164,60 +142,15 @@ export async function buildApp(options: { logger?: boolean } = {}): Promise<Fast
                 htmlUrl: `/api/jobs/${jobId}/html`,
                 audioUrl: `/api/jobs/${jobId}/audio`,
             };
-        } else {
-            // Run synchronously
-            job.status = 'running';
-            job.updatedAt = new Date().toISOString();
-            try {
-                const result = await runFullPipeline({
-                    request: reqData,
-                    script: inputScript,
-                    bgmPath,
-                    skipPreview,
-                    outputDir,
-                    onProgress: (p) => {
-                        job.progress = p;
-                        job.updatedAt = new Date().toISOString();
-                    },
-                });
-                job.status = 'completed';
-                job.result = result;
-                job.updatedAt = new Date().toISOString();
-                return {
-                    success: true,
-                    jobId: result.jobId,
-                    status: 'completed',
-                    durationSec: result.durationSec,
-                    resolution: result.resolution,
-                    scenes: result.scences,
-                    finalHtmlPath: result.finalHtmlPath,
-                    videoPath: result.videoPath,
-                    audio: result.audio,
-                    preview: result.preview,
-                    timing: result.timing,
-                    htmlUrl: `/api/jobs/${result.jobId}/html`,
-                    audioUrl: `/api/jobs/${result.jobId}/audio`,
-                };
-            } catch (err: any) {
-                job.status = 'failed';
-                job.error = err.message;
-                job.updatedAt = new Date().toISOString();
-                reply.status(500);
-                return {
-                    success: false,
-                    jobId,
-                    error: err.message,
-                };
-            }
         }
     };
 
     app.post("/api/generate", handlePipelineRequest);
     app.post("/api/pipeline", handlePipelineRequest);
 
-    // List jobs
     app.get("/api/jobs", async () => {
-        return Array.from(jobsStore.values()).map((j) => ({
+        const allJobs = await jobsStore.getAll();
+        return allJobs.map((j) => ({
             jobId: j.jobId,
             status: j.status,
             createdAt: j.createdAt,
@@ -228,10 +161,9 @@ export async function buildApp(options: { logger?: boolean } = {}): Promise<Fast
         }));
     });
 
-    // Get job status/details
     app.get("/api/jobs/:jobId", async (request: FastifyRequest<{ Params: { jobId: string } }>, reply: FastifyReply) => {
         const { jobId } = request.params;
-        const job = jobsStore.get(jobId);
+        const job = await jobsStore.get(jobId);
         if (!job) {
             reply.status(404);
             return { error: "Job not found" };
@@ -243,6 +175,7 @@ export async function buildApp(options: { logger?: boolean } = {}): Promise<Fast
             updatedAt: job.updatedAt,
             progress: job.progress,
             error: job.error,
+            script: job.script,
             result: job.result ? {
                 durationSec: job.result.durationSec,
                 resolution: job.result.resolution,
@@ -255,10 +188,9 @@ export async function buildApp(options: { logger?: boolean } = {}): Promise<Fast
         };
     });
 
-    // Serve generated HTML bundle
     app.get("/api/jobs/:jobId/html", async (request: FastifyRequest<{ Params: { jobId: string } }>, reply: FastifyReply) => {
         const { jobId } = request.params;
-        const job = jobsStore.get(jobId);
+        const job = await jobsStore.get(jobId);
         const htmlPath = job?.result?.finalHtmlPath ?? join(process.cwd(), "tmp", `job-${jobId}`, "index.html");
         if (!existsSync(htmlPath)) {
             reply.status(404);
@@ -267,10 +199,9 @@ export async function buildApp(options: { logger?: boolean } = {}): Promise<Fast
         reply.type("text/html; charset=utf-8").send(createReadStream(htmlPath));
     });
 
-    // Serve generated mixed audio
     app.get("/api/jobs/:jobId/audio", async (request: FastifyRequest<{ Params: { jobId: string } }>, reply: FastifyReply) => {
         const { jobId } = request.params;
-        const job = jobsStore.get(jobId);
+        const job = await jobsStore.get(jobId);
         const audioPath = job?.result?.audio?.mixAudioPath ?? join(process.cwd(), "tmp", `job-${jobId}`, "mixed_audio.mp3");
         if (!existsSync(audioPath)) {
             reply.status(404);
@@ -279,10 +210,9 @@ export async function buildApp(options: { logger?: boolean } = {}): Promise<Fast
         reply.type("audio/mpeg").send(createReadStream(audioPath));
     });
 
-    // Serve preview scene screenshot
     app.get("/api/jobs/:jobId/preview/:sceneId", async (request: FastifyRequest<{ Params: { jobId: string; sceneId: string } }>, reply: FastifyReply) => {
         const { jobId, sceneId } = request.params;
-        const job = jobsStore.get(jobId);
+        const job = await jobsStore.get(jobId);
         const workDir = job?.result?.workDir ?? join(process.cwd(), "tmp", `job-${jobId}`);
         const previewPath = join(workDir, "previews", `${sceneId}.webp`);
         if (!existsSync(previewPath)) {
@@ -292,10 +222,9 @@ export async function buildApp(options: { logger?: boolean } = {}): Promise<Fast
         reply.type("image/webp").send(createReadStream(previewPath));
     });
 
-    // Stream MP4 video with HTTP Range support
     app.get("/api/jobs/:jobId/video", async (request: FastifyRequest<{ Params: { jobId: string } }>, reply: FastifyReply) => {
         const { jobId } = request.params;
-        const job = jobsStore.get(jobId);
+        const job = await jobsStore.get(jobId);
         const videoPath = job?.result?.videoPath ?? join(process.cwd(), "tmp", `job-${jobId}`, "final_video.mp4");
         if (!existsSync(videoPath)) {
             reply.status(404);
@@ -331,10 +260,9 @@ export async function buildApp(options: { logger?: boolean } = {}): Promise<Fast
         }
     });
 
-    // Download MP4 video
     app.get("/api/jobs/:jobId/download", async (request: FastifyRequest<{ Params: { jobId: string } }>, reply: FastifyReply) => {
         const { jobId } = request.params;
-        const job = jobsStore.get(jobId);
+        const job = await jobsStore.get(jobId);
         const videoPath = job?.result?.videoPath ?? join(process.cwd(), "tmp", `job-${jobId}`, "final_video.mp4");
         if (!existsSync(videoPath)) {
             reply.status(404);
