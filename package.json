@@ -7,6 +7,7 @@
         "dev": "tsx watch src/index.ts",
         "start": "tsx src/index.ts",
         "worker": "tsx src/worker.ts",
+        "cli": "tsx src/cli.ts",
         "build": "tsc",
         "test": "tsx tests/integration/pipeline.test.ts",
         "test:unit": "tsx --test tests/unit/*.test.ts"
