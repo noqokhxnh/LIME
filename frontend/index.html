@@ -3,79 +3,113 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>HTML to Video Generator</title>
-    <link rel="preconnect" href="https://fonts.googleapis.com">
-    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <title>VidTML Studio</title>
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
     <link rel="stylesheet" href="style.css">
 </head>
 <body>
-    <div class="container">
-        <header class="header">
-            <h1>HTML to Video Generator</h1>
-            <p class="subtitle">Nhập ý tưởng để AI tự động tạo chuyển động HTML và render video MP4</p>
-        </header>
+    <div class="layout-grid">
+        <!-- Panel 1: History -->
+        <aside class="panel history-panel">
+            <div class="panel-header">
+                <h2>Lịch sử dự án</h2>
+                <button id="btn-refresh-history" class="btn-icon" title="Làm mới">🔄</button>
+            </div>
+            <div id="history-list" class="history-list">
+                <!-- Rendered by history.js -->
+                <div class="empty-state">Đang tải lịch sử...</div>
+            </div>
+        </aside>
 
-        <div class="main-grid">
-            <!-- Cột trái: Nhập prompt và xem log -->
-            <div class="card left-panel">
+        <!-- Panel 2: Workspace -->
+        <main class="panel workspace-panel">
+            <div class="tabs">
+                <button class="tab-btn active" data-target="tab-video">Xem Video</button>
+                <button class="tab-btn" data-target="tab-script">Kịch bản (Script)</button>
+            </div>
+            
+            <div class="tab-content">
+                <!-- Tab Video -->
+                <div id="tab-video" class="tab-pane active">
+                    <div id="video-empty" class="empty-state">Chưa có video. Hãy chọn từ lịch sử hoặc tạo mới.</div>
+                    <video id="video-player" controls playsinline style="display:none;"></video>
+                    <div class="video-actions" style="display:none;" id="video-actions">
+                        <a id="btn-download" class="btn-action primary" download>⬇️ Tải MP4</a>
+                        <a id="btn-preview-html" class="btn-action secondary" target="_blank">🌐 Xem HTML</a>
+                    </div>
+                </div>
+
+                <!-- Tab Script -->
+                <div id="tab-script" class="tab-pane">
+                    <div id="script-empty" class="empty-state">Chưa có kịch bản (Draft). Hãy tạo Draft ở Panel phải.</div>
+                    <div id="script-editor-container" style="display:none;">
+                        <div class="script-stats" id="script-stats">
+                            <!-- Stats rendered via JS -->
+                        </div>
+                        <div id="scene-cards-container" class="scene-cards">
+                            <!-- Scene cards rendered via JS -->
+                        </div>
+                        <div class="script-actions">
+                            <button id="btn-render-video" class="btn-primary full-width">✅ Duyệt Kịch Bản & Render Video</button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </main>
+
+        <!-- Panel 3: Control & Logs -->
+        <aside class="panel control-panel">
+            <div class="section form-section">
+                <h3>Tạo Video Mới</h3>
                 <div class="form-group">
-                    <label for="prompt-input">Prompt / Ý tưởng video:</label>
-                    <textarea 
-                        id="prompt-input" 
-                        placeholder="Nhập ít nhất 10 ký tự. Ví dụ: Video giới thiệu du lịch vịnh Hạ Long 3 cảnh đẹp kỳ vĩ..."
-                    ></textarea>
+                    <label>Prompt / Ý tưởng:</label>
+                    <textarea id="prompt-input" placeholder="Nhập ý tưởng video (VD: Video du lịch vịnh Hạ Long)"></textarea>
                 </div>
-
                 <div class="quick-prompts">
-                    <button type="button" class="btn-chip" onclick="setPrompt('Video giới thiệu du lịch vịnh Hạ Long 3 cảnh đẹp kỳ vĩ')">🏝️ Hạ Long</button>
-                    <button type="button" class="btn-chip" onclick="setPrompt('Video giới thiệu phố cổ Hà Nội ngàn năm văn hiến')">🏮 Hà Nội</button>
-                    <button type="button" class="btn-chip" onclick="setPrompt('Video đồ họa công nghệ trí tuệ nhân tạo AI tương lai 2026')">🤖 Công nghệ AI</button>
+                    <button class="chip" onclick="document.getElementById('prompt-input').value='Video giới thiệu vịnh Hạ Long'">Hạ Long</button>
+                    <button class="chip" onclick="document.getElementById('prompt-input').value='Giải thích công nghệ AI'">Công nghệ AI</button>
+                </div>
+                
+                <div class="form-row">
+                    <div class="form-group half">
+                        <label>Tỷ lệ:</label>
+                        <select id="aspect-ratio">
+                            <option value="16:9">16:9</option>
+                            <option value="9:16">9:16</option>
+                        </select>
+                    </div>
+                    <div class="form-group half">
+                        <label>Style:</label>
+                        <select id="video-style">
+                            <option value="modern">Modern</option>
+                            <option value="stickman">Stickman</option>
+                        </select>
+                    </div>
                 </div>
 
-                <button id="generate-btn" class="btn-primary">
-                    <span id="btn-spinner" class="spinner"></span>
-                    <span id="btn-text">Tạo Video</span>
-                </button>
-
-                <div class="log-section">
-                    <div class="log-header">
-                        <span>Nhật ký (Logs):</span>
-                        <span id="progress-percent">0%</span>
-                    </div>
-                    <div class="progress-bar-bg">
-                        <div id="progress-bar-fill" class="progress-bar-fill"></div>
-                    </div>
-                    <div id="log-viewer" class="log-box">
-                        <div class="log-item info">[Hệ thống] Sẵn sàng nhận prompt.</div>
-                    </div>
-                </div>
+                <button id="btn-generate-draft" class="btn-primary full-width">Tạo Kịch Bản (Draft)</button>
             </div>
 
-            <!-- Cột phải: Khung hiển thị Video -->
-            <div class="card right-panel">
-                <label>Video đầu ra:</label>
-                <div class="video-wrapper">
-                    <div id="video-empty" class="video-empty-state">
-                        <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
-                            <polygon points="5 3 19 12 5 21 5 3"></polygon>
-                        </svg>
-                        <span>Chưa có video. Nhập prompt và nhấn "Tạo Video".</span>
-                    </div>
-                    <video id="video-player" controls playsinline></video>
+            <div class="section log-section">
+                <div class="log-header">
+                    <h3>Tiến trình & Logs</h3>
+                    <span id="current-job-id" class="job-badge" style="display:none;"></span>
                 </div>
-                <div class="video-actions">
-                    <a id="btn-download" class="btn-action" style="display: none;" download>
-                        ⬇️ Tải file MP4
-                    </a>
-                    <a id="btn-preview-html" class="btn-action secondary" style="display: none;" target="_blank">
-                        🌐 Xem bản HTML
-                    </a>
+                <div class="status-indicator" id="current-job-status">Trạng thái: Sẵn sàng</div>
+                <div class="progress-bg">
+                    <div id="progress-fill" class="progress-fill"></div>
+                </div>
+                <div id="log-viewer" class="log-box">
+                    <div class="log-item info">Hệ thống sẵn sàng...</div>
                 </div>
             </div>
-        </div>
+        </aside>
     </div>
 
-    <script src="app.js"></script>
+    <!-- Scripts -->
+    <script src="js/api.js"></script>
+    <script src="js/history.js"></script>
+    <script src="js/scriptTab.js"></script>
+    <script src="js/app.js"></script>
 </body>
 </html>

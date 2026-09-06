@@ -5,8 +5,8 @@
 []token counting
 []phân tích url paper to video
 []edit per-frame text inline 
-[]CLI
-[]docker, redis(core)
+[x]CLI
+[x]docker, redis(core)
 []tính token
 []dashboard admin
 []retry phase error
@@ -16,4 +16,4 @@
 []Authentication
 []History video
 []Edit per-frame text & script inline 
-[]Chuyển hàng đợi sang BullMQ
+[x]Chuyển hàng đợi sang BullMQ
