@@ -11,7 +11,7 @@
 []dashboard admin
 []retry phase error
 []promt injection
-[]web
+[x]web
 []Auto subtitles
 []Authentication
 []History video
