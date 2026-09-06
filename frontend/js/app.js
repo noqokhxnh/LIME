@@ -88,6 +88,12 @@ function clearWorkspace() {
 window.appController = {
     getCurrentPrompt() { return currentSessionPrompt; },
 
+    showBackendLimitError() {
+        addLog("LỖI: Không thể Render lại Job này vì Backend hiện tại không cung cấp Prompt ban đầu. API Render yêu cầu Prompt để tiếp tục.", "error");
+        currentJobStatus.textContent = "Trạng thái: THẤT BẠI (Giới hạn API)";
+        progressFill.style.width = '0%';
+    },
+
     // 1. Luồng load dữ liệu từ History
     async loadJob(jobId) {
         currentSessionPrompt = null; // Khi load từ history, ta không có prompt

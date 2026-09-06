@@ -92,7 +92,7 @@ btnRenderVideo.addEventListener('click', () => {
     if (window.appController) {
         const originalPrompt = window.appController.getCurrentPrompt();
         if (!originalPrompt) {
-             alert("LỖI GIỚI HẠN BACKEND:\nKhông thể Render lại Job cũ từ History vì Backend chưa trả về Prompt ban đầu. Vui lòng tạo Draft mới ở cột bên phải để tiếp tục.");
+             window.appController.showBackendLimitError();
              return;
         }
         
