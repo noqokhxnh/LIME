@@ -1,0 +1,12 @@
+node_modules
+dist
+tmp
+.env
+.git
+.agents
+.claude
+*.sqlite
+*.sqlite-wal
+*.sqlite-shm
+*.log
+coverage

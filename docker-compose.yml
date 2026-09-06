@@ -1,0 +1,44 @@
+version: '3.8'
+
+services:
+  redis:
+    image: redis:7-alpine
+    container_name: vidtml_redis
+    ports:
+      - "6379:6379"
+    volumes:
+      - redis_data:/data
+    restart: unless-stopped
+
+  server:
+    build: .
+    container_name: vidtml_server
+    command: npm start
+    ports:
+      - "3000:3000"
+    volumes:
+      - vidtml_data:/app/tmp
+    environment:
+      - REDIS_URL=redis://redis:6379
+      - NODE_ENV=production
+    depends_on:
+      - redis
+    restart: unless-stopped
+
+  worker:
+    build: .
+    container_name: vidtml_worker
+    command: npm run worker
+    volumes:
+      - vidtml_data:/app/tmp
+    environment:
+      - REDIS_URL=redis://redis:6379
+      - NODE_ENV=production
+    shm_size: 2gb
+    depends_on:
+      - redis
+    restart: unless-stopped
+
+volumes:
+  redis_data:
+  vidtml_data:
