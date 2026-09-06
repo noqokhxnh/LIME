@@ -1,19 +1,18 @@
-[]rate limit 
-[]Thanh toán
-[]auto switch model
-[]token per user 
-[]token counting
-[]phân tích url paper to video
-[]edit per-frame text inline 
-[]CLI
-[]docker, redis(core)
-[]tính token
-[]dashboard admin
-[]retry phase error
-[]promt injection
-[]web
+1: []docker, redis(core)
+2: []retry phase error
+3: []Authentication: google
+4: []rate limit: giới hạn số job đồng thời per user, số request per minute, tránh quá tải và lạm dụng chi phí LLM/TTS.
+5: []promt injection
+6: []edit per-frame text inline 
 []Auto subtitles
-[]Authentication
 []History video
-[]Edit per-frame text & script inline 
-[]Chuyển hàng đợi sang BullMQ
+
+7: []token counting
+[]token per user 
+[]Thanh toán: vietqr api
+[]dashboard admin
+
+
+[]auto switch model: for dev
+[]phân tích url paper to video
+[]CLI
