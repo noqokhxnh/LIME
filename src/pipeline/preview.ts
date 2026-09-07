@@ -3,6 +3,7 @@ import { join, dirname, resolve } from "node:path";
 import { pathToFileURL } from "node:url";
 import { chromium, type Browser, type BrowserContext, type Page } from "playwright";
 import { videoScript, scene, durationMap } from "@/llm/schema";
+import { withRetry, isAbortError } from "./retry.js";
 
 process.env.PW_TEST_SCREENSHOT_NO_FONTS_READY = "1";
 
@@ -201,6 +202,11 @@ export async function generatePreviews(options: PreviewOptions): Promise<Preview
         mkdirSync(previewOutputDir, { recursive: true });
     }
 
+    const absoluteHtmlPath = resolve(htmlPath);
+    if (!existsSync(absoluteHtmlPath)) {
+        throw new Error(`Preview generation failed: HTML file not found at: ${absoluteHtmlPath}`);
+    }
+
     const sceneTimelineInfos = calculateSceneTimestamps(
         script.scenes,
         durations,
@@ -208,85 +214,96 @@ export async function generatePreviews(options: PreviewOptions): Promise<Preview
     );
 
     const totalDurationSec = sceneTimelineInfos.reduce((acc, curr) => acc + curr.duration, 0);
-    const results: ScenePreview[] = [];
 
     onProgress?.(`Bắt đầu khởi tạo Chromium để tạo thumbnail cho ${script.scenes.length} phân cảnh`, 0);
 
-    let browser: Browser | null = null;
-    let context: BrowserContext | null = null;
-    let page: Page | null = null;
+    return await withRetry(
+        async (attempt) => {
+            let browser: Browser | null = null;
+            let context: BrowserContext | null = null;
+            let page: Page | null = null;
+            const results: ScenePreview[] = [];
 
-    try {
-        browser = await launchPreviewBrowser();
-        context = await browser.newContext({
-            viewport: { width, height },
-            deviceScaleFactor: 1,
-        });
+            try {
+                browser = await launchPreviewBrowser();
+                context = await browser.newContext({
+                    viewport: { width, height },
+                    deviceScaleFactor: 1,
+                });
 
-        page = await context.newPage();
+                page = await context.newPage();
 
-        onProgress?.("Đang nạp file HTML và kiểm tra Master Timeline...", 10);
-        await loadAndPreparePage(page, htmlPath, width, height, timeoutMs);
+                onProgress?.("Đang nạp file HTML và kiểm tra Master Timeline...", 10);
+                await loadAndPreparePage(page, htmlPath, width, height, timeoutMs);
 
-        const totalScenes = sceneTimelineInfos.length;
+                const totalScenes = sceneTimelineInfos.length;
 
-        for (let i = 0; i < totalScenes; i++) {
-            const item = sceneTimelineInfos[i];
-            const { scene: sceneItem, index, targetTime } = item;
+                for (let i = 0; i < totalScenes; i++) {
+                    const item = sceneTimelineInfos[i];
+                    const { scene: sceneItem, index, targetTime } = item;
 
-            const progressPct = Math.round(15 + ((i + 1) / totalScenes) * 80);
-            onProgress?.(
-                `Đang chụp preview cho scene ${index + 1}/${totalScenes}: "${sceneItem.title}" tại ${targetTime}s`,
-                progressPct
-            );
+                    const progressPct = Math.round(15 + ((i + 1) / totalScenes) * 80);
+                    onProgress?.(
+                        `Đang chụp preview cho scene ${index + 1}/${totalScenes}: "${sceneItem.title}" tại ${targetTime}s`,
+                        progressPct
+                    );
 
-            // Tua timeline đến điểm giữa phân cảnh
-            await seekToTimestamp(page, targetTime);
+                    // Tua timeline đến điểm giữa phân cảnh
+                    await seekToTimestamp(page, targetTime);
 
-            const fileName = `${sceneItem.id}.${format}`;
-            const imagePath = join(previewOutputDir, fileName);
+                    const fileName = `${sceneItem.id}.${format}`;
+                    const imagePath = join(previewOutputDir, fileName);
 
-            await page.screenshot({
-                path: imagePath,
-                type: format,
-                quality: format === "png" ? undefined : quality,
-                animations: "disabled",
-                timeout: 10000,
-            });
+                    await page.screenshot({
+                        path: imagePath,
+                        type: format,
+                        quality: format === "png" ? undefined : quality,
+                        animations: "disabled",
+                        timeout: 10000,
+                    });
 
-            let dataUri: string | undefined;
-            if (includeDataUri && existsSync(imagePath)) {
-                const imgBuffer = readFileSync(imagePath);
-                dataUri = `data:image/${format};base64,${imgBuffer.toString("base64")}`;
+                    let dataUri: string | undefined;
+                    if (includeDataUri && existsSync(imagePath)) {
+                        const imgBuffer = readFileSync(imagePath);
+                        dataUri = `data:image/${format};base64,${imgBuffer.toString("base64")}`;
+                    }
+
+                    results.push({
+                        sceneId: sceneItem.id,
+                        sceneIndex: index,
+                        title: sceneItem.title,
+                        timeSec: targetTime,
+                        imagePath,
+                        fileName,
+                        dataUri,
+                    });
+                }
+
+                onProgress?.(`Hoàn thành tạo ${results.length} thumbnails preview`, 100);
+
+                return {
+                    previews: results,
+                    previewDir: previewOutputDir,
+                    totalScenes: results.length,
+                    durationSec: Math.round(totalDurationSec * 100) / 100,
+                };
+            } catch (err: any) {
+                onProgress?.(`Lỗi khi tạo preview (attempt ${attempt}): ${err.message}`);
+                throw new Error(`Preview generation failed: ${err.message}`);
+            } finally {
+                if (page) await page.close().catch(() => {});
+                if (context) await context.close().catch(() => {});
+                if (browser) await browser.close().catch(() => {});
             }
-
-            results.push({
-                sceneId: sceneItem.id,
-                sceneIndex: index,
-                title: sceneItem.title,
-                timeSec: targetTime,
-                imagePath,
-                fileName,
-                dataUri,
-            });
+        },
+        {
+            maxAttempts: 2,
+            shouldRetry: (err) => !isAbortError(err),
+            onRetry: (err, attempt, delayMs) => {
+                onProgress?.(`[Preview] Khởi tạo Chromium lỗi (${err.message}). Đang thử lại lần ${attempt + 1}/2 sau ${delayMs}ms...`);
+            },
         }
-
-        onProgress?.(`Hoàn thành tạo ${results.length} thumbnails preview`, 100);
-
-        return {
-            previews: results,
-            previewDir: previewOutputDir,
-            totalScenes: results.length,
-            durationSec: Math.round(totalDurationSec * 100) / 100,
-        };
-    } catch (err: any) {
-        onProgress?.(`Lỗi khi tạo preview: ${err.message}`);
-        throw new Error(`Preview generation failed: ${err.message}`);
-    } finally {
-        if (page) await page.close().catch(() => {});
-        if (context) await context.close().catch(() => {});
-        if (browser) await browser.close().catch(() => {});
-    }
+    );
 }
 
 /**
