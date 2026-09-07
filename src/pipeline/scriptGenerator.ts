@@ -1,6 +1,7 @@
 import { Config } from "@/config";
 import { getLLMClient } from "@/llm/client";
 import { videoRequest, videoScript, videoScriptSchema } from "@/llm/schema";
+import { sleep } from "./retry.js";
 
 import { readFileSync } from "node:fs";
 import { join, dirname } from "node:path";
@@ -85,6 +86,12 @@ export async function generateScript(
             lastError = error;
             console.error(`[Script] Attempt ${attempt} failed:`, error.message);
             onProgress?.(`[Script] Attempt ${attempt} failed: ${error.message}`);
+            if (attempt < 3) {
+                const isTest = process.env.NODE_ENV === "test";
+                const delay = (isTest ? 10 : 500) * Math.pow(2, attempt - 1);
+                onProgress?.(`[Script] Retrying attempt ${attempt + 1}/3 in ${delay}ms...`);
+                await sleep(delay);
+            }
         }
     }
 
