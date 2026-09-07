@@ -8,6 +8,7 @@ services:
     volumes:
       - vidtml_data:/app/tmp
     shm_size: '2gb'
-
+    env_file:
+      - .env
 volumes:
   vidtml_data:
