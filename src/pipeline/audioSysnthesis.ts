@@ -8,6 +8,7 @@ import ffmpeg from "fluent-ffmpeg";
 import { Config, getConfig } from "@/config";
 import { AudioResult, durationMap, videoScript } from "@/llm/schema";
 import { estimateTextDuration } from "./estimateDuration";
+import { withRetry } from "./retry.js";
 
 export interface TTSClient {
     readonly provider: string;
@@ -513,20 +514,33 @@ export async function synthesizeAudio(options: AudioSynthesisOptions): Promise<A
 
         onProgress?.(`[TTS] Scene ${i + 1}/${total} "${scene.title}" — đang tổng hợp giọng đọc`, Math.round((i / total) * 80));
 
-        if (!text) {
-            const silenceDuration = estimateTextDuration(scene.voiceOverText, { language });
-            onProgress?.(`[TTS] Scene "${scene.title}" không có lời thoại — tạo đoạn im lặng ${silenceDuration}s`);
-            await generateSilence(sceneAudioPath, silenceDuration);
-        } else {
-            await tts.synthesize(text, sceneAudioPath, { voice, language, signal });
-        }
+        await withRetry(
+            async (attempt) => {
+                if (!text) {
+                    const silenceDuration = estimateTextDuration(scene.voiceOverText, { language });
+                    onProgress?.(`[TTS] Scene "${scene.title}" không có lời thoại — tạo đoạn im lặng ${silenceDuration}s`);
+                    await generateSilence(sceneAudioPath, silenceDuration);
+                } else {
+                    await tts.synthesize(text, sceneAudioPath, { voice, language, signal });
+                }
 
-        const durationSec = await probeDuration(sceneAudioPath);
-        if (!durationSec || durationSec <= 0) {
-            throw new Error(`Không đo được duration audio của scene "${scene.id}"`);
-        }
-        sceneDurations[scene.id] = Math.round(durationSec * 100) / 100;
-        audioFiles[scene.id] = sceneAudioPath;
+                const durationSec = await probeDuration(sceneAudioPath);
+                if (!durationSec || durationSec <= 0) {
+                    throw new Error(`Không đo được duration audio của scene "${scene.id}"`);
+                }
+                sceneDurations[scene.id] = Math.round(durationSec * 100) / 100;
+                audioFiles[scene.id] = sceneAudioPath;
+            },
+            {
+                maxAttempts: 3,
+                signal,
+                onRetry: (err, attempt, delayMs) => {
+                    onProgress?.(
+                        `[TTS] Scene "${scene.title}" lỗi (${err.message}). Đang thử lại lần ${attempt + 1}/3 sau ${delayMs}ms...`
+                    );
+                },
+            }
+        );
         onProgress?.(
             `[TTS] Scene "${scene.title}": ${sceneDurations[scene.id]}s`,
             Math.round(((i + 1) / total) * 80)
@@ -535,9 +549,19 @@ export async function synthesizeAudio(options: AudioSynthesisOptions): Promise<A
 
     onProgress?.("Đang nối các đoạn âm thanh thành track hoàn chỉnh", 85);
     const fullVoicePath = join(outputDir, "full_voice.mp3");
-    await concatAudios(
-        script.scenes.map((s) => audioFiles[s.id]),
-        fullVoicePath
+    await withRetry(
+        () =>
+            concatAudios(
+                script.scenes.map((s) => audioFiles[s.id]),
+                fullVoicePath
+            ),
+        {
+            maxAttempts: 2,
+            signal,
+            onRetry: (err, attempt, delayMs) => {
+                onProgress?.(`[Audio] Nối audio lỗi (${err.message}). Đang thử lại lần ${attempt + 1}/2 sau ${delayMs}ms...`);
+            },
+        }
     );
 
     let mixAudioPath = fullVoicePath;
@@ -547,7 +571,16 @@ export async function synthesizeAudio(options: AudioSynthesisOptions): Promise<A
         } else {
             onProgress?.(`[BGM] Đang trộn nhạc nền (volume ${bgmVolume})`, 92);
             mixAudioPath = join(outputDir, "final_mix.mp3");
-            await mixBgm(fullVoicePath, bgmPath, mixAudioPath, bgmVolume);
+            await withRetry(
+                () => mixBgm(fullVoicePath, bgmPath, mixAudioPath, bgmVolume),
+                {
+                    maxAttempts: 2,
+                    signal,
+                    onRetry: (err, attempt, delayMs) => {
+                        onProgress?.(`[BGM] Trộn nhạc nền lỗi (${err.message}). Đang thử lại lần ${attempt + 1}/2 sau ${delayMs}ms...`);
+                    },
+                }
+            );
         }
     }
 
