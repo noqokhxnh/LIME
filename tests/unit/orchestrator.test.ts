@@ -20,10 +20,15 @@ class MockOrchLLMClient implements LLMClient {
 class MockOrchTTSClient implements TTSClient {
     readonly provider = 'mock-tts';
     public shouldFail = false;
+    public failCountBeforeSuccess = 0;
 
     async synthesize(_text: string, outputPath: string): Promise<void> {
         if (this.shouldFail) {
             throw new Error('TTS Network Connection Error');
+        }
+        if (this.failCountBeforeSuccess > 0) {
+            this.failCountBeforeSuccess--;
+            throw new Error('Transient TTS Network Glitch');
         }
         await generateSilence(outputPath, 1.5);
     }
@@ -273,6 +278,30 @@ describe('Module 8: Pipeline Orchestrator (src/pipeline/orchestrator.ts)', () =>
             assert.ok(
                 progressUpdates.some((p) => p.message.includes('Pipeline failed: TTS Network Connection Error')),
                 'onProgress phải ghi nhận thông báo Pipeline failed'
+            );
+        });
+
+        it('phải tự động thử lại và hoàn thành pipeline khi TTS gặp lỗi tạm thời (Transient Retry)', async () => {
+            mockTTS.failCountBeforeSuccess = 1; // Thất bại 1 lần rồi thành công
+            const progressUpdates: pipelineProgess[] = [];
+            const jobDir = join(testTempDir, 'job-retry-recovery');
+
+            const result = await runFullPipeline({
+                request: validVideoRequest,
+                script: sampleScript,
+                outputDir: jobDir,
+                skipPreview: true,
+                onProgress: (p) => progressUpdates.push(p),
+            });
+
+            assert.ok(result.jobId, 'Phải trả về jobId');
+            assert.ok(result.durationSec > 0, 'Phải tính được duration thực');
+            assert.ok(existsSync(result.finalHtmlPath), 'HTML final phải tồn tại');
+
+            // Kiểm tra có thông báo retry trong log
+            assert.ok(
+                progressUpdates.some((p) => p.message.includes('thử lại lần 2/3')),
+                'onProgress phải ghi nhận thông báo đang thử lại'
             );
         });
     });

@@ -1,5 +1,5 @@
 1: []docker, redis(core)
-2: []retry phase error
+2: [x]retry phase error
 3: []Authentication: google
 4: []rate limit: giới hạn số job đồng thời per user, số request per minute, tránh quá tải và lạm dụng chi phí LLM/TTS.
 5: []promt injection
