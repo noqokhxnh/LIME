@@ -6,7 +6,8 @@
 []phân tích url paper to video
 []edit per-frame text inline 
 []CLI
-[]docker, redis(core)
+[x] docker
+[ ] redis(core)
 []tính token
 []dashboard admin
 []retry phase error
