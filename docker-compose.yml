@@ -3,3 +3,11 @@ services:
     build: .
     ports:
       - "3000:3000"
+    environment:
+      - NODE_ENV=production
+    volumes:
+      - vidtml_data:/app/tmp
+    shm_size: '2gb'
+
+volumes:
+  vidtml_data:
