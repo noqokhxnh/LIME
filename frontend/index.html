@@ -12,9 +12,25 @@
 <body>
     <div class="container">
         <header class="header">
-            <h1>HTML to Video Generator</h1>
-            <p class="subtitle">Nhập ý tưởng để AI tự động tạo chuyển động HTML và render video MP4</p>
-        </header>
+    <div>
+        <h1>HTML to Video Generator</h1>
+        <p class="subtitle">
+            Nhập ý tưởng để AI tự động tạo chuyển động HTML và render video MP4
+        </p>
+    </div>
+
+    <div class="auth-area">
+        <span id="user-display"></span>
+
+        <button id="login-open-btn" class="btn-login" type="button">
+            Đăng nhập
+        </button>
+
+        <button id="logout-btn" class="btn-logout" type="button" style="display: none;">
+            Đăng xuất
+        </button>
+    </div>
+</header>
 
         <div class="main-grid">
             <!-- Cột trái: Nhập prompt và xem log -->
@@ -74,8 +90,37 @@
                 </div>
             </div>
         </div>
-    </div>
+        </div>
+    <div id="login-modal" class="login-modal">
+        <div class="login-box">
+            <button id="login-close-btn" class="login-close" type="button">X</button>
+            <h2>Đăng nhập</h2>
+            <p class="login-description">Đăng nhập để sử dụng chức năng tạo video</p>
 
+            <div class="form-group">
+                <label for="login-username">Tên đăng nhập</label>
+                <input
+                    id="login-username"
+                    type="text"
+                    placeholder="Nhập tên đăng nhập">
+            </div>
+
+            <div class="form-group">
+                <label for="login-password">Mật khẩu</label>
+                <input
+                    id="login-password"
+                    type="password"
+                    placeholder="Nhập mật khẩu">
+            </div>
+
+            <div id="login-error" class="login-error"></div>
+
+            <button id="login-submit-btn" class="btn-primary" type="button">
+                Đăng nhập
+            </button>
+
+        </div>
+    </div>
     <script src="app.js"></script>
 </body>
 </html>

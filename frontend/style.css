@@ -284,3 +284,191 @@ textarea:focus {
 .btn-action:hover {
     opacity: 0.9;
 }
+/* ==================== AUTH HEADER ==================== */
+
+.header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    text-align: left;
+    gap: 20px;
+}
+
+.auth-area {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+}
+
+#user-display {
+    color: var(--text-sub);
+    font-size: 0.9rem;
+    white-space: nowrap;
+}
+
+.btn-login,
+.btn-logout {
+    padding: 10px 18px;
+    border-radius: 8px;
+    font-family: inherit;
+    font-size: 0.9rem;
+    font-weight: 600;
+    cursor: pointer;
+    transition: 0.2s;
+}
+
+.btn-login {
+    background: var(--primary);
+    color: white;
+    border: none;
+}
+
+.btn-login:hover {
+    background: var(--primary-hover);
+}
+
+.btn-logout {
+    background: transparent;
+    color: var(--text-main);
+    border: 1px solid var(--border-color);
+}
+
+.btn-logout:hover {
+    background: #1a2333;
+}
+
+
+/* ==================== LOGIN POPUP ==================== */
+
+.login-modal {
+    position: fixed;
+    inset: 0;
+
+    display: none;
+    align-items: center;
+    justify-content: center;
+
+    background: rgba(0, 0, 0, 0.7);
+    backdrop-filter: blur(5px);
+
+    z-index: 9999;
+}
+
+/* Khi JS thêm class show thì hiện popup */
+.login-modal.show {
+    display: flex;
+}
+
+.login-box {
+    position: relative;
+
+    width: 90%;
+    max-width: 400px;
+
+    padding: 32px;
+
+    background: var(--bg-card);
+
+    border: 1px solid var(--border-color);
+    border-radius: 14px;
+
+    box-shadow: 0 20px 60px rgba(0, 0, 0, 0.6);
+}
+
+.login-box h2 {
+    font-size: 1.5rem;
+    margin-bottom: 8px;
+}
+
+.login-description {
+    color: var(--text-sub);
+    font-size: 0.9rem;
+    margin-bottom: 24px;
+}
+
+
+/* Input trong login */
+
+.login-box .form-group {
+    margin-bottom: 16px;
+}
+
+.login-box input {
+    width: 100%;
+
+    padding: 12px 14px;
+
+    background: #070a10;
+    color: var(--text-main);
+
+    border: 1px solid var(--border-color);
+    border-radius: 8px;
+
+    font-family: inherit;
+    font-size: 0.95rem;
+
+    outline: none;
+
+    transition: 0.2s;
+}
+
+.login-box input:focus {
+    border-color: var(--primary);
+
+    box-shadow:
+        0 0 0 2px rgba(59, 130, 246, 0.2);
+}
+
+
+/* Nút X */
+
+.login-close {
+    position: absolute;
+
+    top: 14px;
+    right: 16px;
+
+    width: 32px;
+    height: 32px;
+
+    display: flex;
+    align-items: center;
+    justify-content: center;
+
+    background: transparent;
+    color: var(--text-sub);
+
+    border: none;
+    border-radius: 6px;
+
+    font-size: 20px;
+
+    cursor: pointer;
+}
+
+.login-close:hover {
+    color: white;
+    background: #1a2333;
+}
+
+
+/* Thông báo sai mật khẩu */
+
+.login-error {
+    min-height: 20px;
+
+    margin-top: 4px;
+    margin-bottom: 10px;
+
+    color: var(--danger);
+
+    font-size: 0.85rem;
+}
+
+
+/* Nút đăng nhập trong popup */
+
+#login-submit-btn {
+    width: 100%;
+    margin-top: 4px;
+}
