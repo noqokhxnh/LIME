@@ -7,6 +7,9 @@ const envSchema = z.object({
     PORT: z.coerce.number().default(3000),
     NODE_ENV: z.enum(['production', 'development']).default('development'),
 
+    LOGIN_USERNAME: z.string(),
+    LOGIN_PASSWORD: z.string(),
+
 
     LLM_Provider: z.enum(['openai', 'deepseek', 'gemini', 'claude']).default('gemini'),
 
