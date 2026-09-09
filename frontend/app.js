@@ -3,6 +3,18 @@ const API_BASE = (window.location.origin && window.location.origin.includes(':30
     ? ''
     : 'http://localhost:3000';
 
+//test login ui
+
+const loginOpenBtn = document.getElementById('login-open-btn');
+const loginModal = document.getElementById('login-modal');
+const loginCloseBtn = document.getElementById('login-close-btn');
+
+loginOpenBtn.addEventListener('click', () => {
+    loginModal.classList.add('show');
+});
+loginCloseBtn.addEventListener('click', () => {
+    loginModal.classList.remove('show');
+});    
 const promptInput = document.getElementById('prompt-input');
 const generateBtn = document.getElementById('generate-btn');
 const btnSpinner = document.getElementById('btn-spinner');
