@@ -18,3 +18,6 @@ redis(core)
 []auto switch model: for dev
 []phân tích url paper to video
 []CLI
+
+[] kịch bản json -> ai enhance
+[] plugin cho GSAP
