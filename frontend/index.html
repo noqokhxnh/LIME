@@ -12,10 +12,13 @@
 <body>
     <div class="container">
         <header class="header">
+            <div>
             <h1>HTML to Video Generator</h1>
             <p class="subtitle">Nhập ý tưởng để AI tự động tạo chuyển động HTML và render video MP4</p>
+            </div>
+            
+        <button id="login-open-btn" class="btn-login" type="button">Đăng nhập</button>
         </header>
-
         <div class="main-grid">
             <!-- Cột trái: Nhập prompt và xem log -->
             <div class="card left-panel">
@@ -76,6 +79,21 @@
         </div>
     </div>
 
+<div id="login-modal" class="login-modal">
+    <div class="login-card">
+        <button id="login-close-btn" class="login-close-btn" type="button">X</button>
+        <h2>Đăng nhập</h2>
+     <div class="login-field">
+            <label for="login-username">Tên đăng nhập</label>
+            <input id="login-username"type="text"placeholder="Nhập tên đăng nhập"></div>
+        <div class="login-field">
+            <label for="login-password">Mật khẩu</label>
+            <input id="login-password"type="password"placeholder="Nhập mật khẩu">
+        </div>
+        <div id="login-error" class="login-error"></div>
+        <button id="login-submit-btn" class="login-submit-btn" type="button">Đăng nhập</button>
+    </div>
+</div>
     <script src="app.js"></script>
 </body>
 </html>

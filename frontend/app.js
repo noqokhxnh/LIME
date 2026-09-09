@@ -3,6 +3,50 @@ const API_BASE = (window.location.origin && window.location.origin.includes(':30
     ? ''
     : 'http://localhost:3000';
 
+//test login
+const loginOpenBtn = document.getElementById('login-open-btn');
+const loginModal = document.getElementById('login-modal');
+const loginCloseBtn = document.getElementById('login-close-btn');
+const loginSubmitBtn = document.getElementById('login-submit-btn');
+const loginUsername = document.getElementById('login-username');
+const loginPassword = document.getElementById('login-password');
+const loginError = document.getElementById('login-error');
+
+loginOpenBtn.addEventListener('click', () => {
+    loginModal.classList.add('show');
+    loginError.textContent = '';
+    loginUsername.focus();
+});
+
+loginCloseBtn.addEventListener('click', () => {
+    loginModal.classList.remove('show');
+});
+
+loginModal.addEventListener('click', (event) => {
+    if (event.target === loginModal) {
+        loginModal.classList.remove('show');
+    }
+});
+
+loginPassword.addEventListener('keydown', (event) => {
+    if (event.key === 'Enter') {
+        loginSubmitBtn.click();
+    }
+});
+
+loginSubmitBtn.addEventListener('click', () => {
+    const username = loginUsername.value.trim();
+    const password = loginPassword.value;
+
+    if (!username || !password) {
+        loginError.textContent =
+            'Vui lòng nhập tên đăng nhập và mật khẩu';
+        return;
+    }
+    loginError.textContent =
+        'Chức năng đăng nhập chưa được kết nối với backend.';
+});
+
 const promptInput = document.getElementById('prompt-input');
 const generateBtn = document.getElementById('generate-btn');
 const btnSpinner = document.getElementById('btn-spinner');
