@@ -14,7 +14,7 @@ loginOpenBtn.addEventListener('click', () => {
 });
 loginCloseBtn.addEventListener('click', () => {
     loginModal.classList.remove('show');
-});    
+});
 const promptInput = document.getElementById('prompt-input');
 const generateBtn = document.getElementById('generate-btn');
 const btnSpinner = document.getElementById('btn-spinner');
@@ -59,7 +59,7 @@ function displayVideo(jobId) {
     videoPlayer.style.display = 'block';
     videoPlayer.src = videoUrl;
     videoPlayer.load();
-    videoPlayer.play().catch(() => {});
+    videoPlayer.play().catch(() => { });
 
     btnDownload.style.display = 'inline-block';
     btnDownload.href = `${API_BASE}/api/jobs/${jobId}/download`;
@@ -93,7 +93,7 @@ generateBtn.addEventListener('click', async () => {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({
-                promt: prompt,
+                prompt: prompt,
                 aspectRatio: '16:9',
                 targetDurationSec: 15,
                 language: 'vi',
@@ -174,5 +174,5 @@ generateBtn.addEventListener('click', async () => {
                 displayVideo(completedJob.jobId);
             }
         }
-    } catch (e) {}
+    } catch (e) { }
 })();

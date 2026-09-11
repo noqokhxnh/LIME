@@ -7,7 +7,7 @@ import { setTTSClient, resetTTSClient, generateSilence, type TTSClient } from '.
 
 class MockApiLLMClient implements LLMClient {
     readonly provider = 'mock-llm';
-    constructor(private response: string) {}
+    constructor(private response: string) { }
     async generate(): Promise<string> {
         return this.response;
     }
@@ -189,7 +189,7 @@ describe('Module 9: Fastify API Server & Health Endpoint (src/index.ts)', () => 
                 method: 'POST',
                 url: '/api/script/draft',
                 payload: {
-                    promt: 'ngan',
+                    prompt: 'ngan',
                     aspectRatio: '16:9',
                     targetDurationSec: 30,
                     language: 'vi',
@@ -222,7 +222,7 @@ describe('Module 9: Fastify API Server & Health Endpoint (src/index.ts)', () => 
                 method: 'POST',
                 url: '/api/pipeline',
                 payload: {
-                    promt: 'Video gioi thieu du lich Ha Noi 3 canh',
+                    prompt: 'Video gioi thieu du lich Ha Noi 3 canh',
                     aspectRatio: '16:9',
                     targetDurationSec: 20,
                     language: 'vi',

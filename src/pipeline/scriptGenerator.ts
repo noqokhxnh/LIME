@@ -8,7 +8,7 @@ import { join, dirname } from "node:path";
 import { fileURLToPath } from "node:url";
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
-const SYSTEM_PROMT_PATH = join(__dirname, '..', 'llm', 'system.txt');
+const SYSTEM_prompt_PATH = join(__dirname, '..', 'llm', 'system.txt');
 
 const VIDEO_PRESETS: Record<string, string> = {
     '16:9': '1920x1080',
@@ -19,7 +19,7 @@ const VIDEO_PRESETS: Record<string, string> = {
 
 export function buildUserPrompt(request: videoRequest, preset: string): string {
     return `Create a high-quality video script with the following requirements:
-Topic/Prompt: ${request.promt}
+Topic/Prompt: ${request.prompt}
 Aspect Ratio: ${request.aspectRatio} (${preset})
 Target Duration: ${request.targetDurationSec} seconds
 Language: ${request.language}
@@ -44,7 +44,7 @@ export async function generateScript(
     onProgress?: (msg: string) => void
 ): Promise<videoScript> {
     const llm = getLLMClient();
-    const systemPrompt = readFileSync(SYSTEM_PROMT_PATH, 'utf-8');
+    const systemPrompt = readFileSync(SYSTEM_prompt_PATH, 'utf-8');
 
     const preset = VIDEO_PRESETS[request.aspectRatio];
     const userPrompt = buildUserPrompt(request, preset);
@@ -54,11 +54,11 @@ export async function generateScript(
         onProgress?.(`[Script] Attempt ${attempt}/3 - generating with ${llm.provider}`);
 
         try {
-            const promtToSend = attempt === 1
+            const promptToSend = attempt === 1
                 ? userPrompt
                 : `${userPrompt}\n\nLần trước bị lỗi, hãy sửa lỗi sau:\n${lastError?.message}`;
 
-            const responseText = await llm.generate(systemPrompt, promtToSend);
+            const responseText = await llm.generate(systemPrompt, promptToSend);
 
             const jsonText = stripMarkdownJson(responseText);
 
