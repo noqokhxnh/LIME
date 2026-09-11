@@ -1,6 +1,7 @@
 import { Config } from "@/config";
 import { getLLMClient } from "@/llm/client";
 import { videoRequest, videoScript, videoScriptSchema } from "@/llm/schema";
+import { formatStylePrompt } from "../constants/style.js";
 import { sleep } from "./retry.js";
 
 import { readFileSync } from "node:fs";
@@ -18,6 +19,8 @@ const VIDEO_PRESETS: Record<string, string> = {
 };
 
 export function buildUserPrompt(request: videoRequest, preset: string): string {
+    const styleDetails = formatStylePrompt(request.style, request.customStyle);
+
     return `Create a high-quality video script with the following requirements:
 Topic/Prompt: ${request.prompt}
 Aspect Ratio: ${request.aspectRatio} (${preset})
@@ -25,6 +28,19 @@ Target Duration: ${request.targetDurationSec} seconds
 Language: ${request.language}
 Style: ${request.style}
 ${request.customStyle ? `Custom Style Instructions: ${request.customStyle}` : ''}
+
+--- STYLE & ART DIRECTION SPECIFICATIONS ---
+${styleDetails}
+
+--- CRITICAL PRODUCTION RULES ---
+1. "Screen for orientation, Voice for speech":
+   - NEVER repeat narration speech as on-screen body text.
+   - Screen must ONLY display: Punchy Title (≤ 5 words) + 1-3 Focus Anchors (Metric, Diagram, Icon card, Key concept).
+   - Full explanation belongs strictly in voiceOverText.
+2. Visual Anchors Continuity:
+   - Preserve at least 1 persistent visual anchor (color token, icon badge, or layout axis) across scene transitions.
+3. Negative Space & Anti-Card Slop:
+   - Ensure 35%-45% negative space. Do NOT default to wrapping everything in rounded glass cards.
 
 Remember to output ONLY valid JSON matching the schema, with GSAP animation code included.`;
 }
