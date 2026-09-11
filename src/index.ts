@@ -79,7 +79,7 @@ export async function buildApp(options: { logger?: boolean } = {}): Promise<Fast
             const body = request.body as any;
             const normalized = {
                 ...body,
-                promt: body?.promt || body?.prompt,
+                prompt: body?.prompt || body?.prompt,
             };
             const reqData = videoRequestSchema.parse(normalized);
             const script = await generateScript(reqData);
@@ -105,7 +105,7 @@ export async function buildApp(options: { logger?: boolean } = {}): Promise<Fast
         try {
             const normalized = {
                 ...body,
-                promt: body?.promt || body?.prompt,
+                prompt: body?.prompt || body?.prompt,
             };
             reqData = videoRequestSchema.parse(normalized);
         } catch (err: any) {
@@ -222,7 +222,7 @@ export async function buildApp(options: { logger?: boolean } = {}): Promise<Fast
             status: j.status,
             createdAt: j.createdAt,
             updatedAt: j.updatedAt,
-            topic: j.request.promt,
+            topic: j.request.prompt,
             durationSec: j.result?.durationSec,
             error: j.error,
         }));

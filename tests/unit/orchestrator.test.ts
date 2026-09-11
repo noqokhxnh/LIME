@@ -11,7 +11,7 @@ import { type videoRequest, type videoScript, type pipelineProgess } from '../..
 
 class MockOrchLLMClient implements LLMClient {
     readonly provider = 'mock-llm';
-    constructor(private response: string) {}
+    constructor(private response: string) { }
     async generate(): Promise<string> {
         return this.response;
     }
@@ -79,7 +79,7 @@ describe('Module 8: Pipeline Orchestrator (src/pipeline/orchestrator.ts)', () =>
     };
 
     const validVideoRequest: videoRequest = {
-        promt: 'Video kiểm thử tính năng điều phối pipeline',
+        prompt: 'Video kiểm thử tính năng điều phối pipeline',
         aspectRatio: '16:9',
         targetDurationSec: 30,
         language: 'vi',

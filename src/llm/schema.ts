@@ -38,11 +38,11 @@ export const durationMapSchema = z.record(z.string(), z.number());
 export type durationMap = z.infer<typeof durationMapSchema>;
 
 export const videoRequestSchema = z.object({
-    promt: z.string().min(10).max(5000),
+    prompt: z.string().min(10).max(5000),
     aspectRatio: z.enum(['16:9', '9:16', '1:1', '4:3']),
     targetDurationSec: z.coerce.number().min(10).max(300),
     language: z.string().default('vi'),
-    style: z.enum(['modern', 'classic', 'stickman']),  // string hoac enum  
+    style: z.enum(['modern', 'classic', 'stickman', 'minimal']),  // string hoac enum  
     customStyle: z.string().max(5000).optional()
 })
 export type videoRequest = z.infer<typeof videoRequestSchema>
