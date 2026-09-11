@@ -27,7 +27,7 @@ Thiết kế các style trong src/constants/style.ts, hiện có 3 style, thêm 
 ┌─────────────────────────────────────────────────────────────┐
 │ Giai đoạn 1: Thiết Kế & System Prompt (Screen vs Voice)     │
 │ ├─ Viết lại system.txt (Quy chuẩn Typography, Bố cục, Tone) │
-│ ├─ Hoàn thiện src/constants/style.ts (Style Presets & Fonts)│
+│ ├─ Hoàn thiện src/constants/style.ts (Style Presets & Fonts)│[V]
 │ └─ Cập nhật prompt builder & quy chuẩn Visual Anchor        │
 └──────────────────────────────┬──────────────────────────────┘
                                │
