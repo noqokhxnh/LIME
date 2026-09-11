@@ -74,7 +74,7 @@ describe('Module 3: LLM Client & Script Generation (src/llm/client.ts, src/pipel
     };
 
     const validVideoRequest: videoRequest = {
-        promt: 'Video giới thiệu trí tuệ nhân tạo thế hệ mới',
+        prompt: 'Video giới thiệu trí tuệ nhân tạo thế hệ mới',
         aspectRatio: '16:9',
         targetDurationSec: 30,
         language: 'vi',

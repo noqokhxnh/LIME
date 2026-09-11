@@ -194,7 +194,7 @@ Cấu trúc quan hệ giữa Test Suites, Data Interfaces và Mock Adapters:
 ```mermaid
 classDiagram
     class VideoRequest {
-        +string promt
+        +string prompt
         +string aspectRatio
         +number targetDurationSec
         +string language
@@ -383,7 +383,7 @@ endif
 * **Dữ liệu đầu vào:**
   ```json
   {
-    "promt": "Video giới thiệu trí tuệ nhân tạo thế hệ mới",
+    "prompt": "Video giới thiệu trí tuệ nhân tạo thế hệ mới",
     "aspectRatio": "16:9",
     "targetDurationSec": 30,
     "language": "vi",
@@ -397,7 +397,7 @@ endif
 * **Mục đích:** Đảm bảo chặn các giá trị biên và sai định dạng.
 * **Loại test:** Negative Unit Test | **Độ ưu tiên:** P1
 * **Dữ liệu đầu vào:**
-  * Sub-case 1: `promt: "ngắn"` (dưới 10 ký tự).
+  * Sub-case 1: `prompt: "ngắn"` (dưới 10 ký tự).
   * Sub-case 2: `targetDurationSec: 5` (dưới 10 giây) hoặc `targetDurationSec: 600` (vượt 300 giây).
   * Sub-case 3: `aspectRatio: "21:9"` (không nằm trong danh sách hỗ trợ).
   * Sub-case 4: `style: "anime"` (ngoài enum `['modern', 'classic', 'stickman']`).

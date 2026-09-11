@@ -12,7 +12,7 @@ describe('Module 2: Schemas & Validation Contracts (src/llm/schema.ts)', () => {
     describe('TC-SCH-001: Xác thực thành công videoRequestSchema', () => {
         it('phải parse thành công yêu cầu hợp lệ và gán giá trị mặc định cho language', () => {
             const input = {
-                promt: 'Video giới thiệu trí tuệ nhân tạo thế hệ mới',
+                prompt: 'Video giới thiệu trí tuệ nhân tạo thế hệ mới',
                 aspectRatio: '16:9',
                 targetDurationSec: 30,
                 style: 'modern',
@@ -22,7 +22,7 @@ describe('Module 2: Schemas & Validation Contracts (src/llm/schema.ts)', () => {
 
             assert.strictEqual(result.success, true);
             if (result.success) {
-                assert.strictEqual(result.data.promt, input.promt);
+                assert.strictEqual(result.data.prompt, input.prompt);
                 assert.strictEqual(result.data.aspectRatio, '16:9');
                 assert.strictEqual(result.data.targetDurationSec, 30);
                 assert.strictEqual(result.data.style, 'modern');
@@ -33,7 +33,7 @@ describe('Module 2: Schemas & Validation Contracts (src/llm/schema.ts)', () => {
 
         it('phải tự động ép kiểu chuỗi sang số cho targetDurationSec thông qua z.coerce', () => {
             const input = {
-                promt: 'Hướng dẫn làm video tự động bằng công nghệ AI',
+                prompt: 'Hướng dẫn làm video tự động bằng công nghệ AI',
                 aspectRatio: '9:16',
                 targetDurationSec: '45',
                 language: 'en',
@@ -58,7 +58,7 @@ describe('Module 2: Schemas & Validation Contracts (src/llm/schema.ts)', () => {
             for (const aspectRatio of validAspectRatios) {
                 for (const style of validStyles) {
                     const result = videoRequestSchema.safeParse({
-                        promt: 'Prompt kiểm tra tính hợp lệ của schema',
+                        prompt: 'Prompt kiểm tra tính hợp lệ của schema',
                         aspectRatio,
                         targetDurationSec: 20,
                         style,
@@ -74,9 +74,9 @@ describe('Module 2: Schemas & Validation Contracts (src/llm/schema.ts)', () => {
     });
 
     describe('TC-SCH-002: Bắt lỗi chặn các ràng buộc của videoRequestSchema', () => {
-        it('phải từ chối khi promt quá ngắn (dưới 10 ký tự)', () => {
+        it('phải từ chối khi prompt quá ngắn (dưới 10 ký tự)', () => {
             const result = videoRequestSchema.safeParse({
-                promt: 'ngắn',
+                prompt: 'ngắn',
                 aspectRatio: '16:9',
                 targetDurationSec: 30,
                 style: 'modern',
@@ -84,14 +84,14 @@ describe('Module 2: Schemas & Validation Contracts (src/llm/schema.ts)', () => {
 
             assert.strictEqual(result.success, false);
             if (!result.success) {
-                const issue = result.error.issues.find((i) => i.path.includes('promt'));
-                assert.ok(issue, 'Phải có lỗi tại trường promt');
+                const issue = result.error.issues.find((i) => i.path.includes('prompt'));
+                assert.ok(issue, 'Phải có lỗi tại trường prompt');
             }
         });
 
         it('phải từ chối khi targetDurationSec dưới 10 giây hoặc vượt quá 300 giây', () => {
             const underMinResult = videoRequestSchema.safeParse({
-                promt: 'Prompt hợp lệ có độ dài trên 10 ký tự',
+                prompt: 'Prompt hợp lệ có độ dài trên 10 ký tự',
                 aspectRatio: '16:9',
                 targetDurationSec: 5,
                 style: 'modern',
@@ -99,7 +99,7 @@ describe('Module 2: Schemas & Validation Contracts (src/llm/schema.ts)', () => {
             assert.strictEqual(underMinResult.success, false, 'Dưới 10s phải bị từ chối');
 
             const overMaxResult = videoRequestSchema.safeParse({
-                promt: 'Prompt hợp lệ có độ dài trên 10 ký tự',
+                prompt: 'Prompt hợp lệ có độ dài trên 10 ký tự',
                 aspectRatio: '16:9',
                 targetDurationSec: 301,
                 style: 'modern',
@@ -109,7 +109,7 @@ describe('Module 2: Schemas & Validation Contracts (src/llm/schema.ts)', () => {
 
         it('phải từ chối khi aspectRatio không nằm trong danh sách hỗ trợ', () => {
             const result = videoRequestSchema.safeParse({
-                promt: 'Prompt hợp lệ có độ dài trên 10 ký tự',
+                prompt: 'Prompt hợp lệ có độ dài trên 10 ký tự',
                 aspectRatio: '21:9',
                 targetDurationSec: 30,
                 style: 'modern',
@@ -124,7 +124,7 @@ describe('Module 2: Schemas & Validation Contracts (src/llm/schema.ts)', () => {
 
         it('phải từ chối khi style không nằm trong enum', () => {
             const result = videoRequestSchema.safeParse({
-                promt: 'Prompt hợp lệ có độ dài trên 10 ký tự',
+                prompt: 'Prompt hợp lệ có độ dài trên 10 ký tự',
                 aspectRatio: '16:9',
                 targetDurationSec: 30,
                 style: 'anime',
@@ -137,19 +137,19 @@ describe('Module 2: Schemas & Validation Contracts (src/llm/schema.ts)', () => {
             }
         });
 
-        it('phải từ chối khi promt hoặc customStyle vượt quá 5000 ký tự', () => {
+        it('phải từ chối khi prompt hoặc customStyle vượt quá 5000 ký tự', () => {
             const oversizedText = 'a'.repeat(5001);
 
-            const resultPromt = videoRequestSchema.safeParse({
-                promt: oversizedText,
+            const resultprompt = videoRequestSchema.safeParse({
+                prompt: oversizedText,
                 aspectRatio: '16:9',
                 targetDurationSec: 30,
                 style: 'modern',
             });
-            assert.strictEqual(resultPromt.success, false, 'promt vượt 5000 ký tự phải bị từ chối');
+            assert.strictEqual(resultprompt.success, false, 'prompt vượt 5000 ký tự phải bị từ chối');
 
             const resultCustom = videoRequestSchema.safeParse({
-                promt: 'Prompt hợp lệ có độ dài trên 10 ký tự',
+                prompt: 'Prompt hợp lệ có độ dài trên 10 ký tự',
                 aspectRatio: '16:9',
                 targetDurationSec: 30,
                 style: 'modern',
