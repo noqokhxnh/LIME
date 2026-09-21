@@ -1,3 +1,6 @@
+import { existsSync, readFileSync } from "node:fs";
+import { join } from "node:path";
+import { execSync } from "node:child_process";
 import { Config, getConfig } from "../config.js";
 
 export interface LLMClient {
@@ -183,6 +186,168 @@ export class ClaudeClient implements LLMClient {
     }
 }
 
+export function getAuto9RouterKey(): string | undefined {
+    try {
+        const home = process.env.HOME || process.env.USERPROFILE || "";
+        const dbPath = join(home, ".9router", "db", "data.sqlite");
+        if (existsSync(dbPath)) {
+            const out = execSync(`sqlite3 "${dbPath}" "SELECT key FROM apiKeys WHERE isActive = 1 ORDER BY createdAt DESC LIMIT 1;"`, {
+                encoding: "utf-8",
+                timeout: 1000,
+                stdio: ["ignore", "pipe", "ignore"]
+            }).trim();
+            if (out) return out;
+        }
+    } catch {
+        // ignore
+    }
+    return undefined;
+}
+
+export function getDockerGateway(): string | null {
+    try {
+        if (existsSync("/proc/net/route")) {
+            const lines = readFileSync("/proc/net/route", "utf8").split("\n");
+            for (const line of lines) {
+                const parts = line.trim().split(/\s+/);
+                if (parts[1] === "00000000" && parts[2]) {
+                    const hex = parts[2];
+                    const b0 = parseInt(hex.slice(0, 2), 16);
+                    const b1 = parseInt(hex.slice(2, 4), 16);
+                    const b2 = parseInt(hex.slice(4, 6), 16);
+                    const b3 = parseInt(hex.slice(6, 8), 16);
+                    return `${b0}.${b1}.${b2}.${b3}`;
+                }
+            }
+        }
+    } catch {
+        // ignore
+    }
+    return null;
+}
+
+export function getCandidateBaseURLs(baseURL: string): string[] {
+    const urls = [baseURL];
+    const isDocker = existsSync("/.dockerenv");
+    const isLocal = baseURL.includes("localhost") || baseURL.includes("127.0.0.1");
+
+    if (isDocker && isLocal) {
+        const gateway = getDockerGateway();
+        if (gateway) {
+            urls.unshift(baseURL.replace(/localhost|127\.0\.0\.1/, gateway));
+        }
+        urls.unshift(baseURL.replace(/localhost|127\.0\.0\.1/, "host.docker.internal"));
+    }
+    return Array.from(new Set(urls));
+}
+
+export class NineRouterClient implements LLMClient {
+    readonly provider = '9router';
+    readonly model: string;
+    private baseURL: string;
+    private apikey: string;
+
+    constructor(config: Config) {
+        this.baseURL = (config.NineRouter_BaseURL || "http://localhost:20128/v1").replace(/\/+$/, "");
+        this.model = config.NineRouter_Model || "ag/gemini-3.8-flash-high";
+
+        let key = config.NineRouter_APIKEY || process.env.NINEROUTER_API_KEY || process.env.NINE_ROUTER_API_KEY;
+        if (!key) {
+            key = getAuto9RouterKey();
+        }
+        if (!key) {
+            throw new Error("9router API key is required");
+        }
+        this.apikey = key;
+    }
+
+    async generate(systemPrompt: string, userPrompt: string, signal?: AbortSignal): Promise<string> {
+        const candidateURLs = getCandidateBaseURLs(this.baseURL);
+        let res: Response | null = null;
+        let lastNetErr: Error | null = null;
+        let successfulBaseURL = this.baseURL;
+
+        for (const base of candidateURLs) {
+            if (signal?.aborted) {
+                throw new DOMException("Operation aborted", "AbortError");
+            }
+            const url = `${base}/chat/completions`;
+            try {
+                let response = await fetch(url, {
+                    method: "POST",
+                    headers: {
+                        "Authorization": `Bearer ${this.apikey}`,
+                        "Content-Type": "application/json"
+                    },
+                    signal,
+                    body: JSON.stringify({
+                        model: this.model,
+                        messages: [
+                            { role: "system", content: systemPrompt },
+                            { role: "user", content: userPrompt }
+                        ],
+                        temperature: 0.7,
+                        max_tokens: 16000,
+                        stream: false,
+                        response_format: { type: "json_object" },
+                    }),
+                });
+
+                if (!response.ok && response.status === 400) {
+                    const errText = await response.clone().text();
+                    if (errText.toLowerCase().includes("response_format") || errText.toLowerCase().includes("json_object")) {
+                        response = await fetch(url, {
+                            method: "POST",
+                            headers: {
+                                "Authorization": `Bearer ${this.apikey}`,
+                                "Content-Type": "application/json"
+                            },
+                            signal,
+                            body: JSON.stringify({
+                                model: this.model,
+                                messages: [
+                                    { role: "system", content: systemPrompt },
+                                    { role: "user", content: userPrompt }
+                                ],
+                                temperature: 0.7,
+                                max_tokens: 16000,
+                                stream: false,
+                            }),
+                        });
+                    }
+                }
+
+                res = response;
+                successfulBaseURL = base;
+                break;
+            } catch (err: any) {
+                if (err.name === "AbortError") throw err;
+                lastNetErr = err;
+                console.warn(`[NineRouterClient] Could not connect to ${url}: ${err.message}. Trying fallback candidate...`);
+            }
+        }
+
+        if (!res) {
+            throw lastNetErr || new Error("9router: all connection candidate URLs failed");
+        }
+
+        this.baseURL = successfulBaseURL;
+
+        if (!res.ok) {
+            const err = await res.text();
+            throw new Error(`9router API Error: ${res.status} - ${err}`);
+        }
+
+        const data = await res.json() as any;
+        const content = data.choices?.[0]?.message?.content;
+        if (!content) {
+            throw new Error(`9router API Error: No content in response. Raw: ${JSON.stringify(data)}`);
+        }
+
+        return content;
+    }
+}
+
 let _client: LLMClient | null = null;
 
 export function resetLLMClient(): void {
@@ -208,6 +373,9 @@ export function getLLMClient(): LLMClient {
                 break;
             case 'claude':
                 _client = new ClaudeClient(getConfig());
+                break;
+            case '9router':
+                _client = new NineRouterClient(getConfig());
                 break;
             default:
                 throw new Error(`Unsupported LLM provider: ${provider}`);
