@@ -9,7 +9,33 @@ const envSchema = z.object({
     DATABASE_URL: z.string().optional(),
 
 
-    LLM_Provider: z.enum(['openai', 'deepseek', 'gemini', 'claude']).default('gemini'),
+    LLM_Provider: z.preprocess(
+        (val) => {
+            const v = val || process.env.LLM_PROVIDER;
+            return typeof v === 'string' ? v.toLowerCase() : v;
+        },
+        z.enum(['openai', 'deepseek', 'gemini', 'claude', '9router']).default('gemini')
+    ),
+    LLM_AUTO_SWITCH: z.preprocess((val) => {
+        if (val === undefined || val === null || val === '') return true;
+        if (typeof val === 'string') {
+            return val.toLowerCase() !== 'false' && val !== '0';
+        }
+        return Boolean(val);
+    }, z.boolean().default(true)),
+
+    NineRouter_BaseURL: z.preprocess(
+        (val) => val || process.env.NINEROUTER_BASE_URL || process.env.NINE_ROUTER_BASE_URL || 'http://localhost:20128/v1',
+        z.string().default('http://localhost:20128/v1')
+    ),
+    NineRouter_APIKEY: z.preprocess(
+        (val) => val || process.env.NINEROUTER_API_KEY || process.env.NINE_ROUTER_API_KEY,
+        z.string().optional()
+    ),
+    NineRouter_Model: z.preprocess(
+        (val) => val || process.env.NINEROUTER_MODEL || process.env.NINE_ROUTER_MODEL || 'ag/gemini-3.8-flash-high',
+        z.string().default('ag/gemini-3.8-flash-high')
+    ),
 
     OpenAI_APIKEY: z.string().optional(),
     OpenAI_Model: z.string().default('gpt-5.3-codex'),
