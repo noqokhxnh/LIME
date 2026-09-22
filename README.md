@@ -46,7 +46,10 @@ cp .env.example .env     # fill in your API keys (DEEPSEEK_API_KEY / GEMINI_API_
 # 2. Build & run all services (Redis + API Server + Worker)
 docker compose up --build
 
-# → Web UI & API ready at http://localhost:3000
+# 3→ Web UI & API ready at http://localhost:3000
+
+# 4. After pulling, run this to install the dependencies
+npm ci
 ```
 
 Run in detached/background mode:
