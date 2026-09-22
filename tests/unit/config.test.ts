@@ -8,6 +8,13 @@ describe('Module 1: Config & Environment (src/config.ts)', () => {
         'PORT',
         'NODE_ENV',
         'LLM_Provider',
+        'LLM_PROVIDER',
+        'NINEROUTER_BASE_URL',
+        'NINEROUTER_API_KEY',
+        'NINEROUTER_MODEL',
+        'NineRouter_BaseURL',
+        'NineRouter_APIKEY',
+        'NineRouter_Model',
         'OpenAI_APIKEY',
         'OpenAI_Model',
         'DeepSeek_APIKEY',
@@ -89,6 +96,17 @@ describe('Module 1: Config & Environment (src/config.ts)', () => {
             assert.strictEqual(config.LLM_Provider, 'openai');
             assert.strictEqual(config.TTS_Provider, 'elevenlabs');
             assert.strictEqual(config.Default_FPS, 60);
+        });
+
+        it('phải parse đúng khi LLM_Provider là 9router', () => {
+            cleanConfigEnv();
+            resetConfig();
+
+            process.env.LLM_Provider = '9router';
+            const config = getConfig();
+            assert.strictEqual(config.LLM_Provider, '9router');
+            assert.strictEqual(config.NineRouter_BaseURL, 'http://localhost:20128/v1');
+            assert.strictEqual(config.NineRouter_Model, 'ag/gemini-3.8-flash-high');
         });
     });
 
