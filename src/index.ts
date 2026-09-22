@@ -8,6 +8,7 @@ import { getConfig } from "./config.js";
 import { videoRequestSchema, type videoRequest, type videoScript } from "./llm/schema.js";
 import { generateScript } from "./pipeline/scriptGenerator.js";
 import { runFullPipeline, type fullPipelineResult } from "./pipeline/orchestrator.js";
+import { initDatabase } from "./database/index.js";
 
 export interface JobRecord {
     jobId: string;
@@ -350,6 +351,7 @@ export async function buildApp(options: { logger?: boolean } = {}): Promise<Fast
 export async function startServer(): Promise<FastifyInstance> {
     const config = getConfig();
     const app = await buildApp({ logger: true });
+    await initDatabase(); // Initialize the database before starting the server
     try {
         await app.listen({ port: config.PORT, host: "0.0.0.0" });
         console.log(`Backend server listening at http://localhost:${config.PORT}`);

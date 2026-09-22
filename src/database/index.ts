@@ -17,3 +17,7 @@ db.on('error', (error: Error) => {
         error
     );
 });
+
+export async function initDatabase(): Promise<void> {
+    await db.query(AUTH_SQL);
+}
