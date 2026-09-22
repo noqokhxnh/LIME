@@ -7,10 +7,25 @@ services:
       - "host.docker.internal:host-gateway"
     environment:
       - NODE_ENV=production
+      - DATABASE_URL=postgresql://admin:postgres@postgres:5432/tovid
     volumes:
       - vidtml_data:/app/tmp
     shm_size: '2gb'
     env_file:
       - .env
+    depends_on:
+      - postgres
+  postgres:
+    image: postgres:13
+    environment:
+    - POSTGRES_DB=${POSTGRES_DB}
+    - POSTGRES_USER=${POSTGRES_USER}
+    - POSTGRES_PASSWORD=${POSTGRES_PASSWORD}
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+
 volumes:
   vidtml_data:
+  postgres_data:
