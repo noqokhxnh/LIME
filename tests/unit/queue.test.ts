@@ -54,7 +54,8 @@ describe('Module 11: Queue & Background Worker', () => {
                 async: true,
                 targetDurationSec: 15,
                 aspectRatio: '16:9',
-                language: 'en'
+                language: 'en',
+                style: 'modern'
             }
         });
 
@@ -99,7 +100,8 @@ describe('Module 11: Queue & Background Worker', () => {
                 async: true,
                 targetDurationSec: 15,
                 aspectRatio: '16:9',
-                language: 'en'
+                language: 'en',
+                style: 'modern'
             }
         });
         
