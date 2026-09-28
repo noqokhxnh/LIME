@@ -45,18 +45,18 @@ export async function buildApp(options: { logger?: boolean } = {}): Promise<Fast
     app.addHook("preHandler", async (request, reply) => {
         const url = request.url;
         if (url.startsWith("/api/script/draft") || url.startsWith("/api/pipeline") || url.startsWith("/api/generate") || url.startsWith("/api/source/")) {
-            const ip = request.ip;
+            const ip = request.ip || '127.0.0.1';
             if (!rateLimiter.checkRpm(ip)) {
-                reply.status(429);
-                return { error: "Too Many Requests (RPM exceeded)" };
+                reply.status(429).send({ error: "Too Many Requests (RPM exceeded)" });
+                return reply;
             }
 
             const body = request.body as any;
             if (body && body.prompt) {
                 const check = validatePrompt(body.prompt);
                 if (!check.isValid) {
-                    reply.status(400);
-                    return { error: check.reason };
+                    reply.status(400).send({ error: check.reason });
+                    return reply;
                 }
             }
         }

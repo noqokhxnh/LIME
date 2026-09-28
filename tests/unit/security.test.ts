@@ -103,11 +103,13 @@ describe('Module 10: Security Guards', () => {
         });
 
         it('phải từ chối request thứ 21 với HTTP 429 (RPM limit)', async () => {
+            const ip = '1.1.1.1';
             // RPM limit is 20, let's fire 20 fast requests
             for (let i = 0; i < 20; i++) {
                 await app.inject({
                     method: 'POST',
                     url: '/api/script/draft',
+                    remoteAddress: ip,
                     payload: {}
                 });
             }
@@ -115,6 +117,7 @@ describe('Module 10: Security Guards', () => {
             const res = await app.inject({
                 method: 'POST',
                 url: '/api/script/draft',
+                remoteAddress: ip,
                 payload: {}
             });
             assert.strictEqual(res.statusCode, 429);
@@ -129,13 +132,13 @@ describe('Module 10: Security Guards', () => {
                 method: 'POST',
                 url: '/api/generate',
                 remoteAddress: ip,
-                payload: { prompt: 'video 1', async: true, targetDurationSec: 5, language: 'en', style: 'modern' }
+                payload: { prompt: 'video 1', async: true, targetDurationSec: 15, aspectRatio: '16:9', language: 'en', style: 'modern' }
             });
             const p2 = app.inject({
                 method: 'POST',
                 url: '/api/generate',
                 remoteAddress: ip,
-                payload: { prompt: 'video 2', async: true, targetDurationSec: 5, language: 'en', style: 'modern' }
+                payload: { prompt: 'video 2', async: true, targetDurationSec: 15, aspectRatio: '16:9', language: 'en', style: 'modern' }
             });
 
             // 3rd job should hit concurrency limit
@@ -143,7 +146,7 @@ describe('Module 10: Security Guards', () => {
                 method: 'POST',
                 url: '/api/generate',
                 remoteAddress: ip,
-                payload: { prompt: 'video 3', async: true, targetDurationSec: 5, language: 'en', style: 'modern' }
+                payload: { prompt: 'video 3', async: true, targetDurationSec: 15, aspectRatio: '16:9', language: 'en', style: 'modern' }
             });
 
             assert.strictEqual(res3.statusCode, 429);
@@ -162,7 +165,7 @@ describe('Module 10: Security Guards', () => {
                     method: 'POST',
                     url: '/api/generate',
                     remoteAddress: ip,
-                    payload: { prompt: `quota video ${i}`, async: true, targetDurationSec: 5, language: 'en', style: 'modern' }
+                    payload: { prompt: `quota video ${i}`, async: true, targetDurationSec: 15, aspectRatio: '16:9', language: 'en', style: 'modern' }
                 });
                 assert.strictEqual(res.statusCode, 202);
             }
@@ -171,7 +174,7 @@ describe('Module 10: Security Guards', () => {
                 method: 'POST',
                 url: '/api/generate',
                 remoteAddress: ip,
-                payload: { prompt: 'quota video 11', async: true, targetDurationSec: 5, language: 'en', style: 'modern' }
+                payload: { prompt: 'quota video 11', async: true, targetDurationSec: 15, aspectRatio: '16:9', language: 'en', style: 'modern' }
             });
 
             assert.strictEqual(res11.statusCode, 429);
