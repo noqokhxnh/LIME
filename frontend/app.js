@@ -18,6 +18,11 @@ const registerForm = document.getElementById('register-form');
 const showRegisterBtn = document.getElementById('show-register-btn');
 const showLoginBtn = document.getElementById('show-login-btn');
 const authTitle = document.getElementById('auth-title');
+const registerSubmitBtn = document.getElementById('register-submit-btn');
+const registerUsername = document.getElementById('register-username');
+const registerEmail = document.getElementById('register-email');
+const registerPassword = document.getElementById('register-password');
+const registerMessage = document.getElementById('register-message');
 
 loginOpenBtn.addEventListener('click', () => {
     loginModal.classList.add('show');
@@ -70,6 +75,43 @@ showLoginBtn.addEventListener('click', () => {
     loginForm.style.display = 'block';
     showRegisterBtn.style.display = 'block';
     authTitle.textContent = 'Đăng nhập';
+});
+registerSubmitBtn.addEventListener('click', async () => {
+    const username = registerUsername.value.trim();
+    const email = registerEmail.value.trim();
+    const password = registerPassword.value;
+    if (!username || !email || !password) {
+        registerMessage.textContent = 'Vui lòng nhập đầy đủ thông tin';
+        return;
+    }
+    try {
+        const res = await fetch(`${API_BASE}/api/auth/register`, {
+            method: 'POST',
+            credentials: 'include',
+            headers: {
+                'Content-Type': 'application/json'
+            },
+            body: JSON.stringify({
+                username,
+                email,
+                password
+            })
+        });
+        const data = await res.json();
+        if (!res.ok) {
+            registerMessage.textContent = data.error || 'Đăng ký thất bại';
+            return;
+        }
+        registerMessage.textContent = '';
+        loginModal.classList.remove('show');
+        loginOpenBtn.textContent = data.username;
+        loginOpenBtn.disabled = true;
+        logoutBtn.style.display = 'inline-block';
+
+        log(`Đăng ký thành công: ${data.username}`, 'success');
+    } catch (err) {
+        registerMessage.textContent = 'Không thể kết nối tới server';
+    }
 });
 const promptInput = document.getElementById('prompt-input');
 const ttsProviderSelect = document.getElementById('tts-provider-select');
