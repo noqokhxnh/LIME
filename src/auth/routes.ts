@@ -70,6 +70,11 @@ export async function authRoutes(app: FastifyInstance): Promise<void> {
                 error: 'Invalid username or password',
             });
         }
+        if(!user.password_hash) {
+            return reply.status(401).send({
+                error: 'đăng nhập bằng Google',
+            });
+        }
         const validPassword = await bcrypt.compare(
             parsed.data.password,
             user.password_hash
