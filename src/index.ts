@@ -9,6 +9,8 @@ import { videoRequestSchema, type videoRequest, type videoScript } from "./llm/s
 import { generateScript } from "./pipeline/scriptGenerator.js";
 import { runFullPipeline, type fullPipelineResult } from "./pipeline/orchestrator.js";
 import { initDatabase } from "./database/index.js";
+import fastifyCookie from "@fastify/cookie";
+import {authRoutes} from "./auth/routes.js";
 
 export interface JobRecord {
     jobId: string;
@@ -29,7 +31,9 @@ export async function buildApp(options: { logger?: boolean } = {}): Promise<Fast
         bodyLimit: 10 * 1024 * 1024,
     });
 
-    await app.register(fastifyCors, { origin: true });
+    await app.register(fastifyCors, { origin: true , credentials: true });
+    await app.register(fastifyCookie);
+    await app.register(authRoutes);
 
     const frontendDir = join(process.cwd(), "frontend");
     if (existsSync(frontendDir)) {
