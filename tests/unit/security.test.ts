@@ -132,13 +132,13 @@ describe('Module 10: Security Guards', () => {
                 method: 'POST',
                 url: '/api/generate',
                 remoteAddress: ip,
-                payload: { prompt: 'video 1', async: true, targetDurationSec: 15, aspectRatio: '16:9', language: 'en', style: 'modern' }
+                payload: { prompt: 'video request 1', async: true, targetDurationSec: 15, aspectRatio: '16:9', language: 'en', style: 'modern' }
             });
             const p2 = app.inject({
                 method: 'POST',
                 url: '/api/generate',
                 remoteAddress: ip,
-                payload: { prompt: 'video 2', async: true, targetDurationSec: 15, aspectRatio: '16:9', language: 'en', style: 'modern' }
+                payload: { prompt: 'video request 2', async: true, targetDurationSec: 15, aspectRatio: '16:9', language: 'en', style: 'modern' }
             });
 
             // 3rd job should hit concurrency limit
@@ -146,7 +146,7 @@ describe('Module 10: Security Guards', () => {
                 method: 'POST',
                 url: '/api/generate',
                 remoteAddress: ip,
-                payload: { prompt: 'video 3', async: true, targetDurationSec: 15, aspectRatio: '16:9', language: 'en', style: 'modern' }
+                payload: { prompt: 'video request 3', async: true, targetDurationSec: 15, aspectRatio: '16:9', language: 'en', style: 'modern' }
             });
 
             assert.strictEqual(res3.statusCode, 429);
@@ -165,16 +165,16 @@ describe('Module 10: Security Guards', () => {
                     method: 'POST',
                     url: '/api/generate',
                     remoteAddress: ip,
-                    payload: { prompt: `quota video ${i}`, async: true, targetDurationSec: 15, aspectRatio: '16:9', language: 'en', style: 'modern' }
+                    payload: { prompt: `quota video request ${i}`, async: false, targetDurationSec: 15, aspectRatio: '16:9', language: 'en', style: 'modern' }
                 });
-                assert.strictEqual(res.statusCode, 202);
+                assert.strictEqual(res.statusCode, 200);
             }
 
             const res11 = await app.inject({
                 method: 'POST',
                 url: '/api/generate',
                 remoteAddress: ip,
-                payload: { prompt: 'quota video 11', async: true, targetDurationSec: 15, aspectRatio: '16:9', language: 'en', style: 'modern' }
+                payload: { prompt: 'quota video request 11', async: false, targetDurationSec: 15, aspectRatio: '16:9', language: 'en', style: 'modern' }
             });
 
             assert.strictEqual(res11.statusCode, 429);
