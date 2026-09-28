@@ -12,6 +12,7 @@ const loginSubmitBtn = document.getElementById('login-submit-btn');
 const loginUsername = document.getElementById('login-username');
 const loginPassword = document.getElementById('login-password');
 const loginMessage = document.getElementById('login-message');
+const logoutBtn = document.getElementById('logout-btn');
 
 loginOpenBtn.addEventListener('click', () => {
     loginModal.classList.add('show');
@@ -46,6 +47,8 @@ loginSubmitBtn.addEventListener('click', async () => {
         loginMessage.textContent = '';
         loginModal.classList.remove('show');
         loginOpenBtn.textContent = data.username;
+        loginOpenBtn.disabled = true;
+        logoutBtn.style.display = 'inline-block';
         log(`Đăng nhập thành công: ${data.username}`, 'success');
     } catch (err) {
         loginMessage.textContent = 'Không thể kết nối tới server';
@@ -238,9 +241,31 @@ async function checkCurrentUser() {
             method: 'GET',
             credentials: 'include'
         });
-        if (!res.ok) {return;}
+        if (!res.ok) {
+            loginOpenBtn.textContent = 'Đăng nhập';
+            loginOpenBtn.disabled = false;
+            logoutBtn.style.display = 'none';
+            return;}
         const user = await res.json();
-        loginOpenBtn.textContent = user.username;}
+        loginOpenBtn.textContent = user.username;
+        loginOpenBtn.disabled = true;
+        logoutBtn.style.display = 'inline-block';}
         catch(err) {
             console.error(err);
         }}
+logoutBtn.addEventListener('click', async () => {
+    try {
+        const res = await fetch(`${API_BASE}/api/auth/logout`, {
+            method: 'POST',
+            credentials: 'include'});
+        if (!res.ok) {
+            return;
+        }
+        loginOpenBtn.textContent = 'Đăng nhập';
+        loginOpenBtn.disabled = false;
+        logoutBtn.style.display = 'none';
+        log('Đã đăng xuất', 'info');
+    } catch (err) {
+        console.error(err);
+    }
+});
