@@ -8,12 +8,48 @@ const API_BASE = (window.location.origin && window.location.origin.includes(':30
 const loginOpenBtn = document.getElementById('login-open-btn');
 const loginModal = document.getElementById('login-modal');
 const loginCloseBtn = document.getElementById('login-close-btn');
+const loginSubmitBtn = document.getElementById('login-submit-btn');
+const loginUsername = document.getElementById('login-username');
+const loginPassword = document.getElementById('login-password');
+const loginMessage = document.getElementById('login-message');
 
 loginOpenBtn.addEventListener('click', () => {
     loginModal.classList.add('show');
 });
 loginCloseBtn.addEventListener('click', () => {
     loginModal.classList.remove('show');
+});
+loginSubmitBtn.addEventListener('click', async () => {
+    const username = loginUsername.value.trim();
+    const password = loginPassword.value;
+    if (!username || !password) {
+        loginMessage.textContent = 'Vui lòng nhập đầy đủ thông tin';
+        return;
+    }
+    try {
+        const res = await fetch(`${API_BASE}/api/auth/login`, {
+            method: 'POST',
+            credentials: 'include',
+            headers: {
+                'Content-Type': 'application/json'
+            },
+            body: JSON.stringify({
+                username,
+                password
+            })
+        });
+        const data = await res.json();
+        if (!res.ok) {
+            loginMessage.textContent = data.error || 'Đăng nhập thất bại';
+            return;
+        }
+        loginMessage.textContent = '';
+        loginModal.classList.remove('show');
+        loginOpenBtn.textContent = data.username;
+        log(`Đăng nhập thành công: ${data.username}`, 'success');
+    } catch (err) {
+        loginMessage.textContent = 'Không thể kết nối tới server';
+    }
 });
 const promptInput = document.getElementById('prompt-input');
 const ttsProviderSelect = document.getElementById('tts-provider-select');
@@ -183,6 +219,7 @@ generateBtn.addEventListener('click', async () => {
 
 // Khi vừa vào trang, kiểm tra nếu có video cũ thì cho phép xem ngay
 (async function init() {
+    await checkCurrentUser();
     try {
         const res = await fetch(`${API_BASE}/api/jobs`);
         if (res.ok) {
@@ -195,3 +232,15 @@ generateBtn.addEventListener('click', async () => {
         }
     } catch (e) { }
 })();
+async function checkCurrentUser() {
+    try {
+        const res = await fetch(`${API_BASE}/api/auth/me`, {
+            method: 'GET',
+            credentials: 'include'
+        });
+        if (!res.ok) {return;}
+        const user = await res.json();
+        loginOpenBtn.textContent = user.username;}
+        catch(err) {
+            console.error(err);
+        }}
