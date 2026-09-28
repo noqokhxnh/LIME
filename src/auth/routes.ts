@@ -27,7 +27,7 @@ export async function authRoutes(app: FastifyInstance): Promise<void> {
     app.post('/api/auth/register', async (request, reply) => {
         const parsed = registerSchema.safeParse(request.body);
         if (!parsed.success) {
-            return reply.status(400).send({ error: 'Invalid registration data' });
+            return reply.status(400).send({ error: 'Invalid registration data', details: parsed.error.flatten() });
         }
         const { username, password } = parsed.data;
         const email = parsed.data.email.toLowerCase();
@@ -58,7 +58,7 @@ export async function authRoutes(app: FastifyInstance): Promise<void> {
     app.post('/api/auth/login', async (request, reply) => {
         const parsed = loginSchema.safeParse(request.body);
         if (!parsed.success) {
-            return reply.status(400).send({ error: 'Invalid login data' });
+            return reply.status(400).send({ error: 'Invalid login data', details: parsed.error.flatten() });
         }
         const result = await db.query(
             'SELECT id, username, email, password_hash, created_at FROM users WHERE LOWER(username) = LOWER($1) OR LOWER(email) = LOWER($1) LIMIT 1',
