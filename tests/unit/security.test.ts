@@ -60,7 +60,10 @@ describe('Module 10: Security Guards', () => {
         // Delay LLM response by 100ms to allow concurrent jobs to overlap
         setLLMClient(new MockApiLLMClient(JSON.stringify(sampleScript), 100));
         setTTSClient(new MockApiTTSClient());
-        app = await buildApp({ logger: false });
+        const { getQueue } = await import('../../src/queue/index.js');
+        const queue = await getQueue();
+        queue.startListeners();
+        app = await buildApp(queue, { logger: false });
         await app.ready();
     });
 
