@@ -137,26 +137,26 @@ export async function authRoutes(app: FastifyInstance): Promise<void> {
     );
 });
         app.get('/api/auth/google/callback', async (request, reply) => {
+            const redirectAuthError = (message: string) => {
+                return reply.redirect(
+                    `/?auth=open&error=${encodeURIComponent(message)}`
+                );
+    };
+    try {
     const config = getConfig();
     if (!config.GOOGLE_CLIENT_ID || !config.GOOGLE_CLIENT_SECRET) {
-        return reply.status(500).send({
-            error: 'Google OAuth is not configured',
-        });
+        return redirectAuthError('Google OAuth is not configured');
     }
     const parsed = z.object({
         code: z.string().min(1),
         state: z.string().min(1),
     }).safeParse(request.query);
     if (!parsed.success) {
-        return reply.status(400).send({
-            error: 'Invalid Google callback',
-        });
+        return redirectAuthError('Invalid Google callback');
     }
     const savedState = request.cookies.google_oauth_state;
     if (!savedState || savedState !== parsed.data.state) {
-        return reply.status(400).send({
-            error: 'Invalid OAuth state',
-        });
+        return redirectAuthError('Invalid OAuth state');
     }
     reply.clearCookie('google_oauth_state', {
         path: '/',
@@ -178,9 +178,7 @@ export async function authRoutes(app: FastifyInstance): Promise<void> {
         id_token?: string;
     };
     if (!tokenResponse.ok || !tokenData.id_token) {
-        return reply.status(400).send({
-            error: 'Failed to authenticate with Google',
-        });
+        return redirectAuthError('Failed to authenticate with Google');
     }
     const { payload } = await jwtVerify(tokenData.id_token, googleJwks, {
         issuer: [
@@ -192,14 +190,10 @@ export async function authRoutes(app: FastifyInstance): Promise<void> {
     const googleId = payload.sub;
     const email = payload.email;
     if (!googleId || typeof email !== 'string') {
-        return reply.status(400).send({
-            error: 'Google account information is incomplete',
-        });
+        return redirectAuthError('Google account information is incomplete');
     }
     if (payload.email_verified !== true) {
-        return reply.status(400).send({
-            error: 'Google email is not verified',
-        });
+        return redirectAuthError('Google email is not verified');
     }
     const existingResult = await db.query(
         'SELECT id, username, email, google_id, created_at FROM users WHERE google_id = $1',
@@ -214,9 +208,7 @@ export async function authRoutes(app: FastifyInstance): Promise<void> {
         user = emailResult.rows[0];
     }
     if (user && user.google_id && user.google_id !== googleId) {
-        return reply.redirect(
-            '/?auth=open&error=Email%20is%20already%20linked'
-        );
+        return redirectAuthError('Email is already linked to a different Google account');
     }
     if (user && !user.google_id) {
         const linkedResult = await db.query(
@@ -237,5 +229,14 @@ export async function authRoutes(app: FastifyInstance): Promise<void> {
     }
     await createSession(user.id, reply);
     return reply.redirect('/');
+    } catch (error) {
+        request.log.error(
+            { err: error },
+            'Google OAuth callback failed'
+        );
+        return redirectAuthError(
+            'Google login failed'
+        );
+    }
 });
 }
