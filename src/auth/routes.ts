@@ -202,10 +202,22 @@ export async function authRoutes(app: FastifyInstance): Promise<void> {
         });
     }
     const existingResult = await db.query(
-        'SELECT id, username, email, google_id, created_at FROM users WHERE google_id = $1 OR LOWER(email) = LOWER($2) LIMIT 1',
-        [googleId, email]
+        'SELECT id, username, email, google_id, created_at FROM users WHERE google_id = $1',
+        [googleId]
     );
     let user = existingResult.rows[0];
+    if (!user) {
+        const emailResult = await db.query(
+            'SELECT id, username, email, google_id, created_at FROM users WHERE LOWER(email) = LOWER($1) LIMIT 1',
+            [email]
+        );
+        user = emailResult.rows[0];
+    }
+    if (user && user.google_id && user.google_id !== googleId) {
+        return reply.redirect(
+            '/?auth=open&error=Email%20is%20already%20linked'
+        );
+    }
     if (user && !user.google_id) {
         const linkedResult = await db.query(
             'UPDATE users SET google_id = $1, updated_at = NOW() WHERE id = $2 RETURNING id, username, email, created_at',
