@@ -16,6 +16,8 @@ loginCloseBtn.addEventListener('click', () => {
     loginModal.classList.remove('show');
 });
 const promptInput = document.getElementById('prompt-input');
+const ttsProviderSelect = document.getElementById('tts-provider-select');
+const voiceSelect = document.getElementById('voice-select');
 const generateBtn = document.getElementById('generate-btn');
 const btnSpinner = document.getElementById('btn-spinner');
 const btnText = document.getElementById('btn-text');
@@ -28,6 +30,18 @@ const btnDownload = document.getElementById('btn-download');
 const btnPreviewHtml = document.getElementById('btn-preview-html');
 
 let pollInterval = null;
+
+if (ttsProviderSelect && voiceSelect) {
+    ttsProviderSelect.addEventListener('change', () => {
+        const prov = ttsProviderSelect.value;
+        if (prov === 'vieneu') {
+            const isVieNeu = ['Minh Quân', 'Mai Anh', 'Adam', 'Ái Hân', 'Mỹ Duyên', 'Đức Trí', 'Hữu Quân', 'Xuân Tiên', 'Trúc Ly', 'Anh Khôi', 'Mạnh Dũng'].includes(voiceSelect.value);
+            if (!isVieNeu) voiceSelect.value = 'Minh Quân';
+        } else if (prov === 'edge') {
+            voiceSelect.value = 'vi-VN-HoaiMyNeural';
+        }
+    });
+}
 
 // Hàm gán prompt mẫu nhanh
 function setPrompt(text) {
@@ -89,6 +103,9 @@ generateBtn.addEventListener('click', async () => {
             selectedStyle = 'stickman';
         }
 
+        const prov = ttsProviderSelect ? ttsProviderSelect.value : 'vieneu';
+        const v = voiceSelect ? voiceSelect.value : 'Minh Quân';
+
         const res = await fetch(`${API_BASE}/api/pipeline`, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
@@ -98,6 +115,8 @@ generateBtn.addEventListener('click', async () => {
                 targetDurationSec: 15,
                 language: 'vi',
                 style: selectedStyle,
+                ttsProvider: prov,
+                voice: v,
                 async: true
             })
         });
