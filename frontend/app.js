@@ -13,6 +13,11 @@ const loginUsername = document.getElementById('login-username');
 const loginPassword = document.getElementById('login-password');
 const loginMessage = document.getElementById('login-message');
 const logoutBtn = document.getElementById('logout-btn');
+const loginForm = document.getElementById('login-form');
+const registerForm = document.getElementById('register-form');
+const showRegisterBtn = document.getElementById('show-register-btn');
+const showLoginBtn = document.getElementById('show-login-btn');
+const authTitle = document.getElementById('auth-title');
 
 loginOpenBtn.addEventListener('click', () => {
     loginModal.classList.add('show');
@@ -53,6 +58,18 @@ loginSubmitBtn.addEventListener('click', async () => {
     } catch (err) {
         loginMessage.textContent = 'Không thể kết nối tới server';
     }
+});
+showRegisterBtn.addEventListener('click', () => {
+    loginForm.style.display = 'none';
+    registerForm.style.display = 'block';
+    showRegisterBtn.style.display = 'none';
+    authTitle.textContent = 'Đăng ký';
+});
+showLoginBtn.addEventListener('click', () => {
+    registerForm.style.display = 'none';
+    loginForm.style.display = 'block';
+    showRegisterBtn.style.display = 'block';
+    authTitle.textContent = 'Đăng nhập';
 });
 const promptInput = document.getElementById('prompt-input');
 const ttsProviderSelect = document.getElementById('tts-provider-select');
