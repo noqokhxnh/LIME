@@ -13,6 +13,8 @@ import { rateLimiter } from "./security/rateLimiter.js";
 import { getQueue } from "./queue/index.js";
 import { processVideoJob } from "./queue/handler.js";
 import { IVideoQueue } from "./queue/interfaces.js";
+import fastifyCookie from "@fastify/cookie";
+import { authRoutes } from "./auth/routes.js";
 
 export const jobIpMap = new Map<string, string>();
 
@@ -22,7 +24,9 @@ export async function buildApp(queue: IVideoQueue, options: { logger?: boolean }
         bodyLimit: 10 * 1024 * 1024,
     });
 
-    await app.register(fastifyCors, { origin: true });
+    await app.register(fastifyCors, { origin: true , credentials: true });
+    await app.register(fastifyCookie);
+    await app.register(authRoutes);
 
     const frontendDir = join(process.cwd(), "frontend");
     if (existsSync(frontendDir)) {

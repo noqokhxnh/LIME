@@ -468,3 +468,60 @@ textarea:focus {
     background: #1e293b;
     color: #ffffff;
 }
+
+#login-message {
+    min-height: 18px;
+    margin-top: 12px;
+    color: #f87171;
+    font-size: 13px;
+    text-align: center;
+}
+.auth-switch-btn {
+    width: 100%;
+    margin: 0 0 16px;
+    padding: 9px 12px;
+
+    background: transparent;
+    color: #60a5fa;
+
+    border: 1px solid #334155;
+    border-radius: 6px;
+
+    font-family: inherit;
+    font-size: 13px;
+
+    cursor: pointer;
+    transition: 0.2s;
+}
+
+.auth-switch-btn:hover {
+    background: #1e293b;
+    border-color: #3b82f6;
+    color: #93c5fd;
+}
+
+.auth-back-btn {
+    width: 100%;
+    margin-top: 10px;
+    padding: 8px;
+
+    background: transparent;
+    color: #94a3b8;
+
+    border: none;
+
+    font-family: inherit;
+    font-size: 13px;
+
+    cursor: pointer;
+}
+.auth-back-btn:hover {
+    color: #ffffff;
+}
+#register-message {
+    min-height: 18px;
+    margin-top: 12px;
+    color: #f87171;
+    font-size: 13px;
+    text-align: center;
+}
