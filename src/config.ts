@@ -49,7 +49,8 @@ const envSchema = z.object({
     Claude_APIKEY: z.string().optional(),
     Claude_Model: z.string().default("claude sonnet 4.5"),
 
-    TTS_Provider: z.enum(['edge', 'elevenlabs', 'openai', 'google']).default('edge'),
+    TTS_Provider: z.enum(['edge', 'elevenlabs', 'openai', 'google', 'vieneu']).default('edge'),
+    VIENEU_TTS_URL: z.string().default('http://127.0.0.1:7860'),
     TTS_Voice: z.string().default('alloy'),
 
     Elevenlabs_API_KEY: z.string().optional(),

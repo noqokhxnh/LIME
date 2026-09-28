@@ -35,7 +35,40 @@
                     <button type="button" class="btn-chip" onclick="setPrompt('Video đồ họa công nghệ trí tuệ nhân tạo AI tương lai 2026')">🤖 Công nghệ AI</button>
                 </div>
 
-                <button id="generate-btn" class="btn-primary">
+                <div class="form-group" style="margin-top: 15px;">
+                    <label for="tts-provider-select">Bộ chuyển văn bản thành giọng nói (TTS Engine):</label>
+                    <select id="tts-provider-select" style="width: 100%; padding: 8px 12px; border-radius: 6px; border: 1px solid #334155; background: #1e293b; color: #f8fafc; font-size: 14px;">
+                        <option value="vieneu" selected>VieNeu-TTS (Local AI - 100% Tự chủ, Siêu nhẹ)</option>
+                        <option value="edge">Edge TTS (Microsoft Cloud - Miễn phí)</option>
+                        <option value="openai">OpenAI TTS</option>
+                        <option value="elevenlabs">ElevenLabs AI</option>
+                    </select>
+                </div>
+
+                <div class="form-group" id="voice-select-group">
+                    <label for="voice-select">Giọng đọc / Nhân vật:</label>
+                    <select id="voice-select" style="width: 100%; padding: 8px 12px; border-radius: 6px; border: 1px solid #334155; background: #1e293b; color: #f8fafc; font-size: 14px;">
+                        <optgroup label="VieNeu-TTS (Local AI - 11 giọng đọc chuẩn)">
+                            <option value="Minh Quân" selected>Minh Quân (Nam · Bắc · Tự nhiên)</option>
+                            <option value="Mai Anh">Mai Anh (Nữ · Bắc · Tin tức)</option>
+                            <option value="Adam">Adam (Nam · Nam · Tự nhiên)</option>
+                            <option value="Ái Hân">Ái Hân (Nữ · Nam · Tin tức)</option>
+                            <option value="Mỹ Duyên">Mỹ Duyên (Nữ · Bắc · Đọc truyện)</option>
+                            <option value="Đức Trí">Đức Trí (Nam · Bắc · Đọc truyện)</option>
+                            <option value="Hữu Quân">Hữu Quân (Nam · Bắc · Tin tức)</option>
+                            <option value="Xuân Tiên">Xuân Tiên (Nữ · Bắc · Tin tức)</option>
+                            <option value="Trúc Ly">Trúc Ly (Nữ · Bắc · Tự nhiên)</option>
+                            <option value="Anh Khôi">Anh Khôi (Nam · Bắc · Kể chuyện)</option>
+                            <option value="Mạnh Dũng">Mạnh Dũng (Nam · Bắc · Tự nhiên)</option>
+                        </optgroup>
+                        <optgroup label="Edge TTS (Cloud)">
+                            <option value="vi-VN-HoaiMyNeural">Hoài My (Nữ · Bắc)</option>
+                            <option value="vi-VN-NamMinhNeural">Nam Minh (Nam · Bắc)</option>
+                        </optgroup>
+                    </select>
+                </div>
+
+                <button id="generate-btn" class="btn-primary" style="margin-top: 15px;">
                     <span id="btn-spinner" class="spinner"></span>
                     <span id="btn-text">Tạo Video</span>
                 </button>

@@ -10,3 +10,7 @@ dump.rdb
 docs/comparison
 docs/plans/
 docs/temp
+demo-vieneu/
+promo-video/
+pyrightconfig.json
+.claude/
