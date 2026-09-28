@@ -22,10 +22,32 @@ class MockApiTTSClient implements TTSClient {
 }
 
 const sampleScript = {
+    id: 'api-script-01',
     title: 'API Test Video',
+    description: 'API test description',
+    globalStyles: 'body { margin: 0; }',
+    globalSetupJs: 'console.log("ready");',
+    scenes: [
+        {
+            id: 'scene-1',
+            title: 'Scene 1',
+            voiceOverText: 'Xin chao Viet Nam.',
+            visualDescription: '',
+            htmlCode: '<div class="scene" id="scene-1"><h1>Test</h1></div>',
+            cssCode: '',
+            jsCode: 'tl.to("#scene-1", { duration: {{SCENE_DURATION}}, opacity: 1 });',
+            transition: 'fade',
+            backgroundColor: '#000000',
+        }
+    ],
+    colorPalette: {
+        primary: '#3b82f6',
+        secondary: '#1d4ed8',
+        accent: '#f59e0b',
+        background: '#0f172a',
+        text: '#ffffff',
+    },
     fontFamily: 'Inter',
-    colorPalette: { primary: '#3366cc', secondary: '#ff9900', background: '#ffffff', text: '#000000' },
-    scenes: [ { id: 'scene-1', durationSec: 5, transition: 'fade', text: 'Hello', visualPrompt: 'hello', audioPrompt: 'hello' } ]
 };
 
 describe('Module 11: Queue & Background Worker', () => {
