@@ -10,7 +10,9 @@
         "test": "tsx tests/integration/pipeline.test.ts",
         "test:unit": "tsx --test tests/unit/*.test.ts",
         "debug:render": "tsx scripts/debug_pipeline.ts",
-        "healthcheck": "tsx scripts/healthcheck.ts"
+        "healthcheck": "tsx scripts/healthcheck.ts",
+        "worker": "tsx src/worker.ts",
+        "cli": "tsx src/cli.ts"
     },
     "keywords": [
         "video",
