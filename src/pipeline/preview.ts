@@ -7,6 +7,22 @@ import { withRetry, isAbortError } from "./retry.js";
 
 process.env.PW_TEST_SCREENSHOT_NO_FONTS_READY = "1";
 
+export function setupBrowserDiagnostics(page: Page, contextName = 'Browser') {
+    page.on('console', msg => {
+        const type = msg.type();
+        if (type === 'error' || type === 'warning') {
+            console.error(`[${contextName} Console] ${type.toUpperCase()}: ${msg.text()}`);
+        }
+    });
+    page.on('pageerror', err => {
+        console.error(`[${contextName} PageError] Unhandled Exception:`, err.message || err);
+    });
+    page.on('requestfailed', req => {
+        const reason = req.failure()?.errorText || 'Unknown';
+        console.error(`[${contextName} RequestFailed] ${req.method()} ${req.url()}: ${reason}`);
+    });
+}
+
 export interface ScenePreview {
     sceneId: string;
     sceneIndex: number;
@@ -122,6 +138,8 @@ export async function loadAndPreparePage(
     const fileUrl = pathToFileURL(absoluteHtmlPath).href;
 
     await page.setViewportSize({ width, height });
+
+    setupBrowserDiagnostics(page, "Preview");
 
     // Navigate tới file HTML local
     await page.goto(fileUrl, {
