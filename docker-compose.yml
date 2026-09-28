@@ -1,4 +1,13 @@
 services:
+  vieneu-tts:
+    build:
+      context: ./services/vieneu-tts
+      dockerfile: Dockerfile
+    container_name: vidtml_vieneu_tts
+    ports:
+      - "7860:7860"
+    restart: unless-stopped
+
   server:
     build: .
     ports:
@@ -8,6 +17,7 @@ services:
     environment:
       - NODE_ENV=production
       - DATABASE_URL=postgresql://admin:postgres@postgres:5432/tovid
+      - VIENEU_TTS_URL=http://vieneu-tts:7860
     volumes:
       - vidtml_data:/app/tmp
     shm_size: '2gb'
