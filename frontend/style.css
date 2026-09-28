@@ -515,7 +515,13 @@ textarea:focus {
 
     cursor: pointer;
 }
-
 .auth-back-btn:hover {
     color: #ffffff;
+}
+#register-message {
+    min-height: 18px;
+    margin-top: 12px;
+    color: #f87171;
+    font-size: 13px;
+    text-align: center;
 }
