@@ -33,6 +33,10 @@ export async function buildApp(queue: IVideoQueue, options: { logger?: boolean }
         });
     }
 
+    if (getConfig().QUEUE_TYPE !== 'redis') {
+        queue.process(processVideoJob);
+    }
+
     queue.events.on('completed', (args: any) => {
         const ip = jobIpMap.get(args.jobId);
         if (ip) {
