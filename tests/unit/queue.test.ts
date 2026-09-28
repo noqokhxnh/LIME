@@ -3,9 +3,23 @@ import assert from 'node:assert/strict';
 import { type FastifyInstance } from 'fastify';
 import { buildApp } from '../../src/index.js';
 import { getQueue } from '../../src/queue/index.js';
-import { setLLMClient } from '../../src/llm/client.js';
-import { setTTSClient } from '../../src/pipeline/audioSysnthesis.js';
-import { MockApiLLMClient, MockApiTTSClient } from './mocks.js';
+import { setLLMClient, type LLMClient } from '../../src/llm/client.js';
+import { setTTSClient, type TTSClient, generateSilence } from '../../src/pipeline/audioSysnthesis.js';
+
+class MockApiLLMClient implements LLMClient {
+    readonly provider = 'mock-llm';
+    constructor(private response: string) { }
+    async generate(): Promise<string> {
+        return this.response;
+    }
+}
+
+class MockApiTTSClient implements TTSClient {
+    readonly provider = 'mock-tts';
+    async synthesize(_text: string, outputPath: string): Promise<void> {
+        await generateSilence(outputPath, 0.5);
+    }
+}
 
 const sampleScript = {
     title: 'API Test Video',
