@@ -23,7 +23,11 @@ const registerUsername = document.getElementById('register-username');
 const registerEmail = document.getElementById('register-email');
 const registerPassword = document.getElementById('register-password');
 const registerMessage = document.getElementById('register-message');
+const googleLoginBtn = document.getElementById('google-login-btn');
 
+googleLoginBtn.addEventListener('click', () => {
+    window.location.href = `${API_BASE}/api/auth/google`;
+});
 loginOpenBtn.addEventListener('click', () => {
     loginModal.classList.add('show');
 });
