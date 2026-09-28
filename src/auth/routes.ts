@@ -5,7 +5,7 @@ import { z } from 'zod';
 import { db } from '../database/index.js';
 import { createSession, deleteSession, getCurrentUser } from './session.js';
 import { randomBytes } from 'node:crypto';
-import { getConfig } from '@/config.js';
+import { getConfig } from '../config.js';
 import {createRemoteJWKSet,jwtVerify} from 'jose';
 
 const registerSchema = z.object({
