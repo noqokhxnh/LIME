@@ -128,18 +128,21 @@ describe('Module 10: Security Guards', () => {
         it('phải từ chối tạo job mới nếu vượt quá Concurrency (tối đa 2)', async () => {
             const ip = '192.168.1.100'; // Different IP
 
-            const p1 = app.inject({
+            const res1 = await app.inject({
                 method: 'POST',
                 url: '/api/generate',
                 remoteAddress: ip,
                 payload: { prompt: 'video request 1', async: true, targetDurationSec: 15, aspectRatio: '16:9', language: 'en', style: 'modern' }
             });
-            const p2 = app.inject({
+            assert.strictEqual(res1.statusCode, 202);
+
+            const res2 = await app.inject({
                 method: 'POST',
                 url: '/api/generate',
                 remoteAddress: ip,
                 payload: { prompt: 'video request 2', async: true, targetDurationSec: 15, aspectRatio: '16:9', language: 'en', style: 'modern' }
             });
+            assert.strictEqual(res2.statusCode, 202);
 
             // 3rd job should hit concurrency limit
             const res3 = await app.inject({
@@ -152,8 +155,6 @@ describe('Module 10: Security Guards', () => {
             assert.strictEqual(res3.statusCode, 429);
             const json = res3.json();
             assert.strictEqual(json.error, 'Concurrency limit exceeded');
-
-            await Promise.all([p1, p2]);
         });
 
         it('phải từ chối job thứ 11 nếu vượt quá Daily Quota (tối đa 10)', async () => {
