@@ -6,6 +6,7 @@ import { db } from '../database/index.js';
 import { createSession, deleteSession, getCurrentUser } from './session.js';
 import { randomBytes } from 'node:crypto';
 import { getConfig } from '@/config.js';
+import {createRemoteJWKSet,jwtVerify} from 'jose';
 
 const registerSchema = z.object({
     username: z.string().trim().regex(/^[a-zA-Z0-9_]{3,30}$/),
@@ -24,7 +25,7 @@ function isUniqueViolation(error: unknown): boolean {
     }
     return (error as { code?: string }).code === '23505';
 }
-
+const googleJwks = createRemoteJWKSet(new URL('https://www.googleapis.com/oauth2/v3/certs'));
 export async function authRoutes(app: FastifyInstance): Promise<void> {
     app.post('/api/auth/register', async (request, reply) => {
         const parsed = registerSchema.safeParse(request.body);
@@ -134,5 +135,95 @@ export async function authRoutes(app: FastifyInstance): Promise<void> {
     return reply.redirect(
         `https://accounts.google.com/o/oauth2/v2/auth?${params.toString()}`
     );
+});
+        app.get('/api/auth/google/callback', async (request, reply) => {
+    const config = getConfig();
+    if (!config.GOOGLE_CLIENT_ID || !config.GOOGLE_CLIENT_SECRET) {
+        return reply.status(500).send({
+            error: 'Google OAuth is not configured',
+        });
+    }
+    const parsed = z.object({
+        code: z.string().min(1),
+        state: z.string().min(1),
+    }).safeParse(request.query);
+    if (!parsed.success) {
+        return reply.status(400).send({
+            error: 'Invalid Google callback',
+        });
+    }
+    const savedState = request.cookies.google_oauth_state;
+    if (!savedState || savedState !== parsed.data.state) {
+        return reply.status(400).send({
+            error: 'Invalid OAuth state',
+        });
+    }
+    reply.clearCookie('google_oauth_state', {
+        path: '/',
+    });
+    const tokenResponse = await fetch('https://oauth2.googleapis.com/token', {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/x-www-form-urlencoded',
+        },
+        body: new URLSearchParams({
+            code: parsed.data.code,
+            client_id: config.GOOGLE_CLIENT_ID,
+            client_secret: config.GOOGLE_CLIENT_SECRET,
+            redirect_uri: config.GOOGLE_REDIRECT_URI,
+            grant_type: 'authorization_code',
+        }),
+    });
+    const tokenData = await tokenResponse.json() as {
+        id_token?: string;
+    };
+    if (!tokenResponse.ok || !tokenData.id_token) {
+        return reply.status(400).send({
+            error: 'Failed to authenticate with Google',
+        });
+    }
+    const { payload } = await jwtVerify(tokenData.id_token, googleJwks, {
+        issuer: [
+            'https://accounts.google.com',
+            'accounts.google.com',
+        ],
+        audience: config.GOOGLE_CLIENT_ID,
+    });
+    const googleId = payload.sub;
+    const email = payload.email;
+    if (!googleId || typeof email !== 'string') {
+        return reply.status(400).send({
+            error: 'Google account information is incomplete',
+        });
+    }
+    if (payload.email_verified !== true) {
+        return reply.status(400).send({
+            error: 'Google email is not verified',
+        });
+    }
+    const existingResult = await db.query(
+        'SELECT id, username, email, google_id, created_at FROM users WHERE google_id = $1 OR LOWER(email) = LOWER($2) LIMIT 1',
+        [googleId, email]
+    );
+    let user = existingResult.rows[0];
+    if (user && !user.google_id) {
+        const linkedResult = await db.query(
+            'UPDATE users SET google_id = $1, updated_at = NOW() WHERE id = $2 RETURNING id, username, email, created_at',
+            [googleId, user.id]
+        );
+        user = linkedResult.rows[0];
+    }
+
+    if (!user) {
+        const id = randomUUID();
+        const username = `google_${googleId.slice(-12)}`;
+        const createdResult = await db.query(
+            'INSERT INTO users (id, username, email, password_hash, google_id) VALUES ($1, $2, $3, NULL, $4) RETURNING id, username, email, created_at',
+            [id, username, email, googleId]
+        );
+        user = createdResult.rows[0];
+    }
+    await createSession(user.id, reply);
+    return reply.redirect('/');
 });
 }
