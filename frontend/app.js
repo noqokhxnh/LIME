@@ -117,6 +117,22 @@ registerSubmitBtn.addEventListener('click', async () => {
         registerMessage.textContent = 'Không thể kết nối tới server';
     }
 });
+function handleAuthError() {
+    const params = new URLSearchParams(window.location.search);
+    if (params.get('auth') !== 'open') {
+        return;
+    }
+    loginModal.classList.add('show');
+    const error = params.get('error');
+    if (error) {
+        loginMessage.textContent = error;
+    }
+    window.history.replaceState(
+        {},
+        '',
+        window.location.pathname
+    );
+}
 const promptInput = document.getElementById('prompt-input');
 const ttsProviderSelect = document.getElementById('tts-provider-select');
 const voiceSelect = document.getElementById('voice-select');
@@ -285,6 +301,7 @@ generateBtn.addEventListener('click', async () => {
 
 // Khi vừa vào trang, kiểm tra nếu có video cũ thì cho phép xem ngay
 (async function init() {
+    handleAuthError();
     await checkCurrentUser();
     try {
         const res = await fetch(`${API_BASE}/api/jobs`);
