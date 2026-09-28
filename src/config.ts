@@ -7,6 +7,9 @@ const envSchema = z.object({
     PORT: z.coerce.number().default(3000),
     NODE_ENV: z.enum(['production', 'development']).default('development'),
     DATABASE_URL: z.string().optional(),
+    
+    QUEUE_TYPE: z.enum(['redis', 'memory']).default('memory'),
+    REDIS_URL: z.string().optional(),
 
 
     LLM_Provider: z.preprocess(
