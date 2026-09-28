@@ -12,7 +12,7 @@ const registerSchema = z.object({
 });
 
 const loginSchema = z.object({
-    username: z.string().trim().min(1).max(30),
+    username: z.string().trim().min(1).max(255),
     password: z.string().min(1).max(128),
 });
 
@@ -61,7 +61,7 @@ export async function authRoutes(app: FastifyInstance): Promise<void> {
             return reply.status(400).send({ error: 'Invalid login data' });
         }
         const result = await db.query(
-            'SELECT id, username, email, password_hash, created_at FROM users WHERE LOWER(username) = LOWER($1) LIMIT 1',
+            'SELECT id, username, email, password_hash, created_at FROM users WHERE LOWER(username) = LOWER($1) OR LOWER(email) = LOWER($1) LIMIT 1',
             [parsed.data.username]
         );
         const user = result.rows[0];
