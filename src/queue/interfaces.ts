@@ -23,6 +23,9 @@ export interface IVideoQueue {
     /** Fetch the current status of a job */
     getJob(jobId: string): Promise<JobRecord | null>;
 
+    /** Fetch all jobs (for API listing) */
+    getJobs(): Promise<JobRecord[]>;
+
     /** Register the worker processing handler */
     process(handler: (data: JobData, updateProgress: (p: JobProgress) => Promise<void>) => Promise<fullPipelineResult>): void;
     

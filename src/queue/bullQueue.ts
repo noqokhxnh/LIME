@@ -51,6 +51,26 @@ export class BullMQQueue implements IVideoQueue {
         };
     }
 
+    async getJobs(): Promise<JobRecord[]> {
+        const jobs = await this.queue.getJobs(['active', 'waiting', 'completed', 'failed']);
+        const records: JobRecord[] = [];
+        for (const job of jobs) {
+            const state = await job.getState();
+            let status: JobRecord['status'] = 'queued';
+            if (state === 'active') status = 'running';
+            else if (state === 'completed') status = 'completed';
+            else if (state === 'failed') status = 'failed';
+            records.push({
+                jobId: job.id!,
+                status,
+                request: job.data.request,
+                createdAt: new Date(job.timestamp).toISOString(),
+                updatedAt: job.finishedOn ? new Date(job.finishedOn).toISOString() : new Date().toISOString(),
+            });
+        }
+        return records;
+    }
+
     process(handler: (data: JobData, updateProgress: (p: JobProgress) => Promise<void>) => Promise<fullPipelineResult>): void {
         const connection = new Redis(this.queue.opts.connection as any, this.connectionOptions);
         this.worker = new Worker('video-generation', async (job: Job<JobData>) => {

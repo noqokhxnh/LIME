@@ -48,7 +48,7 @@ export class MemoryQueue implements IVideoQueue {
         this.pendingJobs = [];
     }
 
-    public getAllJobs(): JobRecord[] {
+    async getJobs(): Promise<JobRecord[]> {
         return Array.from(this.store.values());
     }
 

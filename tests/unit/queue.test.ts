@@ -3,8 +3,8 @@ import assert from 'node:assert/strict';
 import { type FastifyInstance } from 'fastify';
 import { buildApp } from '../../src/index.js';
 import { getQueue } from '../../src/queue/index.js';
-import { setLLMClient } from '../../src/llm/factory.js';
-import { setTTSClient } from '../../src/tts/factory.js';
+import { setLLMClient } from '../../src/llm/client.js';
+import { setTTSClient } from '../../src/pipeline/audioSysnthesis.js';
 import { MockApiLLMClient, MockApiTTSClient } from './mocks.js';
 
 const sampleScript = {
