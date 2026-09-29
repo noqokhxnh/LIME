@@ -23,7 +23,16 @@ const registerUsername = document.getElementById('register-username');
 const registerEmail = document.getElementById('register-email');
 const registerPassword = document.getElementById('register-password');
 const registerMessage = document.getElementById('register-message');
+const googleLoginBtn = document.getElementById('google-login-btn');
 
+if (googleLoginBtn) {
+    googleLoginBtn.addEventListener('click', () => {
+        googleLoginBtn.disabled = true;
+        const textSpan = googleLoginBtn.querySelector('span');
+        if (textSpan) textSpan.textContent = 'Đang chuyển hướng...';
+        window.location.href = `${API_BASE}/api/auth/google`;
+    });
+}
 loginOpenBtn.addEventListener('click', () => {
     loginModal.classList.add('show');
 });
@@ -113,6 +122,22 @@ registerSubmitBtn.addEventListener('click', async () => {
         registerMessage.textContent = 'Không thể kết nối tới server';
     }
 });
+function handleAuthError() {
+    const params = new URLSearchParams(window.location.search);
+    if (params.get('auth') !== 'open') {
+        return;
+    }
+    loginModal.classList.add('show');
+    const error = params.get('error');
+    if (error) {
+        loginMessage.textContent = error;
+    }
+    window.history.replaceState(
+        {},
+        '',
+        window.location.pathname
+    );
+}
 const promptInput = document.getElementById('prompt-input');
 const ttsProviderSelect = document.getElementById('tts-provider-select');
 const voiceSelect = document.getElementById('voice-select');
@@ -281,6 +306,8 @@ generateBtn.addEventListener('click', async () => {
 
 // Khi vừa vào trang, kiểm tra nếu có video cũ thì cho phép xem ngay
 (async function init() {
+    handleAuthError();
+    await checkAuthConfig();
     await checkCurrentUser();
     try {
         const res = await fetch(`${API_BASE}/api/jobs`);
@@ -294,6 +321,18 @@ generateBtn.addEventListener('click', async () => {
         }
     } catch (e) { }
 })();
+
+async function checkAuthConfig() {
+    try {
+        const res = await fetch(`${API_BASE}/api/auth/config`);
+        if (res.ok) {
+            const data = await res.json();
+            if (googleLoginBtn) {
+                googleLoginBtn.style.display = data.googleAuthEnabled ? 'flex' : 'none';
+            }
+        }
+    } catch (e) { }
+}
 async function checkCurrentUser() {
     try {
         const res = await fetch(`${API_BASE}/api/auth/me`, {
