@@ -8,6 +8,8 @@ const envSchema = z.object({
     NODE_ENV: z.enum(['production', 'development']).default('development'),
     DATABASE_URL: z.string().optional(),
     SESSION_TTL_DAYS: z.coerce.number().int().positive().default(7),
+    QUEUE_TYPE: z.enum(['redis', 'memory']).default('memory'),
+    REDIS_URL: z.string().optional(),
 
 
     LLM_Provider: z.preprocess(
