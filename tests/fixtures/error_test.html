@@ -1,0 +1,15 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Error Test Fixture</title>
+</head>
+<body>
+    <h1>Testing Errors</h1>
+    <img src="http://localhost:9999/non-existent.png" alt="Missing Resource">
+    <script>
+        // JS Error
+        console.error("This is a simulated JS error from fixture");
+        // No window.__ready = true to simulate timeout
+    </script>
+</body>
+</html>
