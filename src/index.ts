@@ -7,25 +7,17 @@ import { v4 } from "uuid";
 import { getConfig } from "./config.js";
 import { videoRequestSchema, type videoRequest, type videoScript } from "./llm/schema.js";
 import { generateScript } from "./pipeline/scriptGenerator.js";
-import { runFullPipeline, type fullPipelineResult } from "./pipeline/orchestrator.js";
 import { initDatabase } from "./database/index.js";
 import fastifyCookie from "@fastify/cookie";
-import {authRoutes} from "./auth/routes.js";
+import { authRoutes } from "./auth/routes.js";
+import { getQueue } from "./queue/index.js";
+import { processVideoJob } from "./queue/handler.js";
+import { IVideoQueue } from "./queue/interfaces.js";
 
-export interface JobRecord {
-    jobId: string;
-    status: 'queued' | 'running' | 'completed' | 'failed';
-    request: videoRequest;
-    createdAt: string;
-    updatedAt: string;
-    progress?: { phase: string; progress: number; message: string };
-    result?: fullPipelineResult;
-    error?: string;
-}
+export const jobIpMap = new Map<string, string>();
 
-export const jobsStore = new Map<string, JobRecord>();
-
-export async function buildApp(options: { logger?: boolean } = {}): Promise<FastifyInstance> {
+export async function buildApp(options: { logger?: boolean, queue?: IVideoQueue } = {}): Promise<FastifyInstance> {
+    const queue = options.queue || await getQueue();
     const app = fastify({
         logger: options.logger ?? false,
         bodyLimit: 10 * 1024 * 1024,
@@ -44,7 +36,24 @@ export async function buildApp(options: { logger?: boolean } = {}): Promise<Fast
         });
     }
 
-    // Root web UI & health endpoint
+    if (getConfig().QUEUE_TYPE !== 'redis') {
+        queue.process(processVideoJob);
+    }
+
+    queue.events.on('completed', (args: any) => {
+        const ip = jobIpMap.get(args.jobId);
+        if (ip) {
+            jobIpMap.delete(args.jobId);
+        }
+    });
+
+    queue.events.on('failed', (args: any) => {
+        const ip = jobIpMap.get(args.jobId);
+        if (ip) {
+            jobIpMap.delete(args.jobId);
+        }
+    });
+
     app.get("/", async (request: FastifyRequest, reply: FastifyReply) => {
         const accept = request.headers.accept || "";
         if (accept.startsWith("text/html")) {
@@ -57,7 +66,6 @@ export async function buildApp(options: { logger?: boolean } = {}): Promise<Fast
         return { status: "ok", timestamp: new Date().toISOString() };
     });
 
-    // Dedicated UI endpoint
     app.get("/ui", async (_request: FastifyRequest, reply: FastifyReply) => {
         const htmlPath = join(frontendDir, "index.html");
         if (existsSync(htmlPath)) {
@@ -67,7 +75,6 @@ export async function buildApp(options: { logger?: boolean } = {}): Promise<Fast
         reply.status(404).send("Frontend not found");
     });
 
-    // API health and provider status
     app.get("/api/health", async () => {
         const config = getConfig();
         return {
@@ -78,7 +85,6 @@ export async function buildApp(options: { logger?: boolean } = {}): Promise<Fast
         };
     });
 
-    // Generate script draft only
     app.post("/api/script/draft", async (request: FastifyRequest, reply: FastifyReply) => {
         try {
             const body = request.body as any;
@@ -101,7 +107,6 @@ export async function buildApp(options: { logger?: boolean } = {}): Promise<Fast
         }
     });
 
-    // Pipeline runner endpoint (supports both sync and async)
     const handlePipelineRequest = async (request: FastifyRequest, reply: FastifyReply) => {
         const body = (request.body as any) || {};
         const isAsync = Boolean(body.async || (request.query as any)?.async === 'true');
@@ -123,43 +128,17 @@ export async function buildApp(options: { logger?: boolean } = {}): Promise<Fast
         const skipPreview = Boolean(body.skipPreview);
         const jobId = body.jobId || v4();
 
-        const job: JobRecord = {
-            jobId,
-            status: 'queued',
-            request: reqData,
-            createdAt: new Date().toISOString(),
-            updatedAt: new Date().toISOString(),
-        };
-        jobsStore.set(jobId, job);
-
         const outputDir = join(process.cwd(), "tmp", `job-${jobId}`);
 
         if (isAsync) {
-            // Run asynchronously in background
-            (async () => {
-                job.status = 'running';
-                job.updatedAt = new Date().toISOString();
-                try {
-                    const result = await runFullPipeline({
-                        request: reqData,
-                        script: inputScript,
-                        bgmPath,
-                        skipPreview,
-                        outputDir,
-                        onProgress: (p) => {
-                            job.progress = p;
-                            job.updatedAt = new Date().toISOString();
-                        },
-                    });
-                    job.status = 'completed';
-                    job.result = result;
-                    job.updatedAt = new Date().toISOString();
-                } catch (err: any) {
-                    job.status = 'failed';
-                    job.error = err.message;
-                    job.updatedAt = new Date().toISOString();
-                }
-            })();
+            await queue.addJob(jobId, {
+                jobId,
+                request: reqData,
+                script: inputScript,
+                bgmPath,
+                skipPreview,
+                outputDir
+            });
 
             reply.status(202);
             return {
@@ -168,26 +147,19 @@ export async function buildApp(options: { logger?: boolean } = {}): Promise<Fast
                 checkStatusUrl: `/api/jobs/${jobId}`,
                 htmlUrl: `/api/jobs/${jobId}/html`,
                 audioUrl: `/api/jobs/${jobId}/audio`,
+                streamUrl: `/api/jobs/${jobId}/events`
             };
         } else {
-            // Run synchronously
-            job.status = 'running';
-            job.updatedAt = new Date().toISOString();
             try {
-                const result = await runFullPipeline({
+                const result = await processVideoJob({
+                    jobId,
                     request: reqData,
                     script: inputScript,
                     bgmPath,
                     skipPreview,
-                    outputDir,
-                    onProgress: (p) => {
-                        job.progress = p;
-                        job.updatedAt = new Date().toISOString();
-                    },
-                });
-                job.status = 'completed';
-                job.result = result;
-                job.updatedAt = new Date().toISOString();
+                    outputDir
+                }, async () => {});
+
                 return {
                     success: true,
                     jobId: result.jobId,
@@ -204,9 +176,6 @@ export async function buildApp(options: { logger?: boolean } = {}): Promise<Fast
                     audioUrl: `/api/jobs/${result.jobId}/audio`,
                 };
             } catch (err: any) {
-                job.status = 'failed';
-                job.error = err.message;
-                job.updatedAt = new Date().toISOString();
                 reply.status(500);
                 return {
                     success: false,
@@ -220,9 +189,9 @@ export async function buildApp(options: { logger?: boolean } = {}): Promise<Fast
     app.post("/api/generate", handlePipelineRequest);
     app.post("/api/pipeline", handlePipelineRequest);
 
-    // List jobs
     app.get("/api/jobs", async () => {
-        return Array.from(jobsStore.values()).map((j) => ({
+        const jobs = await queue.getJobs();
+        return jobs.map((j) => ({
             jobId: j.jobId,
             status: j.status,
             createdAt: j.createdAt,
@@ -233,10 +202,9 @@ export async function buildApp(options: { logger?: boolean } = {}): Promise<Fast
         }));
     });
 
-    // Get job status/details
     app.get("/api/jobs/:jobId", async (request: FastifyRequest<{ Params: { jobId: string } }>, reply: FastifyReply) => {
         const { jobId } = request.params;
-        const job = jobsStore.get(jobId);
+        const job = await queue.getJob(jobId);
         if (!job) {
             reply.status(404);
             return { error: "Job not found" };
@@ -260,10 +228,71 @@ export async function buildApp(options: { logger?: boolean } = {}): Promise<Fast
         };
     });
 
-    // Serve generated HTML bundle
+    app.get("/api/jobs/:jobId/events", async (request: FastifyRequest<{ Params: { jobId: string } }>, reply: FastifyReply) => {
+        const { jobId } = request.params;
+        
+        reply.raw.setHeader('Content-Type', 'text/event-stream');
+        reply.raw.setHeader('Cache-Control', 'no-cache');
+        reply.raw.setHeader('Connection', 'keep-alive');
+        reply.raw.flushHeaders();
+
+        const job = await queue.getJob(jobId);
+        if (!job) {
+            reply.raw.write(`event: error\ndata: ${JSON.stringify({ error: 'Job not found' })}\n\n`);
+            reply.raw.end();
+            return;
+        }
+
+        reply.raw.write(`data: ${JSON.stringify({ status: job.status, progress: job.progress })}\n\n`);
+        
+        if (job.status === 'completed' || job.status === 'failed') {
+            reply.raw.end();
+            return;
+        }
+
+        const heartbeatInterval = setInterval(() => {
+            reply.raw.write(`: heartbeat\n\n`);
+        }, 15000);
+
+        const onProgress = (args: any) => {
+            if (args.jobId === jobId) {
+                reply.raw.write(`data: ${JSON.stringify({ status: 'running', progress: args.data })}\n\n`);
+            }
+        };
+
+        const onCompleted = (args: any) => {
+            if (args.jobId === jobId) {
+                reply.raw.write(`data: ${JSON.stringify({ status: 'completed', result: args.returnvalue })}\n\n`);
+                reply.raw.end();
+                cleanup();
+            }
+        };
+
+        const onFailed = (args: any) => {
+            if (args.jobId === jobId) {
+                reply.raw.write(`data: ${JSON.stringify({ status: 'failed', error: args.failedReason })}\n\n`);
+                reply.raw.end();
+                cleanup();
+            }
+        };
+
+        const cleanup = () => {
+            clearInterval(heartbeatInterval);
+            queue.events.removeListener('progress', onProgress);
+            queue.events.removeListener('completed', onCompleted);
+            queue.events.removeListener('failed', onFailed);
+        };
+
+        queue.events.on('progress', onProgress);
+        queue.events.on('completed', onCompleted);
+        queue.events.on('failed', onFailed);
+
+        request.raw.on('close', cleanup);
+    });
+
     app.get("/api/jobs/:jobId/html", async (request: FastifyRequest<{ Params: { jobId: string } }>, reply: FastifyReply) => {
         const { jobId } = request.params;
-        const job = jobsStore.get(jobId);
+        const job = await queue.getJob(jobId);
         const htmlPath = job?.result?.finalHtmlPath ?? join(process.cwd(), "tmp", `job-${jobId}`, "index.html");
         if (!existsSync(htmlPath)) {
             reply.status(404);
@@ -272,10 +301,9 @@ export async function buildApp(options: { logger?: boolean } = {}): Promise<Fast
         reply.type("text/html; charset=utf-8").send(createReadStream(htmlPath));
     });
 
-    // Serve generated mixed audio
     app.get("/api/jobs/:jobId/audio", async (request: FastifyRequest<{ Params: { jobId: string } }>, reply: FastifyReply) => {
         const { jobId } = request.params;
-        const job = jobsStore.get(jobId);
+        const job = await queue.getJob(jobId);
         const audioPath = job?.result?.audio?.mixAudioPath ?? join(process.cwd(), "tmp", `job-${jobId}`, "mixed_audio.mp3");
         if (!existsSync(audioPath)) {
             reply.status(404);
@@ -284,10 +312,9 @@ export async function buildApp(options: { logger?: boolean } = {}): Promise<Fast
         reply.type("audio/mpeg").send(createReadStream(audioPath));
     });
 
-    // Serve preview scene screenshot
     app.get("/api/jobs/:jobId/preview/:sceneId", async (request: FastifyRequest<{ Params: { jobId: string; sceneId: string } }>, reply: FastifyReply) => {
         const { jobId, sceneId } = request.params;
-        const job = jobsStore.get(jobId);
+        const job = await queue.getJob(jobId);
         const workDir = job?.result?.workDir ?? join(process.cwd(), "tmp", `job-${jobId}`);
         const previewPath = join(workDir, "previews", `${sceneId}.webp`);
         if (!existsSync(previewPath)) {
@@ -297,10 +324,9 @@ export async function buildApp(options: { logger?: boolean } = {}): Promise<Fast
         reply.type("image/webp").send(createReadStream(previewPath));
     });
 
-    // Stream MP4 video with HTTP Range support
     app.get("/api/jobs/:jobId/video", async (request: FastifyRequest<{ Params: { jobId: string } }>, reply: FastifyReply) => {
         const { jobId } = request.params;
-        const job = jobsStore.get(jobId);
+        const job = await queue.getJob(jobId);
         const videoPath = job?.result?.videoPath ?? join(process.cwd(), "tmp", `job-${jobId}`, "final_video.mp4");
         if (!existsSync(videoPath)) {
             reply.status(404);
@@ -336,10 +362,9 @@ export async function buildApp(options: { logger?: boolean } = {}): Promise<Fast
         }
     });
 
-    // Download MP4 video
     app.get("/api/jobs/:jobId/download", async (request: FastifyRequest<{ Params: { jobId: string } }>, reply: FastifyReply) => {
         const { jobId } = request.params;
-        const job = jobsStore.get(jobId);
+        const job = await queue.getJob(jobId);
         const videoPath = job?.result?.videoPath ?? join(process.cwd(), "tmp", `job-${jobId}`, "final_video.mp4");
         if (!existsSync(videoPath)) {
             reply.status(404);
@@ -354,8 +379,10 @@ export async function buildApp(options: { logger?: boolean } = {}): Promise<Fast
 
 export async function startServer(): Promise<FastifyInstance> {
     const config = getConfig();
-    const app = await buildApp({ logger: true });
-    await initDatabase(); // Initialize the database before starting the server
+    const queue = await getQueue();
+    queue.startListeners();
+    const app = await buildApp({ queue, logger: true });
+    await initDatabase();
     try {
         await app.listen({ port: config.PORT, host: "0.0.0.0" });
         console.log(`Backend server listening at http://localhost:${config.PORT}`);
