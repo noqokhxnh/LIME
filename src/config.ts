@@ -64,6 +64,9 @@ const envSchema = z.object({
     Default_Width: z.coerce.number().default(1920),
     Default_Height: z.coerce.number().default(1080),
 
+    GOOGLE_CLIENT_ID: z.string().optional(),
+    GOOGLE_CLIENT_SECRET: z.string().optional(),
+    GOOGLE_REDIRECT_URI: z.string().default('http://localhost:3000/api/auth/google/callback'),
 });
 
 export type Config = z.infer<typeof envSchema>;
