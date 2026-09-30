@@ -58,7 +58,7 @@ describe('Module 9: Fastify API Server & Health Endpoint (src/index.ts)', () => 
         const { getQueue } = await import('../../src/queue/index.js');
         const queue = await getQueue();
         queue.startListeners();
-        app = await buildApp(queue, { logger: false });
+        app = await buildApp({ queue, logger: false });
         app.post('/test-body-size', async (request) => {
             const body = request.body as { data: string };
             return { receivedBytes: body.data.length };

@@ -59,7 +59,7 @@ describe('Module 11: Queue & Background Worker', () => {
         
         const queue = await getQueue();
         queue.startListeners();
-        app = await buildApp(queue, { logger: false });
+        app = await buildApp({ queue, logger: false });
         await app.ready();
     });
 
