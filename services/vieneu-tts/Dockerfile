@@ -11,10 +11,10 @@ RUN pip install --no-cache-dir uv
 COPY requirements.txt .
 RUN uv pip install --system --no-cache -r requirements.txt
 
-COPY server.py .
-
-# Nạp sẵn mô hình v3nano vào cache khi build image
+# Nạp sẵn mô hình v3nano vào cache khi build image (đặt trước COPY server.py để không tải lại khi sửa code)
 RUN python -c "from vieneu import Vieneu; Vieneu(mode='v3nano')"
+
+COPY server.py .
 
 EXPOSE 7860
 

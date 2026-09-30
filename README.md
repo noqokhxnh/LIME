@@ -1,228 +1,261 @@
-# VidTML
+<p align="center">
+  <picture>
+    <img alt="VidTML / LIME" src="public/logo.png" width="240">
+  </picture>
+</p>
 
-AI-powered video generation from HTML animations. Describe a video in natural language → an LLM writes a structured "video script" (HTML/CSS/GSAP per scene + voiceover text) → TTS voices each scene → the assembled HTML is rendered frame-by-frame in headless Chromium → ffmpeg muxes the frames with the audio into an MP4.
 
-The web UI (Vietnamese) is served by the same Fastify server.
 
-## Features
-
-- Natural-language prompt → full video (script, voiceover, images, animation, final MP4)
-- Two-phase workflow: generate & edit script drafts before rendering, with AI revision support
-- 4 LLM providers: OpenAI, Google Gemini, Anthropic Claude, DeepSeek
-- 4 TTS providers: Edge TTS (free, high-quality Vietnamese voices), OpenAI, Google, ElevenLabs
-- Per-scene photos from Wikimedia Commons (no API key required), cached in SQLite
-- Aspect ratios: 16:9, 9:16, 1:1, 4:3
-- User accounts & session-based auth (register/login, HttpOnly cookies, bcryptjs)
-- Google OAuth 2.0 sign-in (one-click login/register, tài khoản password + Google link theo email)
-- Async job pipeline: Redis (BullMQ) queues + background workers, status persisted in SQLite
-- Realtime progress via Server-Sent Events (SSE)
-- Token usage tracking & cost estimation
-- 3-panel Studio Web UI (Vietnamese): project sidebar, video player & editable script tabs, live progress monitoring
-
-## Requirements
-
-You can run VidTML via **Docker** (recommended for quick setup without installing host dependencies) or **Local Node.js environment**.
-
-### Local Prerequisites (if not using Docker)
-| Dependency | Notes |
-|---|---|
-| Node.js 18+ | Runtime environment |
-| Redis | queue + pub/sub (`redis-server`) |
-| ffmpeg + ffprobe | on `PATH`; audio duration probing, concat, BGM mix, muxing |
-| Chromium | one-time: `npx playwright install chromium` |
+<p align="center">
+  <b>Write HTML. Render video. Built for AI agents and human creators.</b>
+</p>
+<p align="center">
+  <img src="public/logo-motion.webp" alt="VidTML / LIME Motion" width="560">
+</p>
+<p align="center">
+  <a href="LICENSE"><img src="https://img.shields.io/badge/License-AGPL_v3-blue.svg" alt="License: AGPL-3.0"></a>
+  <img src="https://img.shields.io/badge/Node.js-%3E%3D20-green.svg" alt="Node.js Version">
+  <img src="https://img.shields.io/badge/TypeScript-5.x-3178c6.svg" alt="TypeScript">
+  <img src="https://img.shields.io/badge/Renderer-Playwright%20Chromium-45ba4b.svg" alt="Playwright">
+  <img src="https://img.shields.io/badge/Motion-GSAP%203.x-88ce02.svg" alt="GSAP">
+</p>
 
 ---
 
-## Quick start
+## Overview
 
-### Option A: Using Docker (Recommended)
+**VidTML** is an open-source, production-ready AI video generation platform. Given a single text prompt, VidTML orchestrates Large Language Models (LLMs) to write structured modular video scenes using **HTML5, CSS3, SVG, Canvas2D/Three.js, and GSAP animations**, synthesizes voiceover audio via state-of-the-art TTS providers, renders the animated scenes frame-by-frame inside headless Chromium instances with deterministic seek precision, and muxes everything into high-definition MP4 videos via `ffmpeg`.
 
-Requires only [Docker](https://docs.docker.com/get-docker/) & Docker Compose. All dependencies (Node.js, Redis, FFmpeg, Playwright Chromium, Vietnamese fonts) are pre-packaged.
+### Why HTML/CSS/JS for Video?
+
+- **Unmatched Precision & Expressiveness**: Leverage the entire modern web platform (Flexbox, Grid, SVG paths, WebGL shaders, Canvas2D, Three.js 3D models, Google Fonts, MathJax/KaTeX).
+- **100% Deterministic Rendering**: Zero dropped frames or rendering jitter. The GSAP master timeline is scrubbed deterministically via `window.__seekTo(time)` at exact 30/60 fps intervals.
+- **Built for AI Agents**: LLMs excel at generating structured HTML and GSAP code far better than opaque binary video formats or complex 3D engine scripts.
+- **Instant Previews & Web-First**: Edit scenes in real time in the browser before invoking GPU/CPU-heavy render passes.
+
+---
+## Architecture & Pipeline
+
+```text
+User Prompt (Web UI / REST API / CLI)
+                  │
+                  ▼
+  ┌─────────────────────────────────┐
+  │  Phase 1: Script Generator      │ ◄── LLM (OpenAI / Claude / Gemini / DeepSeek)
+  │  - JSON schema validation (Zod) │
+  │  - AST syntax & contract check  │
+  └───────────────┬─────────────────┘
+                  │
+        ┌─────────┴─────────┐
+        ▼                   ▼
+  ┌───────────┐       ┌───────────┐
+  │ Phase 2a: │       │ Phase 2b: │
+  │ Audio TTS │       │ Image Gen │ ◄── Wikimedia Commons & Local Assets
+  │ & BeatSync│       │ & Charts  │
+  └─────┬─────┘       └─────┬─────┘
+        └─────────┬─────────┘
+                  ▼
+  ┌─────────────────────────────────┐
+  │  Phase 3: Code Assembler        │
+  │  - Injects real durations & imgs│
+  │  - Assembles standalone HTML    │
+  └───────────────┬─────────────────┘
+                  ▼
+  ┌─────────────────────────────────┐
+  │  Phase 4: Scene Previewer       │ ◄── WebP scene snapshots
+  └───────────────┬─────────────────┘
+                  ▼
+  ┌─────────────────────────────────┐
+  │  Phase 5: Parallel Renderer     │ ◄── Playwright (Chromium instances)
+  │  - Scrub GSAP with __seekTo()   │
+  │  - Pipe PNG frames to ffmpeg    │
+  └───────────────┬─────────────────┘
+                  ▼
+  ┌─────────────────────────────────┐
+  │  Phase 6: Audio/Video Muxer     │ ◄── ffmpeg muxing (-shortest, AAC, +faststart)
+  └───────────────┬─────────────────┘
+                  │
+                  ▼
+        Final Rendered MP4 Video
+```
+
+---
+
+## QuickStart
+
+### Option A: Docker Compose (Recommended)
+
+Run everything (Fastify API Server, Worker, Redis, PostgreSQL, VieNeu-TTS) in one command:
 
 ```bash
-# 1. Setup environment file
-cp .env.example .env     # fill in your API keys (DEEPSEEK_API_KEY / GEMINI_API_KEY, ...)
+git clone https://github.com/noqokhxnh/html-to-vid.git
+cd html-to-vid
 
-# 2. Build & run all services (Redis + API Server + Worker)
+cp .env.example .env
+
 docker compose up --build
-
-# 3→ Web UI & API ready at http://localhost:3000
-
-# 4. After pulling, run this to install the dependencies
-npm ci
 ```
 
-Run in detached/background mode:
-
-```bash
-docker compose up -d --build
-docker compose ps                 # status of redis / server / worker
-docker compose logs -f            # follow logs of all services
-docker compose logs -f worker     # follow worker video rendering logs
-docker compose down               # stop all containers (data is kept)
-docker compose down -v            # stop AND delete Redis data + generated videos/DB
-```
-
-Notes:
-
-- **Rebuild after code changes:** the Dockerfile copies sources at build time — run `docker compose up --build` (or `docker compose build && docker compose up -d`) whenever you change code or dependencies.
-- **`.env` is mandatory:** the compose file loads it via `env_file` on the server & worker services; `docker compose up` fails if it's missing.
-- **Persistence:** the SQLite DB, generated videos and Redis data live in named volumes (`vidtml_data`, `redis_data`) — they survive `docker compose down` and are only wiped by `docker compose down -v`.
-- **Sandbox:** containers run render/preview Chromium with `RENDER_ALLOW_NO_SANDBOX=1` set automatically (there's no OS sandbox inside a container). Keep it unset (`0`) for local non-Docker runs.
-- **Low-RAM machines:** the worker runs with `shm_size: 2gb` for headless Chromium; if it crashes, lower `RENDER_MAX_CONCURRENCY` in `.env` (e.g. `2`).
+Access the Web Studio at: **`http://localhost:3000`**
 
 ---
 
-### Option B: Local Setup
+### Option B: Local Development Setup
+
+#### Prerequisites
+- **Node.js**: v20.x or higher
+- **Redis**: v7.x or higher (for job queue & SSE pub/sub)
+- **ffmpeg & ffprobe**: Installed on your system `PATH`
+- **Chromium**: Installed via Playwright
+
+#### Step-by-Step Installation
 
 ```bash
 npm install
-npx playwright install chromium          # one-time
-cp .env.example .env                      # fill in your API keys (DEEPSEEK_API_KEY, ...)
 
-npm run dev:all                           # starts Redis + API server + worker
-# → Web UI & API at http://localhost:3000
+npx playwright install chromium
+
+cp .env.example .env
+
+
+# Start Redis (if not already running)
+# docker run -d -p 6379:6379 redis:7-alpine
+
+# Run API Server and Video Worker in separate terminals:
+# Terminal 1: API Server
+npm run dev
+
+# Terminal 2: Background Video Worker
+npm run worker
 ```
 
-`npm run dev:all` runs `start.sh`, which starts Redis if it isn't running, then launches the dev server and the worker together. For manual control, use three terminals:
+---
+
+## CLI Usage
+
+You can generate videos directly from the command line without opening the web interface:
 
 ```bash
-redis-server
-npm run dev          # API server (hot reload)
-npm run worker       # background video worker
+# Quick generation with defaults
+npm run cli -- --prompt "Giải thích cách hoạt động của Trí Tuệ Nhân Tạo"
+
+# Full options
+npm run cli -- \
+  --prompt "5 thói quen giúp lập trình viên năng suất hơn mỗi ngày" \
+  --style stickman \
+  --duration 20 \
+  --aspect 16:9 \
+  --lang vi \
+  --sync
 ```
 
-## Commands
+### CLI Arguments
+| Argument | Alias | Default | Description |
+|---|---|---|---|
+| `--prompt` | `-p` | (required) | Video concept and narration instructions |
+| `--style` | `-s` | `modern` | Visual style (`stickman`, `modern`, `editorial`, `brutalist`, etc.) |
+| `--duration`| `-d` | `15` | Target duration in seconds |
+| `--aspect` | `-a` | `16:9` | Aspect ratio (`16:9`, `9:16`, `1:1`, `4:3`) |
+| `--lang` | `-l` | `vi` | Voiceover language (`vi`, `en`) |
+| `--sync` | | `false` | Run synchronously and wait for the final MP4 path |
 
-| Command | Description |
-|---|---|
-| `docker compose up --build` | Build & run full stack (Redis + Server + Worker) in Docker |
-| `docker compose down` | Stop all containers (data volumes kept) |
-| `docker compose down -v` | Stop and delete Redis data + generated videos/DB |
-| `npm run dev` | API server with hot reload (`tsx watch src/index.ts`) |
-| `npm run worker` | Background video worker (`tsx watch src/worker.ts`) |
-| `npm run dev:all` | `start.sh` — Redis + server + worker |
-| `npm start` | Run API server without watch |
-| `npm run build` | Typecheck and emit to `dist/` (`tsc`) |
-| `npm test` | Runs unit tests via tsx (`tests/unit/*.test.ts`) |
+---
 
+## Configuration Reference
 
-## Configuration
+Key settings configurable in `.env` (validated by Zod in `src/config.ts`):
 
-All configuration is environment-driven, validated by zod in `src/config.ts` (`.env` supported). See `.env.example` for a commented template.
+```ini
+# Server
+PORT=3000
+NODE_ENV=development
 
-### Server & storage
+# LLM Providers (Select one, or switch dynamically in the Web UI)
+LLM_PROVIDER=deepseek
+DEEPSEEK_API_KEY="sk-..."
+DEEPSEEK_MODEL="deepseek-chat"
 
-| Variable | Default | Description |
-|---|---|---|
-| `PORT` | `3000` | HTTP port |
-| `NODE_ENV` | `development` | `development` \| `production` |
-| `DB_PATH` | `tmp/vidtml.sqlite` | SQLite database file |
+# TTS Providers (Edge TTS is free without any API key)
+TTS_PROVIDER=edge
+TTS_VOICE=vi-VN-HoaiMyNeural
 
-### Google OAuth (optional)
+# Redis Queue & Concurrency
+REDIS_URL=redis://127.0.0.1:6379
+WORKER_CONCURRENCY=2
+RENDER_MAX_CONCURRENCY=4
 
-| Variable | Default | Description |
-|---|---|---|
-| `GOOGLE_CLIENT_ID` | — | Google OAuth 2.0 Client ID (leave empty to disable Google sign-in) |
-| `GOOGLE_CLIENT_SECRET` | — | Google OAuth 2.0 Client Secret |
-| `GOOGLE_REDIRECT_URI` | — | OAuth callback URL (optional; defaults to `${protocol}://${host}/api/auth/google/callback`) |
+# Media & Image Search
+IMAGE_CACHE_TTL_DAYS=7
+IMAGE_MAX_QUERIES_PER_JOB=10
 
-### LLM
-
-| Variable | Default | Description |
-|---|---|---|
-| `LLM_PROVIDER` | `openai` | `openai` \| `gemini` \| `claude` \| `deepseek` |
-| `OPENAI_API_KEY` / `OPENAI_MODEL` | — / `gpt-4o` | |
-| `GEMINI_API_KEY` / `GEMINI_MODEL` | — / `gemini-2.5-pro` | |
-| `ANTHROPIC_API_KEY` / `CLAUDE_MODEL` | — / `claude-sonnet-4-20250514` | |
-| `DEEPSEEK_API_KEY` / `DEEPSEEK_MODEL` | — / `deepseek-chat` | Use `deepseek-chat`/`deepseek-reasoner` on the OpenAI-compatible endpoint |
-
-### TTS
-
-| Variable | Default | Description |
-|---|---|---|
-| `TTS_PROVIDER` | `edge` | `edge` \| `openai` \| `google` \| `elevenlabs` |
-| `TTS_VOICE` | `vi-VN-HoaiMyNeural` | e.g. `vi-VN-HoaiMyNeural` (female), `vi-VN-NamMinhNeural` (male) |
-| `GOOGLE_TTS_API_KEY` | — | Google TTS |
-| `ELEVENLABS_API_KEY` / `ELEVENLABS_VOICE_ID` | — | ElevenLabs |
-
-### Image search (Wikimedia Commons, no key)
-
-| Variable | Default | Description |
-|---|---|---|
-| `IMAGE_CACHE_TTL_DAYS` | `7` | Cache search results to avoid repeat queries |
-| `IMAGE_MAX_QUERIES_PER_JOB` | `10` | Per-video query cap (cache hits don't count) |
-
-### Usage tracking & cost estimation
-
-| Variable | Default | Description |
-|---|---|---|
-| `USAGE_LOG_ENABLED` | `true` | Append usage records to a JSONL log |
-| `USAGE_LOG_PATH` | `tmp/usage.jsonl` | JSONL log file |
-| `USAGE_PRICE_OVERRIDES` | — | JSON object overriding per-model prices, e.g. `{"deepseek":{"deepseek-reasoner":{"inputPer1M":0.55,"outputPer1M":2.19}}}` |
-
-### Redis & queue
-
-| Variable | Default | Description |
-|---|---|---|
-| `REDIS_HOST` / `REDIS_PORT` | `127.0.0.1` / `6379` | |
-| `REDIS_PASSWORD` | — | |
-| `WORKER_CONCURRENCY` | `2` | Jobs processed in parallel by one worker |
-| `RENDER_MAX_CONCURRENCY` | `4` | Parallel Chromium/ffmpeg render processes per job |
-
-### Video
-
-| Variable | Default | Description |
-|---|---|---|
-| `DEFAULT_FPS` | `30` | Not wired into the pipeline yet (render is currently hardcoded to 30 fps) |
-| `DEFAULT_WIDTH` / `DEFAULT_HEIGHT` | `1920` / `1080` | Not wired into the pipeline yet; dimensions come from `VIDEO_PRESETS` in `src/config.ts` (16:9 → 1920×1080, 9:16 → 1080×1920, 1:1 → 1080×1080, 4:3 → 1440×1080) |
-
-### Runtime provider switching
-
-LLM and TTS providers can be switched at runtime from the web UI (Công Cụ → Nhà cung cấp AI / Nhà cung cấp giọng đọc). The selection is stored per user in the SQLite `settings` table and **takes precedence over the env vars**. API keys always stay in `.env`.
-
-## Project structure
-
-```
-vidtml/
-├── src/
-│   ├── index.ts               # Fastify API server (REST + SSE + serves web/)
-│   ├── worker.ts              # BullMQ background worker (consumes the queue)
-│   ├── config.ts              # zod-validated env config + VIDEO_PRESETS
-│   ├── sse.ts                 # Server-Sent Events handler (Redis pub/sub)
-│   ├── auth/                  # session-based auth (register/login/logout/me)
-│   │   ├── routes.ts          #   auth endpoints + requireAuth preHandler
-│   │   ├── password.ts        #   bcryptjs hashing
-│   │   └── rateLimit.ts       #   in-memory sliding-window rate limiter
-│   ├── db/                    # SQLite: connection, schema, repositories
-│   │   ├── jobsRepository.ts  #   jobs CRUD + progress logs
-│   │   ├── usersRepository.ts #   user accounts CRUD
-│   │   ├── sessionsRepository.ts # session token management
-│   │   ├── settings.ts        #   user-scoped runtime settings store
-│   │   ├── imageCache.ts      #   Wikimedia search-result cache
-│   │   └── schema.ts          #   DDL (jobs, users, sessions, settings, cache)
-│   ├── queue/                 # BullMQ queue + Redis pub/sub client
-│   ├── llm/                   # LLM clients, system prompt, zod schemas
-│   ├── pipeline/              # the 6 pipeline phases (see architecture doc)
-│   ├── image/                 # Wikimedia Commons search client
-│   └── usage/                 # token usage recording & cost estimation
-├── web/                       # vanilla JS frontend (Vietnamese UI)
-├── tests/
-│   ├── unit/                  # codeAssembler.test.ts, db.test.ts
-│   └── integration/           # (planned)
-├── tmp/                       # job workdirs + SQLite DB (gitignored)
-├── start.sh                   # dev:all launcher (Redis + server + worker)
-└── .env.example               # commented env template
+# Quota & Rate Limits
+QUOTA_MAX_CONCURRENT_JOBS=3
+QUOTA_MAX_DAILY_JOBS=20
+QUOTA_DAILY_BUDGET_USD=2.0
 ```
 
-## Documentation
+---
 
-- [docs/architecture.md](docs/architecture.md) — system architecture, auth, pipeline phases, the HTML↔renderer contract, extension points
-- [docs/api.md](docs/api.md) — REST API + SSE + auth reference
-- [docs/styles.md](docs/styles.md) — visual style system audit & comparison results
-- [CONTRIBUTING.md](CONTRIBUTING.md) — hướng dẫn đóng góp mã nguồn & quy trình phát triển
+## REST API & SSE Endpoints
 
-## Related
+| Method | Endpoint | Description |
+|---|---|---|
+| `POST` | `/api/auth/register` | Register new user account |
+| `POST` | `/api/auth/login` | Log in and receive session cookie |
+| `POST` | `/api/script/draft` | Phase 1: Generate an editable video script draft |
+| `POST` | `/api/generate` | Phase 2: Enqueue full video rendering job |
+| `GET` | `/api/jobs/:id` | Get job status, current phase, and execution logs |
+| `GET` | `/api/jobs/:id/events` | Server-Sent Events (SSE) live progress stream |
+| `GET` | `/api/jobs/:id/video` | Stream rendered MP4 video with HTTP range support |
+| `GET` | `/api/jobs/:id/download` | Download final MP4 video file |
+| `GET` | `/api/jobs/:id/preview/:sceneId`| Fetch WebP thumbnail for specific scene |
+| `DELETE`| `/api/jobs/:id` | Cancel running job and clean up scratch storage |
+| `GET` | `/api/settings` | Get current user's provider overrides |
+| `PUT` | `/api/settings` | Save runtime provider preferences |
+| `GET` | `/api/usage` | Inspect LLM token usage and estimated spend |
+| `GET` | `/api/health` | Healthcheck (Redis, DB, system dependencies) |
 
-- `CLAUDE.md` — guidance for Claude Code (AI-assisted development) contributors
+---
 
+## Testing
+
+VidTML is backed by extensive unit and integration test suites:
+
+```bash
+# Run all unit tests (over 690+ assertions across 40+ test suites)
+npm run test:unit
+
+# Run end-to-end pipeline integration tests
+npm test
+```
+
+Test coverage includes:
+- GSAP timeline AST linter & contract safety
+- Doodle stickman anatomy, IK, line-boil, and pose geometry
+- Audio ducking, loudness normalization, and beat detection
+- CDP frame capture deduplication
+- Canvas2D & Three.js time-driver determinism
+- Quota reservations & prompt injection security guards
+
+---
+
+## License
+
+This project is licensed under the **GNU Affero General Public License v3.0 (AGPL-3.0)**.
+
+```text
+VidTML (LIME) - AI HTML-to-Video Generation Platform
+Copyright (C) 2026 noqokhxnh
+
+This program is free software: you can redistribute it and/or modify
+it under the terms of the GNU Affero General Public License as published by
+the Free Software Foundation, either version 3 of the License, or
+(at your option) any later version.
+
+This program is distributed in the hope that it will be useful,
+but WITHOUT ANY WARRANTY; without even the implied warranty of
+MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+GNU Affero General Public License for more details.
+```
+
+See the [LICENSE](LICENSE) file for the full license text. If you run a modified version of VidTML as a network service, you must make the corresponding source code available to your users.
