@@ -4,3 +4,14 @@ tmp/
 .git/
 .env
 *.log
+demo-vieneu/
+promo-video/
+docs/
+tests/
+services/
+.worktrees/
+.lgtm/
+.claude/
+*.md
+docker-compose*.yml
+pyrightconfig.json

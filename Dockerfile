@@ -18,7 +18,7 @@ RUN npm ci
 COPY . .
 RUN npm run build
 
-RUN mkdir -p /app/tmp && chown -R node:node /app
+RUN mkdir -p /app/tmp && chown -R node:node /app/tmp
 USER node
 
 EXPOSE 3000
