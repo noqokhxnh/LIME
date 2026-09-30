@@ -1,4 +1,4 @@
-import { existsSync, mkdirSync, readFileSync } from "node:fs";
+import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { join, dirname, resolve } from "node:path";
 import { pathToFileURL } from "node:url";
 import { chromium, type Browser, type BrowserContext, type Page } from "playwright";
@@ -6,6 +6,53 @@ import { videoScript, scene, durationMap } from "@/llm/schema";
 import { withRetry, isAbortError } from "./retry.js";
 
 process.env.PW_TEST_SCREENSHOT_NO_FONTS_READY = "1";
+
+export function setupBrowserDiagnostics(page: Page, contextName = 'Browser') {
+    page.on('console', msg => {
+        const type = msg.type();
+        if (type === 'error' || type === 'warning') {
+            console.error(`[${contextName} Console] ${type.toUpperCase()}: ${msg.text()}`);
+        }
+    });
+    page.on('pageerror', err => {
+        console.error(`[${contextName} PageError] Unhandled Exception:`, err.message || err);
+    });
+    page.on('requestfailed', req => {
+        const reason = req.failure()?.errorText || 'Unknown';
+        console.error(`[${contextName} RequestFailed] ${req.method()} ${req.url()}: ${reason}`);
+    });
+}
+
+export async function dumpDiagnosticSnapshot(page: Page, htmlPath: string, contextName: string): Promise<string> {
+    const dir = dirname(resolve(htmlPath));
+    const dumpImg = join(dir, "error_dump.png");
+    const dumpHtml = join(dir, "error_dom.html");
+    let diagInfo = `\n--- Diagnostic Dump (${contextName}) ---\n`;
+    try {
+        await page.screenshot({ path: dumpImg, timeout: 5000 });
+        diagInfo += `- Screenshot: ${dumpImg}\n`;
+    } catch (e: any) {
+        diagInfo += `- Screenshot failed: ${e.message}\n`;
+    }
+    try {
+        const content = await page.content();
+        writeFileSync(dumpHtml, content, "utf-8");
+        diagInfo += `- DOM HTML: ${dumpHtml}\n`;
+    } catch (e: any) {
+        diagInfo += `- DOM dump failed: ${e.message}\n`;
+    }
+    try {
+        const state = await page.evaluate(() => {
+            const win = window as any;
+            return { ready: win.__ready, progress: win.__masterTimeline?.progress() };
+        });
+        diagInfo += `- GSAP State: __ready=${state.ready}, progress=${state.progress}\n`;
+    } catch (e: any) {
+        diagInfo += `- GSAP State evaluation failed: ${e.message}\n`;
+    }
+    diagInfo += `------------------------------------\n`;
+    return diagInfo;
+}
 
 export interface ScenePreview {
     sceneId: string;
@@ -123,18 +170,26 @@ export async function loadAndPreparePage(
 
     await page.setViewportSize({ width, height });
 
-    // Navigate tới file HTML local
-    await page.goto(fileUrl, {
-        waitUntil: "load",
-        timeout: timeoutMs,
-    });
+    setupBrowserDiagnostics(page, "Preview");
 
-    // Chờ tín hiệu window.__ready = true từ mã nguồn assembleHTML
-    await page.waitForFunction(
-        () => (window as unknown as { __ready?: boolean }).__ready === true,
-        undefined,
-        { timeout: timeoutMs }
-    );
+    // Navigate tới file HTML local
+    try {
+        await page.goto(fileUrl, {
+            waitUntil: "load",
+            timeout: timeoutMs,
+        });
+
+        // Chờ tín hiệu window.__ready = true từ mã nguồn assembleHTML
+        await page.waitForFunction(
+            () => (window as unknown as { __ready?: boolean }).__ready === true,
+            undefined,
+            { timeout: timeoutMs }
+        );
+    } catch (err: any) {
+        const diagInfo = await dumpDiagnosticSnapshot(page, htmlPath, "Preview/Load");
+        err.message = `${err.message}\n${diagInfo}`;
+        throw err;
+    }
 
     // Chờ load xong web fonts nếu có (an toàn với timeout 3s)
     await page.evaluate(async () => {
@@ -250,7 +305,13 @@ export async function generatePreviews(options: PreviewOptions): Promise<Preview
                     );
 
                     // Tua timeline đến điểm giữa phân cảnh
-                    await seekToTimestamp(page, targetTime);
+                    try {
+                        await seekToTimestamp(page, targetTime);
+                    } catch (err: any) {
+                        const diagInfo = await dumpDiagnosticSnapshot(page, htmlPath, `Preview/Seek (${targetTime}s)`);
+                        err.message = `${err.message}\n${diagInfo}`;
+                        throw err;
+                    }
 
                     const fileName = `${sceneItem.id}.${format}`;
                     const imagePath = join(previewOutputDir, fileName);
@@ -342,7 +403,13 @@ export async function captureScenePreview(
 
         page = await context.newPage();
         await loadAndPreparePage(page, htmlPath, width, height, timeoutMs);
-        await seekToTimestamp(page, timeSec);
+        try {
+            await seekToTimestamp(page, timeSec);
+        } catch (err: any) {
+            const diagInfo = await dumpDiagnosticSnapshot(page, htmlPath, `Capture/Seek (${timeSec}s)`);
+            err.message = `${err.message}\n${diagInfo}`;
+            throw err;
+        }
 
         await page.screenshot({
             path: outputPath,

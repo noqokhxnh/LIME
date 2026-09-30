@@ -13,6 +13,8 @@ import { authRoutes } from "./auth/routes.js";
 import { getQueue } from "./queue/index.js";
 import { processVideoJob } from "./queue/handler.js";
 import { IVideoQueue } from "./queue/interfaces.js";
+import { validatePrompt } from "./security/promptGuard.js";
+import { rateLimiter } from "./security/rateLimiter.js";
 
 export const jobIpMap = new Map<string, string>();
 
@@ -36,6 +38,26 @@ export async function buildApp(options: { logger?: boolean, queue?: IVideoQueue 
         });
     }
 
+    app.addHook("preHandler", async (request, reply) => {
+        const url = request.url;
+        if (url.startsWith("/api/script/draft") || url.startsWith("/api/pipeline") || url.startsWith("/api/generate") || url.startsWith("/api/source/")) {
+            const ip = request.ip || '127.0.0.1';
+            if (!rateLimiter.checkRpm(ip)) {
+                reply.status(429).send({ error: "Too Many Requests (RPM exceeded)" });
+                return reply;
+            }
+
+            const body = request.body as any;
+            if (body && body.prompt) {
+                const check = validatePrompt(body.prompt);
+                if (!check.isValid) {
+                    reply.status(400).send({ error: check.reason });
+                    return reply;
+                }
+            }
+        }
+    });
+
     if (getConfig().QUEUE_TYPE !== 'redis') {
         queue.process(processVideoJob);
     }
@@ -43,6 +65,7 @@ export async function buildApp(options: { logger?: boolean, queue?: IVideoQueue 
     queue.events.on('completed', (args: any) => {
         const ip = jobIpMap.get(args.jobId);
         if (ip) {
+            rateLimiter.releaseConcurrentJob(ip);
             jobIpMap.delete(args.jobId);
         }
     });
@@ -50,10 +73,10 @@ export async function buildApp(options: { logger?: boolean, queue?: IVideoQueue 
     queue.events.on('failed', (args: any) => {
         const ip = jobIpMap.get(args.jobId);
         if (ip) {
+            rateLimiter.releaseConcurrentJob(ip);
             jobIpMap.delete(args.jobId);
         }
     });
-
     app.get("/", async (request: FastifyRequest, reply: FastifyReply) => {
         const accept = request.headers.accept || "";
         if (accept.startsWith("text/html")) {
@@ -123,6 +146,16 @@ export async function buildApp(options: { logger?: boolean, queue?: IVideoQueue 
             return { error: "Invalid video request", details: err.message };
         }
 
+        const ip = request.ip || '127.0.0.1';
+        if (!rateLimiter.checkAndIncrementDailyQuota(ip)) {
+            reply.status(429);
+            return { error: "Daily quota exceeded" };
+        }
+        if (!rateLimiter.acquireConcurrentJob(ip)) {
+            reply.status(429);
+            return { error: "Concurrency limit exceeded" };
+        }
+
         const inputScript = body.script as videoScript | undefined;
         const bgmPath = body.bgmPath as string | undefined;
         const skipPreview = Boolean(body.skipPreview);
@@ -131,6 +164,7 @@ export async function buildApp(options: { logger?: boolean, queue?: IVideoQueue 
         const outputDir = join(process.cwd(), "tmp", `job-${jobId}`);
 
         if (isAsync) {
+            jobIpMap.set(jobId, ip);
             await queue.addJob(jobId, {
                 jobId,
                 request: reqData,
@@ -182,6 +216,8 @@ export async function buildApp(options: { logger?: boolean, queue?: IVideoQueue 
                     jobId,
                     error: err.message,
                 };
+            } finally {
+                rateLimiter.releaseConcurrentJob(ip);
             }
         }
     };
