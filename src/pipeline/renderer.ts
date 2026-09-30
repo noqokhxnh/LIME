@@ -2,7 +2,7 @@ import { spawn } from "node:child_process";
 import { existsSync, rmSync } from "node:fs";
 import { resolve } from "node:path";
 import { pathToFileURL } from "node:url";
-import { launchPreviewBrowser, seekToTimestamp } from "./preview.js";
+import { launchPreviewBrowser, seekToTimestamp, setupBrowserDiagnostics, dumpDiagnosticSnapshot } from "./preview.js";
 import { withRetry, isAbortError } from "./retry.js";
 
 export interface RenderVideoOptions {
@@ -49,14 +49,22 @@ export async function renderVideo(options: RenderVideoOptions): Promise<string> 
                 });
                 const page = await context.newPage();
 
+                setupBrowserDiagnostics(page, "Renderer");
+
                 const fileUrl = pathToFileURL(resolve(htmlPath)).href;
                 process.env.PW_TEST_SCREENSHOT_NO_FONTS_READY = "1";
-                await page.goto(fileUrl, { waitUntil: "domcontentloaded" });
-                await page.waitForFunction(
-                    () => (window as unknown as { __ready?: boolean }).__ready === true,
-                    undefined,
-                    { timeout: 15000 }
-                );
+                try {
+                    await page.goto(fileUrl, { waitUntil: "domcontentloaded" });
+                    await page.waitForFunction(
+                        () => (window as unknown as { __ready?: boolean }).__ready === true,
+                        undefined,
+                        { timeout: 15000 }
+                    );
+                } catch (err: any) {
+                    const diagInfo = await dumpDiagnosticSnapshot(page, htmlPath, "Renderer/Load");
+                    err.message = `${err.message}\n${diagInfo}`;
+                    throw err;
+                }
 
                 // Pre-wait web fonts once with a safe fallback
                 await page.evaluate(async () => {
@@ -112,7 +120,13 @@ export async function renderVideo(options: RenderVideoOptions): Promise<string> 
 
                 for (let i = 0; i < totalFrames; i++) {
                     const t = i / fps;
-                    await seekToTimestamp(page, t);
+                    try {
+                        await seekToTimestamp(page, t);
+                    } catch (err: any) {
+                        const diagInfo = await dumpDiagnosticSnapshot(page, htmlPath, `Renderer/Seek (${t}s)`);
+                        err.message = `${err.message}\n${diagInfo}`;
+                        throw err;
+                    }
                     let buf: Buffer;
                     try {
                         buf = await page.screenshot({
