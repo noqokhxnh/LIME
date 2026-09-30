@@ -43,9 +43,7 @@ async function main() {
         }
         
         console.log("Assembling HTML...");
-        const html = await assembleHtml(script, durations);
-        const htmlPath = resolve(workDir, "index.html");
-        writeFileSync(htmlPath, html, "utf-8");
+        const { htmlPath } = await assembleHtml(script, durations, 1920, 1080, workDir);
         
         const totalDuration = Object.values(durations).reduce((a, b) => a + b, 0);
         const audioPath = resolve(workDir, "mock_audio.mp3");
