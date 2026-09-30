@@ -55,7 +55,10 @@ describe('Module 9: Fastify API Server & Health Endpoint (src/index.ts)', () => 
     before(async () => {
         setLLMClient(new MockApiLLMClient(JSON.stringify(sampleScript)));
         setTTSClient(new MockApiTTSClient());
-        app = await buildApp({ logger: false });
+        const { getQueue } = await import('../../src/queue/index.js');
+        const queue = await getQueue();
+        queue.startListeners();
+        app = await buildApp({ queue, logger: false });
         app.post('/test-body-size', async (request) => {
             const body = request.body as { data: string };
             return { receivedBytes: body.data.length };
