@@ -1,7 +1,7 @@
 services:
   redis:
     image: redis:7-alpine
-    container_name: vidtml_redis
+    container_name: lime_redis
     ports:
       - "6379:6379"
     volumes:
@@ -10,11 +10,11 @@ services:
 
   postgres:
     image: postgres:13
-    container_name: vidtml_postgres
+    container_name: lime_postgres
     environment:
       - POSTGRES_DB=${POSTGRES_DB:-vidtml}
       - POSTGRES_USER=${POSTGRES_USER:-vidtml}
-      - POSTGRES_PASSWORD=${POSTGRES_PASSWORD}
+      - POSTGRES_PASSWORD=${POSTGRES_PASSWORD:-vidtml}
     ports:
       - "5432:5432"
     volumes:
@@ -25,7 +25,7 @@ services:
     build:
       context: ./services/vieneu-tts
       dockerfile: Dockerfile
-    container_name: vidtml_vieneu_tts
+    container_name: lime_vieneu_tts
     ports:
       - "7860:7860"
     volumes:
@@ -34,21 +34,22 @@ services:
 
   server:
     build: .
-    image: vidtml_app:latest
-    container_name: vidtml_server
+    image: lime_app:latest
+    container_name: lime_server
     command: npm run dev
     ports:
-      - "3000:3000"
+      - "${PORT:-3000}:${PORT:-3000}"
     extra_hosts:
       - "host.docker.internal:host-gateway"
     volumes:
-      - vidtml_data:/app/tmp
+      - lime_data:/app/tmp
       - ./src:/app/src
       - ./frontend:/app/frontend
     environment:
       - REDIS_URL=redis://redis:6379
+      - QUEUE_TYPE=redis
       - NODE_ENV=development
-      - DATABASE_URL=postgresql://${POSTGRES_USER:-vidtml}:${POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB:-vidtml}
+      - DATABASE_URL=postgresql://${POSTGRES_USER:-vidtml}:${POSTGRES_PASSWORD:-vidtml}@postgres:5432/${POSTGRES_DB:-vidtml}
       - VIENEU_TTS_URL=http://vieneu-tts:7860
     env_file:
       - .env
@@ -59,18 +60,19 @@ services:
 
   worker:
     build: .
-    image: vidtml_app:latest
-    container_name: vidtml_worker
+    image: lime_app:latest
+    container_name: lime_worker
     command: npm run worker
     extra_hosts:
       - "host.docker.internal:host-gateway"
     volumes:
-      - vidtml_data:/app/tmp
+      - lime_data:/app/tmp
       - ./src:/app/src
     environment:
       - REDIS_URL=redis://redis:6379
+      - QUEUE_TYPE=redis
       - NODE_ENV=development
-      - DATABASE_URL=postgresql://${POSTGRES_USER:-vidtml}:${POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB:-vidtml}
+      - DATABASE_URL=postgresql://${POSTGRES_USER:-vidtml}:${POSTGRES_PASSWORD:-vidtml}@postgres:5432/${POSTGRES_DB:-vidtml}
       - VIENEU_TTS_URL=http://vieneu-tts:7860
     shm_size: 2gb
     env_file:
@@ -82,5 +84,5 @@ services:
 
 volumes:
   redis_data:
-  vidtml_data:
+  lime_data:
   postgres_data:
