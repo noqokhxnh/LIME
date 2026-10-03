@@ -1,6 +1,8 @@
+**Báo cáo tiến độ & nghiên cứu dự án (04/10):** [README_4_10.md](README_4_10.md).
+
 <p align="center">
   <picture>
-    <img alt="VidTML / LIME" src="public/logo.png" width="240">
+    <img alt="LIME / LIME" src="public/logo.png" width="240">
   </picture>
 </p>
 
@@ -10,7 +12,7 @@
   <b>Write HTML. Render video. Built for AI agents and human creators.</b>
 </p>
 <p align="center">
-  <img src="public/logo-motion.webp" alt="VidTML / LIME Motion" width="560">
+  <img src="public/logo-motion.webp" alt="LIME / LIME Motion" width="560">
 </p>
 <p align="center">
   <a href="LICENSE"><img src="https://img.shields.io/badge/License-AGPL_v3-blue.svg" alt="License: AGPL-3.0"></a>
@@ -24,7 +26,7 @@
 
 ## Overview
 
-**VidTML** is an open-source, production-ready AI video generation platform. Given a single text prompt, VidTML orchestrates Large Language Models (LLMs) to write structured modular video scenes using **HTML5, CSS3, SVG, Canvas2D/Three.js, and GSAP animations**, synthesizes voiceover audio via state-of-the-art TTS providers, renders the animated scenes frame-by-frame inside headless Chromium instances with deterministic seek precision, and muxes everything into high-definition MP4 videos via `ffmpeg`.
+**LIME** is an open-source, production-ready AI video generation platform. Given a single text prompt, LIME orchestrates Large Language Models (LLMs) to write structured modular video scenes using **HTML5, CSS3, SVG, Canvas2D/Three.js, and GSAP animations**, synthesizes voiceover audio via state-of-the-art TTS providers, renders the animated scenes frame-by-frame inside headless Chromium instances with deterministic seek precision, and muxes everything into high-definition MP4 videos via `ffmpeg`.
 
 ### Why HTML/CSS/JS for Video?
 
@@ -219,7 +221,7 @@ QUOTA_DAILY_BUDGET_USD=2.0
 
 ## Testing
 
-VidTML is backed by extensive unit and integration test suites:
+LIME is backed by extensive unit and integration test suites:
 
 ```bash
 # Run all unit tests (over 690+ assertions across 40+ test suites)
@@ -243,19 +245,5 @@ Test coverage includes:
 
 This project is licensed under the **GNU Affero General Public License v3.0 (AGPL-3.0)**.
 
-```text
-VidTML (LIME) - AI HTML-to-Video Generation Platform
-Copyright (C) 2026 noqokhxnh
 
-This program is free software: you can redistribute it and/or modify
-it under the terms of the GNU Affero General Public License as published by
-the Free Software Foundation, either version 3 of the License, or
-(at your option) any later version.
-
-This program is distributed in the hope that it will be useful,
-but WITHOUT ANY WARRANTY; without even the implied warranty of
-MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
-GNU Affero General Public License for more details.
-```
-
-See the [LICENSE](LICENSE) file for the full license text. If you run a modified version of VidTML as a network service, you must make the corresponding source code available to your users.
+See the [LICENSE](LICENSE) file for the full license text. If you run a modified version of LIME as a network service, you must make the corresponding source code available to your users.
