@@ -92,10 +92,31 @@ window.__block = function(name, container, opts) {
         var body = lines.map(function(L, i) {
             var kind = L.kind || 'code';
             var cls = 'vb-line-row' + (kind === 'add' ? ' vb-add' : kind === 'del' ? ' vb-del' : '');
-            var t = esc(L.text || '');
-            t = t.replace(/\\b(const|let|return|await|function|import|from)\\b/g, '<span class="vb-kw">$1</span>');
-            t = t.replace(/'([^']*)'/g, '<span class="vb-str">\\'$1\\'</span>');
-            t = t.replace(/\\/\\/.*$/g, function(m) { return '<span class="vb-cm">' + m + '</span>'; });
+            var raw = String(L.text == null ? '' : L.text);
+            var t;
+            if (kind === 'comment') {
+                t = '<span class="vb-cm">' + esc(raw) + '</span>';
+            } else {
+                // Split trailing // comment without matching :// in URLs or // inside quotes
+                var codeSrc = raw;
+                var commentSrc = '';
+                var inSingle = false;
+                var inDouble = false;
+                for (var j = 0; j < raw.length - 1; j++) {
+                    var ch = raw.charAt(j);
+                    if (ch === "'" && !inDouble) { inSingle = !inSingle; continue; }
+                    if (ch === '"' && !inSingle) { inDouble = !inDouble; continue; }
+                    if (!inSingle && !inDouble && ch === '/' && raw.charAt(j + 1) === '/' && (j === 0 || raw.charAt(j - 1) !== ':')) {
+                        codeSrc = raw.slice(0, j);
+                        commentSrc = raw.slice(j);
+                        break;
+                    }
+                }
+                t = esc(codeSrc);
+                t = t.replace(/\\b(const|let|return|await|function|import|from)\\b/g, '<span class="vb-kw">$1</span>');
+                t = t.replace(/'([^']*)'/g, '<span class="vb-str">\\'$1\\'</span>');
+                if (commentSrc) t += '<span class="vb-cm">' + esc(commentSrc) + '</span>';
+            }
             return '<div class="' + cls + '" data-i="' + i + '"><span class="vb-ln">' + (i + 1) + '</span><span class="vb-code-text">' + t + '</span></div>';
         }).join('');
         root.innerHTML =
