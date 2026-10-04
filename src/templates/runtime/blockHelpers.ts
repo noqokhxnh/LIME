@@ -40,10 +40,11 @@ window.__block = function(name, container, opts) {
             '.vb-kinetic .vb-word{display:inline-block;margin-right:0.28em;will-change:transform,opacity;}',
             '.vb-kinetic .vb-cursor{display:inline-block;width:0.08em;height:0.9em;background:currentColor;margin-left:4px;vertical-align:-0.05em;}'
         ].join(''));
-        var mode = opts.mode || 'stagger-words';
-        var text = opts.text || 'Impact Line';
-        var kicker = opts.kicker || '';
-        var accent = opts.accent || 'var(--vb-accent, #8b5cf6)';
+        var mode = String(opts.mode != null ? opts.mode : 'stagger-words');
+        // LLM may pass numbers (e.g. text: 2026) — always coerce before .split / DOM
+        var text = String(opts.text != null ? opts.text : 'Impact Line').trim() || 'Impact Line';
+        var kicker = opts.kicker != null ? String(opts.kicker).trim() : '';
+        var accent = String(opts.accent != null ? opts.accent : 'var(--vb-accent, #8b5cf6)');
         root.className += ' vb-kinetic';
         root.innerHTML =
             (kicker ? '<div class="vb-kicker" style="color:' + accent + '">' + esc(kicker) + '</div>' : '') +
@@ -53,13 +54,16 @@ window.__block = function(name, container, opts) {
             line.innerHTML = '<span class="vb-tw"></span><span class="vb-cursor"></span>';
             line.setAttribute('data-full', text);
         } else if (mode === 'word-swap') {
-            var words = Array.isArray(opts.words) ? opts.words : text.split(/\\s+/);
+            var words = Array.isArray(opts.words) && opts.words.length
+                ? opts.words.map(function(w) { return String(w == null ? '' : w).trim(); }).filter(Boolean)
+                : text.split(/\\s+/).filter(Boolean);
+            if (!words.length) words = ['Impact'];
             line.innerHTML = words.map(function(w, i) {
                 return '<span class="vb-word" data-swap="' + i + '" style="position:' + (i === 0 ? 'relative' : 'absolute') + ';opacity:' + (i === 0 ? '1' : '0') + ';">' + esc(w) + '</span>';
             }).join('');
             line.style.position = 'relative';
         } else {
-            line.innerHTML = text.split(/\\s+/).map(function(w) {
+            line.innerHTML = text.split(/\\s+/).filter(Boolean).map(function(w) {
                 return '<span class="vb-word">' + esc(w) + '</span>';
             }).join('');
         }
