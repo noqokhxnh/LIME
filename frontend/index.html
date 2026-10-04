@@ -37,6 +37,39 @@
                 </div>
 
                 <div class="form-group" style="margin-top: 15px;">
+                    <label for="style-select">Phong cách (Style):</label>
+                    <select id="style-select">
+                        <option value="modern" selected>Modern Tech</option>
+                        <option value="classic">Editorial / Documentary</option>
+                        <option value="stickman">Stickman Comic</option>
+                        <option value="minimal">Swiss Minimal</option>
+                    </select>
+                </div>
+
+                <details class="templates-panel" id="templates-panel" open>
+                    <summary>Templates — Motion Blocks &amp; Blueprints</summary>
+                    <div class="templates-body">
+                        <div class="form-group">
+                            <label for="blueprint-select">Cinematic Blueprint:</label>
+                            <select id="blueprint-select">
+                                <option value="">(Mặc định — 5-beat spine)</option>
+                            </select>
+                        </div>
+                        <div class="form-group">
+                            <label for="catalog-category-filter">Lọc category:</label>
+                            <select id="catalog-category-filter">
+                                <option value="">Tất cả</option>
+                            </select>
+                        </div>
+                        <div class="form-group">
+                            <label>Motion Blocks (tối đa 8):</label>
+                            <div id="motion-blocks-list" class="motion-blocks-list"></div>
+                            <div class="templates-hint"><span id="motion-blocks-count">0</span>/8 đã chọn · Core runtime có badge xanh</div>
+                        </div>
+                    </div>
+                </details>
+
+                <div class="form-group" style="margin-top: 15px;">
                     <label for="tts-provider-select">Bộ chuyển văn bản thành giọng nói (TTS Engine):</label>
                     <select id="tts-provider-select" style="width: 100%; padding: 8px 12px; border-radius: 6px; border: 1px solid #334155; background: #1e293b; color: #f8fafc; font-size: 14px;">
                         <option value="vieneu" selected>VieNeu-TTS (Local AI - 100% Tự chủ, Siêu nhẹ)</option>

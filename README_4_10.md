@@ -201,6 +201,29 @@ Toàn bộ dự án được phối hợp phát triển chặt chẽ giữa 5 th
 
 ---
 
+### 4.4. Thành viên: Uy (`uydayy`)
+* **Vai trò:** Feature Templates / Motion Design Toolkit — nâng cấp chất lượng thị giác video do AI sinh ra.
+* **Issue phụ trách:** [#43 — Templates: 50+ Studio Motion Blocks & Cinematic Blueprints Catalog](https://github.com/noqokhxnh/LIME/issues/43) (`priority: high`).
+* **Các mảng phụ trách chính:**
+  * Nghiên cứu mô hình Motion Blocks của Hyperframes và thiết kế kiến trúc phù hợp LIME (`window.__block` inject qua assembler, không phụ thuộc CDN ngoài GSAP).
+  * Xây dựng module `src/templates/` gồm types, 5 core runtime blocks, catalog 61 blocks + 8 blueprints, story spine 5 nhịp và prompt formatters.
+  * Cập nhật `system.txt` + `scriptGenerator.buildUserPrompt` để LLM ưu tiên gọi block runtime và tuân thủ cấu trúc Hook → Problem → Insight → Proof → CTA.
+  * Mở rộng `videoRequestSchema` (`blueprintId`, `motionBlockIds`) và API `GET /api/catalog`, `/api/catalog/blocks`, `/api/catalog/blueprints`.
+  * Bổ sung panel Templates trên Studio (`frontend/`) — chọn style, blueprint, tối đa 8 motion blocks khi gọi `/api/pipeline`.
+  * Viết unit test catalog + mở rộng assembler test xác nhận HTML chứa `__block` và 5 core ids.
+* **Chi tiết đóng góp (working tree / nhánh `feature/uy-43-templates`, chưa merge main tại thời điểm báo cáo):**
+  * `src/templates/**` — Module catalog & runtime mới (core blocks, recipes, blueprints, story spine, prompt helpers).
+  * `src/pipeline/assembleHtml.ts` — Inject `BLOCK_HELPERS_JS` vào mọi trang render.
+  * `src/llm/system.txt`, `src/pipeline/scriptGenerator.ts` — Toolkit + cinematic spine trong prompt.
+  * `src/llm/schema.ts`, `src/index.ts` — Schema request + REST catalog.
+  * `frontend/index.html`, `frontend/app.js`, `frontend/style.css` — UI chọn Templates.
+  * `tests/unit/templates.test.ts`, `tests/unit/assembler.test.ts` — Kiểm thử nghiệm thu kỹ thuật (20/20 pass trên hai file này).
+* **Ghi chú vận hành khi kiểm thử end-to-end:**
+  * Local: Postgres cần database `vidtml`; `QUEUE_TYPE=memory` chạy được chỉ với `npm run dev`.
+  * Generate video thật cần LLM key hợp lệ (Gemini dạng `AIza...`; DeepSeek cần còn credit).
+
+---
+
 ## 5. Các Video đã tạo ra từ dự án
 * [Video 1: Giới thiệu dự án hoạt họa 2D](public/video_1.mp4)
 * [Video 2: Demo kịch bản giải thích](public/video_2.mp4)

@@ -139,6 +139,11 @@ function handleAuthError() {
     );
 }
 const promptInput = document.getElementById('prompt-input');
+const styleSelect = document.getElementById('style-select');
+const blueprintSelect = document.getElementById('blueprint-select');
+const catalogCategoryFilter = document.getElementById('catalog-category-filter');
+const motionBlocksList = document.getElementById('motion-blocks-list');
+const motionBlocksCount = document.getElementById('motion-blocks-count');
 const ttsProviderSelect = document.getElementById('tts-provider-select');
 const voiceSelect = document.getElementById('voice-select');
 const generateBtn = document.getElementById('generate-btn');
@@ -153,6 +158,8 @@ const btnDownload = document.getElementById('btn-download');
 const btnPreviewHtml = document.getElementById('btn-preview-html');
 
 let pollInterval = null;
+let catalogBlocks = [];
+let selectedMotionBlockIds = new Set();
 
 if (ttsProviderSelect && voiceSelect) {
     ttsProviderSelect.addEventListener('change', () => {
@@ -171,6 +178,108 @@ function setPrompt(text) {
     promptInput.value = text;
     promptInput.focus();
 }
+
+function updateMotionCount() {
+    if (motionBlocksCount) motionBlocksCount.textContent = String(selectedMotionBlockIds.size);
+}
+
+function renderMotionBlocks() {
+    if (!motionBlocksList) return;
+    const category = catalogCategoryFilter ? catalogCategoryFilter.value : '';
+    const style = styleSelect ? styleSelect.value : 'modern';
+    const filtered = catalogBlocks.filter((b) => {
+        const styleOk = !b.styleAffinity || b.styleAffinity.includes('any') || b.styleAffinity.includes(style);
+        const catOk = !category || b.category === category;
+        return styleOk && catOk;
+    });
+
+    // Drop selections that are no longer visible under current filters
+    // so hidden chips cannot consume the max-8 budget.
+    const visibleIds = new Set(filtered.map((b) => b.id));
+    let pruned = 0;
+    for (const id of [...selectedMotionBlockIds]) {
+        if (!visibleIds.has(id)) {
+            selectedMotionBlockIds.delete(id);
+            pruned++;
+        }
+    }
+    if (pruned > 0) {
+        log(`Đã bỏ ${pruned} block bị ẩn bởi bộ lọc hiện tại`, 'info');
+    }
+
+    motionBlocksList.innerHTML = '';
+    filtered.forEach((block) => {
+        const label = document.createElement('label');
+        label.className = 'motion-block-chip' + (selectedMotionBlockIds.has(block.id) ? ' selected' : '');
+        const checked = selectedMotionBlockIds.has(block.id) ? 'checked' : '';
+        label.innerHTML = `
+            <input type="checkbox" value="${block.id}" ${checked}>
+            <span>
+                <span class="mb-name">${block.name}${block.runtime ? '<span class="mb-runtime">runtime</span>' : ''}</span>
+                ${block.description || ''}
+            </span>`;
+        const input = label.querySelector('input');
+        input.addEventListener('change', () => {
+            if (input.checked) {
+                if (selectedMotionBlockIds.size >= 8) {
+                    input.checked = false;
+                    log('Chỉ chọn tối đa 8 motion blocks', 'error');
+                    return;
+                }
+                selectedMotionBlockIds.add(block.id);
+                label.classList.add('selected');
+            } else {
+                selectedMotionBlockIds.delete(block.id);
+                label.classList.remove('selected');
+            }
+            updateMotionCount();
+        });
+        motionBlocksList.appendChild(label);
+    });
+    updateMotionCount();
+}
+
+async function loadCatalog() {
+    try {
+        const res = await fetch(`${API_BASE}/api/catalog`);
+        if (!res.ok) throw new Error('Không tải được catalog');
+        const data = await res.json();
+        catalogBlocks = data.blocks || [];
+
+        if (blueprintSelect) {
+            const current = blueprintSelect.value;
+            blueprintSelect.innerHTML = '<option value="">(Mặc định — 5-beat spine)</option>';
+            (data.blueprints || []).forEach((bp) => {
+                const opt = document.createElement('option');
+                opt.value = bp.id;
+                opt.textContent = bp.name;
+                blueprintSelect.appendChild(opt);
+            });
+            if (current) blueprintSelect.value = current;
+        }
+
+        if (catalogCategoryFilter) {
+            const cats = [...new Set(catalogBlocks.map((b) => b.category).filter(Boolean))].sort();
+            const prev = catalogCategoryFilter.value;
+            catalogCategoryFilter.innerHTML = '<option value="">Tất cả</option>';
+            cats.forEach((c) => {
+                const opt = document.createElement('option');
+                opt.value = c;
+                opt.textContent = c;
+                catalogCategoryFilter.appendChild(opt);
+            });
+            if (prev) catalogCategoryFilter.value = prev;
+        }
+
+        renderMotionBlocks();
+        log(`Đã tải catalog: ${catalogBlocks.length} blocks, ${(data.blueprints || []).length} blueprints`, 'info');
+    } catch (err) {
+        log(`Catalog: ${err.message}`, 'error');
+    }
+}
+
+if (styleSelect) styleSelect.addEventListener('change', renderMotionBlocks);
+if (catalogCategoryFilter) catalogCategoryFilter.addEventListener('change', renderMotionBlocks);
 
 // Hàm ghi log vào khung hiển thị
 function log(msg, type = 'info') {
@@ -221,27 +330,40 @@ generateBtn.addEventListener('click', async () => {
     log(`Bắt đầu tạo video: "${prompt}"`, 'info');
 
     try {
-        let selectedStyle = 'modern';
-        if (/người que|stickman|que/i.test(prompt)) {
+        // Only auto-detect stickman when user left style at default "modern".
+        // Do NOT match bare "que" (false positives: technique, unique, thói quen…).
+        // Do NOT mutate styleSelect.value — that locked later runs onto stickman.
+        let selectedStyle = styleSelect ? styleSelect.value : 'modern';
+        if (
+            selectedStyle === 'modern' &&
+            /(?:^|[^\p{L}\p{N}_])(người\s*que|stickman)(?=[^\p{L}\p{N}_]|$)/iu.test(prompt)
+        ) {
             selectedStyle = 'stickman';
         }
 
         const prov = ttsProviderSelect ? ttsProviderSelect.value : 'vieneu';
         const v = voiceSelect ? voiceSelect.value : 'Minh Quân';
+        const blueprintId = blueprintSelect && blueprintSelect.value ? blueprintSelect.value : undefined;
+        const motionBlockIds = [...selectedMotionBlockIds].slice(0, 8);
+
+        const payload = {
+            prompt: prompt,
+            aspectRatio: '16:9',
+            targetDurationSec: 15,
+            language: 'vi',
+            style: selectedStyle,
+            ttsProvider: prov,
+            voice: v,
+            async: true
+        };
+        if (blueprintId) payload.blueprintId = blueprintId;
+        if (motionBlockIds.length) payload.motionBlockIds = motionBlockIds;
 
         const res = await fetch(`${API_BASE}/api/pipeline`, {
             method: 'POST',
+            credentials: 'include',
             headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({
-                prompt: prompt,
-                aspectRatio: '16:9',
-                targetDurationSec: 15,
-                language: 'vi',
-                style: selectedStyle,
-                ttsProvider: prov,
-                voice: v,
-                async: true
-            })
+            body: JSON.stringify(payload)
         });
 
         if (!res.ok) {
@@ -309,6 +431,7 @@ generateBtn.addEventListener('click', async () => {
     handleAuthError();
     await checkAuthConfig();
     await checkCurrentUser();
+    await loadCatalog();
     try {
         const res = await fetch(`${API_BASE}/api/jobs`);
         if (res.ok) {

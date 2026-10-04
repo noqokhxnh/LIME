@@ -15,6 +15,7 @@ import { processVideoJob } from "./queue/handler.js";
 import { IVideoQueue } from "./queue/interfaces.js";
 import { validatePrompt } from "./security/promptGuard.js";
 import { rateLimiter } from "./security/rateLimiter.js";
+import { getCatalog, listBlueprints, listMotionBlocks } from "./templates/index.js";
 
 export const jobIpMap = new Map<string, string>();
 
@@ -108,13 +109,72 @@ export async function buildApp(options: { logger?: boolean, queue?: IVideoQueue 
         };
     });
 
+    app.get("/api/catalog", async () => getCatalog());
+
+    /** Fastify may parse repeated query keys as string[] — only accept a single string. */
+    const queryString = (value: unknown): string | undefined =>
+        typeof value === 'string' && value.length > 0 ? value : undefined;
+
+    app.get("/api/catalog/blocks", async (request: FastifyRequest) => {
+        const q = (request.query || {}) as Record<string, unknown>;
+        const style = queryString(q.style)?.toLowerCase();
+        const category = queryString(q.category);
+        const runtime = queryString(q.runtime);
+        let blocks = listMotionBlocks();
+        if (style) {
+            blocks = blocks.filter(
+                (b) => b.styleAffinity.includes('any') || b.styleAffinity.includes(style as any)
+            );
+        }
+        if (category) {
+            blocks = blocks.filter((b) => b.category === category);
+        }
+        if (runtime === '1' || runtime === 'true') {
+            blocks = blocks.filter((b) => b.runtime);
+        }
+        return { blocks, count: blocks.length };
+    });
+
+    app.get("/api/catalog/blueprints", async (request: FastifyRequest) => {
+        const q = (request.query || {}) as Record<string, unknown>;
+        const style = queryString(q.style)?.toLowerCase();
+        let blueprints = listBlueprints();
+        if (style) {
+            blueprints = blueprints.filter(
+                (b) => b.styleAffinity.includes('any' as any) || b.styleAffinity.includes(style as any)
+            );
+        }
+        return { blueprints, count: blueprints.length };
+    });
+
+    /** Normalize client payload so template fields are never dropped / misspelled away. */
+    const normalizeVideoRequestBody = (body: any) => {
+        const raw = body && typeof body === 'object' ? body : {};
+        const blueprintId =
+            typeof raw.blueprintId === 'string' ? raw.blueprintId
+            : typeof raw.blueprint_id === 'string' ? raw.blueprint_id
+            : typeof raw.blueprint === 'string' ? raw.blueprint
+            : undefined;
+
+        let motionBlockIds: string[] | undefined;
+        const rawBlocks = raw.motionBlockIds ?? raw.motion_block_ids ?? raw.motionBlocks;
+        if (Array.isArray(rawBlocks)) {
+            motionBlockIds = rawBlocks.map((id: unknown) => String(id)).filter(Boolean).slice(0, 8);
+        } else if (typeof rawBlocks === 'string' && rawBlocks.trim()) {
+            motionBlockIds = rawBlocks.split(',').map((s: string) => s.trim()).filter(Boolean).slice(0, 8);
+        }
+
+        return {
+            ...raw,
+            prompt: raw.prompt ?? raw.text ?? raw.topic,
+            blueprintId: blueprintId || undefined,
+            motionBlockIds: motionBlockIds?.length ? motionBlockIds : undefined,
+        };
+    };
+
     app.post("/api/script/draft", async (request: FastifyRequest, reply: FastifyReply) => {
         try {
-            const body = request.body as any;
-            const normalized = {
-                ...body,
-                prompt: body?.prompt || body?.prompt,
-            };
+            const normalized = normalizeVideoRequestBody(request.body);
             const reqData = videoRequestSchema.parse(normalized);
             const script = await generateScript(reqData);
             return {
@@ -136,10 +196,7 @@ export async function buildApp(options: { logger?: boolean, queue?: IVideoQueue 
 
         let reqData: videoRequest;
         try {
-            const normalized = {
-                ...body,
-                prompt: body?.prompt || body?.prompt,
-            };
+            const normalized = normalizeVideoRequestBody(body);
             reqData = videoRequestSchema.parse(normalized);
         } catch (err: any) {
             reply.status(400);

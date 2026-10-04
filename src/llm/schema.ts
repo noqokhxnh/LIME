@@ -46,6 +46,10 @@ export const videoRequestSchema = z.object({
     customStyle: z.string().max(5000).optional(),
     voice: z.string().optional(),
     ttsProvider: z.enum(['edge', 'elevenlabs', 'openai', 'google', 'vieneu']).optional(),
+    /** Cinematic blueprint id from /api/catalog/blueprints */
+    blueprintId: z.string().max(120).optional(),
+    /** Selected motion block ids from catalog (max 8) */
+    motionBlockIds: z.array(z.string().max(120)).max(8).optional(),
 })
 export type videoRequest = z.infer<typeof videoRequestSchema>
 
