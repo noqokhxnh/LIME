@@ -15,6 +15,7 @@ import { processVideoJob } from "./queue/handler.js";
 import { IVideoQueue } from "./queue/interfaces.js";
 import { validatePrompt } from "./security/promptGuard.js";
 import { rateLimiter } from "./security/rateLimiter.js";
+import { getCatalog, listBlueprints, listMotionBlocks } from "./templates/index.js";
 
 export const jobIpMap = new Map<string, string>();
 
@@ -106,6 +107,38 @@ export async function buildApp(options: { logger?: boolean, queue?: IVideoQueue 
             ttsProvider: config.TTS_Provider,
             timestamp: new Date().toISOString(),
         };
+    });
+
+    app.get("/api/catalog", async () => getCatalog());
+
+    app.get("/api/catalog/blocks", async (request: FastifyRequest) => {
+        const q = request.query as { style?: string; category?: string; runtime?: string };
+        let blocks = listMotionBlocks();
+        if (q.style) {
+            const style = q.style.toLowerCase();
+            blocks = blocks.filter(
+                (b) => b.styleAffinity.includes('any') || b.styleAffinity.includes(style as any)
+            );
+        }
+        if (q.category) {
+            blocks = blocks.filter((b) => b.category === q.category);
+        }
+        if (q.runtime === '1' || q.runtime === 'true') {
+            blocks = blocks.filter((b) => b.runtime);
+        }
+        return { blocks, count: blocks.length };
+    });
+
+    app.get("/api/catalog/blueprints", async (request: FastifyRequest) => {
+        const q = request.query as { style?: string };
+        let blueprints = listBlueprints();
+        if (q.style) {
+            const style = q.style.toLowerCase();
+            blueprints = blueprints.filter(
+                (b) => b.styleAffinity.includes('any' as any) || b.styleAffinity.includes(style as any)
+            );
+        }
+        return { blueprints, count: blueprints.length };
     });
 
     app.post("/api/script/draft", async (request: FastifyRequest, reply: FastifyReply) => {
