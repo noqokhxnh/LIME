@@ -193,6 +193,20 @@ function renderMotionBlocks() {
         return styleOk && catOk;
     });
 
+    // Drop selections that are no longer visible under current filters
+    // so hidden chips cannot consume the max-8 budget.
+    const visibleIds = new Set(filtered.map((b) => b.id));
+    let pruned = 0;
+    for (const id of [...selectedMotionBlockIds]) {
+        if (!visibleIds.has(id)) {
+            selectedMotionBlockIds.delete(id);
+            pruned++;
+        }
+    }
+    if (pruned > 0) {
+        log(`Đã bỏ ${pruned} block bị ẩn bởi bộ lọc hiện tại`, 'info');
+    }
+
     motionBlocksList.innerHTML = '';
     filtered.forEach((block) => {
         const label = document.createElement('label');
