@@ -147,13 +147,34 @@ export async function buildApp(options: { logger?: boolean, queue?: IVideoQueue 
         return { blueprints, count: blueprints.length };
     });
 
+    /** Normalize client payload so template fields are never dropped / misspelled away. */
+    const normalizeVideoRequestBody = (body: any) => {
+        const raw = body && typeof body === 'object' ? body : {};
+        const blueprintId =
+            typeof raw.blueprintId === 'string' ? raw.blueprintId
+            : typeof raw.blueprint_id === 'string' ? raw.blueprint_id
+            : typeof raw.blueprint === 'string' ? raw.blueprint
+            : undefined;
+
+        let motionBlockIds: string[] | undefined;
+        const rawBlocks = raw.motionBlockIds ?? raw.motion_block_ids ?? raw.motionBlocks;
+        if (Array.isArray(rawBlocks)) {
+            motionBlockIds = rawBlocks.map((id: unknown) => String(id)).filter(Boolean).slice(0, 8);
+        } else if (typeof rawBlocks === 'string' && rawBlocks.trim()) {
+            motionBlockIds = rawBlocks.split(',').map((s: string) => s.trim()).filter(Boolean).slice(0, 8);
+        }
+
+        return {
+            ...raw,
+            prompt: raw.prompt ?? raw.text ?? raw.topic,
+            blueprintId: blueprintId || undefined,
+            motionBlockIds: motionBlockIds?.length ? motionBlockIds : undefined,
+        };
+    };
+
     app.post("/api/script/draft", async (request: FastifyRequest, reply: FastifyReply) => {
         try {
-            const body = request.body as any;
-            const normalized = {
-                ...body,
-                prompt: body?.prompt || body?.prompt,
-            };
+            const normalized = normalizeVideoRequestBody(request.body);
             const reqData = videoRequestSchema.parse(normalized);
             const script = await generateScript(reqData);
             return {
@@ -175,10 +196,7 @@ export async function buildApp(options: { logger?: boolean, queue?: IVideoQueue 
 
         let reqData: videoRequest;
         try {
-            const normalized = {
-                ...body,
-                prompt: body?.prompt || body?.prompt,
-            };
+            const normalized = normalizeVideoRequestBody(body);
             reqData = videoRequestSchema.parse(normalized);
         } catch (err: any) {
             reply.status(400);
