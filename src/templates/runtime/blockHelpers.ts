@@ -118,22 +118,43 @@ window.__block = function(name, container, opts) {
             '.vb-chart-fill{height:100%;width:0%;border-radius:999px;background:linear-gradient(90deg,#06b6d4,#8b5cf6);}',
             '.vb-chart-val{font-size:20px;font-weight:800;text-align:right;font-variant-numeric:tabular-nums;}'
         ].join(''));
-        var items = Array.isArray(opts.items) ? opts.items : [
+        var items = Array.isArray(opts.items) ? opts.items.slice() : [
             { label: 'Alpha', value: 92 },
             { label: 'Beta', value: 74 },
             { label: 'Gamma', value: 58 }
         ];
-        var max = opts.max || Math.max.apply(null, items.map(function(it) { return Number(it.value) || 0; })) || 100;
+        if (!items.length) {
+            items = [{ label: '—', value: 0 }];
+        }
+        var values = items.map(function(it) {
+            var n = Number(it && it.value);
+            return Number.isFinite(n) ? n : 0;
+        });
+        // Respect opts.max=0 as invalid for scale; only accept positive finite max.
+        // Empty values → avoid Math.max.apply([], []) === -Infinity.
+        var parsedMax = opts.max != null && opts.max !== '' ? Number(opts.max) : NaN;
+        var max;
+        if (Number.isFinite(parsedMax) && parsedMax > 0) {
+            max = parsedMax;
+        } else {
+            var nonNeg = values.map(function(v) { return Math.max(0, v); });
+            max = nonNeg.length ? Math.max.apply(null, nonNeg) : 0;
+            if (!(max > 0)) max = 100;
+        }
         var accent = opts.accent || '#8b5cf6';
         root.className += ' vb-chart';
         root.innerHTML =
             (opts.title ? '<div class="vb-chart-title">' + esc(opts.title) + '</div>' : '') +
             items.map(function(it, i) {
-                var pct = Math.max(0, Math.min(100, ((Number(it.value) || 0) / max) * 100));
+                var raw = Number(it && it.value);
+                var val = Number.isFinite(raw) ? raw : 0;
+                // Negatives → 0% bar; never NaN from -Infinity / divide-by-zero
+                var pct = max > 0 ? Math.max(0, Math.min(100, (Math.max(0, val) / max) * 100)) : 0;
+                if (!Number.isFinite(pct)) pct = 0;
                 return '<div class="vb-chart-row" data-i="' + i + '">' +
                     '<div class="vb-chart-label">' + esc(it.label || '') + '</div>' +
                     '<div class="vb-chart-track"><div class="vb-chart-fill" data-pct="' + pct + '" style="background:linear-gradient(90deg,' + accent + ',#06b6d4)"></div></div>' +
-                    '<div class="vb-chart-val" data-target="' + esc(it.value) + '">0</div>' +
+                    '<div class="vb-chart-val" data-target="' + esc(val) + '">0</div>' +
                 '</div>';
             }).join('');
     } else if (name === 'device-showcase' || name === 'device-surface-showcase') {
