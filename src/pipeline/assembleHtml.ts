@@ -1,7 +1,7 @@
 import { existsSync, mkdirSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
-import { videoScript, scene, durationMap } from "@/llm/schema";
-import { BLOCK_HELPERS_JS } from "@/templates/runtime/blockHelpers.js";
+import { videoScript, scene, durationMap } from "../llm/schema.js";
+import { BLOCK_HELPERS_JS } from "../templates/runtime/blockHelpers.js";
 
 export { BLOCK_HELPERS_JS };
 
