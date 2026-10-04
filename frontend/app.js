@@ -361,6 +361,7 @@ generateBtn.addEventListener('click', async () => {
 
         const res = await fetch(`${API_BASE}/api/pipeline`, {
             method: 'POST',
+            credentials: 'include',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify(payload)
         });
