@@ -111,29 +111,35 @@ export async function buildApp(options: { logger?: boolean, queue?: IVideoQueue 
 
     app.get("/api/catalog", async () => getCatalog());
 
+    /** Fastify may parse repeated query keys as string[] — only accept a single string. */
+    const queryString = (value: unknown): string | undefined =>
+        typeof value === 'string' && value.length > 0 ? value : undefined;
+
     app.get("/api/catalog/blocks", async (request: FastifyRequest) => {
-        const q = request.query as { style?: string; category?: string; runtime?: string };
+        const q = (request.query || {}) as Record<string, unknown>;
+        const style = queryString(q.style)?.toLowerCase();
+        const category = queryString(q.category);
+        const runtime = queryString(q.runtime);
         let blocks = listMotionBlocks();
-        if (q.style) {
-            const style = q.style.toLowerCase();
+        if (style) {
             blocks = blocks.filter(
                 (b) => b.styleAffinity.includes('any') || b.styleAffinity.includes(style as any)
             );
         }
-        if (q.category) {
-            blocks = blocks.filter((b) => b.category === q.category);
+        if (category) {
+            blocks = blocks.filter((b) => b.category === category);
         }
-        if (q.runtime === '1' || q.runtime === 'true') {
+        if (runtime === '1' || runtime === 'true') {
             blocks = blocks.filter((b) => b.runtime);
         }
         return { blocks, count: blocks.length };
     });
 
     app.get("/api/catalog/blueprints", async (request: FastifyRequest) => {
-        const q = request.query as { style?: string };
+        const q = (request.query || {}) as Record<string, unknown>;
+        const style = queryString(q.style)?.toLowerCase();
         let blueprints = listBlueprints();
-        if (q.style) {
-            const style = q.style.toLowerCase();
+        if (style) {
             blueprints = blueprints.filter(
                 (b) => b.styleAffinity.includes('any' as any) || b.styleAffinity.includes(style as any)
             );
