@@ -316,10 +316,15 @@ generateBtn.addEventListener('click', async () => {
     log(`Bắt đầu tạo video: "${prompt}"`, 'info');
 
     try {
+        // Only auto-detect stickman when user left style at default "modern".
+        // Do NOT match bare "que" (false positives: technique, unique, thói quen…).
+        // Do NOT mutate styleSelect.value — that locked later runs onto stickman.
         let selectedStyle = styleSelect ? styleSelect.value : 'modern';
-        if (/người que|stickman|que/i.test(prompt) && selectedStyle === 'modern') {
+        if (
+            selectedStyle === 'modern' &&
+            /(?:^|[^\p{L}\p{N}_])(người\s*que|stickman)(?=[^\p{L}\p{N}_]|$)/iu.test(prompt)
+        ) {
             selectedStyle = 'stickman';
-            if (styleSelect) styleSelect.value = 'stickman';
         }
 
         const prov = ttsProviderSelect ? ttsProviderSelect.value : 'vieneu';
