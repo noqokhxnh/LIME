@@ -7,7 +7,12 @@ export const BLOCK_HELPERS_JS = `
 window.__block = function(name, container, opts) {
     opts = opts || {};
     var el = typeof container === 'string' ? document.querySelector(container) : container;
-    if (!el) throw new Error('__block: container not found');
+    // Never throw: a single uncaught error aborts the shared <script> before window.__ready = true
+    // and deadlocks Playwright until the 15s timeout.
+    if (!el) {
+        console.warn('[__block] Container not found for block "' + name + '"');
+        return (typeof gsap !== 'undefined') ? gsap.timeline() : null;
+    }
     var root = document.createElement('div');
     root.className = 'vb-block vb-' + name;
     root.setAttribute('data-block', name);
@@ -173,7 +178,8 @@ window.__block = function(name, container, opts) {
 
 window.__block.animate = function(name, root, tl, opts) {
     opts = opts || {};
-    if (!root || !tl || typeof gsap === 'undefined') return tl;
+    // Skip when __block returned an empty timeline / null after a missing container
+    if (!root || !tl || typeof gsap === 'undefined' || typeof root.querySelector !== 'function') return tl;
     var start = opts.at != null ? opts.at : 0.15;
     var dur = opts.duration != null ? opts.duration : 1.2;
 
