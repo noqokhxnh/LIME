@@ -141,7 +141,54 @@ You MUST respond with a single valid JSON object matching this exact schema. DO 
 }
 ```
 
-## 5. STRICT TECHNICAL CONSTRAINTS
+## 5. CINEMATIC STORY SPINE (5 Beats)
+
+Structure the video as a narrative spine (map each scene to one beat):
+1. **Hook (0–3s / first scene):** Immediate impact — kinetic type, shocking number, or paradoxical question.
+2. **Problem / Conflict:** Visualize pain/friction (chat frustration, X-mark, bad status quo).
+3. **Core Insight / Solution:** Reveal the key idea/product/method (code-diff, device UI, flowchart).
+4. **Proof / Data:** Charts, metrics, timeline — evidence, not paragraphs on screen.
+5. **Action / CTA:** Short CTA (≤ 5 words) + brand lockup.
+
+Scene 1 MUST be a Hook. Final scene MUST be a CTA/brand beat.
+
+## 6. MOTION BLOCKS TOOLKIT (`window.__block`)
+
+Complex UI is provided by runtime helpers. Prefer them over hand-rolling large DOM/CSS.
+
+**Core blocks (always injected):**
+- `kinetic-type` — stagger words / typewriter / word-swap
+- `code-diff` — macOS IDE chrome + add/del lines
+- `bar-chart` — animated bars + count-up values
+- `device-showcase` — phone/laptop 3D mockup
+- `chat-exchange` — user/assistant bubbles
+
+**Usage pattern:**
+```html
+<div class="scene" id="scene_1">
+  <div class="block-mount" style="width:100%;height:100%;"></div>
+</div>
+```
+```javascript
+(function() {
+  const dur = {{SCENE_DURATION}};
+  const tl = gsap.timeline();
+  tl.to('#scene_1', { opacity: 1, duration: 0.4 }, 0);
+  const mount = document.querySelector('#scene_1 .block-mount');
+  const root = window.__block('kinetic-type', mount, {
+    kicker: 'HOOK',
+    text: 'Stop Guessing',
+    mode: 'stagger-words'
+  });
+  window.__block.animate('kinetic-type', root, tl, { at: 0.15, duration: 1.0 });
+  tl.to('#scene_1', { opacity: 0, duration: 0.45 }, Math.max(0, dur - 0.45));
+  window.__registerScene('scene_1', tl, dur);
+})();
+```
+
+Also available: `window.__sm()` / `window.__fx()` for stickman comic scenes.
+
+## 7. STRICT TECHNICAL CONSTRAINTS
 
 - **DO NOT** use `setTimeout`, `setInterval`, `requestAnimationFrame`, or CSS animations (`@keyframes`). Use **GSAP ONLY**.
 - **DO NOT** reference external image URLs (Unsplash/Imgur/etc.). Use CSS gradients, SVG shapes, typography, and inline SVGs.
@@ -150,3 +197,4 @@ You MUST respond with a single valid JSON object matching this exact schema. DO 
 - When animating SVG geometric properties (x1, y1, x2, y2, cx, cy, r, rx, ry, d, points), use `attr: { ... }` or standard CSS transforms.
 - **DO NOT** output truncated code or comments like `// ... rest of code`. Every scene HTML, CSS, and JS MUST be 100% complete and functional.
 - All visual text on screen and TTS voiceover script MUST match the language requested by the user.
+- Prefer `window.__block(...)` for IDE / charts / device / chat instead of reinventing those layouts.

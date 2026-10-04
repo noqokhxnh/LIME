@@ -1,6 +1,9 @@
 import { existsSync, mkdirSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
-import { videoScript, scene, durationMap } from "@/llm/schema";
+import { videoScript, scene, durationMap } from "../llm/schema.js";
+import { BLOCK_HELPERS_JS } from "../templates/runtime/blockHelpers.js";
+
+export { BLOCK_HELPERS_JS };
 
 export interface assembleOptions {
     imageMap?: Record<string, string[]>;
@@ -344,6 +347,9 @@ ${allScenesHtml}
 
         // Stickman & FX Helpers Injection
         ${STICKMAN_HELPERS_JS}
+
+        // Studio Motion Blocks (window.__block)
+        ${BLOCK_HELPERS_JS}
 
         // Global Setup JS from LLM Script (sanitized)
         ${(script.globalSetupJs || "")

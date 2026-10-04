@@ -13,6 +13,7 @@ import {
     GSAP_TEXT_PLUGIN_CDN,
     GSAP_MOTION_PATH_PLUGIN_CDN,
     STICKMAN_HELPERS_JS,
+    BLOCK_HELPERS_JS,
 } from '../../src/pipeline/assembleHtml.js';
 import { type scene, type videoScript } from '../../src/llm/schema.js';
 
@@ -223,6 +224,20 @@ describe('Module 6: HTML & GSAP Packaging (src/pipeline/assembleHtml.ts)', () =>
             assert.ok(content.includes("type === 'sweat'"), 'Phải hỗ trợ hiệu ứng sweat');
             assert.ok(content.includes("type === 'shock'"), 'Phải hỗ trợ hiệu ứng shock');
             assert.ok(content.includes("type === 'question'"), 'Phải hỗ trợ hiệu ứng question');
+        });
+    });
+
+    describe('TC-ASM-006b: Motion Blocks helpers (window.__block)', () => {
+        it('phải nhúng BLOCK_HELPERS_JS với 5 core blocks', async () => {
+            const result = await assembleHTML(mockScript, sampleDurations, 1920, 1080, testTempDir);
+            const content = result.htmlContent;
+
+            assert.ok(content.includes('window.__block = function'), 'Phải chứa window.__block');
+            assert.ok(content.includes('__block.animate'), 'Phải chứa __block.animate');
+            assert.ok(BLOCK_HELPERS_JS.length > 100, 'BLOCK_HELPERS_JS export phải có nội dung');
+            for (const id of ['kinetic-type', 'code-diff', 'bar-chart', 'device-showcase', 'chat-exchange']) {
+                assert.ok(content.includes(id), `HTML phải chứa block ${id}`);
+            }
         });
     });
 
