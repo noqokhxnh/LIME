@@ -244,8 +244,21 @@ window.__block.animate = function(name, root, tl, opts) {
         });
     } else if (name === 'device-showcase' || name === 'device-surface-showcase') {
         var frame = root.querySelector('.vb-phone, .vb-laptop');
-        tl.from(frame, { opacity: 0, z: -80, rotateY: -40, duration: 0.8, ease: 'power3.out' }, start);
-        tl.to(frame, { rotateY: 8, duration: Math.max(1, dur), ease: 'sine.inOut' }, start + 0.5);
+        if (!frame) return tl;
+        // Sequence rotateY: entrance finishes before ambient tilt — avoid overlapping
+        // tweens fighting the same property during Playwright frame seeks.
+        var enterDur = 0.8;
+        tl.fromTo(frame,
+            { opacity: 0, z: -80, rotateY: -40 },
+            { opacity: 1, z: 0, rotateY: -12, duration: enterDur, ease: 'power3.out', overwrite: 'auto' },
+            start
+        );
+        tl.to(frame, {
+            rotateY: 8,
+            duration: Math.max(1, dur),
+            ease: 'sine.inOut',
+            overwrite: 'auto'
+        }, start + enterDur);
     } else if (name === 'chat-exchange') {
         tl.to(root.querySelectorAll('.vb-bubble'), {
             opacity: 1, y: 0, stagger: 0.35, duration: 0.45, ease: 'power2.out'
