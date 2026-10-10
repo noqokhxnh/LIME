@@ -596,7 +596,8 @@ textarea:focus {
 .templates-panel select,
 #style-select,
 #tts-provider-select,
-#voice-select {
+#voice-select,
+#duration-input {
     width: 100%;
     padding: 8px 12px;
     border-radius: 6px;
@@ -604,6 +605,11 @@ textarea:focus {
     background: #1e293b;
     color: #f8fafc;
     font-size: 14px;
+}
+
+.form-hint {
+    font-size: 0.78rem;
+    color: #94a3b8;
 }
 
 .motion-blocks-list {
