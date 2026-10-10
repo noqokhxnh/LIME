@@ -1,6 +1,7 @@
 import { describe, it } from 'node:test';
 import assert from 'node:assert/strict';
 import { narrationWordBudget, buildUserPrompt } from '../../src/pipeline/scriptGenerator.js';
+import { wordsPerMinute } from '../../src/pipeline/estimateDuration.js';
 import type { videoRequest } from '../../src/llm/schema.js';
 
 const baseRequest: videoRequest = {
@@ -33,6 +34,29 @@ describe('narrationWordBudget', () => {
 
     it('budget tối thiểu là 10 từ kể cả video rất ngắn', () => {
         assert.strictEqual(narrationWordBudget(1, 'vi'), 10);
+    });
+
+    it('hỗ trợ BCP-47 locale tags (vi-VN, en-US)', () => {
+        assert.strictEqual(narrationWordBudget(15, 'vi-VN'), 33);
+        assert.strictEqual(narrationWordBudget(30, 'en-US'), 60);
+        assert.strictEqual(narrationWordBudget(15, 'en_US'), 30);
+    });
+});
+
+describe('wordsPerMinute (single source of truth)', () => {
+    it('map đúng tốc độ đọc theo ngôn ngữ', () => {
+        assert.strictEqual(wordsPerMinute('vi'), 165);
+        assert.strictEqual(wordsPerMinute('en'), 150);
+        assert.strictEqual(wordsPerMinute(), 165); // mặc định tiếng Việt
+    });
+
+    it('chuẩn hoá BCP-47 về mã ngôn ngữ chính', () => {
+        assert.strictEqual(wordsPerMinute('vi-VN'), 165);
+        assert.strictEqual(wordsPerMinute('en-US'), 150);
+    });
+
+    it('ngôn ngữ lạ fallback về 150wpm', () => {
+        assert.strictEqual(wordsPerMinute('xx'), 150);
     });
 });
 

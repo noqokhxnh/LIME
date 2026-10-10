@@ -1,6 +1,7 @@
 import { Config } from "@/config";
 import { getLLMClient } from "@/llm/client";
 import { videoRequest, videoScript, videoScriptSchema } from "@/llm/schema";
+import { estimateDuration, wordsPerMinute } from "./estimateDuration";
 import { formatStylePrompt } from "../constants/style.js";
 import {
     formatBlocksToolkitPrompt,
@@ -25,22 +26,14 @@ const VIDEO_PRESETS: Record<string, string> = {
 };
 
 /**
- * Speaking rate used by the duration estimator (src/pipeline/estimateDuration.ts).
- * Mirrored here so the script prompt carries a matching narration word budget.
- */
-const NARRATION_WPM: Record<string, number> = {
-    vi: 165,
-    en: 150,
-};
-
-/**
  * Maximum total narration words (summed over every scene's voiceOverText)
  * that fit inside `targetDurationSec` at the estimator's speaking rate.
  * Keeps ~20% headroom for punctuation pauses, per-scene padding and TTS variance
  * so the script passes the orchestrator's "estimated <= 150% of target" guard.
+ * Uses the shared wordsPerMinute() from estimateDuration.ts — single source of truth.
  */
 export function narrationWordBudget(targetDurationSec: number, language?: string): number {
-    const wpm = NARRATION_WPM[(language ?? 'vi').toLowerCase()] ?? 150;
+    const wpm = wordsPerMinute(language);
     return Math.max(10, Math.floor((targetDurationSec * 0.8 * wpm) / 60));
 }
 
@@ -146,6 +139,16 @@ export async function generateScript(
                 }
             }
             const script = videoScriptSchema.parse(parsedData);
+
+            // Guard ngay trong vòng retry: kịch bản vượt quá 150% target thì coi như
+            // attempt thất bại để LLM tự rút gọn narration ở lần thử sau,
+            // thay vì để orchestrator ném lỗi và crash cả job.
+            const estimated = estimateDuration(script, { language: request.language });
+            if (estimated.totalDurationSec > request.targetDurationSec * 1.5) {
+                throw new Error(
+                    `Estimated duration (${estimated.totalDurationSec}s) exceeds target (${request.targetDurationSec}s) by more than 50%. Narration word count was too high — condense voiceOverText to fit the target duration.`
+                );
+            }
 
             onProgress?.(`[Script] Attempt ${attempt}/3 - success`);
             return script;
