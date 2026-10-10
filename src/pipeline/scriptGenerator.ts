@@ -24,6 +24,26 @@ const VIDEO_PRESETS: Record<string, string> = {
     '4:3': '1440x1080'
 };
 
+/**
+ * Speaking rate used by the duration estimator (src/pipeline/estimateDuration.ts).
+ * Mirrored here so the script prompt carries a matching narration word budget.
+ */
+const NARRATION_WPM: Record<string, number> = {
+    vi: 165,
+    en: 150,
+};
+
+/**
+ * Maximum total narration words (summed over every scene's voiceOverText)
+ * that fit inside `targetDurationSec` at the estimator's speaking rate.
+ * Keeps ~20% headroom for punctuation pauses, per-scene padding and TTS variance
+ * so the script passes the orchestrator's "estimated <= 150% of target" guard.
+ */
+export function narrationWordBudget(targetDurationSec: number, language?: string): number {
+    const wpm = NARRATION_WPM[(language ?? 'vi').toLowerCase()] ?? 150;
+    return Math.max(10, Math.floor((targetDurationSec * 0.8 * wpm) / 60));
+}
+
 export function buildUserPrompt(request: videoRequest, preset: string): string {
     const styleDetails = formatStylePrompt(request.style, request.customStyle);
     const storySpine = formatStorySpinePrompt(request.targetDurationSec);
@@ -34,6 +54,7 @@ export function buildUserPrompt(request: videoRequest, preset: string): string {
         style: request.style,
     });
     const catalogSummary = formatCatalogSummaryForPrompt(request.style);
+    const wordBudget = narrationWordBudget(request.targetDurationSec, request.language);
 
     return `Create a high-quality video script with the following requirements:
 Topic/Prompt: ${request.prompt}
@@ -67,6 +88,10 @@ ${catalogSummary}
 4. Motion Blocks:
    - For complex UI (IDE, charts, device mockups, chat), prefer window.__block(...) instead of hand-rolled DOM.
    - Always leave a .block-mount node in htmlCode when using __block.
+5. Narration Word Budget (HARD LIMIT — the pipeline rejects oversized scripts):
+   - The TOTAL narration across ALL scenes (sum of every scene's voiceOverText) must be ≤ ${wordBudget} words.
+   - At the target speaking rate this fits the ${request.targetDurationSec}s target with headroom for pauses and per-scene padding.
+   - Prefer fewer, punchier sentences over long explanations. If the topic needs more words, shorten — never exceed the budget.
 
 Remember to output ONLY valid JSON matching the schema, with GSAP animation code included.`;
 }

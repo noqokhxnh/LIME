@@ -140,6 +140,7 @@ function handleAuthError() {
 }
 const promptInput = document.getElementById('prompt-input');
 const styleSelect = document.getElementById('style-select');
+const durationInput = document.getElementById('duration-input');
 const blueprintSelect = document.getElementById('blueprint-select');
 const catalogCategoryFilter = document.getElementById('catalog-category-filter');
 const motionBlocksList = document.getElementById('motion-blocks-list');
@@ -346,10 +347,23 @@ generateBtn.addEventListener('click', async () => {
         const blueprintId = blueprintSelect && blueprintSelect.value ? blueprintSelect.value : undefined;
         const motionBlockIds = [...selectedMotionBlockIds].slice(0, 8);
 
+        // Thời lượng mục tiêu do người dùng chọn (10–300s, mặc định 15s).
+        // Backend dùng giá trị này để sinh kịch bản vừa khung và kiểm tra estimated duration.
+        let targetDurationSec = 15;
+        if (durationInput) {
+            const parsed = parseInt(durationInput.value, 10);
+            if (Number.isFinite(parsed)) {
+                targetDurationSec = Math.min(300, Math.max(10, parsed));
+                durationInput.value = String(targetDurationSec);
+            } else {
+                durationInput.value = '15';
+            }
+        }
+
         const payload = {
             prompt: prompt,
             aspectRatio: '16:9',
-            targetDurationSec: 15,
+            targetDurationSec,
             language: 'vi',
             style: selectedStyle,
             ttsProvider: prov,
