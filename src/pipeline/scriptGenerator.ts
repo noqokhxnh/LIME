@@ -1,6 +1,7 @@
 import { Config } from "@/config";
 import { getLLMClient } from "@/llm/client";
 import { videoRequest, videoScript, videoScriptSchema } from "@/llm/schema";
+import { estimateDuration, wordsPerMinute } from "./estimateDuration";
 import { formatStylePrompt } from "../constants/style.js";
 import {
     formatBlocksToolkitPrompt,
@@ -24,6 +25,18 @@ const VIDEO_PRESETS: Record<string, string> = {
     '4:3': '1440x1080'
 };
 
+/**
+ * Maximum total narration words (summed over every scene's voiceOverText)
+ * that fit inside `targetDurationSec` at the estimator's speaking rate.
+ * Keeps ~20% headroom for punctuation pauses, per-scene padding and TTS variance
+ * so the script passes the orchestrator's "estimated <= 150% of target" guard.
+ * Uses the shared wordsPerMinute() from estimateDuration.ts — single source of truth.
+ */
+export function narrationWordBudget(targetDurationSec: number, language?: string): number {
+    const wpm = wordsPerMinute(language);
+    return Math.max(10, Math.floor((targetDurationSec * 0.8 * wpm) / 60));
+}
+
 export function buildUserPrompt(request: videoRequest, preset: string): string {
     const styleDetails = formatStylePrompt(request.style, request.customStyle);
     const storySpine = formatStorySpinePrompt(request.targetDurationSec);
@@ -34,6 +47,7 @@ export function buildUserPrompt(request: videoRequest, preset: string): string {
         style: request.style,
     });
     const catalogSummary = formatCatalogSummaryForPrompt(request.style);
+    const wordBudget = narrationWordBudget(request.targetDurationSec, request.language);
 
     return `Create a high-quality video script with the following requirements:
 Topic/Prompt: ${request.prompt}
@@ -67,6 +81,10 @@ ${catalogSummary}
 4. Motion Blocks:
    - For complex UI (IDE, charts, device mockups, chat), prefer window.__block(...) instead of hand-rolled DOM.
    - Always leave a .block-mount node in htmlCode when using __block.
+5. Narration Word Budget (HARD LIMIT — the pipeline rejects oversized scripts):
+   - The TOTAL narration across ALL scenes (sum of every scene's voiceOverText) must be ≤ ${wordBudget} words.
+   - At the target speaking rate this fits the ${request.targetDurationSec}s target with headroom for pauses and per-scene padding.
+   - Prefer fewer, punchier sentences over long explanations. If the topic needs more words, shorten — never exceed the budget.
 
 Remember to output ONLY valid JSON matching the schema, with GSAP animation code included.`;
 }
@@ -121,6 +139,16 @@ export async function generateScript(
                 }
             }
             const script = videoScriptSchema.parse(parsedData);
+
+            // Guard ngay trong vòng retry: kịch bản vượt quá 150% target thì coi như
+            // attempt thất bại để LLM tự rút gọn narration ở lần thử sau,
+            // thay vì để orchestrator ném lỗi và crash cả job.
+            const estimated = estimateDuration(script, { language: request.language });
+            if (estimated.totalDurationSec > request.targetDurationSec * 1.5) {
+                throw new Error(
+                    `Estimated duration (${estimated.totalDurationSec}s) exceeds target (${request.targetDurationSec}s) by more than 50%. Narration word count was too high — condense voiceOverText to fit the target duration.`
+                );
+            }
 
             onProgress?.(`[Script] Attempt ${attempt}/3 - success`);
             return script;
