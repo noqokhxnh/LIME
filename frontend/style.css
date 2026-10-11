@@ -60,18 +60,18 @@ html {
 
 body {
     font-family: var(--font-main);
-    background-color: #ffffff;
+    background-color: #fafaf7; /* Trắng ngà sách mới (warm paper cream), dịu mắt và ấm áp */
     color: var(--neutral-950);
     min-height: 100vh;
     line-height: 1.5;
     -webkit-font-smoothing: antialiased;
     background-image:
-        radial-gradient(ellipse 90% 45% at 50% -10%, rgba(190, 242, 100, 0.16), transparent 70%),
-        linear-gradient(to right, rgba(0, 0, 0, 0.042) 1px, transparent 1px),
-        linear-gradient(to bottom, rgba(0, 0, 0, 0.042) 1px, transparent 1px);
-    background-size: 100% 100%, 36px 36px, 36px 36px;
-    background-position: center top, center top, center top;
+        linear-gradient(to right, rgba(0, 0, 0, 0.038) 1px, transparent 1px),
+        linear-gradient(to bottom, rgba(0, 0, 0, 0.038) 1px, transparent 1px);
+    background-size: 38px 38px, 38px 38px;
+    background-position: center top, center top;
     background-attachment: fixed;
+    position: relative;
 }
 
 button, input, textarea, select {
@@ -245,29 +245,86 @@ button:focus-visible, input:focus-visible, textarea:focus-visible, select:focus-
     .workspace-main { padding: 24px 16px 60px; }
 }
 
-/* Ambient Blur Orbs */
-.blur-orb {
-    pointer-events: none;
+/* =====================================================================
+   Quầng màu Pastel mềm (Soft Aura Gradient System)
+   Tạo cảm giác nền ấm, mịn màng và tươi sáng như một trang sách mới
+   ===================================================================== */
+.pastel-aura-canvas {
     position: absolute;
-    border-radius: 50%;
-    filter: blur(100px);
+    inset: 0;
+    pointer-events: none;
+    overflow: hidden;
     z-index: 0;
 }
 
-.orb-left {
-    top: 90px;
-    left: -180px;
-    width: 420px;
-    height: 420px;
-    background: rgba(217, 249, 157, 0.32);
+.aura-blob {
+    position: absolute;
+    border-radius: 50%;
+    filter: blur(100px);
+    opacity: 0.82;
+    will-change: transform;
 }
 
-.orb-right {
-    top: 240px;
-    right: -180px;
-    width: 380px;
-    height: 380px;
-    background: rgba(221, 214, 254, 0.3);
+/* Vàng bơ nhạt (Soft Butter Yellow) - Khu vực Hero đỉnh trái */
+.aura-butter-cream {
+    top: 20px;
+    left: -140px;
+    width: 540px;
+    height: 540px;
+    background: radial-gradient(circle, rgba(254, 240, 138, 0.35) 0%, rgba(254, 249, 195, 0.16) 55%, transparent 75%);
+    animation: auraFloatA 22s ease-in-out infinite alternate;
+}
+
+/* Cam đào ấm (Soft Peach) - Sườn phải Hero & Workspace */
+.aura-peach-blush {
+    top: 280px;
+    right: -150px;
+    width: 500px;
+    height: 500px;
+    background: radial-gradient(circle, rgba(254, 215, 170, 0.32) 0%, rgba(255, 237, 213, 0.14) 55%, transparent 75%);
+    animation: auraFloatB 26s ease-in-out infinite alternate;
+}
+
+/* Xanh bạc hà dịu (Soft Mint) - Sườn trái Workspace Studio */
+.aura-mint-fresh {
+    top: 960px;
+    left: -160px;
+    width: 560px;
+    height: 560px;
+    background: radial-gradient(circle, rgba(167, 243, 208, 0.35) 0%, rgba(209, 250, 229, 0.16) 55%, transparent 75%);
+    animation: auraFloatA 24s ease-in-out infinite alternate;
+}
+
+/* Tím Lavender thanh thoát (Soft Lavender) - Sườn phải Thư viện mẫu */
+.aura-lavender-glow {
+    top: 1720px;
+    right: -130px;
+    width: 520px;
+    height: 520px;
+    background: radial-gradient(circle, rgba(233, 213, 255, 0.34) 0%, rgba(243, 232, 255, 0.15) 55%, transparent 75%);
+    animation: auraFloatB 28s ease-in-out infinite alternate;
+}
+
+/* Xanh chanh tươi dịu (Lime Mist) - Sườn trái Bảng giá */
+.aura-lime-mist {
+    top: 2460px;
+    left: -120px;
+    width: 580px;
+    height: 580px;
+    background: radial-gradient(circle, rgba(217, 249, 157, 0.32) 0%, rgba(236, 252, 203, 0.14) 55%, transparent 75%);
+    animation: auraFloatA 20s ease-in-out infinite alternate;
+}
+
+@keyframes auraFloatA {
+    0% { transform: translate(0, 0) scale(1); }
+    50% { transform: translate(32px, 24px) scale(1.06); }
+    100% { transform: translate(-22px, 36px) scale(0.96); }
+}
+
+@keyframes auraFloatB {
+    0% { transform: translate(0, 0) scale(1); }
+    50% { transform: translate(-28px, 28px) scale(1.07); }
+    100% { transform: translate(24px, -18px) scale(0.95); }
 }
 
 .hero-section {
@@ -2952,11 +3009,16 @@ button:focus-visible, input:focus-visible, textarea:focus-visible, select:focus-
    ===================================================================== */
 .hero-card-conveyor-wrap {
     width: 100%;
-    border-top: 1px solid rgba(0, 0, 0, 0.06);
-    padding-top: 22px;
+    margin-top: 4px;
+    background: linear-gradient(180deg, rgba(246, 248, 242, 0.85) 0%, rgba(255, 255, 255, 0.98) 100%);
+    border: 1px solid rgba(0, 0, 0, 0.08);
+    border-radius: 22px;
+    padding: 10px 14px;
+    box-shadow: 
+        inset 0 1px 3px rgba(0, 0, 0, 0.02),
+        0 4px 16px rgba(0, 0, 0, 0.03);
     display: flex;
     align-items: center;
-    gap: 16px;
     overflow: hidden;
     position: relative;
 }
@@ -2964,26 +3026,39 @@ button:focus-visible, input:focus-visible, textarea:focus-visible, select:focus-
 .conveyor-belt-label {
     display: inline-flex;
     align-items: center;
-    gap: 8px;
-    padding: 6px 14px;
+    gap: 9px;
+    padding: 8px 14px 8px 12px;
     border-radius: var(--radius-full);
-    background: var(--neutral-100);
-    border: 1px solid rgba(0, 0, 0, 0.06);
+    background: #0f172a;
+    border: 1px solid rgba(255, 255, 255, 0.12);
     font-size: 11px;
     font-weight: 800;
-    color: var(--neutral-800);
+    color: #ffffff;
     white-space: nowrap;
     flex-shrink: 0;
-    letter-spacing: 0.02em;
+    letter-spacing: 0.04em;
+    text-transform: uppercase;
+    box-shadow: 0 4px 14px rgba(15, 23, 42, 0.2), inset 0 1px 0 rgba(255, 255, 255, 0.2);
 }
 
 .conveyor-pulse-dot {
-    width: 7px;
-    height: 7px;
+    width: 8px;
+    height: 8px;
     border-radius: 50%;
-    background: var(--lime-500);
-    box-shadow: 0 0 10px rgba(163, 230, 53, 0.9);
-    animation: pulseDot 2s ease-in-out infinite;
+    background: var(--lime-400);
+    box-shadow: 0 0 12px #a3e635, 0 0 4px #84cc16;
+    animation: pulseDot 1.8s ease-in-out infinite;
+}
+
+.conveyor-label-badge {
+    font-size: 9px;
+    font-weight: 800;
+    color: var(--lime-400);
+    background: rgba(163, 230, 53, 0.16);
+    border: 1px solid rgba(163, 230, 53, 0.35);
+    padding: 1px 6px;
+    border-radius: 6px;
+    letter-spacing: 0.04em;
 }
 
 @keyframes pulseDot {
@@ -2995,8 +3070,8 @@ button:focus-visible, input:focus-visible, textarea:focus-visible, select:focus-
     flex: 1;
     overflow: hidden;
     position: relative;
-    mask-image: linear-gradient(to right, transparent, black 4%, black 96%, transparent);
-    -webkit-mask-image: linear-gradient(to right, transparent, black 4%, black 96%, transparent);
+    mask-image: linear-gradient(to right, transparent 0%, black 4%, black 96%, transparent 100%);
+    -webkit-mask-image: linear-gradient(to right, transparent 0%, black 4%, black 96%, transparent 100%);
 }
 
 .conveyor-belt-track {
@@ -3004,7 +3079,7 @@ button:focus-visible, input:focus-visible, textarea:focus-visible, select:focus-
     align-items: center;
     gap: 12px;
     width: max-content;
-    animation: conveyorScroll 34s linear infinite;
+    animation: conveyorScroll 32s linear infinite;
     will-change: transform;
 }
 
@@ -3021,45 +3096,102 @@ button:focus-visible, input:focus-visible, textarea:focus-visible, select:focus-
     }
 }
 
+/* Thẻ tính năng Micro-Card nổi khối */
 .conveyor-item-chip {
     display: inline-flex;
     align-items: center;
-    gap: 8px;
-    padding: 7px 16px;
-    border-radius: var(--radius-full);
+    gap: 10px;
+    padding: 6px 14px 6px 8px;
+    border-radius: 14px;
     background: #ffffff;
     border: 1px solid rgba(0, 0, 0, 0.08);
-    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.02);
+    box-shadow: 
+        0 4px 12px -2px rgba(15, 23, 42, 0.05),
+        0 1px 3px rgba(0, 0, 0, 0.03),
+        inset 0 1px 0 rgba(255, 255, 255, 1);
     white-space: nowrap;
-    font-size: 12px;
-    font-weight: 700;
-    color: var(--neutral-700);
-    transition: all 0.2s ease;
+    transition: transform 0.25s cubic-bezier(0.16, 1, 0.3, 1), box-shadow 0.25s cubic-bezier(0.16, 1, 0.3, 1), border-color 0.2s ease;
     user-select: none;
     cursor: default;
 }
 
 .conveyor-item-chip:hover {
-    transform: translateY(-2px);
-    border-color: var(--lime-500);
-    color: var(--neutral-950);
-    box-shadow: 0 8px 20px rgba(163, 230, 53, 0.22);
+    transform: translateY(-3px) scale(1.02);
+    border-color: rgba(163, 230, 53, 0.8);
+    box-shadow: 
+        0 12px 26px -4px rgba(163, 230, 53, 0.28),
+        0 4px 10px rgba(0, 0, 0, 0.04),
+        inset 0 1px 0 rgba(255, 255, 255, 1);
 }
 
-.chip-icon {
+/* Micro-Container cho icon với nền màu sống động */
+.chip-icon-box {
+    width: 28px;
+    height: 28px;
+    border-radius: 9px;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
     font-size: 14px;
-    line-height: 1;
+    flex-shrink: 0;
+    transition: transform 0.25s ease;
+}
+
+.conveyor-item-chip:hover .chip-icon-box {
+    transform: scale(1.1) rotate(4deg);
+}
+
+/* Bảng màu pastel/neon tươi sáng cho từng loại tính năng */
+.chip-theme-lime { background: linear-gradient(135deg, #ecfccb 0%, #d9f99d 100%); border: 1px solid rgba(163, 230, 53, 0.4); }
+.chip-theme-blue { background: linear-gradient(135deg, #e0f2fe 0%, #bae6fd 100%); border: 1px solid rgba(14, 165, 233, 0.35); }
+.chip-theme-purple { background: linear-gradient(135deg, #f3e8ff 0%, #e9d5ff 100%); border: 1px solid rgba(168, 85, 247, 0.35); }
+.chip-theme-rose { background: linear-gradient(135deg, #ffe4e6 0%, #fecdd3 100%); border: 1px solid rgba(244, 63, 94, 0.35); }
+.chip-theme-emerald { background: linear-gradient(135deg, #d1fae5 0%, #a7f3d0 100%); border: 1px solid rgba(16, 185, 129, 0.35); }
+.chip-theme-orange { background: linear-gradient(135deg, #ffedd5 0%, #fed7aa 100%); border: 1px solid rgba(249, 115, 22, 0.35); }
+.chip-theme-teal { background: linear-gradient(135deg, #ccfbf1 0%, #99f6e4 100%); border: 1px solid rgba(20, 184, 166, 0.35); }
+.chip-theme-amber { background: linear-gradient(135deg, #fef3c7 0%, #fde68a 100%); border: 1px solid rgba(245, 158, 11, 0.35); }
+.chip-theme-cyan { background: linear-gradient(135deg, #cffafe 0%, #a5f3fc 100%); border: 1px solid rgba(6, 182, 212, 0.35); }
+.chip-theme-indigo { background: linear-gradient(135deg, #e0e7ff 0%, #c7d2fe 100%); border: 1px solid rgba(99, 102, 241, 0.35); }
+.chip-theme-green { background: linear-gradient(135deg, #dcfce7 0%, #bbf7d0 100%); border: 1px solid rgba(34, 197, 94, 0.35); }
+.chip-theme-fuchsia { background: linear-gradient(135deg, #fae8ff 0%, #f5d0fe 100%); border: 1px solid rgba(217, 70, 239, 0.35); }
+
+/* Bố cục chữ và nhãn tag trong chip */
+.chip-text-wrap {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
 }
 
 .chip-title {
-    letter-spacing: -0.01em;
+    font-size: 12.5px;
+    font-weight: 800;
+    color: #1e293b;
+    letter-spacing: -0.015em;
+}
+
+.chip-tag {
+    font-size: 9.5px;
+    font-weight: 800;
+    color: #64748b;
+    background: #f1f5f9;
+    border: 1px solid rgba(0, 0, 0, 0.05);
+    padding: 2px 6px;
+    border-radius: 6px;
+    letter-spacing: 0.02em;
+    text-transform: uppercase;
+    transition: all 0.2s ease;
+}
+
+.conveyor-item-chip:hover .chip-tag {
+    background: var(--lime-100);
+    color: var(--lime-950);
+    border-color: rgba(163, 230, 53, 0.45);
 }
 
 @media (max-width: 768px) {
     .hero-card-conveyor-wrap {
-        flex-direction: column;
-        align-items: flex-start;
-        gap: 12px;
+        padding: 8px 10px;
+        border-radius: 18px;
     }
     .conveyor-belt-viewport {
         width: 100%;
@@ -3191,5 +3323,174 @@ button:focus-visible, input:focus-visible, textarea:focus-visible, select:focus-
     font-family: var(--font-mono);
     font-size: 10px;
     color: var(--neutral-800);
+}
+
+/* =====================================================================
+   Huy hiệu nổi nhẹ (Floating Badges - Clean Minimalist Light Mode)
+   Phong cách Tối giản hiện đại, thẻ lơ lửng, bóng đổ tản rộng nhiều lớp
+   ===================================================================== */
+.video-outer-card-wrap {
+    position: relative;
+}
+
+.settings-card-box {
+    position: relative;
+}
+
+.section-title-wrap {
+    position: relative;
+}
+
+.floating-badge {
+    position: absolute;
+    width: 54px;
+    height: 54px;
+    background: #ffffff;
+    border: 1px solid rgba(0, 0, 0, 0.055);
+    border-radius: 18px;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    /* Bóng đổ tản rộng nhiều lớp tạo cảm giác thẻ bay lơ lửng thật sự trên bề mặt */
+    box-shadow: 
+        0 20px 50px rgba(0, 0, 0, 0.06),
+        0 8px 20px rgba(0, 0, 0, 0.03),
+        inset 0 1px 0 rgba(255, 255, 255, 0.95);
+    z-index: 15;
+    cursor: pointer;
+    user-select: none;
+    transition: transform 0.35s cubic-bezier(0.16, 1, 0.3, 1), box-shadow 0.35s cubic-bezier(0.16, 1, 0.3, 1), border-color 0.25s ease;
+    will-change: transform;
+}
+
+.floating-badge .badge-icon {
+    width: 28px;
+    height: 28px;
+    transition: transform 0.3s ease;
+}
+
+/* Định vị ghim đè lên góc (overlapping) & khoảng trống chết */
+.badge-pos-hero-top-left {
+    top: -24px;
+    left: -20px;
+    --rot: -12deg;
+    animation: floatBadgeA 6.5s ease-in-out infinite;
+}
+
+.badge-pos-carousel-top-right {
+    top: -20px;
+    right: -16px;
+    --rot: 10deg;
+    animation: floatBadgeB 7s ease-in-out infinite;
+}
+
+.badge-pos-video-top-left {
+    top: -18px;
+    left: -16px;
+    --rot: -8deg;
+    animation: floatBadgeA 6s ease-in-out infinite 0.5s;
+}
+
+.badge-pos-config-top-right {
+    top: -18px;
+    right: -16px;
+    --rot: 12deg;
+    animation: floatBadgeB 7.5s ease-in-out infinite 0.8s;
+}
+
+.badge-pos-templates-top-right {
+    top: -14px;
+    right: 0px;
+    --rot: -9deg;
+    animation: floatBadgeA 6.8s ease-in-out infinite 1.2s;
+}
+
+@keyframes floatBadgeA {
+    0%, 100% {
+        transform: translateY(0) rotate(var(--rot, -10deg));
+    }
+    50% {
+        transform: translateY(-7px) rotate(calc(var(--rot, -10deg) + 2.5deg));
+    }
+}
+
+@keyframes floatBadgeB {
+    0%, 100% {
+        transform: translateY(0) rotate(var(--rot, 10deg));
+    }
+    50% {
+        transform: translateY(-8px) rotate(calc(var(--rot, 10deg) - 3deg));
+    }
+}
+
+.floating-badge:hover {
+    transform: translateY(-9px) rotate(0deg) scale(1.12) !important;
+    box-shadow: 
+        0 28px 65px rgba(0, 0, 0, 0.1),
+        0 10px 24px rgba(0, 0, 0, 0.04),
+        inset 0 1px 0 rgba(255, 255, 255, 1);
+    border-color: rgba(0, 0, 0, 0.1);
+}
+
+.floating-badge:hover .badge-icon {
+    transform: scale(1.1);
+}
+
+/* Tooltip nhãn nhỏ khi hover */
+.floating-badge::after {
+    content: attr(data-badge-tip);
+    position: absolute;
+    bottom: -32px;
+    left: 50%;
+    transform: translateX(-50%) translateY(4px);
+    background: #171717;
+    color: #ffffff;
+    font-size: 11px;
+    font-weight: 700;
+    padding: 4px 10px;
+    border-radius: 9999px;
+    white-space: nowrap;
+    opacity: 0;
+    pointer-events: none;
+    transition: opacity 0.2s ease, transform 0.2s ease;
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.18);
+    z-index: 20;
+}
+
+.floating-badge:hover::after {
+    opacity: 1;
+    transform: translateX(-50%) translateY(0);
+}
+
+@media (max-width: 768px) {
+    .floating-badge {
+        width: 44px;
+        height: 44px;
+        border-radius: 14px;
+    }
+    .floating-badge .badge-icon {
+        width: 22px;
+        height: 22px;
+    }
+    .badge-pos-hero-top-left {
+        top: -16px;
+        left: -8px;
+    }
+    .badge-pos-carousel-top-right {
+        top: -14px;
+        right: -8px;
+    }
+    .badge-pos-video-top-left {
+        top: -14px;
+        left: -8px;
+    }
+    .badge-pos-config-top-right {
+        top: -14px;
+        right: -8px;
+    }
+    .badge-pos-templates-top-right {
+        top: -10px;
+        right: -4px;
+    }
 }
 
