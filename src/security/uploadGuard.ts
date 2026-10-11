@@ -204,7 +204,7 @@ export function validateUploadedFile(buffer: Buffer, mimeType: string): UploadVa
  */
 export function generateSafeFilePath(
     originalMime: string,
-    uploadDir: string = join(process.cwd(), 'uploads', 'logos')
+    uploadDir: string = join(process.cwd(), 'tmp', 'uploads', 'logos')
 ): string {
     // Ánh xạ MIME type sang phần mở rộng file
     const extMap: Record<string, string> = {
