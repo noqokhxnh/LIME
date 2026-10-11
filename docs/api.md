@@ -28,6 +28,9 @@ The API server is a Fastify app in `src/index.ts`. All endpoints are JSON unless
 | PUT | `/api/settings` | 🔒 | Switch LLM/TTS provider at runtime (scoped to current user) |
 | POST | `/api/script/draft` | 🔒 | Generate or regenerate a video script draft (Phase 1) |
 | POST | `/api/generate` | 🔒 | Create a video generation job (direct or from confirmed draft) |
+| POST | `/api/brand-kit/upload` | — | Upload brand logo (PNG, JPEG, SVG, WebP with XSS/XXE sanitization) |
+| GET | `/api/user/brand-kit` | 🔒 | Get current user's brand kit & watermark settings |
+| PUT | `/api/user/brand-kit` | 🔒 | Save/upsert user's brand kit & watermark settings |
 | GET | `/api/jobs` | 🔒 | List recent jobs (scoped to current user) |
 | GET | `/api/jobs/:jobId` | 🔒 | Job status + progress logs + result + script |
 | GET | `/api/jobs/:jobId/events` | 🔒 | Realtime SSE progress stream |
@@ -348,13 +351,43 @@ When rendering from a confirmed draft:
 
 Request body (`VideoRequestSchema`):
 
+| Field | Type | Constraints | Default | Description |
+|---|---|---|---|---|
+| `prompt` | string | 10–5000 chars | required | Ý tưởng, kịch bản hoặc yêu cầu video |
+| `aspectRatio` | string | `16:9` \| `9:16` \| `1:1` \| `4:3` | `16:9` | Tỷ lệ khung hình video |
+| `targetDurationSec` | number | 10–300 | `15` | Thời lượng video mục tiêu (giây) |
+| `language` | string | | `"vi"` | Ngôn ngữ đọc giọng |
+| `style` | string | `modern` \| `classic` \| `stickman` \| `minimal` | `"modern"` | Phong cách đồ họa và chuyển động |
+| `ttsProvider` | string | `vieneu` \| `edge` \| `openai` \| `elevenlabs` | `"vieneu"` | Bộ công cụ đọc giọng |
+| `voice` | string | | `"Minh Quân"` | Giọng đọc nhân vật |
+| `watermark` | object | optional | undefined | Cấu hình logo watermark đóng dấu lên video (chi tiết bên dưới) |
+
+##### Watermark Configuration Object (`watermark`):
+
+| Field | Type | Constraints | Default | Description |
+|---|---|---|---|---|
+| `logoPath` | string | Chuỗi không rỗng | bắt buộc | Đường dẫn file logo trên server hoặc đường dẫn URL tĩnh |
+| `position` | string | `top-left` \| `top-right` \| `bottom-left` \| `bottom-right` \| `custom` | `"bottom-right"` | Vị trí đặt logo tại 4 góc hoặc tọa độ tùy biến |
+| `scalePercent` | number | 5–50 | `15` | Kích thước chiều ngang logo theo % chiều rộng video |
+| `opacity` | number | 0.1–1.0 | `0.8` | Độ hiển thị / độ trong suốt của logo |
+| `xPercent` | number | 0–100 | optional | Tọa độ X tùy biến theo % chiều rộng (khi `position="custom"`) |
+| `yPercent` | number | 0–100 | optional | Tọa độ Y tùy biến theo % chiều cao (khi `position="custom"`) |
+
+Ví dụ có watermark:
+
 ```json
 {
-  "prompt": "Giới thiệu về Hà Nội, 3 cảnh: Hồ Gươm, phố cổ, ẩm thực",
-  "aspectRatio": "9:16",
-  "targetDurationSec": 45,
+  "prompt": "Video giới thiệu du lịch vịnh Hạ Long 3 cảnh đẹp kỳ vĩ",
+  "aspectRatio": "16:9",
+  "targetDurationSec": 30,
   "language": "vi",
-  "style": "cinematic"
+  "style": "modern",
+  "watermark": {
+    "logoPath": "/uploads/logos/7b8c2d1e-9a3f-4e5b-8c7d-1a2b3c4d5e6f.png",
+    "position": "bottom-right",
+    "scalePercent": 15,
+    "opacity": 0.8
+  }
 }
 ```
 
@@ -372,6 +405,104 @@ Response `202 Accepted`:
 #### Quotas & Rate Limits:
 - Rate-limited to **30 requests per minute per user** (`429` rate limit).
 - Per-user quotas (`QUOTA_MAX_CONCURRENT_JOBS` default 3, `QUOTA_MAX_DAILY_JOBS` default 20, `QUOTA_DAILY_BUDGET_USD` optional) are checked and reserved atomically before enqueueing. If exceeded, returns `429` with quota details.
+
+---
+
+## Brand Kit & Logo Watermark System
+
+Hệ thống cho phép người dùng tải lên hình ảnh biểu trưng thương hiệu (logo) an toàn và lưu cấu hình mặc định vào tài khoản (PostgreSQL).
+
+### `POST /api/brand-kit/upload`
+
+Tải tệp tin ảnh logo lên máy chủ để dùng làm watermark. Sử dụng `multipart/form-data`.
+
+- **Form field:** `logo` (chứa dữ liệu file nhị phân)
+- **Định dạng cho phép:** PNG (`image/png`), JPEG (`image/jpeg`), SVG (`image/svg+xml`), WebP (`image/webp`)
+- **Dung lượng tối đa:** 5 MB (`5 * 1024 * 1024` bytes)
+- **Bảo mật:**
+  - Kiểm tra Magic Bytes nhị phân (chống giả mạo phần mở rộng file).
+  - Tự động làm sạch mã độc SVG: loại bỏ thẻ `<script>`, `onload`, `onclick`, JavaScript URI `javascript:...`, và các thực thể XML ngoại vi (XXE injection).
+  - Đổi tên tệp ngẫu nhiên bằng UUID (chống Path Traversal).
+
+Response `200 OK`:
+
+```json
+{
+  "success": true,
+  "logoUrl": "/uploads/logos/7b8c2d1e-9a3f-4e5b-8c7d-1a2b3c4d5e6f.png",
+  "filePath": "C:\\Users\\ADMIN\\Documents\\LIME\\uploads\\logos\\7b8c2d1e-9a3f-4e5b-8c7d-1a2b3c4d5e6f.png",
+  "mimeType": "image/png"
+}
+```
+
+Response lỗi:
+- `400` → File vượt quá 5MB, MIME type không được hỗ trợ, hoặc magic bytes không khớp.
+
+### `GET /api/user/brand-kit` 🔒
+
+Lấy cấu hình thương hiệu và logo hiện tại của tài khoản người dùng đang đăng nhập.
+
+Response `200 OK`:
+
+```json
+{
+  "brandKit": {
+    "id": "...",
+    "userId": "...",
+    "logoUrl": "/uploads/logos/7b8c2d1e-9a3f-4e5b-8c7d-1a2b3c4d5e6f.png",
+    "position": "bottom-right",
+    "scalePct": 15,
+    "opacity": 0.8,
+    "xPct": null,
+    "yPct": null,
+    "createdAt": "2026-10-12T00:00:00.000Z",
+    "updatedAt": "2026-10-12T00:00:00.000Z"
+  }
+}
+```
+
+Nếu người dùng chưa từng lưu cài đặt thương hiệu nào, trường `brandKit` sẽ trả về `null`.
+
+### `PUT /api/user/brand-kit` 🔒
+
+Lưu (tạo mới hoặc cập nhật - Upsert) cấu hình thương hiệu mặc định của tài khoản người dùng vào cơ sở dữ liệu PostgreSQL.
+
+Request body:
+
+| Field | Type | Constraints | Default | Description |
+|---|---|---|---|---|
+| `logoUrl` | string | Chuỗi URL/đường dẫn | bắt buộc | Đường dẫn logo nhận được từ upload API |
+| `position` | string | `top-left` \| `top-right` \| `bottom-left` \| `bottom-right` \| `custom` | `"top-right"` | Vị trí góc ưu tiên |
+| `scalePct` | number | 5–50 | `15` | Tỷ lệ kích thước % |
+| `opacity` | number | 0.1–1.0 | `0.8` | Độ hiển thị |
+| `xPct` | number | 0–100 | null | Tọa độ ngang tùy biến (nếu có) |
+| `yPct` | number | 0–100 | null | Tọa độ dọc tùy biến (nếu có) |
+
+Ví dụ:
+
+```json
+{
+  "logoUrl": "/uploads/logos/7b8c2d1e-9a3f-4e5b-8c7d-1a2b3c4d5e6f.png",
+  "position": "bottom-right",
+  "scalePct": 15,
+  "opacity": 0.8
+}
+```
+
+Response `200 OK`:
+
+```json
+{
+  "success": true,
+  "brandKit": {
+    "userId": "...",
+    "logoUrl": "/uploads/logos/7b8c2d1e-9a3f-4e5b-8c7d-1a2b3c4d5e6f.png",
+    "position": "bottom-right",
+    "scalePct": 15,
+    "opacity": 0.8
+  }
+}
+```
 
 ---
 
