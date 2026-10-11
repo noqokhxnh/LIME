@@ -2,7 +2,7 @@ import fastify, { FastifyInstance, FastifyRequest, FastifyReply } from "fastify"
 import fastifyCors from "@fastify/cors";
 import fastifyStatic from "@fastify/static";
 import fastifyMultipart from "@fastify/multipart";
-import { existsSync, createReadStream, statSync, writeFileSync } from "node:fs";
+import { existsSync, createReadStream, statSync, writeFileSync, mkdirSync } from "node:fs";
 import { join } from "node:path";
 import { v4 } from "uuid";
 import { getConfig } from "./config.js";
@@ -50,6 +50,15 @@ export async function buildApp(options: { logger?: boolean, queue?: IVideoQueue 
             index: false,
         });
     }
+
+    // Đăng ký phục vụ tệp tĩnh ảnh logo từ thư mục tmp/uploads/logos
+    const logosDir = join(process.cwd(), "tmp", "uploads", "logos");
+    mkdirSync(logosDir, { recursive: true });
+    await app.register(fastifyStatic, {
+        root: logosDir,
+        prefix: "/uploads/logos/",
+        decorateReply: false,
+    });
 
     app.addHook("preHandler", async (request, reply) => {
         const url = request.url;
