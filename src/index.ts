@@ -1,7 +1,8 @@
 import fastify, { FastifyInstance, FastifyRequest, FastifyReply } from "fastify";
 import fastifyCors from "@fastify/cors";
 import fastifyStatic from "@fastify/static";
-import { existsSync, createReadStream, statSync } from "node:fs";
+import fastifyMultipart from "@fastify/multipart";
+import { existsSync, createReadStream, statSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { v4 } from "uuid";
 import { getConfig } from "./config.js";
@@ -15,6 +16,7 @@ import { processVideoJob } from "./queue/handler.js";
 import { IVideoQueue } from "./queue/interfaces.js";
 import { validatePrompt } from "./security/promptGuard.js";
 import { rateLimiter } from "./security/rateLimiter.js";
+import { validateUploadedFile, generateSafeFilePath } from "./security/uploadGuard.js";
 import { getCatalog, listBlueprints, listMotionBlocks } from "./templates/index.js";
 
 export const jobIpMap = new Map<string, string>();
@@ -29,6 +31,15 @@ export async function buildApp(options: { logger?: boolean, queue?: IVideoQueue 
     await app.register(fastifyCors, { origin: true , credentials: true });
     await app.register(fastifyCookie);
     await app.register(authRoutes);
+
+    // Đăng ký plugin xử lý upload file (multipart/form-data).
+    // Giới hạn kích thước mỗi file tối đa 5MB để tránh tấn công DoS bằng file lớn.
+    await app.register(fastifyMultipart, {
+        limits: {
+            fileSize: 5 * 1024 * 1024, // 5MB
+            files: 1,                  // Chỉ chấp nhận 1 file mỗi request
+        },
+    });
 
     const frontendDir = join(process.cwd(), "frontend");
     if (existsSync(frontendDir)) {
@@ -465,6 +476,71 @@ export async function buildApp(options: { logger?: boolean, queue?: IVideoQueue 
         }
         reply.header("Content-Disposition", `attachment; filename="video-${jobId}.mp4"`);
         reply.type("video/mp4").send(createReadStream(videoPath));
+    });
+    // ──────────────────────────────────────────────────────────────
+    // ROUTE: POST /api/brand-kit/upload
+    // Mục tiêu: Cho phép người dùng upload ảnh logo lên server.
+    //
+    // Quy trình xử lý:
+    //   1. Nhận file qua multipart/form-data (field tên "logo")
+    //   2. Đọc toàn bộ dữ liệu nhị phân vào Buffer
+    //   3. Gọi validateUploadedFile() để kiểm tra bảo mật:
+    //      - Kích thước <= 5MB
+    //      - MIME type hợp lệ (PNG/JPEG/SVG/WEBP)
+    //      - Magic bytes khớp MIME type (chống giả mạo định dạng)
+    //      - SVG: sanitize loại bỏ mã độc XSS/XXE
+    //   4. Lưu file với tên UUID ngẫu nhiên (chống Path Traversal)
+    //   5. Trả về đường dẫn URL để dùng trong watermark.logoPath
+    // ──────────────────────────────────────────────────────────────
+    app.post("/api/brand-kit/upload", async (request: FastifyRequest, reply: FastifyReply) => {
+        try {
+            // Lấy file từ form-data (field name phải là "logo")
+            const data = await request.file();
+            if (!data) {
+                reply.status(400);
+                return { error: 'Không tìm thấy file trong request. Hãy gửi file với field name là "logo".' };
+            }
+
+            // Đọc toàn bộ nội dung file vào Buffer để kiểm tra
+            const chunks: Buffer[] = [];
+            for await (const chunk of data.file) {
+                chunks.push(chunk);
+            }
+            const fileBuffer = Buffer.concat(chunks);
+
+            // Kiểm tra bảo mật toàn diện (kích thước, MIME, magic bytes, SVG sanitize)
+            const mimeType = data.mimetype || 'application/octet-stream';
+            const validation = validateUploadedFile(fileBuffer, mimeType);
+
+            if (!validation.isValid) {
+                reply.status(400);
+                return { error: validation.reason };
+            }
+
+            // Tạo đường dẫn lưu file với tên UUID (an toàn, không thể đoán)
+            const savePath = generateSafeFilePath(mimeType);
+
+            // Ghi file: SVG dùng nội dung đã sanitize, các định dạng khác dùng buffer gốc
+            if (mimeType === 'image/svg+xml' && validation.sanitizedContent) {
+                writeFileSync(savePath, validation.sanitizedContent, 'utf-8');
+            } else {
+                writeFileSync(savePath, fileBuffer);
+            }
+
+            // Tạo URL công khai để client dùng trong trường watermark.logoPath
+            // Đường dẫn tương đối từ thư mục gốc của dự án
+            const relativeUrl = `/uploads/logos/${savePath.split(/[\\/]/).pop()}`;
+
+            return {
+                success: true,
+                logoUrl: relativeUrl,   // Client dùng giá trị này làm watermark.logoPath
+                filePath: savePath,     // Đường dẫn tuyệt đối trên server (dùng nội bộ)
+                mimeType,
+            };
+        } catch (err: any) {
+            reply.status(500);
+            return { error: `Lỗi khi xử lý file upload: ${err.message}` };
+        }
     });
 
     return app;
