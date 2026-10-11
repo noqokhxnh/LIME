@@ -17,6 +17,7 @@ import { IVideoQueue } from "./queue/interfaces.js";
 import { validatePrompt } from "./security/promptGuard.js";
 import { rateLimiter } from "./security/rateLimiter.js";
 import { validateUploadedFile, generateSafeFilePath } from "./security/uploadGuard.js";
+import { getBrandKitByUserId, upsertBrandKit } from "./database/brandKit.js";
 import { getCatalog, listBlueprints, listMotionBlocks } from "./templates/index.js";
 
 export const jobIpMap = new Map<string, string>();
@@ -540,6 +541,66 @@ export async function buildApp(options: { logger?: boolean, queue?: IVideoQueue 
         } catch (err: any) {
             reply.status(500);
             return { error: `Lỗi khi xử lý file upload: ${err.message}` };
+        }
+    });
+    // ──────────────────────────────────────────────────────────────
+    // ROUTE: GET /api/user/brand-kit
+    // Mục tiêu: Lấy cài đặt logo hiện tại của tài khoản người dùng.
+    // Trả về null nếu người dùng chưa thiết lập brand kit lần nào.
+    // ──────────────────────────────────────────────────────────────
+    app.get("/api/user/brand-kit", async (request: FastifyRequest, reply: FastifyReply) => {
+        try {
+            // Lấy userId từ JWT session (cùng cơ chế với các route yêu cầu xác thực khác)
+            const userId = (request as any).user?.id;
+            if (!userId) {
+                reply.status(401);
+                return { error: 'Yêu cầu đăng nhập để truy cập cài đặt brand kit.' };
+            }
+
+            const brandKit = await getBrandKitByUserId(userId);
+
+            // Trả về null nếu chưa thiết lập, client tự hiển thị UI mặc định
+            return { brandKit };
+        } catch (err: any) {
+            reply.status(500);
+            return { error: `Lỗi khi đọc cài đặt brand kit: ${err.message}` };
+        }
+    });
+
+    // ──────────────────────────────────────────────────────────────
+    // ROUTE: PUT /api/user/brand-kit
+    // Mục tiêu: Lưu (tạo mới hoặc cập nhật) cài đặt logo của người dùng.
+    // Dùng upsert nên không cần kiểm tra tồn tại trước.
+    // ──────────────────────────────────────────────────────────────
+    app.put("/api/user/brand-kit", async (request: FastifyRequest, reply: FastifyReply) => {
+        try {
+            const userId = (request as any).user?.id;
+            if (!userId) {
+                reply.status(401);
+                return { error: 'Yêu cầu đăng nhập để lưu cài đặt brand kit.' };
+            }
+
+            // Lấy dữ liệu từ body và kiểm tra các trường bắt buộc
+            const body = (request.body as any) || {};
+
+            if (!body.logoUrl || typeof body.logoUrl !== 'string') {
+                reply.status(400);
+                return { error: 'Trường logoUrl là bắt buộc và phải là chuỗi ký tự.' };
+            }
+
+            const saved = await upsertBrandKit(userId, {
+                logoUrl:  body.logoUrl,
+                position: body.position  ?? 'top-right',
+                scalePct: body.scalePct  ?? 15,
+                opacity:  body.opacity   ?? 0.8,
+                xPct:     body.xPct      ?? null,
+                yPct:     body.yPct      ?? null,
+            });
+
+            return { success: true, brandKit: saved };
+        } catch (err: any) {
+            reply.status(500);
+            return { error: `Lỗi khi lưu cài đặt brand kit: ${err.message}` };
         }
     });
 
