@@ -117,6 +117,52 @@
                     </select>
                 </div>
 
+                <details class="templates-panel" id="brand-kit-panel">
+                    <summary>🏷️ Brand Kit &amp; Logo Watermark</summary>
+                    <div class="templates-body">
+                        <div class="form-group">
+                            <label for="logo-file-input">Ảnh Logo thương hiệu:</label>
+                            <div class="logo-upload-box">
+                                <input type="file" id="logo-file-input" accept=".png,.jpg,.jpeg,.svg,.webp" style="display: none;">
+                                <button type="button" id="logo-upload-btn" class="btn-chip">📁 Chọn file logo...</button>
+                                <span id="logo-filename" class="logo-filename">Chưa chọn logo</span>
+                                <button type="button" id="logo-remove-btn" class="btn-chip danger" style="display: none;" title="Xóa logo">✕</button>
+                            </div>
+                            <small class="form-hint">Hỗ trợ PNG, JPG, SVG, WebP (tối đa 5MB). SVG sẽ được khử độc mã tự động.</small>
+                        </div>
+
+                        <div class="form-group">
+                            <label>Vị trí đóng dấu logo:</label>
+                            <div class="position-grid">
+                                <button type="button" class="pos-btn" data-pos="top-left" title="Góc trên bên trái">↖ Trên - Trái</button>
+                                <button type="button" class="pos-btn" data-pos="top-right" title="Góc trên bên phải">↗ Trên - Phải</button>
+                                <button type="button" class="pos-btn" data-pos="bottom-left" title="Góc dưới bên trái">↙ Dưới - Trái</button>
+                                <button type="button" class="pos-btn active" data-pos="bottom-right" title="Góc dưới bên phải">↘ Dưới - Phải</button>
+                            </div>
+                        </div>
+
+                        <div class="form-group">
+                            <div class="slider-header">
+                                <label for="watermark-scale">Kích thước logo (Scale):</label>
+                                <span id="watermark-scale-val" class="slider-badge">15%</span>
+                            </div>
+                            <input type="range" id="watermark-scale" min="5" max="40" value="15" step="1">
+                            <small class="form-hint">Chiếm từ 5% đến 40% chiều rộng khung hình video.</small>
+                        </div>
+
+                        <div class="form-group">
+                            <div class="slider-header">
+                                <label for="watermark-opacity">Độ hiển thị (Opacity):</label>
+                                <span id="watermark-opacity-val" class="slider-badge">80%</span>
+                            </div>
+                            <input type="range" id="watermark-opacity" min="10" max="100" value="80" step="5">
+                            <small class="form-hint">Từ 10% (mờ trong suốt) đến 100% (rõ nét hoàn toàn).</small>
+                        </div>
+
+                        <button type="button" id="save-brand-kit-btn" class="btn-chip" style="align-self: flex-start; display: none;">💾 Lưu cài đặt cho tài khoản</button>
+                    </div>
+                </details>
+
                 <button id="generate-btn" class="btn-primary" style="margin-top: 15px;">
                     <span id="btn-spinner" class="spinner"></span>
                     <span id="btn-text">Tạo Video</span>
@@ -147,6 +193,8 @@
                         <span>Chưa có video. Nhập prompt và nhấn "Tạo Video".</span>
                     </div>
                     <video id="video-player" controls playsinline></video>
+                    <!-- Lớp xem thử (Live Preview) vị trí, kích thước và độ mờ của logo trên khung video -->
+                    <img id="watermark-preview-overlay" class="watermark-preview-overlay pos-bottom-right" style="display: none;" alt="Preview Watermark">
                 </div>
                 <div class="video-actions">
                     <a id="btn-download" class="btn-action" style="display: none;" download>
