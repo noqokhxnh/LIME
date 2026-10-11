@@ -707,7 +707,7 @@ window.addEventListener('scroll', () => {
             let pointerEvents = 'none';
 
             if (rel === 0) {
-                // Front Active Card
+                // Thẻ 1: Mặt chính diện (Active Front Card)
                 xOffset = 0;
                 zOffset = 0;
                 scale = 1;
@@ -715,25 +715,24 @@ window.addEventListener('scroll', () => {
                 zIndex = 12;
                 pointerEvents = 'auto';
             } else if (rel === 1) {
-                // Second Card (Lùi nhẹ ra sau và lệch sang trái)
-                xOffset = isMobile ? -36 : -130;
-                zOffset = isMobile ? -70 : -140;
+                // Thẻ 2: Lớp giữa (Behind and to the left)
+                xOffset = isMobile ? -28 : -95;
+                zOffset = isMobile ? -60 : -120;
                 scale = 0.92;
-                opacity = 0.72;
+                opacity = 0.78;
                 zIndex = 8;
                 pointerEvents = 'auto';
             } else if (rel === 2) {
-                // Third Card (Lùi sâu hơn)
-                xOffset = isMobile ? -72 : -250;
-                zOffset = isMobile ? -140 : -280;
+                // Thẻ 3: Lớp sâu nhất (Furthest back and to the left)
+                xOffset = isMobile ? -56 : -190;
+                zOffset = isMobile ? -120 : -240;
                 scale = 0.84;
-                opacity = 0.38;
+                opacity = 0.45;
                 zIndex = 4;
                 pointerEvents = 'auto';
             } else {
-                // Off-stage Card (chuẩn bị vòng lại)
-                xOffset = isMobile ? -100 : -350;
-                zOffset = isMobile ? -200 : -400;
+                xOffset = isMobile ? -80 : -280;
+                zOffset = isMobile ? -180 : -360;
                 scale = 0.76;
                 opacity = 0;
                 zIndex = 1;

@@ -2476,19 +2476,88 @@ button:focus-visible, input:focus-visible, textarea:focus-visible, select:focus-
     white-space: nowrap;
 }
 
+/* Thẻ chứa chính của Trang chủ (Hero Showcase Card) với Hiệu ứng đổ bóng nổi khối cao cấp */
+.hero-showcase-card,
 .intro-hero-container {
     position: relative;
     z-index: 2;
+    background: radial-gradient(circle at 86% 28%, rgba(217, 249, 157, 0.2) 0%, rgba(255, 255, 255, 0) 55%), #ffffff;
+    border: 1px solid rgba(0, 0, 0, 0.08);
+    border-radius: 36px;
+    padding: 40px 44px 24px;
+    /* Hiệu ứng bóng nổi khối đa tầng (Multi-layer Ambient + Elevation Shadow) */
+    box-shadow: 
+        0 30px 70px -15px rgba(15, 23, 42, 0.12),
+        0 14px 32px -8px rgba(15, 23, 42, 0.07),
+        0 24px 50px -12px rgba(163, 230, 53, 0.22),
+        0 4px 12px rgba(0, 0, 0, 0.03),
+        inset 0 1px 0 0 rgba(255, 255, 255, 0.95);
+    display: flex;
+    flex-direction: column;
+    gap: 26px;
+    transition: transform 0.35s cubic-bezier(0.16, 1, 0.3, 1), box-shadow 0.35s cubic-bezier(0.16, 1, 0.3, 1), border-color 0.3s ease;
+}
+
+/* Lưới 2 cột chính trong thẻ (Trái: Nội dung mô tả | Phải: Carousel 3D) */
+.hero-card-main-grid {
     display: grid;
-    grid-template-columns: 1.18fr 0.82fr;
+    grid-template-columns: 1.15fr 0.85fr;
     gap: 40px;
     align-items: center;
+    width: 100%;
+}
+
+/* Lớp hào quang bóng mềm tỏa sáng phía sau (Ambient Shadow Aura) */
+.hero-showcase-card::before,
+.intro-hero-container::before {
+    content: "";
+    position: absolute;
+    inset: 14px;
+    border-radius: 40px;
+    background: radial-gradient(ellipse at 75% 45%, rgba(163, 230, 53, 0.24) 0%, rgba(15, 23, 42, 0.07) 55%, transparent 75%);
+    filter: blur(28px);
+    z-index: -1;
+    pointer-events: none;
+    transform: translateY(14px);
+    transition: transform 0.35s ease, filter 0.35s ease, opacity 0.35s ease;
+}
+
+.hero-showcase-card:hover,
+.intro-hero-container:hover {
+    transform: translateY(-4px);
+    box-shadow: 
+        0 40px 90px -18px rgba(15, 23, 42, 0.16),
+        0 20px 42px -10px rgba(15, 23, 42, 0.09),
+        0 32px 75px -14px rgba(163, 230, 53, 0.32),
+        0 6px 16px rgba(0, 0, 0, 0.04),
+        inset 0 1px 0 0 rgba(255, 255, 255, 1);
+    border-color: rgba(0, 0, 0, 0.13);
+}
+
+.hero-showcase-card:hover::before,
+.intro-hero-container:hover::before {
+    transform: translateY(20px) scale(1.02);
+    filter: blur(34px);
+    opacity: 0.95;
 }
 
 @media (max-width: 1024px) {
+    .hero-showcase-card,
     .intro-hero-container {
+        padding: 32px 24px 20px;
+    }
+    .hero-card-main-grid {
         grid-template-columns: 1fr;
-        gap: 50px;
+        gap: 36px;
+    }
+}
+
+@media (max-width: 640px) {
+    .hero-showcase-card,
+    .intro-hero-container {
+        padding: 22px 14px 16px;
+        border-radius: 24px;
+        gap: 20px;
     }
 }
 
@@ -2596,8 +2665,8 @@ button:focus-visible, input:focus-visible, textarea:focus-visible, select:focus-
 .carousel-3d-wrapper {
     perspective: 1200px;
     width: 100%;
-    max-width: 480px;
-    height: 440px;
+    max-width: 460px;
+    height: 420px;
     position: relative;
     margin: 0 auto;
 }
@@ -2613,20 +2682,32 @@ button:focus-visible, input:focus-visible, textarea:focus-visible, select:focus-
     position: absolute;
     top: 0;
     right: 0;
-    width: 340px;
-    height: 410px;
-    border-radius: 26px;
+    width: 320px;
+    height: 395px;
+    border-radius: 24px;
     border: 1px solid rgba(0, 0, 0, 0.08);
     background: #ffffff;
     padding: 12px;
-    box-shadow: 0 20px 50px rgba(0, 0, 0, 0.09), 0 4px 12px rgba(0, 0, 0, 0.03);
+    box-shadow: 
+        0 22px 50px -10px rgba(0, 0, 0, 0.16),
+        0 8px 20px -4px rgba(0, 0, 0, 0.06),
+        0 0 0 1px rgba(0, 0, 0, 0.03);
     cursor: pointer;
     transition: all 0.8s cubic-bezier(0.25, 1, 0.5, 1);
     transform-origin: center right;
 }
 
+.carousel-3d-card:hover {
+    box-shadow: 
+        0 30px 65px -12px rgba(0, 0, 0, 0.22),
+        0 12px 28px -6px rgba(0, 0, 0, 0.09),
+        0 0 0 1px rgba(0, 0, 0, 0.05);
+}
+
 @media (max-width: 640px) {
     .carousel-3d-card {
+        width: 290px;
+        height: 375px;
         right: auto;
         left: 50%;
         transform-origin: center center;
@@ -2854,12 +2935,20 @@ button:focus-visible, input:focus-visible, textarea:focus-visible, select:focus-
 /* Indicators */
 .carousel-indicators {
     position: absolute;
-    bottom: -16px;
-    right: 80px;
+    bottom: -14px;
+    right: 40px;
     display: flex;
     align-items: center;
-    gap: 6px;
+    gap: 7px;
     z-index: 25;
+}
+
+@media (max-width: 640px) {
+    .carousel-indicators {
+        right: auto;
+        left: 50%;
+        transform: translateX(-50%);
+    }
 }
 
 .indicator-dot {
@@ -2877,146 +2966,122 @@ button:focus-visible, input:focus-visible, textarea:focus-visible, select:focus-
 }
 
 /* =====================================================================
-   Intro Stats & Workflow Strip (Phần dưới Trang chủ)
+   Băng chuyền nội dung (Conveyor Belt - Đặt dưới cùng trong Thẻ chứa chính)
    ===================================================================== */
-.intro-stats-workflow-wrap {
-    position: relative;
-    z-index: 2;
-    margin-top: 48px;
+.hero-card-conveyor-wrap {
+    width: 100%;
+    border-top: 1px solid rgba(0, 0, 0, 0.06);
+    padding-top: 18px;
     display: flex;
-    flex-direction: column;
-    gap: 18px;
-}
-
-.intro-metrics-row {
-    display: grid;
-    grid-template-columns: repeat(4, 1fr);
+    align-items: center;
     gap: 16px;
+    overflow: hidden;
+    position: relative;
 }
 
-@media (max-width: 960px) {
-    .intro-metrics-row { grid-template-columns: repeat(2, 1fr); }
-}
-
-@media (max-width: 520px) {
-    .intro-metrics-row { grid-template-columns: 1fr; }
-}
-
-.metric-card-item {
-    display: flex;
+.conveyor-belt-label {
+    display: inline-flex;
     align-items: center;
-    gap: 14px;
-    padding: 16px 18px;
-    border-radius: 20px;
-    background: #ffffff;
+    gap: 8px;
+    padding: 6px 14px;
+    border-radius: var(--radius-full);
+    background: var(--neutral-100);
     border: 1px solid rgba(0, 0, 0, 0.06);
-    box-shadow: 0 6px 20px rgba(0, 0, 0, 0.03);
-    transition: transform 0.2s ease, box-shadow 0.2s ease, border-color 0.2s ease;
-}
-
-.metric-card-item:hover {
-    transform: translateY(-2px);
-    box-shadow: 0 10px 28px rgba(0, 0, 0, 0.06);
-    border-color: rgba(0, 0, 0, 0.12);
-}
-
-.metric-icon-wrap {
-    font-size: 24px;
-    line-height: 1;
-    width: 44px;
-    height: 44px;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    border-radius: 14px;
-    background: var(--neutral-50);
-    border: 1px solid var(--neutral-100);
-}
-
-.metric-content {
-    display: flex;
-    flex-direction: column;
-}
-
-.metric-number {
-    font-size: 16px;
-    font-weight: 800;
-    color: var(--neutral-950);
-    letter-spacing: -0.02em;
-}
-
-.metric-label {
     font-size: 11px;
-    font-weight: 500;
-    color: var(--neutral-500);
+    font-weight: 800;
+    color: var(--neutral-800);
+    white-space: nowrap;
+    flex-shrink: 0;
+    letter-spacing: 0.02em;
 }
 
-.intro-workflow-strip {
+.conveyor-pulse-dot {
+    width: 7px;
+    height: 7px;
+    border-radius: 50%;
+    background: var(--lime-500);
+    box-shadow: 0 0 10px rgba(163, 230, 53, 0.9);
+    animation: pulseDot 2s ease-in-out infinite;
+}
+
+@keyframes pulseDot {
+    0%, 100% { opacity: 1; transform: scale(1); }
+    50% { opacity: 0.45; transform: scale(0.8); }
+}
+
+.conveyor-belt-viewport {
+    flex: 1;
+    overflow: hidden;
+    position: relative;
+    mask-image: linear-gradient(to right, transparent, black 4%, black 96%, transparent);
+    -webkit-mask-image: linear-gradient(to right, transparent, black 4%, black 96%, transparent);
+}
+
+.conveyor-belt-track {
     display: flex;
     align-items: center;
-    justify-content: space-between;
-    gap: 20px;
-    padding: 14px 24px;
-    border-radius: 20px;
-    background: #ffffff;
-    border: 1px solid rgba(0, 0, 0, 0.06);
-    box-shadow: 0 6px 20px rgba(0, 0, 0, 0.02);
+    gap: 12px;
+    width: max-content;
+    animation: conveyorScroll 34s linear infinite;
+    will-change: transform;
 }
 
-@media (max-width: 800px) {
-    .intro-workflow-strip {
-        flex-direction: column;
-        align-items: flex-start;
+.hero-card-conveyor-wrap:hover .conveyor-belt-track {
+    animation-play-state: paused;
+}
+
+@keyframes conveyorScroll {
+    0% {
+        transform: translateX(0);
+    }
+    100% {
+        transform: translateX(-50%);
     }
 }
 
-.wf-strip-tag {
-    border-radius: var(--radius-full);
-    background: var(--lime-300);
-    color: var(--lime-950);
-    font-size: 10px;
-    font-weight: 800;
-    padding: 4px 12px;
-    text-transform: uppercase;
-    letter-spacing: 0.05em;
-    white-space: nowrap;
-}
-
-.wf-steps-flow {
-    display: flex;
-    align-items: center;
-    gap: 16px;
-    flex-wrap: wrap;
-    flex: 1;
-    justify-content: space-around;
-}
-
-.wf-step-node {
-    display: flex;
+.conveyor-item-chip {
+    display: inline-flex;
     align-items: center;
     gap: 8px;
-}
-
-.wf-node-num {
-    font-family: var(--font-mono);
-    font-size: 11px;
-    font-weight: 800;
-    color: var(--neutral-950);
-    background: var(--neutral-100);
-    padding: 2px 7px;
-    border-radius: 6px;
-}
-
-.wf-node-text {
+    padding: 7px 16px;
+    border-radius: var(--radius-full);
+    background: #ffffff;
+    border: 1px solid rgba(0, 0, 0, 0.08);
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.02);
+    white-space: nowrap;
     font-size: 12px;
     font-weight: 700;
     color: var(--neutral-700);
+    transition: all 0.2s ease;
+    user-select: none;
+    cursor: default;
 }
 
-.wf-step-arrow {
-    color: var(--neutral-300);
-    font-weight: 800;
-    font-size: 12px;
+.conveyor-item-chip:hover {
+    transform: translateY(-2px);
+    border-color: var(--lime-500);
+    color: var(--neutral-950);
+    box-shadow: 0 8px 20px rgba(163, 230, 53, 0.22);
+}
+
+.chip-icon {
+    font-size: 14px;
+    line-height: 1;
+}
+
+.chip-title {
+    letter-spacing: -0.01em;
+}
+
+@media (max-width: 768px) {
+    .hero-card-conveyor-wrap {
+        flex-direction: column;
+        align-items: flex-start;
+        gap: 12px;
+    }
+    .conveyor-belt-viewport {
+        width: 100%;
+    }
 }
 
 /* =====================================================================
