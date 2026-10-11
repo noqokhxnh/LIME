@@ -15,7 +15,13 @@ export interface TTSClient {
     synthesize(
         text: string,
         outputPath: string,
-        options?: { voice?: string; language?: string; signal?: AbortSignal }
+        options?: {
+            voice?: string;
+            language?: string;
+            speechRate?: string | number;
+            pitch?: string;
+            signal?: AbortSignal;
+        }
     ): Promise<void>;
 }
 
@@ -361,6 +367,127 @@ export class ElevenLabsTTSClient implements TTSClient {
     }
 }
 
+// ---------------------------------------------------------------- VieNeu TTS (Local AI)
+
+export const VIENEU_PRESET_VOICES = [
+    { id: "Minh Quân", name: "Minh Quân (Nam · Bắc · Tự nhiên)", gender: "male", language: "vi" },
+    { id: "Mai Anh", name: "Mai Anh (Nữ · Bắc · Tin tức)", gender: "female", language: "vi" },
+    { id: "Adam", name: "Adam (Nam · Nam · Tự nhiên)", gender: "male", language: "vi" },
+    { id: "Ái Hân", name: "Ái Hân (Nữ · Nam · Tin tức)", gender: "female", language: "vi" },
+    { id: "Mỹ Duyên", name: "Mỹ Duyên (Nữ · Bắc · Đọc truyện)", gender: "female", language: "vi" },
+    { id: "Đức Trí", name: "Đức Trí (Nam · Bắc · Đọc truyện)", gender: "male", language: "vi" },
+    { id: "Hữu Quân", name: "Hữu Quân (Nam · Bắc · Tin tức)", gender: "male", language: "vi" },
+    { id: "Xuân Tiên", name: "Xuân Tiên (Nữ · Bắc · Tin tức)", gender: "female", language: "vi" },
+    { id: "Trúc Ly", name: "Trúc Ly (Nữ · Bắc · Tự nhiên)", gender: "female", language: "vi" },
+    { id: "Anh Khôi", name: "Anh Khôi (Nam · Bắc · Kể chuyện)", gender: "male", language: "vi" },
+    { id: "Mạnh Dũng", name: "Mạnh Dũng (Nam · Bắc · Tự nhiên)", gender: "male", language: "vi" },
+];
+
+export async function fetchVieNeuVoices(baseUrl?: string): Promise<
+    Array<{
+        id: string;
+        name: string;
+        language: string;
+        gender: string;
+        provider: string;
+    }>
+> {
+    const targetUrl = (baseUrl || getConfig().VIENEU_TTS_URL || "http://127.0.0.1:7860").replace(/\/+$/, "");
+    try {
+        const controller = new AbortController();
+        const timeout = setTimeout(() => controller.abort(), 2000);
+        const res = await fetch(`${targetUrl}/api/voices`, { signal: controller.signal });
+        clearTimeout(timeout);
+        if (res.ok) {
+            const data = (await res.json()) as any[];
+            if (Array.isArray(data) && data.length > 0) {
+                return data.map((v) => {
+                    const preset = VIENEU_PRESET_VOICES.find((p) => p.id === (v.id || v.name));
+                    return {
+                        id: v.id || v.name,
+                        name: `${v.name || v.id} (VieNeu Local)`,
+                        language: preset?.language || "vi",
+                        gender: preset?.gender || "unknown",
+                        provider: "vieneu",
+                    };
+                });
+            }
+        }
+    } catch {
+        // Fall back to preset voices if microservice not responding
+    }
+
+    return VIENEU_PRESET_VOICES.map((v) => ({
+        id: v.id,
+        name: `${v.name} (VieNeu Local)`,
+        language: v.language,
+        gender: v.gender,
+        provider: "vieneu",
+    }));
+}
+
+export class VieNeuTTSClient implements TTSClient {
+    readonly provider = "vieneu";
+    private readonly config: Config;
+
+    constructor(config: Config) {
+        this.config = config;
+    }
+
+    async synthesize(
+        text: string,
+        outputPath: string,
+        options?: {
+            voice?: string;
+            language?: string;
+            speechRate?: string | number;
+            pitch?: string;
+            signal?: AbortSignal;
+        }
+    ): Promise<void> {
+        const baseUrl = (this.config.VIENEU_TTS_URL || process.env.VIENEU_TTS_URL || "http://127.0.0.1:7860").replace(/\/+$/, "");
+        const validPreset = VIENEU_PRESET_VOICES.find(
+            (p) => p.id.toLowerCase() === (options?.voice || "").toLowerCase()
+        );
+        const voice = validPreset
+            ? validPreset.id
+            : (this.config.TTS_Voice && VIENEU_PRESET_VOICES.some(p => p.id === this.config.TTS_Voice))
+                ? this.config.TTS_Voice
+                : "Minh Quân";
+
+        let speed = 1.0;
+        if (typeof options?.speechRate === "number") {
+            speed = options.speechRate;
+        } else if (typeof options?.speechRate === "string") {
+            const parsed = parseFloat(options.speechRate);
+            if (!isNaN(parsed) && parsed > 0) {
+                speed = parsed;
+            }
+        }
+
+        const res = await fetch(`${baseUrl}/api/tts`, {
+            method: "POST",
+            headers: {
+                "Content-Type": "application/json",
+            },
+            body: JSON.stringify({
+                text,
+                voice,
+                speed,
+            }),
+            signal: options?.signal,
+        });
+
+        if (!res.ok) {
+            const errorText = await res.text();
+            throw new Error(`VieNeu-TTS error (${res.status}): ${errorText}`);
+        }
+
+        const buffer = Buffer.from(await res.arrayBuffer());
+        writeFileSync(outputPath, buffer);
+    }
+}
+
 // ---------------------------------------------------------------- Factory
 
 let _ttsClient: TTSClient | null = null;
@@ -373,25 +500,29 @@ export function setTTSClient(client: TTSClient | null): void {
     _ttsClient = client;
 }
 
+export function createTTSClient(provider?: string, config?: Config): TTSClient {
+    const cfg = config || getConfig();
+    const p = provider || cfg.TTS_Provider;
+    switch (p) {
+        case "edge":
+            return new EdgeTTSClient(cfg);
+        case "openai":
+            return new OpenAITTSClient(cfg);
+        case "google":
+            return new GoogleTTSClient(cfg);
+        case "elevenlabs":
+            return new ElevenLabsTTSClient(cfg);
+        case "vieneu":
+            return new VieNeuTTSClient(cfg);
+        default:
+            throw new Error(`Unsupported TTS provider: ${p}`);
+    }
+}
+
 export function getTTSClient(): TTSClient {
     if (!_ttsClient) {
         const config = getConfig();
-        switch (config.TTS_Provider) {
-            case "edge":
-                _ttsClient = new EdgeTTSClient(config);
-                break;
-            case "openai":
-                _ttsClient = new OpenAITTSClient(config);
-                break;
-            case "google":
-                _ttsClient = new GoogleTTSClient(config);
-                break;
-            case "elevenlabs":
-                _ttsClient = new ElevenLabsTTSClient(config);
-                break;
-            default:
-                throw new Error(`Unsupported TTS provider: ${config.TTS_Provider}`);
-        }
+        _ttsClient = createTTSClient(config.TTS_Provider, config);
         console.log(`Using TTS: ${_ttsClient.provider}`);
     }
     return _ttsClient;
@@ -480,6 +611,7 @@ export interface AudioSynthesisOptions {
     voice?: string;
     language?: string;
     bgmVolume?: number;
+    ttsProvider?: 'edge' | 'elevenlabs' | 'openai' | 'google' | 'vieneu' | string;
     onProgress?: (message: string, progress?: number) => void;
     signal?: AbortSignal;
 }
@@ -490,7 +622,7 @@ export interface AudioSynthesisOptions {
  * sceneDurations từ đây là nguồn sự thật cho timing animation.
  */
 export async function synthesizeAudio(options: AudioSynthesisOptions): Promise<AudioResult> {
-    const { script, outputDir, bgmPath, voice, language = "vi", bgmVolume = 0.15, onProgress, signal } = options;
+    const { script, outputDir, bgmPath, voice, language = "vi", bgmVolume = 0.15, ttsProvider, onProgress, signal } = options;
 
     if (script.scenes.length === 0) {
         throw new Error("Script has no scenes to synthesize");
@@ -499,7 +631,7 @@ export async function synthesizeAudio(options: AudioSynthesisOptions): Promise<A
     const audioDir = join(outputDir, "audio");
     mkdirSync(audioDir, { recursive: true });
 
-    const tts = getTTSClient();
+    const tts = ttsProvider ? createTTSClient(ttsProvider) : getTTSClient();
     const audioFiles: Record<string, string> = {};
     const sceneDurations: durationMap = {};
     const total = script.scenes.length;

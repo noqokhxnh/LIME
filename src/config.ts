@@ -7,6 +7,9 @@ const envSchema = z.object({
     PORT: z.coerce.number().default(3000),
     NODE_ENV: z.enum(['production', 'development']).default('development'),
     DATABASE_URL: z.string().optional(),
+    SESSION_TTL_DAYS: z.coerce.number().int().positive().default(7),
+    QUEUE_TYPE: z.enum(['redis', 'memory']).default('memory'),
+    REDIS_URL: z.string().optional(),
 
 
     LLM_Provider: z.preprocess(
@@ -49,7 +52,8 @@ const envSchema = z.object({
     Claude_APIKEY: z.string().optional(),
     Claude_Model: z.string().default("claude sonnet 4.5"),
 
-    TTS_Provider: z.enum(['edge', 'elevenlabs', 'openai', 'google']).default('edge'),
+    TTS_Provider: z.enum(['edge', 'elevenlabs', 'openai', 'google', 'vieneu']).default('edge'),
+    VIENEU_TTS_URL: z.string().default('http://127.0.0.1:7860'),
     TTS_Voice: z.string().default('alloy'),
 
     Elevenlabs_API_KEY: z.string().optional(),
@@ -62,6 +66,9 @@ const envSchema = z.object({
     Default_Width: z.coerce.number().default(1920),
     Default_Height: z.coerce.number().default(1080),
 
+    GOOGLE_CLIENT_ID: z.string().optional(),
+    GOOGLE_CLIENT_SECRET: z.string().optional(),
+    GOOGLE_REDIRECT_URI: z.string().default('http://localhost:3000/api/auth/google/callback'),
 });
 
 export type Config = z.infer<typeof envSchema>;
