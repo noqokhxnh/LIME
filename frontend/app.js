@@ -670,8 +670,8 @@ if (logoutBtn) {
 // Navigation Active Scroll Highlight
 window.addEventListener('scroll', () => {
     const navLinks = document.querySelectorAll('.nav-links-pill .nav-link-btn');
-    const sections = ['templates', 'workspace', 'services'];
-    let current = 'workspace';
+    const sections = ['home', 'workspace', 'templates', 'services'];
+    let current = 'home';
     sections.forEach(id => {
         const el = document.getElementById(id);
         if (el) {
@@ -683,3 +683,216 @@ window.addEventListener('scroll', () => {
         link.classList.toggle('active', link.getAttribute('href') === `#${current}`);
     });
 });
+
+// --- 3D Stacking Cards Carousel Controller (Trang chủ) ---
+(function initHero3DCarousel() {
+    const track = document.getElementById('hero-carousel');
+    const cards = document.querySelectorAll('.carousel-3d-card');
+    const dots = document.querySelectorAll('.indicator-dot');
+    if (!track || !cards.length) return;
+
+    let currentIndex = 0;
+    const totalCards = cards.length;
+    let autoRotateTimer = null;
+
+    function updateCarousel() {
+        const isMobile = window.innerWidth <= 640;
+        cards.forEach((card, index) => {
+            const rel = (index - currentIndex + totalCards) % totalCards;
+            let xOffset = 0;
+            let zOffset = 0;
+            let scale = 1;
+            let opacity = 0;
+            let zIndex = 0;
+            let pointerEvents = 'none';
+
+            if (rel === 0) {
+                // Front Active Card
+                xOffset = 0;
+                zOffset = 0;
+                scale = 1;
+                opacity = 1;
+                zIndex = 12;
+                pointerEvents = 'auto';
+            } else if (rel === 1) {
+                // Second Card (Lùi nhẹ ra sau và lệch sang trái)
+                xOffset = isMobile ? -36 : -130;
+                zOffset = isMobile ? -70 : -140;
+                scale = 0.92;
+                opacity = 0.72;
+                zIndex = 8;
+                pointerEvents = 'auto';
+            } else if (rel === 2) {
+                // Third Card (Lùi sâu hơn)
+                xOffset = isMobile ? -72 : -250;
+                zOffset = isMobile ? -140 : -280;
+                scale = 0.84;
+                opacity = 0.38;
+                zIndex = 4;
+                pointerEvents = 'auto';
+            } else {
+                // Off-stage Card (chuẩn bị vòng lại)
+                xOffset = isMobile ? -100 : -350;
+                zOffset = isMobile ? -200 : -400;
+                scale = 0.76;
+                opacity = 0;
+                zIndex = 1;
+                pointerEvents = 'none';
+            }
+
+            const baseTransform = isMobile ? 'translateX(-50%) ' : '';
+            card.style.transform = `${baseTransform}translate3d(${xOffset}px, 0px, ${zOffset}px) scale(${scale})`;
+            card.style.opacity = String(opacity);
+            card.style.zIndex = String(zIndex);
+            card.style.pointerEvents = pointerEvents;
+        });
+
+        // Cập nhật dots chỉ báo
+        dots.forEach((dot, dotIdx) => {
+            dot.classList.toggle('active', dotIdx === currentIndex);
+        });
+    }
+
+    function nextSlide() {
+        currentIndex = (currentIndex + 1) % totalCards;
+        updateCarousel();
+    }
+
+    function startAutoRotate() {
+        stopAutoRotate();
+        autoRotateTimer = setInterval(nextSlide, 3800);
+    }
+
+    function stopAutoRotate() {
+        if (autoRotateTimer) {
+            clearInterval(autoRotateTimer);
+            autoRotateTimer = null;
+        }
+    }
+
+    // Sự kiện tương tác trực tiếp lên từng thẻ
+    cards.forEach((card, index) => {
+        card.addEventListener('click', () => {
+            if (currentIndex !== index) {
+                currentIndex = index;
+                updateCarousel();
+                startAutoRotate();
+            }
+        });
+    });
+
+    // Sự kiện chọn indicator dots
+    dots.forEach((dot, dotIdx) => {
+        dot.addEventListener('click', () => {
+            currentIndex = dotIdx;
+            updateCarousel();
+            startAutoRotate();
+        });
+    });
+
+    // Tạm dừng khi rê chuột / chạm vào carousel
+    track.addEventListener('mouseenter', stopAutoRotate);
+    track.addEventListener('mouseleave', startAutoRotate);
+    track.addEventListener('touchstart', stopAutoRotate, { passive: true });
+    track.addEventListener('touchend', startAutoRotate, { passive: true });
+
+    window.addEventListener('resize', () => {
+        updateCarousel();
+    });
+
+    // Khởi tạo trạng thái ban đầu
+    updateCarousel();
+    startAutoRotate();
+})();
+
+// --- Templates Filter Logic ---
+const tplFilterBtns = document.querySelectorAll('.tpl-filter-btn');
+const tplCards = document.querySelectorAll('.template-item-card');
+
+tplFilterBtns.forEach(btn => {
+    btn.addEventListener('click', () => {
+        tplFilterBtns.forEach(b => b.classList.remove('active'));
+        btn.classList.add('active');
+        const cat = btn.getAttribute('data-category') || 'all';
+
+        tplCards.forEach(card => {
+            const cardCat = card.getAttribute('data-category');
+            if (cat === 'all' || cardCat === cat) {
+                card.style.display = 'flex';
+            } else {
+                card.style.display = 'none';
+            }
+        });
+    });
+});
+
+// --- Use Template Button Click ---
+const useTemplateBtns = document.querySelectorAll('.btn-use-template');
+useTemplateBtns.forEach(btn => {
+    btn.addEventListener('click', () => {
+        const prompt = btn.getAttribute('data-prompt');
+        const style = btn.getAttribute('data-style');
+        const ratio = btn.getAttribute('data-ratio');
+
+        if (prompt && promptInput) {
+            promptInput.value = prompt;
+            if (promptCharCount) {
+                promptCharCount.textContent = `${prompt.length}/500 · tối thiểu 10`;
+                promptCharCount.classList.remove('warn');
+            }
+        }
+
+        if (style && styleSelect) {
+            styleSelect.value = style;
+            styleSelect.dispatchEvent(new Event('change'));
+            const styleCards = document.querySelectorAll('.style-card');
+            styleCards.forEach(c => c.classList.toggle('active', c.getAttribute('data-style') === style));
+        }
+
+        if (ratio) {
+            const ratioBtns = document.querySelectorAll('.ratio-btn');
+            ratioBtns.forEach(r => {
+                const match = r.getAttribute('data-ratio') === ratio;
+                r.classList.toggle('active', match);
+                if (match) currentRatio = ratio;
+            });
+        }
+
+        updateSummaryMeta();
+
+        // Cuộn mượt đến Studio & focus ô prompt
+        const workspaceEl = document.getElementById('workspace');
+        if (workspaceEl) {
+            workspaceEl.scrollIntoView({ behavior: 'smooth' });
+            setTimeout(() => {
+                if (promptInput) promptInput.focus();
+            }, 600);
+        }
+        log('Đã nạp mẫu thiết kế vào Studio thành công!', 'info');
+    });
+});
+
+// --- Billing Period Toggle ---
+const monthlyBtn = document.getElementById('billing-monthly-btn');
+const yearlyBtn = document.getElementById('billing-yearly-btn');
+const priceVals = document.querySelectorAll('.price-val');
+
+if (monthlyBtn && yearlyBtn) {
+    monthlyBtn.addEventListener('click', () => {
+        monthlyBtn.classList.add('active');
+        yearlyBtn.classList.remove('active');
+        priceVals.forEach(el => {
+            const val = el.getAttribute('data-monthly');
+            if (val) el.textContent = val;
+        });
+    });
+
+    yearlyBtn.addEventListener('click', () => {
+        yearlyBtn.classList.add('active');
+        monthlyBtn.classList.remove('active');
+        priceVals.forEach(el => {
+            const val = el.getAttribute('data-yearly');
+            if (val) el.textContent = val;
+        });
+    });
+}
