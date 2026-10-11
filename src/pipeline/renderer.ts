@@ -4,6 +4,8 @@ import { resolve } from "node:path";
 import { pathToFileURL } from "node:url";
 import { launchPreviewBrowser, seekToTimestamp, setupBrowserDiagnostics, dumpDiagnosticSnapshot } from "./preview.js";
 import { withRetry, isAbortError } from "./retry.js";
+import { WatermarkConfig } from "../llm/schema.js";
+import { buildWatermarkFilter } from "./watermarkFilter.js";
 
 export interface RenderVideoOptions {
     htmlPath: string;
@@ -14,6 +16,11 @@ export interface RenderVideoOptions {
     fps?: number;
     durationSec: number;
     onProgress?: (msg: string, percent?: number) => void;
+    /**
+     * Cấu hình logo / watermark cần đóng dấu lên video.
+     * Nếu không truyền vào (undefined), video xuất ra sẽ không có logo.
+     */
+    watermark?: WatermarkConfig;
 }
 
 /**
@@ -30,6 +37,7 @@ export async function renderVideo(options: RenderVideoOptions): Promise<string> 
         fps = 30,
         durationSec,
         onProgress,
+        watermark,
     } = options;
 
     const totalFrames = Math.max(1, Math.floor(durationSec * fps));
@@ -74,12 +82,17 @@ export async function renderVideo(options: RenderVideoOptions): Promise<string> 
                                 document.fonts.ready,
                                 new Promise((r) => setTimeout(r, 4000)),
                             ]);
-                        } catch (e) {}
+                        } catch (e) { }
                     }
                 });
 
                 const hasAudio = existsSync(audioPath);
 
+                // Kiểm tra logo có tồn tại trên đĩa không trước khi dùng
+                const hasWatermark = !!watermark && existsSync(watermark.logoPath);
+
+                // ── Bước 1: Các input đầu vào ───────────────────────────────
+                // Input 0: luồng video từ Playwright (pipe stdin)
                 const ffmpegArgs = [
                     "-y",
                     "-f", "image2pipe",
@@ -88,10 +101,49 @@ export async function renderVideo(options: RenderVideoOptions): Promise<string> 
                     "-i", "-",
                 ];
 
+                // Input 1 (tùy chọn): file audio nếu có
                 if (hasAudio) {
                     ffmpegArgs.push("-i", audioPath);
                 }
 
+                // Input 2 (tùy chọn): file ảnh logo nếu có watermark
+                // Thứ tự thêm audio trước logo để nhãn luồng nhất quán:
+                //   0:v = video, 1:v = audio (nếu có), 2:v = logo (nếu có)
+                if (hasWatermark) {
+                    ffmpegArgs.push("-i", watermark!.logoPath);
+                }
+
+                // ── Bước 2: Bộ lọc ghép logo (-filter_complex) ──────────────
+                if (hasWatermark) {
+                    // Tính nhãn luồng video nền:
+                    //   - Nếu có audio: video ở input 0 → nhãn "0:v"
+                    //   - Logo luôn là input cuối cùng:
+                    //     Nếu có audio → logo ở input 2 → nhãn "2:v"
+                    //     Nếu không audio → logo ở input 1 → nhãn "1:v"
+                    const logoLabel = hasAudio ? "2:v" : "1:v";
+
+                    // Gọi hàm buildWatermarkFilter từ Bước 2 để tạo chuỗi filter
+                    const { filterComplex, outputLabel } = buildWatermarkFilter(
+                        watermark!,
+                        width,
+                        height,
+                        "0:v",      // nhãn luồng video nền (luôn là input đầu tiên)
+                        logoLabel,  // nhãn luồng logo (input cuối)
+                    );
+
+                    // Chèn bộ lọc ghép hình vào danh sách tham số FFmpeg
+                    ffmpegArgs.push("-filter_complex", filterComplex);
+
+                    // Chỉ định luồng hình ảnh đầu ra sau khi đã dán logo là [outv]
+                    ffmpegArgs.push("-map", outputLabel);
+
+                    // Nếu có audio thì map thêm luồng âm thanh
+                    if (hasAudio) {
+                        ffmpegArgs.push("-map", "1:a");
+                    }
+                }
+
+                // ── Bước 3: Codec & chất lượng đầu ra ──────────────────────
                 ffmpegArgs.push(
                     "-c:v", "libx264",
                     "-pix_fmt", "yuv420p",
@@ -168,7 +220,7 @@ export async function renderVideo(options: RenderVideoOptions): Promise<string> 
                 onProgress?.("Video rendering and muxing completed", 100);
                 return outputPath;
             } finally {
-                await browser.close().catch(() => {});
+                await browser.close().catch(() => { });
             }
         },
         {
