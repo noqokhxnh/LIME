@@ -2484,7 +2484,7 @@ button:focus-visible, input:focus-visible, textarea:focus-visible, select:focus-
     background: radial-gradient(circle at 86% 28%, rgba(217, 249, 157, 0.2) 0%, rgba(255, 255, 255, 0) 55%), #ffffff;
     border: 1px solid rgba(0, 0, 0, 0.08);
     border-radius: 36px;
-    padding: 40px 44px 24px;
+    padding: 44px 48px 24px;
     /* Hiệu ứng bóng nổi khối đa tầng (Multi-layer Ambient + Elevation Shadow) */
     box-shadow: 
         0 30px 70px -15px rgba(15, 23, 42, 0.12),
@@ -2494,7 +2494,7 @@ button:focus-visible, input:focus-visible, textarea:focus-visible, select:focus-
         inset 0 1px 0 0 rgba(255, 255, 255, 0.95);
     display: flex;
     flex-direction: column;
-    gap: 26px;
+    gap: 32px;
     transition: transform 0.35s cubic-bezier(0.16, 1, 0.3, 1), box-shadow 0.35s cubic-bezier(0.16, 1, 0.3, 1), border-color 0.3s ease;
 }
 
@@ -2502,7 +2502,7 @@ button:focus-visible, input:focus-visible, textarea:focus-visible, select:focus-
 .hero-card-main-grid {
     display: grid;
     grid-template-columns: 1.15fr 0.85fr;
-    gap: 40px;
+    gap: 48px;
     align-items: center;
     width: 100%;
 }
@@ -2582,11 +2582,11 @@ button:focus-visible, input:focus-visible, textarea:focus-visible, select:focus-
 }
 
 .intro-subtext {
-    font-size: 15px;
+    font-size: 15.5px;
     font-weight: 500;
-    line-height: 1.65;
+    line-height: 1.68;
     color: var(--neutral-500);
-    margin-bottom: 26px;
+    margin-bottom: 32px;
     max-width: 560px;
 }
 
@@ -2595,7 +2595,7 @@ button:focus-visible, input:focus-visible, textarea:focus-visible, select:focus-
     align-items: center;
     gap: 14px;
     flex-wrap: wrap;
-    margin-bottom: 26px;
+    margin-bottom: 0;
 }
 
 .btn-intro-primary {
@@ -2641,24 +2641,6 @@ button:focus-visible, input:focus-visible, textarea:focus-visible, select:focus-
     border-color: var(--neutral-950);
     background: var(--neutral-50);
     box-shadow: 0 8px 20px rgba(0, 0, 0, 0.08);
-}
-
-.intro-feature-pills {
-    display: flex;
-    align-items: center;
-    gap: 10px;
-    flex-wrap: wrap;
-}
-
-.intro-pill-item {
-    border-radius: var(--radius-full);
-    background: #ffffff;
-    border: 1px solid rgba(0, 0, 0, 0.07);
-    padding: 6px 14px;
-    font-size: 11px;
-    font-weight: 700;
-    color: var(--neutral-700);
-    box-shadow: 0 2px 6px rgba(0, 0, 0, 0.02);
 }
 
 /* 3D Stacking Cards Carousel */
@@ -2971,7 +2953,7 @@ button:focus-visible, input:focus-visible, textarea:focus-visible, select:focus-
 .hero-card-conveyor-wrap {
     width: 100%;
     border-top: 1px solid rgba(0, 0, 0, 0.06);
-    padding-top: 18px;
+    padding-top: 22px;
     display: flex;
     align-items: center;
     gap: 16px;
