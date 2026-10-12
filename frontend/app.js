@@ -666,398 +666,46 @@ if (logoutBtn) {
     });
 }
 
-// --- Onepage View Controller (Điều hướng One-page không scroll) ---
-const SECTION_ORDER = ['home', 'workspace', 'templates', 'services'];
-
-function getCurrentView() {
-    const hash = (window.location.hash || '').replace('#', '');
-    return SECTION_ORDER.includes(hash) ? hash : 'home';
-}
-
-function switchView(targetId, updateHistory = true) {
-    if (!targetId) targetId = 'home';
-    targetId = targetId.replace(/^#/, '');
-    if (!SECTION_ORDER.includes(targetId)) targetId = 'home';
-
-    SECTION_ORDER.forEach(id => {
+// --- Snap dots + nav active state (scroll-snap, không chiếm wheel) ---
+(function initSnapNav() {
+    const dots = document.querySelectorAll('.dots a');
+    const navLinks = document.querySelectorAll('.nav-links a[data-nav]');
+    if (!dots.length) return;
+    const map = { home: 'home', templates: 'templates', pricing: 'pricing', workspace: 'workspace' };
+    const io = new IntersectionObserver((entries) => {
+        entries.forEach(e => {
+            if (e.isIntersecting && map[e.target.id]) {
+                const id = e.target.id;
+                dots.forEach(d => d.classList.toggle('on', d.getAttribute('href') === '#' + id));
+                navLinks.forEach(a => a.classList.toggle('on', a.getAttribute('data-nav') === id));
+            }
+        });
+    }, { threshold: 0.55 });
+    Object.keys(map).forEach(id => {
         const el = document.getElementById(id);
-        if (el) {
-            el.classList.toggle('active-view', id === targetId);
-        }
-    });
-
-    // Cập nhật active cho navbar pills
-    document.querySelectorAll('.nav-links-pill .nav-link-btn').forEach(link => {
-        const href = link.getAttribute('href') || '';
-        link.classList.toggle('active', href === `#${targetId}`);
-    });
-
-    if (updateHistory && window.location.hash !== `#${targetId}`) {
-        if (history.replaceState) {
-            history.replaceState(null, '', `#${targetId}`);
-        } else {
-            window.location.hash = `#${targetId}`;
-        }
-    }
-}
-
-// Bắt sự kiện click tất cả anchor links #
-document.querySelectorAll('a[href^="#"]').forEach(anchor => {
-    anchor.addEventListener('click', function (e) {
-        const href = this.getAttribute('href');
-        if (!href || href === '#') return;
-        const targetId = href.replace('#', '');
-        if (SECTION_ORDER.includes(targetId)) {
-            e.preventDefault();
-            switchView(targetId);
-            if (targetId === 'workspace') {
-                setTimeout(() => {
-                    if (promptInput) promptInput.focus();
-                }, 150);
-            }
-        }
-    });
-});
-
-// Lắng nghe thay đổi hash
-window.addEventListener('hashchange', () => {
-    switchView(getCurrentView(), false);
-});
-
-// Điều hướng Onepage mượt mà bằng con lăn chuột (Wheel)
-let isViewTransitioning = false;
-window.addEventListener('wheel', (e) => {
-    if (isViewTransitioning) return;
-    if (Math.abs(e.deltaY) < 30) return;
-
-    // Bỏ qua nếu người dùng đang ở trong modal
-    if (e.target && e.target.closest && e.target.closest('.auth-modal, .auth-card-modal')) return;
-
-    const current = getCurrentView();
-    const curIdx = SECTION_ORDER.indexOf(current);
-
-    if (e.deltaY > 0 && curIdx < SECTION_ORDER.length - 1) {
-        isViewTransitioning = true;
-        switchView(SECTION_ORDER[curIdx + 1]);
-        setTimeout(() => { isViewTransitioning = false; }, 420);
-    } else if (e.deltaY < 0 && curIdx > 0) {
-        isViewTransitioning = true;
-        switchView(SECTION_ORDER[curIdx - 1]);
-        setTimeout(() => { isViewTransitioning = false; }, 420);
-    }
-}, { passive: true });
-
-// Điều hướng Onepage bằng phím mũi tên / PageDown / PageUp
-window.addEventListener('keydown', (e) => {
-    const activeEl = document.activeElement;
-    const tag = activeEl ? activeEl.tagName.toLowerCase() : '';
-    if (tag === 'input' || tag === 'textarea' || (activeEl && activeEl.isContentEditable)) return;
-    if (activeEl && activeEl.closest && activeEl.closest('.auth-modal')) return;
-
-    const current = getCurrentView();
-    const curIdx = SECTION_ORDER.indexOf(current);
-
-    if (['ArrowDown', 'PageDown', ' '].includes(e.key) && curIdx < SECTION_ORDER.length - 1) {
-        e.preventDefault();
-        switchView(SECTION_ORDER[curIdx + 1]);
-    } else if (['ArrowUp', 'PageUp'].includes(e.key) && curIdx > 0) {
-        e.preventDefault();
-        switchView(SECTION_ORDER[curIdx - 1]);
-    }
-});
-
-// Điều hướng Onepage bằng cử chỉ vuốt trên màn hình cảm ứng
-let touchStartY = 0;
-window.addEventListener('touchstart', (e) => {
-    if (e.touches && e.touches[0]) {
-        touchStartY = e.touches[0].clientY;
-    }
-}, { passive: true });
-
-window.addEventListener('touchend', (e) => {
-    if (isViewTransitioning) return;
-    if (!e.changedTouches || !e.changedTouches[0]) return;
-    if (e.target && e.target.closest && e.target.closest('.auth-modal')) return;
-
-    const diffY = touchStartY - e.changedTouches[0].clientY;
-    if (Math.abs(diffY) < 50) return;
-
-    const current = getCurrentView();
-    const curIdx = SECTION_ORDER.indexOf(current);
-
-    if (diffY > 0 && curIdx < SECTION_ORDER.length - 1) {
-        isViewTransitioning = true;
-        switchView(SECTION_ORDER[curIdx + 1]);
-        setTimeout(() => { isViewTransitioning = false; }, 420);
-    } else if (diffY < 0 && curIdx > 0) {
-        isViewTransitioning = true;
-        switchView(SECTION_ORDER[curIdx - 1]);
-        setTimeout(() => { isViewTransitioning = false; }, 420);
-    }
-}, { passive: true });
-
-// Khởi tạo view ban đầu theo URL hash
-switchView(getCurrentView(), false);
-
-// --- Aceternity UI Inspired FlipWords Controller (Đổi chữ nghệ thuật) ---
-(function initFlipWords() {
-    const container = document.getElementById('flip-words');
-    if (!container) return;
-
-    // Bộ từ thay thế:
-    const words = [
-        'TikTok',
-        'Reels',
-        'quảng cáo',
-        'bán hàng',
-        'thuyết trình',
-        'giới thiệu'
-    ];
-    let currentIndex = 0;
-    const duration = 2800; // Thời gian dừng hiển thị mỗi chữ
-    let isFlipping = false;
-
-    function buildWordElement(text) {
-        const wordWrapper = document.createElement('span');
-        wordWrapper.className = 'flip-word-wrapper';
-
-        const subWords = text.split(' ');
-        subWords.forEach((subWord, wordIndex) => {
-            const subWordSpan = document.createElement('span');
-            subWordSpan.className = 'flip-subword';
-
-            const letters = Array.from(subWord);
-            letters.forEach((letter, letterIndex) => {
-                const letterSpan = document.createElement('span');
-                letterSpan.className = 'flip-letter';
-                letterSpan.textContent = letter;
-                // Delay từng ký tự theo chuẩn Aceternity: wordIndex * 0.3s + letterIndex * 0.05s
-                const delay = (wordIndex * 0.3 + letterIndex * 0.05).toFixed(3);
-                letterSpan.style.animationDelay = `${delay}s`;
-                subWordSpan.appendChild(letterSpan);
-            });
-
-            wordWrapper.appendChild(subWordSpan);
-            if (wordIndex < subWords.length - 1) {
-                const spaceSpan = document.createElement('span');
-                spaceSpan.className = 'flip-space';
-                spaceSpan.innerHTML = '&nbsp;';
-                wordWrapper.appendChild(spaceSpan);
-            }
-        });
-
-        return wordWrapper;
-    }
-
-    function flipToNextWord() {
-        if (isFlipping) return;
-        isFlipping = true;
-
-        const nextIndex = (currentIndex + 1) % words.length;
-        const nextWordText = words[nextIndex];
-        const currentWrapper = container.querySelector('.flip-word-wrapper:not(.flip-word-exit)');
-
-        const newWrapper = buildWordElement(nextWordText);
-
-        if (currentWrapper) {
-            currentWrapper.classList.add('flip-word-exit');
-            setTimeout(() => {
-                if (currentWrapper.parentNode) {
-                    currentWrapper.remove();
-                }
-                isFlipping = false;
-            }, 420);
-        } else {
-            isFlipping = false;
-        }
-
-        container.appendChild(newWrapper);
-        currentIndex = nextIndex;
-    }
-
-    let intervalTimer = setInterval(flipToNextWord, duration);
-
-    document.addEventListener('visibilitychange', () => {
-        if (document.hidden) {
-            clearInterval(intervalTimer);
-        } else {
-            clearInterval(intervalTimer);
-            intervalTimer = setInterval(flipToNextWord, duration);
-        }
+        if (el) io.observe(el);
     });
 })();
 
-// --- 3D Stacking Cards Carousel Controller (Trang chủ) ---
-(function initHero3DCarousel() {
-    const track = document.getElementById('hero-carousel');
-    const cards = document.querySelectorAll('.carousel-3d-card');
-    const dots = document.querySelectorAll('.indicator-dot');
-    if (!track || !cards.length) return;
-
-    let currentIndex = 0;
-    const totalCards = cards.length;
-    let autoRotateTimer = null;
-
-    function updateCarousel() {
-        const isMobile = window.innerWidth <= 640;
-        cards.forEach((card, index) => {
-            const rel = (index - currentIndex + totalCards) % totalCards;
-            let xOffset = 0;
-            let zOffset = 0;
-            let scale = 1;
-            let opacity = 0;
-            let zIndex = 0;
-            let pointerEvents = 'none';
-
-            if (rel === 0) {
-                // Thẻ 1: Mặt chính diện (Active Front Card)
-                xOffset = 0;
-                zOffset = 0;
-                scale = 1;
-                opacity = 1;
-                zIndex = 12;
-                pointerEvents = 'auto';
-            } else if (rel === 1) {
-                // Thẻ 2: Lớp giữa (Behind and to the left)
-                xOffset = isMobile ? -28 : -95;
-                zOffset = isMobile ? -60 : -120;
-                scale = 0.92;
-                opacity = 0.78;
-                zIndex = 8;
-                pointerEvents = 'auto';
-            } else if (rel === 2) {
-                // Thẻ 3: Lớp sâu nhất (Furthest back and to the left)
-                xOffset = isMobile ? -56 : -190;
-                zOffset = isMobile ? -120 : -240;
-                scale = 0.84;
-                opacity = 0.45;
-                zIndex = 4;
-                pointerEvents = 'auto';
-            } else {
-                xOffset = isMobile ? -80 : -280;
-                zOffset = isMobile ? -180 : -360;
-                scale = 0.76;
-                opacity = 0;
-                zIndex = 1;
-                pointerEvents = 'none';
-            }
-
-            const baseTransform = isMobile ? 'translateX(-50%) ' : '';
-            card.style.transform = `${baseTransform}translate3d(${xOffset}px, 0px, ${zOffset}px) scale(${scale})`;
-            card.style.opacity = String(opacity);
-            card.style.zIndex = String(zIndex);
-            card.style.pointerEvents = pointerEvents;
-        });
-
-        // Cập nhật dots chỉ báo
-        dots.forEach((dot, dotIdx) => {
-            dot.classList.toggle('active', dotIdx === currentIndex);
-        });
-    }
-
-    function nextSlide() {
-        currentIndex = (currentIndex + 1) % totalCards;
-        updateCarousel();
-    }
-
-    function startAutoRotate() {
-        stopAutoRotate();
-        autoRotateTimer = setInterval(nextSlide, 3800);
-    }
-
-    function stopAutoRotate() {
-        if (autoRotateTimer) {
-            clearInterval(autoRotateTimer);
-            autoRotateTimer = null;
-        }
-    }
-
-    // Sự kiện tương tác trực tiếp lên từng thẻ
-    cards.forEach((card, index) => {
-        card.addEventListener('click', () => {
-            if (currentIndex !== index) {
-                currentIndex = index;
-                updateCarousel();
-                startAutoRotate();
-            }
-        });
+// --- Home promptbar: điền vào Studio rồi cuộn tới ---
+(function initHomePrompt() {
+    const input = document.getElementById('home-prompt-input');
+    const btn = document.getElementById('home-prompt-btn');
+    if (!input || !btn) return;
+    const go = () => {
+        const v = input.value.trim();
+        if (v && typeof setPrompt === 'function') setPrompt(v);
+        const ws = document.getElementById('workspace');
+        if (ws) ws.scrollIntoView({ behavior: 'smooth' });
+        setTimeout(() => { if (promptInput) promptInput.focus({ preventScroll: true }); }, 600);
+    };
+    btn.addEventListener('click', go);
+    input.addEventListener('keydown', (e) => {
+        if (e.key === 'Enter') { e.preventDefault(); go(); }
     });
-
-    // Sự kiện chọn indicator dots
-    dots.forEach((dot, dotIdx) => {
-        dot.addEventListener('click', () => {
-            currentIndex = dotIdx;
-            updateCarousel();
-            startAutoRotate();
-        });
-    });
-
-    // Tạm dừng khi rê chuột / chạm vào carousel
-    track.addEventListener('mouseenter', stopAutoRotate);
-    track.addEventListener('mouseleave', startAutoRotate);
-    track.addEventListener('touchstart', stopAutoRotate, { passive: true });
-    track.addEventListener('touchend', startAutoRotate, { passive: true });
-
-    window.addEventListener('resize', () => {
-        updateCarousel();
-    });
-
-    // Khởi tạo trạng thái ban đầu
-    updateCarousel();
-    startAutoRotate();
 })();
 
-// --- Templates Showcase Controller (Lọc danh mục & Phân trang 1 hàng) ---
-const tplFilterBtns = document.querySelectorAll('.tpl-filter-btn');
-const tplCards = document.querySelectorAll('.template-item-card');
-const tplDotsWrap = document.getElementById('tpl-page-dots-wrap');
-const tplDots = document.querySelectorAll('.tpl-page-dot');
-let currentTplCat = 'all';
-let currentTplPage = 0;
-
-function updateTemplatesView() {
-    tplCards.forEach(card => {
-        const cardCat = card.getAttribute('data-category');
-        const cardPage = parseInt(card.getAttribute('data-page') || '0', 10);
-
-        if (currentTplCat === 'all') {
-            card.style.display = (cardPage === currentTplPage) ? 'flex' : 'none';
-        } else {
-            card.style.display = (cardCat === currentTplCat) ? 'flex' : 'none';
-        }
-    });
-
-    if (tplDotsWrap) {
-        tplDotsWrap.style.display = (currentTplCat === 'all') ? 'flex' : 'none';
-    }
-
-    tplDots.forEach(dot => {
-        const p = parseInt(dot.getAttribute('data-page') || '0', 10);
-        dot.classList.toggle('active', p === currentTplPage);
-    });
-}
-
-tplFilterBtns.forEach(btn => {
-    btn.addEventListener('click', () => {
-        tplFilterBtns.forEach(b => b.classList.remove('active'));
-        btn.classList.add('active');
-        currentTplCat = btn.getAttribute('data-category') || 'all';
-        currentTplPage = 0;
-        updateTemplatesView();
-    });
-});
-
-tplDots.forEach(dot => {
-    dot.addEventListener('click', () => {
-        currentTplPage = parseInt(dot.getAttribute('data-page') || '0', 10);
-        updateTemplatesView();
-    });
-});
-
-// Khởi tạo hiển thị trang 1 mẫu
-updateTemplatesView();
-
-// --- Use Template Button Click ---
+// --- Use Template Button Click (nạp mẫu vào Studio) ---
 const useTemplateBtns = document.querySelectorAll('.btn-use-template');
 useTemplateBtns.forEach(btn => {
     btn.addEventListener('click', () => {
@@ -1091,54 +739,35 @@ useTemplateBtns.forEach(btn => {
 
         updateSummaryMeta();
 
-        // Chuyển sang Studio & focus ô prompt mà không scroll
-        switchView('workspace');
+        const ws = document.getElementById('workspace');
+        if (ws) ws.scrollIntoView({ behavior: 'smooth' });
         setTimeout(() => {
-            if (promptInput) promptInput.focus();
-        }, 300);
+            if (promptInput) promptInput.focus({ preventScroll: true });
+        }, 600);
 
         log('Đã nạp mẫu thiết kế vào Studio thành công!', 'info');
     });
 });
 
-// --- Services Sub-tabs Controller (Bảng giá vs Cam kết & FAQ) ---
-const servicesSubtabBtns = document.querySelectorAll('.services-subtab-btn');
-const servicesPanes = {
-    'pricing': document.getElementById('pane-pricing'),
-    'trust-faq': document.getElementById('pane-trust-faq')
-};
+// --- Billing toggle (chuyển giá tháng/năm, demo) ---
+(function initBillingToggle() {
+    const spans = document.querySelectorAll('.bill-toggle span[data-period]');
+    const priceVal = document.querySelector('.price-val');
+    if (!spans.length) return;
+    spans.forEach(s => s.addEventListener('click', () => {
+        spans.forEach(x => x.classList.remove('on'));
+        s.classList.add('on');
+        if (priceVal) {
+            const yearly = s.getAttribute('data-period') === 'year';
+            priceVal.textContent = yearly ? priceVal.getAttribute('data-yearly') : priceVal.getAttribute('data-monthly');
+        }
+    }));
+})();
 
-servicesSubtabBtns.forEach(btn => {
-    btn.addEventListener('click', () => {
-        const tab = btn.getAttribute('data-tab');
-        servicesSubtabBtns.forEach(b => b.classList.toggle('active', b === btn));
-        Object.entries(servicesPanes).forEach(([k, pane]) => {
-            if (pane) pane.classList.toggle('active', k === tab);
-        });
+// --- Filter pills (trang trí, cuộn tới section templates) ---
+document.querySelectorAll('.tpl-head .pill').forEach(p => {
+    p.addEventListener('click', () => {
+        document.querySelectorAll('.tpl-head .pill').forEach(x => x.classList.remove('on'));
+        p.classList.add('on');
     });
 });
-
-// --- Billing Period Toggle ---
-const monthlyBtn = document.getElementById('billing-monthly-btn');
-const yearlyBtn = document.getElementById('billing-yearly-btn');
-const priceVals = document.querySelectorAll('.price-val');
-
-if (monthlyBtn && yearlyBtn) {
-    monthlyBtn.addEventListener('click', () => {
-        monthlyBtn.classList.add('active');
-        yearlyBtn.classList.remove('active');
-        priceVals.forEach(el => {
-            const val = el.getAttribute('data-monthly');
-            if (val) el.textContent = val;
-        });
-    });
-
-    yearlyBtn.addEventListener('click', () => {
-        yearlyBtn.classList.add('active');
-        monthlyBtn.classList.remove('active');
-        priceVals.forEach(el => {
-            const val = el.getAttribute('data-yearly');
-            if (val) el.textContent = val;
-        });
-    });
-}
