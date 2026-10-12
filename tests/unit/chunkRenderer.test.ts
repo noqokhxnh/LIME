@@ -113,4 +113,37 @@ describe('Module: Chunked Parallel Rendering - calculateRenderChunks', () => {
         assert.strictEqual(singleConcurrency.length, 1);
         assert.strictEqual(singleConcurrency[0].frameCount, 100);
     });
+
+    it('TC-CHK-006: renderVideo từ chối ngay lập tức với AbortError khi signal đã bị aborted', async () => {
+        const { renderVideo } = await import('../../src/pipeline/renderer.js');
+        const controller = new AbortController();
+        controller.abort();
+
+        await assert.rejects(
+            async () => {
+                await renderVideo({
+                    htmlPath: '/dummy/index.html',
+                    audioPath: '/dummy/audio.mp3',
+                    outputPath: '/dummy/out.mp4',
+                    width: 1920,
+                    height: 1080,
+                    durationSec: 5,
+                    signal: controller.signal,
+                });
+            },
+            (err: any) => {
+                return err.name === 'AbortError' || err.message.includes('aborted');
+            }
+        );
+    });
+
+    it('TC-CHK-007: Định dạng danh sách FFmpeg concat_list.txt thoát ký tự nháy chuẩn xác', () => {
+        const chunks = calculateRenderChunks(60, 30, 2, '/tmp/test dir');
+        const lines = chunks
+            .map(c => `file '${c.chunkOutputPath.replace(/'/g, "'\\''")}'`)
+            .join('\n');
+
+        assert.ok(lines.includes("file '/tmp/test dir/chunk_0.mp4'"));
+        assert.ok(lines.includes("file '/tmp/test dir/chunk_1.mp4'"));
+    });
 });

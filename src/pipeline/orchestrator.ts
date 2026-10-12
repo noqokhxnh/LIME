@@ -16,6 +16,8 @@ export interface orchestratorOptions {
     bgmPath?: string;
     skipPreview?: boolean;
     skipRender?: boolean;
+    signal?: AbortSignal;
+    renderConcurrency?: number;
     onProgress?: progressCallback;
     outputDir?: string;
 }
@@ -164,6 +166,8 @@ export async function runFullPipeline(option: orchestratorOptions): Promise<full
                 height: preset.height,
                 fps,
                 durationSec: audio.totalDurationSec,
+                concurrency: option.renderConcurrency,
+                signal: option.signal,
                 onProgress: (msg, pct) => {
                     const scaled = pct !== undefined ? Math.round(80 + pct * 0.19) : 85;
                     logProgress("render", scaled, msg);
