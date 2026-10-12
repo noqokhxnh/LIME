@@ -295,5 +295,19 @@ describe('Module 9: Fastify API Server & Health Endpoint (src/index.ts)', () => 
             assert.ok(response.headers['content-type']?.includes('text/html'));
             assert.ok(response.body.includes('prompt-input'));
         });
+
+        it('phải phục vụ giao diện Studio Workspace khi truy cập GET /workspace', async () => {
+            const response = await app.inject({
+                method: 'GET',
+                url: '/workspace',
+            });
+
+            assert.strictEqual(response.statusCode, 200);
+            assert.ok(response.headers['content-type']?.includes('text/html'));
+            assert.ok(response.body.includes('prompt-input'));
+            assert.ok(response.body.includes('generate-btn'));
+            assert.ok(response.body.includes('log-viewer'));
+            assert.ok(response.body.includes('video-player'));
+        });
     });
 });
