@@ -6,6 +6,8 @@ import {
     sceneSchema,
     durationMapSchema,
     pipelineResultSchema,
+    watermarkPositionSchema,
+    watermarkConfigSchema,
 } from '../../src/llm/schema.js';
 
 describe('Module 2: Schemas & Validation Contracts (src/llm/schema.ts)', () => {
@@ -330,6 +332,124 @@ describe('Module 2: Schemas & Validation Contracts (src/llm/schema.ts)', () => {
 
             const result = pipelineResultSchema.safeParse(invalidResult);
             assert.strictEqual(result.success, false);
+        });
+    });
+
+    describe('TC-SCH-005: Xác thực watermarkConfigSchema và watermarkPositionSchema', () => {
+        // Kiểm tra xem khi người dùng chỉ cung cấp đường dẫn ảnh thì hệ thống có tự gán các giá trị mặc định hợp lý không
+        it('phải parse thành công watermark với các giá trị mặc định khi chỉ truyền logoPath', () => {
+            const input = {
+                logoPath: '/uploads/logos/brand-123.png',
+            };
+
+            const result = watermarkConfigSchema.safeParse(input);
+            assert.strictEqual(result.success, true);
+            if (result.success) {
+                assert.strictEqual(result.data.logoPath, input.logoPath);
+                assert.strictEqual(result.data.position, 'top-right', 'Vị trí mặc định phải là top-right (Góc trên - Phải)');
+                assert.strictEqual(result.data.scalePercent, 15, 'Kích thước mặc định phải là 15% bề ngang video');
+                assert.strictEqual(result.data.opacity, 0.8, 'Độ mờ đục mặc định phải là 0.8 (rõ nét 80%)');
+            }
+        });
+
+        // Kiểm tra tính hợp lệ của tất cả 4 góc định sẵn và chế độ tự do (custom) theo tọa độ x%, y%
+        it('phải chấp nhận tất cả 4 góc vị trí và vị trí custom với tọa độ xPercent, yPercent', () => {
+            const validPositions = ['top-left', 'top-right', 'bottom-left', 'bottom-right'] as const;
+
+            // Đảm bảo 4 góc đều được schema chấp thuận
+            for (const position of validPositions) {
+                const res = watermarkPositionSchema.safeParse(position);
+                assert.strictEqual(res.success, true, `Vị trí ${position} phải hợp lệ`);
+            }
+
+            // Kiểm tra cấu hình vị trí tự do (custom)
+            const customWatermark = {
+                logoPath: 'uploads/logos/custom.svg',
+                position: 'custom',
+                xPercent: 80,
+                yPercent: 10,
+                scalePercent: 25,
+                opacity: 0.5,
+            };
+
+            const result = watermarkConfigSchema.safeParse(customWatermark);
+            assert.strictEqual(result.success, true);
+            if (result.success) {
+                assert.strictEqual(result.data.position, 'custom');
+                assert.strictEqual(result.data.xPercent, 80);
+                assert.strictEqual(result.data.yPercent, 10);
+                assert.strictEqual(result.data.scalePercent, 25);
+                assert.strictEqual(result.data.opacity, 0.5);
+            }
+        });
+
+        // Kiểm tra việc chặn các dữ liệu sai: logoPath rỗng hoặc position không nằm trong danh sách
+        it('phải từ chối logoPath rỗng hoặc position không hợp lệ', () => {
+            const emptyPath = watermarkConfigSchema.safeParse({ logoPath: '' });
+            assert.strictEqual(emptyPath.success, false, 'logoPath rỗng phải bị từ chối');
+
+            const invalidPos = watermarkConfigSchema.safeParse({
+                logoPath: 'logo.png',
+                position: 'middle-center', // Vị trí không tồn tại
+            });
+            assert.strictEqual(invalidPos.success, false, 'Vị trí ngoài danh sách phải bị từ chối');
+        });
+
+        // Kiểm tra việc chặn các giá trị nằm ngoài giới hạn an toàn: scale (5% - 50%) và opacity (0.1 - 1.0)
+        it('phải từ chối scalePercent hoặc opacity nằm ngoài khoảng cho phép', () => {
+            // Trường hợp 1: scale quá nhỏ (< 5%)
+            const underMinScale = watermarkConfigSchema.safeParse({
+                logoPath: 'logo.png',
+                scalePercent: 2,
+            });
+            assert.strictEqual(underMinScale.success, false, 'scalePercent < 5% phải bị từ chối');
+
+            // Trường hợp 2: scale quá to (> 50%)
+            const overMaxScale = watermarkConfigSchema.safeParse({
+                logoPath: 'logo.png',
+                scalePercent: 60,
+            });
+            assert.strictEqual(overMaxScale.success, false, 'scalePercent > 50% phải bị từ chối');
+
+            // Trường hợp 3: opacity quá mờ (< 0.1)
+            const underMinOpacity = watermarkConfigSchema.safeParse({
+                logoPath: 'logo.png',
+                opacity: 0.05,
+            });
+            assert.strictEqual(underMinOpacity.success, false, 'opacity < 0.1 phải bị từ chối');
+
+            // Trường hợp 4: opacity vượt quá 1.0 (> 100%)
+            const overMaxOpacity = watermarkConfigSchema.safeParse({
+                logoPath: 'logo.png',
+                opacity: 1.5,
+            });
+            assert.strictEqual(overMaxOpacity.success, false, 'opacity > 1.0 phải bị từ chối');
+        });
+
+        // Kiểm tra việc tích hợp cấu hình watermark vào yêu cầu tạo video tổng thể (videoRequestSchema)
+        it('phải parse thành công videoRequestSchema có chứa cấu hình watermark', () => {
+            const requestWithWatermark = {
+                prompt: 'Video giới thiệu sản phẩm mới với logo công ty',
+                aspectRatio: '16:9',
+                targetDurationSec: 30,
+                style: 'modern',
+                watermark: {
+                    logoPath: 'uploads/logos/brand.png',
+                    position: 'top-left',
+                    scalePercent: 20,
+                    opacity: 0.9,
+                },
+            };
+
+            const result = videoRequestSchema.safeParse(requestWithWatermark);
+            assert.strictEqual(result.success, true);
+            if (result.success) {
+                assert.ok(result.data.watermark, 'Trường watermark phải tồn tại trong request');
+                assert.strictEqual(result.data.watermark?.logoPath, 'uploads/logos/brand.png');
+                assert.strictEqual(result.data.watermark?.position, 'top-left');
+                assert.strictEqual(result.data.watermark?.scalePercent, 20);
+                assert.strictEqual(result.data.watermark?.opacity, 0.9);
+            }
         });
     });
 });

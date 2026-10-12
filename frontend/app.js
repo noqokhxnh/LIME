@@ -68,6 +68,8 @@ loginSubmitBtn.addEventListener('click', async () => {
         loginOpenBtn.textContent = data.username;
         loginOpenBtn.disabled = true;
         logoutBtn.style.display = 'inline-block';
+        if (saveBrandKitBtn) saveBrandKitBtn.style.display = 'inline-block';
+        await loadUserBrandKit();
         log(`Đăng nhập thành công: ${data.username}`, 'success');
     } catch (err) {
         loginMessage.textContent = 'Không thể kết nối tới server';
@@ -116,6 +118,8 @@ registerSubmitBtn.addEventListener('click', async () => {
         loginOpenBtn.textContent = data.username;
         loginOpenBtn.disabled = true;
         logoutBtn.style.display = 'inline-block';
+        if (saveBrandKitBtn) saveBrandKitBtn.style.display = 'inline-block';
+        await loadUserBrandKit();
 
         log(`Đăng ký thành công: ${data.username}`, 'success');
     } catch (err) {
@@ -157,6 +161,248 @@ const videoPlayer = document.getElementById('video-player');
 const videoEmpty = document.getElementById('video-empty');
 const btnDownload = document.getElementById('btn-download');
 const btnPreviewHtml = document.getElementById('btn-preview-html');
+
+// Các phần tử điều khiển Brand Kit & Logo Watermark
+const logoFileInput = document.getElementById('logo-file-input');
+const logoUploadBtn = document.getElementById('logo-upload-btn');
+const logoFilename = document.getElementById('logo-filename');
+const logoRemoveBtn = document.getElementById('logo-remove-btn');
+const posButtons = document.querySelectorAll('.pos-btn');
+const watermarkScale = document.getElementById('watermark-scale');
+const watermarkScaleVal = document.getElementById('watermark-scale-val');
+const watermarkOpacity = document.getElementById('watermark-opacity');
+const watermarkOpacityVal = document.getElementById('watermark-opacity-val');
+const saveBrandKitBtn = document.getElementById('save-brand-kit-btn');
+const watermarkPreviewOverlay = document.getElementById('watermark-preview-overlay');
+
+// Trạng thái cấu hình watermark hiện tại
+const watermarkState = {
+    logoPath: null,       // Đường dẫn file thực tế trên server
+    logoUrl: null,        // URL hoặc Data URL để xem thử trên trình duyệt
+    position: 'bottom-right',
+    scalePercent: 15,
+    opacity: 0.8,
+    xPercent: 5,
+    yPercent: 5,
+};
+
+// Đặt lại toàn bộ trạng thái watermark về mặc định
+function resetWatermarkState() {
+    watermarkState.logoPath = null;
+    watermarkState.logoUrl = null;
+    watermarkState.position = 'bottom-right';
+    watermarkState.scalePercent = 15;
+    watermarkState.opacity = 0.8;
+    watermarkState.xPercent = 5;
+    watermarkState.yPercent = 5;
+    if (logoFilename) logoFilename.textContent = 'Chưa chọn logo';
+    if (logoFileInput) logoFileInput.value = '';
+    if (logoRemoveBtn) logoRemoveBtn.style.display = 'none';
+    if (watermarkScale) watermarkScale.value = '15';
+    if (watermarkScaleVal) watermarkScaleVal.textContent = '15%';
+    if (watermarkOpacity) watermarkOpacity.value = '80';
+    if (watermarkOpacityVal) watermarkOpacityVal.textContent = '80%';
+    posButtons.forEach(btn => {
+        btn.classList.toggle('active', btn.dataset.pos === 'bottom-right');
+    });
+    updateWatermarkPreview();
+}
+
+// Cập nhật lớp xem trước (Live Preview Overlay) logo trên khung video
+function updateWatermarkPreview() {
+    if (!watermarkPreviewOverlay) return;
+    if (!watermarkState.logoUrl) {
+        watermarkPreviewOverlay.style.display = 'none';
+        watermarkPreviewOverlay.src = '';
+        return;
+    }
+
+    watermarkPreviewOverlay.src = watermarkState.logoUrl;
+    watermarkPreviewOverlay.style.display = 'block';
+    watermarkPreviewOverlay.style.width = `${watermarkState.scalePercent}%`;
+    watermarkPreviewOverlay.style.opacity = String(watermarkState.opacity);
+
+    // Gán class vị trí tương ứng (pos-top-left, pos-top-right, pos-bottom-left, pos-bottom-right)
+    watermarkPreviewOverlay.className = `watermark-preview-overlay pos-${watermarkState.position}`;
+}
+
+// Khởi tạo các sự kiện cho giao diện Brand Kit
+function initBrandKitUI() {
+    if (logoUploadBtn && logoFileInput) {
+        logoUploadBtn.addEventListener('click', () => logoFileInput.click());
+    }
+
+    if (logoFileInput) {
+        logoFileInput.addEventListener('change', async () => {
+            const file = logoFileInput.files && logoFileInput.files[0];
+            if (!file) return;
+
+            // Kiểm tra dung lượng tối đa 5MB phía client
+            if (file.size > 5 * 1024 * 1024) {
+                alert('Dung lượng ảnh vượt quá 5MB. Vui lòng chọn ảnh nhẹ hơn.');
+                logoFileInput.value = '';
+                return;
+            }
+
+            // Hiển thị tạm thời bằng Object URL để phản hồi tức thì
+            const tempUrl = URL.createObjectURL(file);
+            watermarkState.logoUrl = tempUrl;
+            if (logoFilename) logoFilename.textContent = file.name;
+            if (logoRemoveBtn) logoRemoveBtn.style.display = 'inline-block';
+            updateWatermarkPreview();
+
+            // Tiến hành upload lên server qua POST /api/brand-kit/upload
+            const formData = new FormData();
+            formData.append('logo', file);
+
+            try {
+                log(`Đang tải ảnh logo "${file.name}" lên máy chủ...`, 'info');
+                const res = await fetch(`${API_BASE}/api/brand-kit/upload`, {
+                    method: 'POST',
+                    credentials: 'include',
+                    body: formData,
+                });
+
+                const data = await res.json();
+                if (!res.ok) {
+                    throw new Error(data.error || 'Tải logo lên thất bại');
+                }
+
+                // Lưu URL logo do server trả về (không dùng đường dẫn tuyệt đối
+                // trên server để tránh lộ cấu trúc thư mục)
+                watermarkState.logoPath = data.logoUrl;
+                watermarkState.logoUrl = data.logoUrl.startsWith('http') ? data.logoUrl : `${API_BASE}${data.logoUrl}`;
+                updateWatermarkPreview();
+                log(`Tải logo thành công: ${file.name}`, 'success');
+            } catch (err) {
+                log(`Lỗi tải logo: ${err.message}`, 'error');
+                watermarkState.logoPath = null;
+                watermarkState.logoUrl = null;
+                logoFileInput.value = '';
+                if (logoFilename) logoFilename.textContent = 'Chưa chọn logo';
+                if (logoRemoveBtn) logoRemoveBtn.style.display = 'none';
+                updateWatermarkPreview();
+            }
+        });
+    }
+
+    if (logoRemoveBtn) {
+        logoRemoveBtn.addEventListener('click', () => {
+            watermarkState.logoPath = null;
+            watermarkState.logoUrl = null;
+            if (logoFileInput) logoFileInput.value = '';
+            if (logoFilename) logoFilename.textContent = 'Chưa chọn logo';
+            logoRemoveBtn.style.display = 'none';
+            updateWatermarkPreview();
+            log('Đã gỡ bỏ logo thương hiệu', 'info');
+        });
+    }
+
+    // Sự kiện 4 nút chọn góc
+    posButtons.forEach((btn) => {
+        btn.addEventListener('click', () => {
+            const pos = btn.dataset.pos;
+            if (!pos) return;
+            watermarkState.position = pos;
+            posButtons.forEach((b) => b.classList.remove('active'));
+            btn.classList.add('active');
+            updateWatermarkPreview();
+        });
+    });
+
+    // Sự kiện thanh trượt kích thước Scale (5% - 40%)
+    if (watermarkScale && watermarkScaleVal) {
+        watermarkScale.addEventListener('input', () => {
+            const val = parseInt(watermarkScale.value, 10);
+            watermarkState.scalePercent = val;
+            watermarkScaleVal.textContent = `${val}%`;
+            updateWatermarkPreview();
+        });
+    }
+
+    // Sự kiện thanh trượt độ mờ Opacity (10% - 100%)
+    if (watermarkOpacity && watermarkOpacityVal) {
+        watermarkOpacity.addEventListener('input', () => {
+            const val = parseInt(watermarkOpacity.value, 10);
+            watermarkState.opacity = val / 100;
+            watermarkOpacityVal.textContent = `${val}%`;
+            updateWatermarkPreview();
+        });
+    }
+
+    // Sự kiện lưu cấu hình vào tài khoản qua PUT /api/user/brand-kit
+    if (saveBrandKitBtn) {
+        saveBrandKitBtn.addEventListener('click', async () => {
+            if (!watermarkState.logoPath) {
+                alert('Vui lòng chọn hoặc tải logo lên trước khi lưu cài đặt.');
+                return;
+            }
+            try {
+                const res = await fetch(`${API_BASE}/api/user/brand-kit`, {
+                    method: 'PUT',
+                    credentials: 'include',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        logoUrl: watermarkState.logoPath,
+                        position: watermarkState.position,
+                        scalePct: watermarkState.scalePercent,
+                        opacity: watermarkState.opacity,
+                        xPct: watermarkState.xPercent ?? null,
+                        yPct: watermarkState.yPercent ?? null,
+                    }),
+                });
+                const data = await res.json();
+                if (!res.ok) {
+                    throw new Error(data.error || 'Không thể lưu cài đặt.');
+                }
+                log('Đã lưu cấu hình logo vào tài khoản thành công!', 'success');
+            } catch (err) {
+                log(`Lỗi lưu cài đặt thương hiệu: ${err.message}`, 'error');
+            }
+        });
+    }
+}
+
+// Nạp cài đặt Brand Kit từ tài khoản đã đăng nhập
+async function loadUserBrandKit() {
+    try {
+        const res = await fetch(`${API_BASE}/api/user/brand-kit`, { credentials: 'include' });
+        if (!res.ok) return;
+        const data = await res.json();
+        if (data.brandKit) {
+            const bk = data.brandKit;
+            const logoPath = bk.logo_url || bk.logoUrl;
+            if (!logoPath) return;
+
+            watermarkState.logoPath = logoPath;
+            watermarkState.logoUrl = logoPath.startsWith('http') ? logoPath : `${API_BASE}${logoPath}`;
+            watermarkState.position = bk.position || 'bottom-right';
+            watermarkState.scalePercent = bk.scale_pct || bk.scalePct || 15;
+            watermarkState.opacity = typeof bk.opacity === 'number' ? bk.opacity : parseFloat(bk.opacity) || 0.8;
+            watermarkState.xPercent = bk.x_pct ?? bk.xPct ?? 5;
+            watermarkState.yPercent = bk.y_pct ?? bk.yPct ?? 5;
+
+            if (logoFilename) {
+                const parts = logoPath.split(/[\\/]/);
+                logoFilename.textContent = parts[parts.length - 1] || 'logo';
+            }
+            if (logoRemoveBtn) logoRemoveBtn.style.display = 'inline-block';
+            if (watermarkScale) watermarkScale.value = String(watermarkState.scalePercent);
+            if (watermarkScaleVal) watermarkScaleVal.textContent = `${watermarkState.scalePercent}%`;
+            if (watermarkOpacity) watermarkOpacity.value = String(Math.round(watermarkState.opacity * 100));
+            if (watermarkOpacityVal) watermarkOpacityVal.textContent = `${Math.round(watermarkState.opacity * 100)}%`;
+
+            posButtons.forEach((btn) => {
+                btn.classList.toggle('active', btn.dataset.pos === watermarkState.position);
+            });
+
+            updateWatermarkPreview();
+            log('Đã nạp cài đặt logo thương hiệu từ tài khoản.', 'info');
+        }
+    } catch (e) {
+        console.error('Lỗi khi nạp cài đặt brand kit:', e);
+    }
+}
 
 let pollInterval = null;
 let catalogBlocks = [];
@@ -308,6 +554,12 @@ function displayVideo(jobId) {
     videoPlayer.load();
     videoPlayer.play().catch(() => { });
 
+    // Video đã được render hoàn chỉnh có logo dán trực tiếp từ FFmpeg,
+    // tạm ẩn lớp overlay mô phỏng để không bị hiển thị đè lên hai lần.
+    if (watermarkPreviewOverlay) {
+        watermarkPreviewOverlay.style.display = 'none';
+    }
+
     btnDownload.style.display = 'inline-block';
     btnDownload.href = `${API_BASE}/api/jobs/${jobId}/download`;
 
@@ -372,6 +624,16 @@ generateBtn.addEventListener('click', async () => {
         };
         if (blueprintId) payload.blueprintId = blueprintId;
         if (motionBlockIds.length) payload.motionBlockIds = motionBlockIds;
+
+        // Nếu người dùng đã chọn hoặc tải logo lên, truyền kèm cấu hình watermark
+        if (watermarkState.logoPath) {
+            payload.watermark = {
+                logoPath: watermarkState.logoPath,
+                position: watermarkState.position,
+                scalePercent: watermarkState.scalePercent,
+                opacity: watermarkState.opacity,
+            };
+        }
 
         const res = await fetch(`${API_BASE}/api/pipeline`, {
             method: 'POST',
@@ -443,6 +705,7 @@ generateBtn.addEventListener('click', async () => {
 // Khi vừa vào trang, kiểm tra nếu có video cũ thì cho phép xem ngay
 (async function init() {
     handleAuthError();
+    initBrandKitUI();
     await checkAuthConfig();
     await checkCurrentUser();
     await loadCatalog();
@@ -477,28 +740,37 @@ async function checkCurrentUser() {
             credentials: 'include'
         });
         if (!res.ok) {
+            resetWatermarkState();
             loginOpenBtn.textContent = 'Đăng nhập';
             loginOpenBtn.disabled = false;
             logoutBtn.style.display = 'none';
-            return;}
+            if (saveBrandKitBtn) saveBrandKitBtn.style.display = 'none';
+            return;
+        }
         const user = await res.json();
         loginOpenBtn.textContent = user.username;
         loginOpenBtn.disabled = true;
-        logoutBtn.style.display = 'inline-block';}
-        catch(err) {
-            console.error(err);
-        }}
+        logoutBtn.style.display = 'inline-block';
+        if (saveBrandKitBtn) saveBrandKitBtn.style.display = 'inline-block';
+        await loadUserBrandKit();
+    } catch(err) {
+        console.error(err);
+    }
+}
 logoutBtn.addEventListener('click', async () => {
     try {
         const res = await fetch(`${API_BASE}/api/auth/logout`, {
             method: 'POST',
-            credentials: 'include'});
+            credentials: 'include'
+        });
         if (!res.ok) {
             return;
         }
+        resetWatermarkState();
         loginOpenBtn.textContent = 'Đăng nhập';
         loginOpenBtn.disabled = false;
         logoutBtn.style.display = 'none';
+        if (saveBrandKitBtn) saveBrandKitBtn.style.display = 'none';
         log('Đã đăng xuất', 'info');
     } catch (err) {
         console.error(err);

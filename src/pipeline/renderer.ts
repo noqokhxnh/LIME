@@ -4,6 +4,9 @@ import { resolve } from "node:path";
 import { pathToFileURL } from "node:url";
 import { launchPreviewBrowser, seekToTimestamp, setupBrowserDiagnostics, dumpDiagnosticSnapshot } from "./preview.js";
 import { withRetry, isAbortError } from "./retry.js";
+import { WatermarkConfig } from "../llm/schema.js";
+import { buildWatermarkFilter } from "./watermarkFilter.js";
+import { resolveLogoPath } from "../security/uploadGuard.js";
 
 export interface RenderVideoOptions {
     htmlPath: string;
@@ -14,6 +17,11 @@ export interface RenderVideoOptions {
     fps?: number;
     durationSec: number;
     onProgress?: (msg: string, percent?: number) => void;
+    /**
+     * Cấu hình logo / watermark cần đóng dấu lên video.
+     * Nếu không truyền vào (undefined), video xuất ra sẽ không có logo.
+     */
+    watermark?: WatermarkConfig;
 }
 
 /**
@@ -30,6 +38,7 @@ export async function renderVideo(options: RenderVideoOptions): Promise<string> 
         fps = 30,
         durationSec,
         onProgress,
+        watermark,
     } = options;
 
     const totalFrames = Math.max(1, Math.floor(durationSec * fps));
@@ -74,12 +83,29 @@ export async function renderVideo(options: RenderVideoOptions): Promise<string> 
                                 document.fonts.ready,
                                 new Promise((r) => setTimeout(r, 4000)),
                             ]);
-                        } catch (e) {}
+                        } catch (e) { }
                     }
                 });
 
                 const hasAudio = existsSync(audioPath);
 
+                // Chuẩn hoá đường dẫn logo: chỉ chấp nhận file nằm trong
+                // thư mục tmp/uploads/logos/ (chống LFI/Path Traversal —
+                // chặn đọc file tùy ý trên server và thiết bị đặc biệt
+                // như /dev/zero có thể treo worker render).
+                let logoPath: string | null = null;
+                if (watermark?.logoPath) {
+                    logoPath = resolveLogoPath(watermark.logoPath);
+                    if (!logoPath) {
+                        console.warn(
+                            `[Renderer] Watermark logo không tìm thấy hoặc nằm ngoài thư mục cho phép: "${watermark.logoPath}". Bỏ qua gắn watermark.`
+                        );
+                    }
+                }
+                const hasWatermark = !!logoPath;
+
+                // ── Bước 1: Các input đầu vào ───────────────────────────────
+                // Input 0: luồng video từ Playwright (pipe stdin)
                 const ffmpegArgs = [
                     "-y",
                     "-f", "image2pipe",
@@ -88,10 +114,49 @@ export async function renderVideo(options: RenderVideoOptions): Promise<string> 
                     "-i", "-",
                 ];
 
+                // Input 1 (tùy chọn): file audio nếu có
                 if (hasAudio) {
                     ffmpegArgs.push("-i", audioPath);
                 }
 
+                // Input 2 (tùy chọn): file ảnh logo nếu có watermark
+                // Thứ tự thêm audio trước logo để nhãn luồng nhất quán:
+                //   0:v = video, 1:v = audio (nếu có), 2:v = logo (nếu có)
+                if (hasWatermark) {
+                    ffmpegArgs.push("-i", logoPath!);
+                }
+
+                // ── Bước 2: Bộ lọc ghép logo (-filter_complex) ──────────────
+                if (hasWatermark) {
+                    // Tính nhãn luồng video nền:
+                    //   - Nếu có audio: video ở input 0 → nhãn "0:v"
+                    //   - Logo luôn là input cuối cùng:
+                    //     Nếu có audio → logo ở input 2 → nhãn "2:v"
+                    //     Nếu không audio → logo ở input 1 → nhãn "1:v"
+                    const logoLabel = hasAudio ? "2:v" : "1:v";
+
+                    // Gọi hàm buildWatermarkFilter từ Bước 2 để tạo chuỗi filter
+                    const { filterComplex, outputLabel } = buildWatermarkFilter(
+                        watermark!,
+                        width,
+                        height,
+                        "0:v",      // nhãn luồng video nền (luôn là input đầu tiên)
+                        logoLabel,  // nhãn luồng logo (input cuối)
+                    );
+
+                    // Chèn bộ lọc ghép hình vào danh sách tham số FFmpeg
+                    ffmpegArgs.push("-filter_complex", filterComplex);
+
+                    // Chỉ định luồng hình ảnh đầu ra sau khi đã dán logo là [outv]
+                    ffmpegArgs.push("-map", outputLabel);
+
+                    // Nếu có audio thì map thêm luồng âm thanh
+                    if (hasAudio) {
+                        ffmpegArgs.push("-map", "1:a");
+                    }
+                }
+
+                // ── Bước 3: Codec & chất lượng đầu ra ──────────────────────
                 ffmpegArgs.push(
                     "-c:v", "libx264",
                     "-pix_fmt", "yuv420p",
@@ -113,6 +178,15 @@ export async function renderVideo(options: RenderVideoOptions): Promise<string> 
                 let errorOutput = "";
                 ff.stderr.on("data", (data) => {
                     errorOutput += data.toString();
+                });
+
+                // Xử lý lỗi EPIPE trên stdin khi FFmpeg thoát sớm để chống crash tiến trình Node
+                let stdinError: any = null;
+                ff.stdin.on("error", (err: any) => {
+                    stdinError = err;
+                    if (err.code !== 'EPIPE' && err.code !== 'ERR_STREAM_DESTROYED') {
+                        console.warn("[Renderer] ff.stdin error:", err);
+                    }
                 });
 
                 const reportStep = Math.max(1, Math.floor(totalFrames / 10));
@@ -144,21 +218,31 @@ export async function renderVideo(options: RenderVideoOptions): Promise<string> 
                         }
                     }
 
-                    if (!ff.stdin.write(buf)) {
-                        await new Promise((r) => ff.stdin.once("drain", r));
+                    if (ff.stdin.writable && !ff.stdin.destroyed) {
+                        const canWrite = ff.stdin.write(buf);
+                        if (!canWrite) {
+                            await new Promise((r) => ff.stdin.once("drain", r));
+                        }
+                    } else {
+                        // FFmpeg đã đóng stdin hoặc thoát sớm, ngừng ghi khung hình và chờ sự kiện close
+                        break;
                     }
+
                     if (i % reportStep === 0 || i === totalFrames - 1) {
                         const pct = Math.round(((i + 1) / totalFrames) * 100);
                         onProgress?.(`Rendering frames: ${i + 1}/${totalFrames} (${pct}%)`, pct);
                     }
                 }
-                ff.stdin.end();
+                if (ff.stdin.writable && !ff.stdin.destroyed) {
+                    ff.stdin.end();
+                }
 
                 await new Promise<void>((res, rej) => {
                     ff.on("close", (code) => {
                         if (code === 0) {
                             res();
                         } else {
+                            console.error("[Renderer] FFMPEG FULL ERROR OUTPUT:\n", errorOutput);
                             rej(new Error(`ffmpeg render failed with code ${code}: ${errorOutput.slice(-500)}`));
                         }
                     });
@@ -168,7 +252,7 @@ export async function renderVideo(options: RenderVideoOptions): Promise<string> 
                 onProgress?.("Video rendering and muxing completed", 100);
                 return outputPath;
             } finally {
-                await browser.close().catch(() => {});
+                await browser.close().catch(() => { });
             }
         },
         {
