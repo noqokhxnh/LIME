@@ -684,6 +684,94 @@ window.addEventListener('scroll', () => {
     });
 });
 
+// --- Aceternity UI Inspired FlipWords Controller (Đổi chữ nghệ thuật) ---
+(function initFlipWords() {
+    const container = document.getElementById('flip-words');
+    if (!container) return;
+
+    // Bộ từ thay thế:
+    const words = [
+        'TikTok',
+        'Reels',
+        'quảng cáo',
+        'bán hàng',
+        'thuyết trình',
+        'giới thiệu'
+    ];
+    let currentIndex = 0;
+    const duration = 2800; // Thời gian dừng hiển thị mỗi chữ
+    let isFlipping = false;
+
+    function buildWordElement(text) {
+        const wordWrapper = document.createElement('span');
+        wordWrapper.className = 'flip-word-wrapper';
+
+        const subWords = text.split(' ');
+        subWords.forEach((subWord, wordIndex) => {
+            const subWordSpan = document.createElement('span');
+            subWordSpan.className = 'flip-subword';
+
+            const letters = Array.from(subWord);
+            letters.forEach((letter, letterIndex) => {
+                const letterSpan = document.createElement('span');
+                letterSpan.className = 'flip-letter';
+                letterSpan.textContent = letter;
+                // Delay từng ký tự theo chuẩn Aceternity: wordIndex * 0.3s + letterIndex * 0.05s
+                const delay = (wordIndex * 0.3 + letterIndex * 0.05).toFixed(3);
+                letterSpan.style.animationDelay = `${delay}s`;
+                subWordSpan.appendChild(letterSpan);
+            });
+
+            wordWrapper.appendChild(subWordSpan);
+            if (wordIndex < subWords.length - 1) {
+                const spaceSpan = document.createElement('span');
+                spaceSpan.className = 'flip-space';
+                spaceSpan.innerHTML = '&nbsp;';
+                wordWrapper.appendChild(spaceSpan);
+            }
+        });
+
+        return wordWrapper;
+    }
+
+    function flipToNextWord() {
+        if (isFlipping) return;
+        isFlipping = true;
+
+        const nextIndex = (currentIndex + 1) % words.length;
+        const nextWordText = words[nextIndex];
+        const currentWrapper = container.querySelector('.flip-word-wrapper:not(.flip-word-exit)');
+
+        const newWrapper = buildWordElement(nextWordText);
+
+        if (currentWrapper) {
+            currentWrapper.classList.add('flip-word-exit');
+            setTimeout(() => {
+                if (currentWrapper.parentNode) {
+                    currentWrapper.remove();
+                }
+                isFlipping = false;
+            }, 420);
+        } else {
+            isFlipping = false;
+        }
+
+        container.appendChild(newWrapper);
+        currentIndex = nextIndex;
+    }
+
+    let intervalTimer = setInterval(flipToNextWord, duration);
+
+    document.addEventListener('visibilitychange', () => {
+        if (document.hidden) {
+            clearInterval(intervalTimer);
+        } else {
+            clearInterval(intervalTimer);
+            intervalTimer = setInterval(flipToNextWord, duration);
+        }
+    });
+})();
+
 // --- 3D Stacking Cards Carousel Controller (Trang chủ) ---
 (function initHero3DCarousel() {
     const track = document.getElementById('hero-carousel');
