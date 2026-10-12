@@ -2389,14 +2389,56 @@ h2.sec em { font-style: normal; background: var(--lime); padding: 0 12px; border
 .showcase { position: relative; height: 600px; }
 .shot { position: absolute; background: #fff; border: 1px solid var(--line); border-radius: 22px;
     box-shadow: 0 30px 70px rgba(20, 22, 15, 0.13); overflow: hidden; }
-.shot-main { width: 500px; left: 30px; top: 0; z-index: 2; }
+.shot-main {
+    width: 500px;
+    left: 30px;
+    top: 0;
+    z-index: 2;
+    background: #ffffff;
+    border: 1px solid rgba(20, 22, 15, 0.08);
+    border-radius: 24px;
+    box-shadow: 
+        0 2px 4px rgba(20, 22, 15, 0.04),
+        0 12px 24px -4px rgba(20, 22, 15, 0.08),
+        0 24px 48px -6px rgba(20, 22, 15, 0.12),
+        0 40px 80px -10px rgba(20, 22, 15, 0.16),
+        0 0 40px -6px rgba(187, 242, 70, 0.22);
+    transition: transform 0.4s cubic-bezier(0.16, 1, 0.3, 1), box-shadow 0.4s ease;
+}
+.shot-main:hover {
+    transform: translateY(-8px) scale(1.01);
+    box-shadow: 
+        0 4px 8px rgba(20, 22, 15, 0.04),
+        0 16px 32px -4px rgba(20, 22, 15, 0.1),
+        0 36px 64px -8px rgba(20, 22, 15, 0.18),
+        0 55px 100px -12px rgba(20, 22, 15, 0.22),
+        0 0 50px -2px rgba(187, 242, 70, 0.35);
+}
 .shot-browser-bar { height: 42px; display: flex; align-items: center; gap: 8px;
     padding: 0 18px; border-bottom: 1px solid var(--line); }
 .shot-browser-bar i { width: 11px; height: 11px; border-radius: 50%; background: var(--line); display: block; }
 .shot-body { padding: 24px; }
-.shot-tag { display: inline-block; font-size: 11px; font-weight: 700; letter-spacing: 1.2px;
-    text-transform: uppercase; color: var(--lime-ink); background: var(--lime);
-    padding: 6px 12px; border-radius: 999px; margin-bottom: 14px; }
+.shot-tag {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    font-size: 11px;
+    font-weight: 700;
+    letter-spacing: 1.2px;
+    text-transform: uppercase;
+    color: var(--lime-ink);
+    background: var(--lime);
+    padding: 6px 14px;
+    border-radius: 999px;
+    margin-bottom: 14px;
+    box-shadow: 0 4px 14px rgba(143, 190, 10, 0.4), 0 2px 4px rgba(0, 0, 0, 0.06);
+    border: 1px solid rgba(255, 255, 255, 0.5);
+    transition: transform 0.2s ease, box-shadow 0.2s ease;
+}
+.shot-main:hover .shot-tag {
+    transform: translateY(-1px);
+    box-shadow: 0 6px 18px rgba(143, 190, 10, 0.55), 0 0 14px rgba(212, 249, 51, 0.5);
+}
 .shot-title { font-family: var(--font-display); font-size: 25px; font-weight: 700;
     letter-spacing: -0.8px; margin-bottom: 6px; }
 .shot-sub { font-size: 13px; color: var(--muted); margin-bottom: 18px; }
