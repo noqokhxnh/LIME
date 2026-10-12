@@ -202,8 +202,7 @@ export async function renderVideo(options: RenderVideoOptions): Promise<string> 
                             "-c:v", "libx264",
                             "-pix_fmt", "yuv420p",
                             "-preset", "veryfast",
-                            "-crf", "22",
-                            "-vsync", "cfr"
+                            "-crf", "22"
                         );
 
                         if (hasAudio) {
@@ -219,8 +218,20 @@ export async function renderVideo(options: RenderVideoOptions): Promise<string> 
                         const ff = spawn("ffmpeg", ffmpegArgs);
                         activeProcesses.add(ff);
                         let errorOutput = "";
+                        let ffError: Error | null = null;
+                        let ffClosed = false;
+
                         ff.stderr.on("data", (data) => {
                             errorOutput += data.toString();
+                        });
+                        ff.on("error", (err) => {
+                            ffError = err;
+                        });
+                        ff.on("close", (code) => {
+                            ffClosed = true;
+                            if (code !== 0 && !ffError) {
+                                ffError = new Error(`ffmpeg render failed with code ${code}: ${errorOutput.slice(-500)}`);
+                            }
                         });
 
                         const reportStep = Math.max(1, Math.floor(totalFrames / 10));
@@ -231,6 +242,8 @@ export async function renderVideo(options: RenderVideoOptions): Promise<string> 
                                 ff.stdin.end();
                                 throw new DOMException("Operation aborted", "AbortError");
                             }
+                            if (ffError) throw ffError;
+                            if (ffClosed) throw new Error(`ffmpeg closed unexpectedly: ${errorOutput.slice(-500)}`);
 
                             const t = i / fps;
                             try {
@@ -258,7 +271,11 @@ export async function renderVideo(options: RenderVideoOptions): Promise<string> 
                             }
 
                             if (!ff.stdin.write(buf)) {
-                                await new Promise((r) => ff.stdin.once("drain", r));
+                                await Promise.race([
+                                    new Promise((r) => ff.stdin.once("drain", r)),
+                                    new Promise((_, rej) => ff.once("close", () => rej(ffError || new Error(`ffmpeg closed before drain: ${errorOutput.slice(-500)}`)))),
+                                    new Promise((_, rej) => ff.once("error", rej)),
+                                ]);
                             }
                             if (i % reportStep === 0 || i === totalFrames - 1) {
                                 const pct = Math.round(((i + 1) / totalFrames) * 100);
@@ -347,7 +364,6 @@ export async function renderVideo(options: RenderVideoOptions): Promise<string> 
                                 "-pix_fmt", "yuv420p",
                                 "-preset", "veryfast",
                                 "-crf", "22",
-                                "-vsync", "cfr",
                                 "-an",
                                 chunk.chunkOutputPath,
                             ];
@@ -355,8 +371,20 @@ export async function renderVideo(options: RenderVideoOptions): Promise<string> 
                             const ff = spawn("ffmpeg", ffmpegArgs);
                             activeProcesses.add(ff);
                             let errorOutput = "";
+                            let ffError: Error | null = null;
+                            let ffClosed = false;
+
                             ff.stderr.on("data", (data) => {
                                 errorOutput += data.toString();
+                            });
+                            ff.on("error", (err) => {
+                                ffError = err;
+                            });
+                            ff.on("close", (code) => {
+                                ffClosed = true;
+                                if (code !== 0 && !ffError) {
+                                    ffError = new Error(`ffmpeg chunk_${chunk.index} failed with code ${code}: ${errorOutput.slice(-500)}`);
+                                }
                             });
 
                             let lastBuf: Buffer | null = null;
@@ -366,6 +394,8 @@ export async function renderVideo(options: RenderVideoOptions): Promise<string> 
                                     ff.stdin.end();
                                     throw new DOMException("Operation aborted", "AbortError");
                                 }
+                                if (ffError) throw ffError;
+                                if (ffClosed) throw new Error(`ffmpeg closed unexpectedly: ${errorOutput.slice(-500)}`);
 
                                 const t = i / fps;
                                 try {
@@ -394,7 +424,11 @@ export async function renderVideo(options: RenderVideoOptions): Promise<string> 
                                 }
 
                                 if (!ff.stdin.write(buf)) {
-                                    await new Promise((r) => ff.stdin.once("drain", r));
+                                    await Promise.race([
+                                        new Promise((r) => ff.stdin.once("drain", r)),
+                                        new Promise((_, rej) => ff.once("close", () => rej(ffError || new Error(`ffmpeg closed before drain: ${errorOutput.slice(-500)}`)))),
+                                        new Promise((_, rej) => ff.once("error", rej)),
+                                    ]);
                                 }
 
                                 completedFrames++;
