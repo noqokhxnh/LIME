@@ -14,11 +14,19 @@ import { db } from './index.js';
 export interface BrandKitRow {
     user_id: string;
     logo_url: string;
+    logoUrl?: string;
+    logoPath?: string;
     position: string;
     scale_pct: number;
+    scalePct?: number;
+    scalePercent?: number;
     opacity: number;
     x_pct: number | null;
+    xPct?: number | null;
+    xPercent?: number | null;
     y_pct: number | null;
+    yPct?: number | null;
+    yPercent?: number | null;
     updated_at: Date;
 }
 
@@ -28,15 +36,29 @@ export interface BrandKitRow {
  * Driver `pg` trả cột NUMERIC về dạng string trong JavaScript, nên cần
  * ép kiểu rõ ràng để API luôn trả về number cho client.
  */
-function toBrandKitRow(row: BrandKitRow): BrandKitRow {
+function toBrandKitRow(row: any): BrandKitRow {
+    const logo = row.logo_url ?? row.logoUrl ?? row.logoPath ?? '';
+    const scale = Number(row.scale_pct ?? row.scalePct ?? row.scalePercent);
+    const op = Number(row.opacity);
+    const xp = row.x_pct == null && row.xPct == null && row.xPercent == null ? null : Number(row.x_pct ?? row.xPct ?? row.xPercent);
+    const yp = row.y_pct == null && row.yPct == null && row.yPercent == null ? null : Number(row.y_pct ?? row.yPct ?? row.yPercent);
+
     return {
         user_id: row.user_id,
-        logo_url: row.logo_url,
+        logo_url: logo,
+        logoUrl: logo,
+        logoPath: logo,
         position: row.position,
-        scale_pct: Number(row.scale_pct),
-        opacity: Number(row.opacity),
-        x_pct: row.x_pct == null ? null : Number(row.x_pct),
-        y_pct: row.y_pct == null ? null : Number(row.y_pct),
+        scale_pct: scale,
+        scalePct: scale,
+        scalePercent: scale,
+        opacity: op,
+        x_pct: xp,
+        xPct: xp,
+        xPercent: xp,
+        y_pct: yp,
+        yPct: yp,
+        yPercent: yp,
         updated_at: row.updated_at,
     };
 }
@@ -46,12 +68,16 @@ function toBrandKitRow(row: BrandKitRow): BrandKitRow {
  * Không bao gồm user_id (được truyền riêng) và updated_at (tự động).
  */
 export interface UpsertBrandKitInput {
-    logoUrl: string;
+    logoUrl?: string;
+    logoPath?: string;
     position: string;
-    scalePct: number;
+    scalePct?: number;
+    scalePercent?: number;
     opacity: number;
     xPct?: number | null;
+    xPercent?: number | null;
     yPct?: number | null;
+    yPercent?: number | null;
 }
 
 /**
@@ -92,6 +118,11 @@ export async function upsertBrandKit(
     userId: string,
     input: UpsertBrandKitInput
 ): Promise<BrandKitRow> {
+    const logo = input.logoUrl ?? input.logoPath ?? '';
+    const scale = Number(input.scalePct ?? input.scalePercent ?? 15);
+    const xp = input.xPct ?? input.xPercent ?? null;
+    const yp = input.yPct ?? input.yPercent ?? null;
+
     const result = await db.query<BrandKitRow>(
         `INSERT INTO brand_kits (user_id, logo_url, position, scale_pct, opacity, x_pct, y_pct, updated_at)
          VALUES ($1, $2, $3, $4, $5, $6, $7, NOW())
@@ -106,12 +137,12 @@ export async function upsertBrandKit(
          RETURNING user_id, logo_url, position, scale_pct, opacity, x_pct, y_pct, updated_at`,
         [
             userId,
-            input.logoUrl,
+            logo,
             input.position,
-            input.scalePct,
+            scale,
             input.opacity,
-            input.xPct ?? null,    // undefined → null trong PostgreSQL
-            input.yPct ?? null,
+            xp,
+            yp,
         ]
     );
 

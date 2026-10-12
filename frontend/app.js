@@ -182,7 +182,31 @@ const watermarkState = {
     position: 'bottom-right',
     scalePercent: 15,
     opacity: 0.8,
+    xPercent: 5,
+    yPercent: 5,
 };
+
+// Đặt lại toàn bộ trạng thái watermark về mặc định
+function resetWatermarkState() {
+    watermarkState.logoPath = null;
+    watermarkState.logoUrl = null;
+    watermarkState.position = 'bottom-right';
+    watermarkState.scalePercent = 15;
+    watermarkState.opacity = 0.8;
+    watermarkState.xPercent = 5;
+    watermarkState.yPercent = 5;
+    if (logoFilename) logoFilename.textContent = 'Chưa chọn logo';
+    if (logoFileInput) logoFileInput.value = '';
+    if (logoRemoveBtn) logoRemoveBtn.style.display = 'none';
+    if (watermarkScale) watermarkScale.value = '15';
+    if (watermarkScaleVal) watermarkScaleVal.textContent = '15%';
+    if (watermarkOpacity) watermarkOpacity.value = '80';
+    if (watermarkOpacityVal) watermarkOpacityVal.textContent = '80%';
+    posButtons.forEach(btn => {
+        btn.classList.toggle('active', btn.dataset.pos === 'bottom-right');
+    });
+    updateWatermarkPreview();
+}
 
 // Cập nhật lớp xem trước (Live Preview Overlay) logo trên khung video
 function updateWatermarkPreview() {
@@ -323,6 +347,8 @@ function initBrandKitUI() {
                         position: watermarkState.position,
                         scalePct: watermarkState.scalePercent,
                         opacity: watermarkState.opacity,
+                        xPct: watermarkState.xPercent ?? null,
+                        yPct: watermarkState.yPercent ?? null,
                     }),
                 });
                 const data = await res.json();
@@ -353,6 +379,8 @@ async function loadUserBrandKit() {
             watermarkState.position = bk.position || 'bottom-right';
             watermarkState.scalePercent = bk.scale_pct || bk.scalePct || 15;
             watermarkState.opacity = typeof bk.opacity === 'number' ? bk.opacity : parseFloat(bk.opacity) || 0.8;
+            watermarkState.xPercent = bk.x_pct ?? bk.xPct ?? 5;
+            watermarkState.yPercent = bk.y_pct ?? bk.yPct ?? 5;
 
             if (logoFilename) {
                 const parts = logoPath.split(/[\\/]/);
@@ -712,6 +740,7 @@ async function checkCurrentUser() {
             credentials: 'include'
         });
         if (!res.ok) {
+            resetWatermarkState();
             loginOpenBtn.textContent = 'Đăng nhập';
             loginOpenBtn.disabled = false;
             logoutBtn.style.display = 'none';
@@ -737,6 +766,7 @@ logoutBtn.addEventListener('click', async () => {
         if (!res.ok) {
             return;
         }
+        resetWatermarkState();
         loginOpenBtn.textContent = 'Đăng nhập';
         loginOpenBtn.disabled = false;
         logoutBtn.style.display = 'none';

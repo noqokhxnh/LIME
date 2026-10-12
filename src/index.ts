@@ -52,18 +52,30 @@ export async function buildApp(options: { logger?: boolean, queue?: IVideoQueue 
         });
     }
 
-    // Đăng ký phục vụ tệp tĩnh ảnh logo từ thư mục tmp/uploads/logos
+    // Đăng ký phục vụ tệp tĩnh ảnh logo từ thư mục tmp/uploads/logos kèm headers bảo mật
     const logosDir = join(process.cwd(), "tmp", "uploads", "logos");
     mkdirSync(logosDir, { recursive: true });
     await app.register(fastifyStatic, {
         root: logosDir,
         prefix: "/uploads/logos/",
         decorateReply: false,
+        setHeaders: (res) => {
+            res.header("Content-Security-Policy", "default-src 'none'; style-src 'unsafe-inline'; sandbox");
+            res.header("X-Content-Type-Options", "nosniff");
+            res.header("X-Frame-Options", "DENY");
+        },
     });
 
     app.addHook("preHandler", async (request, reply) => {
         const url = request.url;
-        if (url.startsWith("/api/script/draft") || url.startsWith("/api/pipeline") || url.startsWith("/api/generate") || url.startsWith("/api/source/") || url.startsWith("/api/brand-kit")) {
+        if (
+            url.startsWith("/api/script/draft") ||
+            url.startsWith("/api/pipeline") ||
+            url.startsWith("/api/generate") ||
+            url.startsWith("/api/source/") ||
+            url.startsWith("/api/brand-kit") ||
+            url.startsWith("/api/user/brand-kit")
+        ) {
             const ip = request.ip || '127.0.0.1';
             if (!rateLimiter.checkRpm(ip)) {
                 reply.status(429).send({ error: "Too Many Requests (RPM exceeded)" });
@@ -71,8 +83,9 @@ export async function buildApp(options: { logger?: boolean, queue?: IVideoQueue 
             }
 
             const body = request.body as any;
-            if (body && body.prompt) {
-                const check = validatePrompt(body.prompt);
+            const promptCandidate = body?.prompt ?? body?.text ?? body?.topic;
+            if (typeof promptCandidate === 'string') {
+                const check = validatePrompt(promptCandidate);
                 if (!check.isValid) {
                     reply.status(400).send({ error: check.reason });
                     return reply;
@@ -524,6 +537,12 @@ export async function buildApp(options: { logger?: boolean, queue?: IVideoQueue 
             for await (const chunk of data.file) {
                 chunks.push(chunk);
             }
+
+            if (data.file.truncated) {
+                reply.status(413);
+                return { error: 'File tải lên bị cắt ngắn hoặc vượt quá dung lượng cho phép (tối đa 5MB).' };
+            }
+
             const fileBuffer = Buffer.concat(chunks);
 
             // Kiểm tra bảo mật toàn diện (kích thước, MIME, magic bytes, SVG sanitize)
@@ -538,8 +557,12 @@ export async function buildApp(options: { logger?: boolean, queue?: IVideoQueue 
             // Tạo đường dẫn lưu file với tên UUID (an toàn, không thể đoán)
             const savePath = generateSafeFilePath(mimeType);
 
-            // Ghi file: SVG dùng nội dung đã sanitize, các định dạng khác dùng buffer gốc
-            if (mimeType === 'image/svg+xml' && validation.sanitizedContent) {
+            // Ghi file: SVG bắt buộc phải dùng nội dung đã sanitize và không được rỗng
+            if (mimeType === 'image/svg+xml') {
+                if (!validation.sanitizedContent || !validation.sanitizedContent.trim()) {
+                    reply.status(400);
+                    return { error: 'Nội dung SVG rỗng hoặc không hợp lệ sau khi làm sạch.' };
+                }
                 writeFileSync(savePath, validation.sanitizedContent, 'utf-8');
             } else {
                 writeFileSync(savePath, fileBuffer);
