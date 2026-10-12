@@ -296,8 +296,7 @@ switchRows.forEach(row => {
 function updateSummaryMeta() {
     if (!summaryMetaLine) return;
     const dur = durationInput ? durationInput.value : 15;
-    const count = selectedMotionBlockIds.size;
-    summaryMetaLine.textContent = `${currentRatio} · ${dur}s · ${count} hiệu ứng`;
+    summaryMetaLine.textContent = `${currentRatio} · ${dur}s`;
 }
 
 function updateMotionCount() {
@@ -356,7 +355,7 @@ function renderMotionBlocks() {
         btn.type = 'button';
         btn.className = 'motion-item-btn' + (isSelected ? ' selected' : '');
         btn.innerHTML = `
-            <span class="motion-icon-mark">${isSelected ? '✓' : '+'}</span>
+            <span class="motion-icon-mark">${isSelected ? '<svg class="size-3" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3"><polyline points="20 6 9 17 4 12"/></svg>' : '+'}</span>
             <span class="motion-text-col">
                 <span class="motion-name-text">${block.name}${block.runtime ? ' <span class="mb-runtime" style="font-size: 8px; background: #dcfce7; color: #15803d; padding: 1px 4px; border-radius: 99px;">core</span>' : ''}</span>
                 <span class="motion-cat-text">${block.category || ''}</span>
@@ -558,7 +557,7 @@ if (generateBtn) {
                     if (job.status === 'completed') {
                         clearInterval(pollInterval);
                         setProgress(100);
-                        log('🎉 Hoàn tất render video!', 'success');
+                        log('Hoàn tất render video!', 'success');
 
                         generateBtn.disabled = false;
                         if (btnSpinner) btnSpinner.style.display = 'none';
@@ -568,7 +567,7 @@ if (generateBtn) {
                     } else if (job.status === 'failed') {
                         clearInterval(pollInterval);
                         setProgress(0);
-                        log(`❌ Thất bại: ${job.error || 'Lỗi không xác định'}`, 'error');
+                        log(`Thất bại: ${job.error || 'Lỗi không xác định'}`, 'error');
 
                         generateBtn.disabled = false;
                         if (btnSpinner) btnSpinner.style.display = 'none';
@@ -667,22 +666,138 @@ if (logoutBtn) {
     });
 }
 
-// Navigation Active Scroll Highlight
-window.addEventListener('scroll', () => {
-    const navLinks = document.querySelectorAll('.nav-links-pill .nav-link-btn');
-    const sections = ['home', 'workspace', 'templates', 'services'];
-    let current = 'home';
-    sections.forEach(id => {
+// --- Onepage View Controller (Điều hướng One-page không scroll) ---
+const SECTION_ORDER = ['home', 'workspace', 'templates', 'services'];
+
+function getCurrentView() {
+    const hash = (window.location.hash || '').replace('#', '');
+    return SECTION_ORDER.includes(hash) ? hash : 'home';
+}
+
+function switchView(targetId, updateHistory = true) {
+    if (!targetId) targetId = 'home';
+    targetId = targetId.replace(/^#/, '');
+    if (!SECTION_ORDER.includes(targetId)) targetId = 'home';
+
+    SECTION_ORDER.forEach(id => {
         const el = document.getElementById(id);
         if (el) {
-            const top = el.offsetTop - 140;
-            if (window.scrollY >= top) current = id;
+            el.classList.toggle('active-view', id === targetId);
         }
     });
-    navLinks.forEach(link => {
-        link.classList.toggle('active', link.getAttribute('href') === `#${current}`);
+
+    // Cập nhật active cho navbar pills
+    document.querySelectorAll('.nav-links-pill .nav-link-btn').forEach(link => {
+        const href = link.getAttribute('href') || '';
+        link.classList.toggle('active', href === `#${targetId}`);
+    });
+
+    if (updateHistory && window.location.hash !== `#${targetId}`) {
+        if (history.replaceState) {
+            history.replaceState(null, '', `#${targetId}`);
+        } else {
+            window.location.hash = `#${targetId}`;
+        }
+    }
+}
+
+// Bắt sự kiện click tất cả anchor links #
+document.querySelectorAll('a[href^="#"]').forEach(anchor => {
+    anchor.addEventListener('click', function (e) {
+        const href = this.getAttribute('href');
+        if (!href || href === '#') return;
+        const targetId = href.replace('#', '');
+        if (SECTION_ORDER.includes(targetId)) {
+            e.preventDefault();
+            switchView(targetId);
+            if (targetId === 'workspace') {
+                setTimeout(() => {
+                    if (promptInput) promptInput.focus();
+                }, 150);
+            }
+        }
     });
 });
+
+// Lắng nghe thay đổi hash
+window.addEventListener('hashchange', () => {
+    switchView(getCurrentView(), false);
+});
+
+// Điều hướng Onepage mượt mà bằng con lăn chuột (Wheel)
+let isViewTransitioning = false;
+window.addEventListener('wheel', (e) => {
+    if (isViewTransitioning) return;
+    if (Math.abs(e.deltaY) < 30) return;
+
+    // Bỏ qua nếu người dùng đang ở trong modal
+    if (e.target && e.target.closest && e.target.closest('.auth-modal, .auth-card-modal')) return;
+
+    const current = getCurrentView();
+    const curIdx = SECTION_ORDER.indexOf(current);
+
+    if (e.deltaY > 0 && curIdx < SECTION_ORDER.length - 1) {
+        isViewTransitioning = true;
+        switchView(SECTION_ORDER[curIdx + 1]);
+        setTimeout(() => { isViewTransitioning = false; }, 420);
+    } else if (e.deltaY < 0 && curIdx > 0) {
+        isViewTransitioning = true;
+        switchView(SECTION_ORDER[curIdx - 1]);
+        setTimeout(() => { isViewTransitioning = false; }, 420);
+    }
+}, { passive: true });
+
+// Điều hướng Onepage bằng phím mũi tên / PageDown / PageUp
+window.addEventListener('keydown', (e) => {
+    const activeEl = document.activeElement;
+    const tag = activeEl ? activeEl.tagName.toLowerCase() : '';
+    if (tag === 'input' || tag === 'textarea' || (activeEl && activeEl.isContentEditable)) return;
+    if (activeEl && activeEl.closest && activeEl.closest('.auth-modal')) return;
+
+    const current = getCurrentView();
+    const curIdx = SECTION_ORDER.indexOf(current);
+
+    if (['ArrowDown', 'PageDown', ' '].includes(e.key) && curIdx < SECTION_ORDER.length - 1) {
+        e.preventDefault();
+        switchView(SECTION_ORDER[curIdx + 1]);
+    } else if (['ArrowUp', 'PageUp'].includes(e.key) && curIdx > 0) {
+        e.preventDefault();
+        switchView(SECTION_ORDER[curIdx - 1]);
+    }
+});
+
+// Điều hướng Onepage bằng cử chỉ vuốt trên màn hình cảm ứng
+let touchStartY = 0;
+window.addEventListener('touchstart', (e) => {
+    if (e.touches && e.touches[0]) {
+        touchStartY = e.touches[0].clientY;
+    }
+}, { passive: true });
+
+window.addEventListener('touchend', (e) => {
+    if (isViewTransitioning) return;
+    if (!e.changedTouches || !e.changedTouches[0]) return;
+    if (e.target && e.target.closest && e.target.closest('.auth-modal')) return;
+
+    const diffY = touchStartY - e.changedTouches[0].clientY;
+    if (Math.abs(diffY) < 50) return;
+
+    const current = getCurrentView();
+    const curIdx = SECTION_ORDER.indexOf(current);
+
+    if (diffY > 0 && curIdx < SECTION_ORDER.length - 1) {
+        isViewTransitioning = true;
+        switchView(SECTION_ORDER[curIdx + 1]);
+        setTimeout(() => { isViewTransitioning = false; }, 420);
+    } else if (diffY < 0 && curIdx > 0) {
+        isViewTransitioning = true;
+        switchView(SECTION_ORDER[curIdx - 1]);
+        setTimeout(() => { isViewTransitioning = false; }, 420);
+    }
+}, { passive: true });
+
+// Khởi tạo view ban đầu theo URL hash
+switchView(getCurrentView(), false);
 
 // --- Aceternity UI Inspired FlipWords Controller (Đổi chữ nghệ thuật) ---
 (function initFlipWords() {
@@ -892,26 +1007,55 @@ window.addEventListener('scroll', () => {
     startAutoRotate();
 })();
 
-// --- Templates Filter Logic ---
+// --- Templates Showcase Controller (Lọc danh mục & Phân trang 1 hàng) ---
 const tplFilterBtns = document.querySelectorAll('.tpl-filter-btn');
 const tplCards = document.querySelectorAll('.template-item-card');
+const tplDotsWrap = document.getElementById('tpl-page-dots-wrap');
+const tplDots = document.querySelectorAll('.tpl-page-dot');
+let currentTplCat = 'all';
+let currentTplPage = 0;
+
+function updateTemplatesView() {
+    tplCards.forEach(card => {
+        const cardCat = card.getAttribute('data-category');
+        const cardPage = parseInt(card.getAttribute('data-page') || '0', 10);
+
+        if (currentTplCat === 'all') {
+            card.style.display = (cardPage === currentTplPage) ? 'flex' : 'none';
+        } else {
+            card.style.display = (cardCat === currentTplCat) ? 'flex' : 'none';
+        }
+    });
+
+    if (tplDotsWrap) {
+        tplDotsWrap.style.display = (currentTplCat === 'all') ? 'flex' : 'none';
+    }
+
+    tplDots.forEach(dot => {
+        const p = parseInt(dot.getAttribute('data-page') || '0', 10);
+        dot.classList.toggle('active', p === currentTplPage);
+    });
+}
 
 tplFilterBtns.forEach(btn => {
     btn.addEventListener('click', () => {
         tplFilterBtns.forEach(b => b.classList.remove('active'));
         btn.classList.add('active');
-        const cat = btn.getAttribute('data-category') || 'all';
-
-        tplCards.forEach(card => {
-            const cardCat = card.getAttribute('data-category');
-            if (cat === 'all' || cardCat === cat) {
-                card.style.display = 'flex';
-            } else {
-                card.style.display = 'none';
-            }
-        });
+        currentTplCat = btn.getAttribute('data-category') || 'all';
+        currentTplPage = 0;
+        updateTemplatesView();
     });
 });
+
+tplDots.forEach(dot => {
+    dot.addEventListener('click', () => {
+        currentTplPage = parseInt(dot.getAttribute('data-page') || '0', 10);
+        updateTemplatesView();
+    });
+});
+
+// Khởi tạo hiển thị trang 1 mẫu
+updateTemplatesView();
 
 // --- Use Template Button Click ---
 const useTemplateBtns = document.querySelectorAll('.btn-use-template');
@@ -947,15 +1091,30 @@ useTemplateBtns.forEach(btn => {
 
         updateSummaryMeta();
 
-        // Cuộn mượt đến Studio & focus ô prompt
-        const workspaceEl = document.getElementById('workspace');
-        if (workspaceEl) {
-            workspaceEl.scrollIntoView({ behavior: 'smooth' });
-            setTimeout(() => {
-                if (promptInput) promptInput.focus();
-            }, 600);
-        }
+        // Chuyển sang Studio & focus ô prompt mà không scroll
+        switchView('workspace');
+        setTimeout(() => {
+            if (promptInput) promptInput.focus();
+        }, 300);
+
         log('Đã nạp mẫu thiết kế vào Studio thành công!', 'info');
+    });
+});
+
+// --- Services Sub-tabs Controller (Bảng giá vs Cam kết & FAQ) ---
+const servicesSubtabBtns = document.querySelectorAll('.services-subtab-btn');
+const servicesPanes = {
+    'pricing': document.getElementById('pane-pricing'),
+    'trust-faq': document.getElementById('pane-trust-faq')
+};
+
+servicesSubtabBtns.forEach(btn => {
+    btn.addEventListener('click', () => {
+        const tab = btn.getAttribute('data-tab');
+        servicesSubtabBtns.forEach(b => b.classList.toggle('active', b === btn));
+        Object.entries(servicesPanes).forEach(([k, pane]) => {
+            if (pane) pane.classList.toggle('active', k === tab);
+        });
     });
 });
 
