@@ -28,7 +28,7 @@ The API server is a Fastify app in `src/index.ts`. All endpoints are JSON unless
 | PUT | `/api/settings` | 🔒 | Switch LLM/TTS provider at runtime (scoped to current user) |
 | POST | `/api/script/draft` | 🔒 | Generate or regenerate a video script draft (Phase 1) |
 | POST | `/api/generate` | 🔒 | Create a video generation job (direct or from confirmed draft) |
-| POST | `/api/brand-kit/upload` | — | Upload brand logo (PNG, JPEG, SVG, WebP with XSS/XXE sanitization) |
+| POST | `/api/brand-kit/upload` | 🔒 | Upload brand logo (PNG, JPEG, SVG, WebP with XSS/XXE sanitization) |
 | GET | `/api/user/brand-kit` | 🔒 | Get current user's brand kit & watermark settings |
 | PUT | `/api/user/brand-kit` | 🔒 | Save/upsert user's brand kit & watermark settings |
 | GET | `/api/jobs` | 🔒 | List recent jobs (scoped to current user) |
@@ -370,8 +370,8 @@ Request body (`VideoRequestSchema`):
 | `position` | string | `top-left` \| `top-right` \| `bottom-left` \| `bottom-right` \| `custom` | `"bottom-right"` | Vị trí đặt logo tại 4 góc hoặc tọa độ tùy biến |
 | `scalePercent` | number | 5–50 | `15` | Kích thước chiều ngang logo theo % chiều rộng video |
 | `opacity` | number | 0.1–1.0 | `0.8` | Độ hiển thị / độ trong suốt của logo |
-| `xPercent` | number | 0–100 | optional | Tọa độ X tùy biến theo % chiều rộng (khi `position="custom"`) |
-| `yPercent` | number | 0–100 | optional | Tọa độ Y tùy biến theo % chiều cao (khi `position="custom"`) |
+| `xPercent` | number | 0–100 | `5` | Tọa độ X tùy biến theo % chiều rộng (khi `position="custom"`) |
+| `yPercent` | number | 0–100 | `5` | Tọa độ Y tùy biến theo % chiều cao (khi `position="custom"`) |
 
 Ví dụ có watermark:
 
@@ -412,16 +412,17 @@ Response `202 Accepted`:
 
 Hệ thống cho phép người dùng tải lên hình ảnh biểu trưng thương hiệu (logo) an toàn và lưu cấu hình mặc định vào tài khoản (PostgreSQL).
 
-### `POST /api/brand-kit/upload`
+### `POST /api/brand-kit/upload` 🔒
 
 Tải tệp tin ảnh logo lên máy chủ để dùng làm watermark. Sử dụng `multipart/form-data`.
+Yêu cầu đăng nhập (session cookie); route này cũng chịu giới hạn rate-limit.
 
 - **Form field:** `logo` (chứa dữ liệu file nhị phân)
 - **Định dạng cho phép:** PNG (`image/png`), JPEG (`image/jpeg`), SVG (`image/svg+xml`), WebP (`image/webp`)
 - **Dung lượng tối đa:** 5 MB (`5 * 1024 * 1024` bytes)
 - **Bảo mật:**
   - Kiểm tra Magic Bytes nhị phân (chống giả mạo phần mở rộng file).
-  - Tự động làm sạch mã độc SVG: loại bỏ thẻ `<script>`, `onload`, `onclick`, JavaScript URI `javascript:...`, và các thực thể XML ngoại vi (XXE injection).
+  - Tự động làm sạch mã độc SVG theo danh sách trắng (whitelist): loại bỏ thẻ `<script>`, mọi event handler `on*` (kể cả dạng `<svg/onload="...">`), JavaScript URI `javascript:...`, và các thực thể XML ngoại vi (XXE injection).
   - Đổi tên tệp ngẫu nhiên bằng UUID (chống Path Traversal).
 
 Response `200 OK`:
@@ -430,13 +431,17 @@ Response `200 OK`:
 {
   "success": true,
   "logoUrl": "/uploads/logos/7b8c2d1e-9a3f-4e5b-8c7d-1a2b3c4d5e6f.png",
-  "filePath": "C:\\Users\\ADMIN\\Documents\\LIME\\uploads\\logos\\7b8c2d1e-9a3f-4e5b-8c7d-1a2b3c4d5e6f.png",
   "mimeType": "image/png"
 }
 ```
 
+> Lưu ý: API không trả về đường dẫn tuyệt đối trên server. Client luôn dùng
+> `logoUrl` (đường dẫn tương đối) cho `watermark.logoPath`; server chỉ chấp
+> nhận file logo nằm trong `tmp/uploads/logos/`.
+
 Response lỗi:
 - `400` → File vượt quá 5MB, MIME type không được hỗ trợ, hoặc magic bytes không khớp.
+- `401` → Chưa đăng nhập.
 
 ### `GET /api/user/brand-kit` 🔒
 
@@ -466,12 +471,13 @@ Nếu người dùng chưa từng lưu cài đặt thương hiệu nào, trườ
 ### `PUT /api/user/brand-kit` 🔒
 
 Lưu (tạo mới hoặc cập nhật - Upsert) cấu hình thương hiệu mặc định của tài khoản người dùng vào cơ sở dữ liệu PostgreSQL.
+Toàn bộ body được validate bằng `watermarkConfigSchema` (zod); request không hợp lệ trả về `400`.
 
 Request body:
 
 | Field | Type | Constraints | Default | Description |
 |---|---|---|---|---|
-| `logoUrl` | string | Chuỗi URL/đường dẫn | bắt buộc | Đường dẫn logo nhận được từ upload API |
+| `logoUrl` | string | Bắt đầu bằng `/uploads/logos/` | bắt buộc | Đường dẫn logo nhận được từ upload API |
 | `position` | string | `top-left` \| `top-right` \| `bottom-left` \| `bottom-right` \| `custom` | `"top-right"` | Vị trí góc ưu tiên |
 | `scalePct` | number | 5–50 | `15` | Tỷ lệ kích thước % |
 | `opacity` | number | 0.1–1.0 | `0.8` | Độ hiển thị |
