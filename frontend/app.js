@@ -26,6 +26,9 @@ const registerMessage = document.getElementById('register-message');
 const googleLoginBtn = document.getElementById('google-login-btn');
 const appleLoginBtn = document.getElementById('apple-login-btn');
 const forgotPasswordLink = document.getElementById('forgot-password-link');
+const authSocialRow = document.getElementById('auth-social-row');
+const authDivider = document.getElementById('auth-divider');
+const registerTerms = document.getElementById('register-terms');
 
 // Helpers for Eye / EyeOff password visibility toggle
 function initPasswordToggle(inputId, toggleBtnId) {
@@ -170,8 +173,10 @@ if (showRegisterBtn) {
     showRegisterBtn.addEventListener('click', () => {
         loginForm.style.display = 'none';
         registerForm.style.display = 'flex';
+        if (authSocialRow) authSocialRow.style.display = 'none';
+        if (authDivider) authDivider.style.display = 'none';
         if (authTitle) authTitle.textContent = 'Tạo tài khoản';
-        if (authSubtitle) authSubtitle.textContent = 'Nhập thông tin để bắt đầu trải nghiệm';
+        if (authSubtitle) authSubtitle.textContent = 'Nhập thông tin của bạn để bắt đầu';
         if (loginMessage) loginMessage.textContent = '';
         if (registerMessage) registerMessage.textContent = '';
     });
@@ -181,6 +186,8 @@ if (showLoginBtn) {
     showLoginBtn.addEventListener('click', () => {
         registerForm.style.display = 'none';
         loginForm.style.display = 'flex';
+        if (authSocialRow) authSocialRow.style.display = 'grid';
+        if (authDivider) authDivider.style.display = 'flex';
         if (authTitle) authTitle.textContent = 'Chào mừng trở lại';
         if (authSubtitle) authSubtitle.textContent = 'Nhập thông tin tài khoản của bạn để đăng nhập';
         if (loginMessage) loginMessage.textContent = '';
@@ -188,7 +195,17 @@ if (showLoginBtn) {
     });
 }
 
+if (registerTerms && registerSubmitBtn) {
+    registerTerms.addEventListener('change', () => {
+        registerSubmitBtn.disabled = !registerTerms.checked;
+    });
+}
+
 async function handleRegister() {
+    if (registerTerms && !registerTerms.checked) {
+        registerMessage.textContent = 'Vui lòng đồng ý với Điều khoản dịch vụ và Chính sách bảo mật';
+        return;
+    }
     const username = registerUsername.value.trim();
     const email = registerEmail.value.trim();
     const password = registerPassword.value;

@@ -1696,6 +1696,32 @@ background: var(--neutral-200);
     box-shadow: 0 0 0 1px #18181b;
 }
 
+/* Input Wrappers & Left Icons */
+.auth-input-wrapper {
+    position: relative;
+    width: 100%;
+    display: flex;
+    align-items: center;
+}
+
+.auth-input-left-icon {
+    position: absolute;
+    left: 12px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    color: #9ca3af;
+    pointer-events: none;
+}
+
+.clean-auth-input.with-left-icon {
+    padding-left: 36px;
+}
+
+.clean-auth-input.with-right-icon {
+    padding-right: 40px;
+}
+
 .auth-password-wrapper {
     position: relative;
     width: 100%;
@@ -1729,6 +1755,73 @@ background: var(--neutral-200);
     background: #f4f4f5;
 }
 
+/* Terms Checkbox Group */
+.auth-terms-group {
+    margin: 2px 0 2px;
+}
+
+.auth-checkbox-label {
+    display: flex;
+    align-items: flex-start;
+    gap: 8px;
+    cursor: pointer;
+    user-select: none;
+}
+
+.auth-checkbox-label input[type="checkbox"] {
+    position: absolute;
+    opacity: 0;
+    width: 0;
+    height: 0;
+    pointer-events: none;
+}
+
+.auth-checkbox-box {
+    width: 16px;
+    height: 16px;
+    flex-shrink: 0;
+    border-radius: 4px;
+    border: 1.5px solid #d4d4d8;
+    background: #ffffff;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    margin-top: 1px;
+    transition: all 0.15s ease;
+}
+
+.auth-checkbox-label input[type="checkbox"]:checked + .auth-checkbox-box {
+    background: #18181b;
+    border-color: #18181b;
+    color: #ffffff;
+}
+
+.auth-checkbox-box .check-icon {
+    display: none;
+}
+
+.auth-checkbox-label input[type="checkbox"]:checked + .auth-checkbox-box .check-icon {
+    display: block;
+}
+
+.auth-terms-text {
+    font-size: 12px;
+    line-height: 1.4;
+    color: #71717a;
+    text-align: left;
+}
+
+.auth-terms-link {
+    color: #18181b;
+    font-weight: 600;
+    text-decoration: underline;
+    text-underline-offset: 2px;
+}
+
+.auth-terms-link:hover {
+    color: #52525b;
+}
+
 .btn-auth-submit {
     margin-top: 4px;
     width: 100%;
@@ -1747,13 +1840,18 @@ background: var(--neutral-200);
     transition: all 0.15s ease;
 }
 
-.btn-auth-submit:hover {
+.btn-auth-submit:hover:not(:disabled) {
     background: #27272a;
     box-shadow: 0 4px 12px rgba(0, 0, 0, 0.12);
 }
 
-.btn-auth-submit:active {
+.btn-auth-submit:active:not(:disabled) {
     transform: scale(0.99);
+}
+
+.btn-auth-submit:disabled {
+    opacity: 0.5;
+    cursor: not-allowed;
 }
 
 .auth-status-msg {
