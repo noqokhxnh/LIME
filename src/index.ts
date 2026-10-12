@@ -99,6 +99,15 @@ export async function buildApp(options: { logger?: boolean, queue?: IVideoQueue 
         reply.status(404).send("Frontend not found");
     });
 
+    app.get("/workspace", async (_request: FastifyRequest, reply: FastifyReply) => {
+        const htmlPath = join(frontendDir, "workspace.html");
+        if (existsSync(htmlPath)) {
+            reply.type("text/html; charset=utf-8").send(createReadStream(htmlPath));
+            return reply;
+        }
+        reply.status(404).send("Workspace not found");
+    });
+
     app.get("/api/health", async () => {
         const config = getConfig();
         return {

@@ -34,7 +34,10 @@ if (googleLoginBtn) {
 }
 
 if (loginOpenBtn && loginModal) {
-    loginOpenBtn.addEventListener('click', () => loginModal.classList.add('show'));
+    loginOpenBtn.addEventListener('click', () => {
+        if (isLoggedIn) window.location.href = '/workspace';
+        else loginModal.classList.add('show');
+    });
 }
 if (loginCloseBtn && loginModal) {
     loginCloseBtn.addEventListener('click', () => loginModal.classList.remove('show'));
@@ -61,11 +64,7 @@ if (loginSubmitBtn) {
                 return;
             }
             loginMessage.textContent = '';
-            loginModal.classList.remove('show');
-            loginOpenBtn.textContent = data.username;
-            loginOpenBtn.disabled = true;
-            if (logoutBtn) logoutBtn.style.display = 'inline-block';
-            log(`Đăng nhập thành công: ${data.username}`, 'success');
+            window.location.href = '/workspace';
         } catch (err) {
             loginMessage.textContent = 'Không thể kết nối tới server';
         }
@@ -112,11 +111,7 @@ if (registerSubmitBtn) {
                 return;
             }
             registerMessage.textContent = '';
-            loginModal.classList.remove('show');
-            loginOpenBtn.textContent = data.username;
-            loginOpenBtn.disabled = true;
-            if (logoutBtn) logoutBtn.style.display = 'inline-block';
-            log(`Đăng ký thành công: ${data.username}`, 'success');
+            window.location.href = '/workspace';
         } catch (err) {
             registerMessage.textContent = 'Không thể kết nối tới server';
         }
@@ -132,482 +127,61 @@ function handleAuthError() {
     window.history.replaceState({}, '', window.location.pathname);
 }
 
-// Studio Core Form Elements
-const promptInput = document.getElementById('prompt-input');
-const promptCharCount = document.getElementById('prompt-char-count');
-const styleSelect = document.getElementById('style-select');
-const durationInput = document.getElementById('duration-input');
-const blueprintSelect = document.getElementById('blueprint-select');
-const catalogCategoryFilter = document.getElementById('catalog-category-filter');
-const motionBlocksList = document.getElementById('motion-blocks-list');
-const motionBlocksCount = document.getElementById('motion-blocks-count');
-const ttsProviderSelect = document.getElementById('tts-provider-select');
-const voiceSelect = document.getElementById('voice-select');
-const generateBtn = document.getElementById('generate-btn');
-const btnSpinner = document.getElementById('btn-spinner');
-const btnText = document.getElementById('btn-text');
-const logViewer = document.getElementById('log-viewer');
-const progressFill = document.getElementById('progress-bar-fill');
-const progressPercent = document.getElementById('progress-percent');
-const videoPlayer = document.getElementById('video-player');
-const videoEmpty = document.getElementById('video-empty');
-const btnDownload = document.getElementById('btn-download');
-const btnPreviewHtml = document.getElementById('btn-preview-html');
-const timelineDurationLabel = document.getElementById('timeline-duration-label');
-const summaryMetaLine = document.getElementById('summary-meta-line');
-const customStyleInput = document.getElementById('custom-style-input');
-const customScriptJson = document.getElementById('custom-script-json');
+// --- Trang chủ: trạng thái đăng nhập & điều hướng ---
+let isLoggedIn = false;
 
-let pollInterval = null;
-let catalogBlocks = [];
-let selectedMotionBlockIds = new Set();
-let currentRatio = '16:9';
-let voiceEnabled = true;
+function openLogin() {
+    if (loginModal) loginModal.classList.add('show');
+}
+function goStudio() {
+    if (isLoggedIn) window.location.href = '/workspace';
+    else openLogin();
+}
+function stashPrompt(data) {
+    try { sessionStorage.setItem('lime-pending-prompt', JSON.stringify(data)); } catch (e) {}
+}
 
-// Tab Navigation
-const tabNavBtns = document.querySelectorAll('.tab-nav-btn');
-const tabPanels = document.querySelectorAll('.tab-panel');
-tabNavBtns.forEach(btn => {
-    btn.addEventListener('click', () => {
-        const tabId = btn.getAttribute('data-tab');
-        tabNavBtns.forEach(b => {
-            b.classList.remove('active');
-            b.setAttribute('aria-selected', 'false');
-        });
-        btn.classList.add('active');
-        btn.setAttribute('aria-selected', 'true');
-        tabPanels.forEach(p => p.classList.remove('active'));
-        const activePanel = document.getElementById(`tab-panel-${tabId}`);
-        if (activePanel) activePanel.classList.add('active');
+document.getElementById('cta-create-btn')?.addEventListener('click', goStudio);
+document.querySelectorAll('.plan-cta').forEach(b => b.addEventListener('click', goStudio));
+
+// Promptbar trang chủ: lưu prompt rồi đi tiếp theo trạng thái đăng nhập
+(function initHomePrompt() {
+    const input = document.getElementById('home-prompt-input');
+    const btn = document.getElementById('home-prompt-btn');
+    if (!input || !btn) return;
+    const go = () => {
+        const v = input.value.trim();
+        if (v) stashPrompt({ prompt: v });
+        goStudio();
+    };
+    btn.addEventListener('click', go);
+    input.addEventListener('keydown', (e) => {
+        if (e.key === 'Enter') { e.preventDefault(); go(); }
     });
-});
-
-// Style Cards Selection
-const styleCards = document.querySelectorAll('.style-choice-card');
-styleCards.forEach(card => {
-    card.addEventListener('click', () => {
-        styleCards.forEach(c => c.classList.remove('active'));
-        card.classList.add('active');
-        const st = card.getAttribute('data-style') || 'modern';
-        if (styleSelect) {
-            styleSelect.value = st;
-            styleSelect.dispatchEvent(new Event('change'));
-        }
-        renderMotionBlocks();
-        updateSummaryMeta();
-    });
-});
-
-// Ratio Buttons Selection
-const ratioBtns = document.querySelectorAll('.ratio-btn');
-ratioBtns.forEach(btn => {
-    btn.addEventListener('click', () => {
-        ratioBtns.forEach(b => b.classList.remove('active'));
-        btn.classList.add('active');
-        currentRatio = btn.getAttribute('data-ratio') || '16:9';
-        updateSummaryMeta();
-    });
-});
-
-// Duration Input Sync
-if (durationInput) {
-    durationInput.addEventListener('input', () => {
-        let val = parseInt(durationInput.value, 10);
-        if (Number.isFinite(val)) {
-            val = Math.min(300, Math.max(10, val));
-            if (timelineDurationLabel) {
-                timelineDurationLabel.textContent = `00:${val < 10 ? '0' + val : val}`;
-            }
-        }
-        updateSummaryMeta();
-    });
-}
-
-// Prompt Counter
-if (promptInput && promptCharCount) {
-    promptInput.addEventListener('input', () => {
-        const len = promptInput.value.length;
-        promptCharCount.textContent = `${len}/500 · tối thiểu 10`;
-        promptCharCount.classList.toggle('warn', len > 0 && len < 10);
-    });
-}
-
-// Quick Prompt
-function setPrompt(text) {
-    if (!promptInput) return;
-    promptInput.value = text;
-    promptInput.focus();
-    if (promptCharCount) {
-        promptCharCount.textContent = `${text.length}/500 · tối thiểu 10`;
-        promptCharCount.classList.remove('warn');
-    }
-}
-
-// TTS Provider Sync
-if (ttsProviderSelect && voiceSelect) {
-    ttsProviderSelect.addEventListener('change', () => {
-        const prov = ttsProviderSelect.value;
-        if (prov === 'vieneu') {
-            const isVieNeu = ['Minh Quân', 'Mai Anh', 'Adam', 'Ái Hân', 'Mỹ Duyên', 'Đức Trí', 'Hữu Quân', 'Xuân Tiên', 'Trúc Ly', 'Anh Khôi', 'Mạnh Dũng'].includes(voiceSelect.value);
-            if (!isVieNeu) voiceSelect.value = 'Minh Quân';
-        } else if (prov === 'edge') {
-            voiceSelect.value = 'vi-VN-HoaiMyNeural';
-        }
-    });
-}
-
-// TTS Engine Cards in Tab 3
-const ttsEngineCards = document.querySelectorAll('.tts-engine-card');
-ttsEngineCards.forEach(card => {
-    card.addEventListener('click', () => {
-        ttsEngineCards.forEach(c => c.classList.remove('active'));
-        card.classList.add('active');
-        const eng = card.getAttribute('data-engine') || 'vieneu';
-        if (ttsProviderSelect) {
-            ttsProviderSelect.value = eng;
-            ttsProviderSelect.dispatchEvent(new Event('change'));
-        }
-    });
-});
-
-// Voice Toggle Switch
-const voiceToggleBtn = document.getElementById('voice-toggle-btn');
-const voiceStatusText = document.getElementById('voice-status-text');
-if (voiceToggleBtn) {
-    voiceToggleBtn.addEventListener('click', () => {
-        voiceEnabled = !voiceEnabled;
-        voiceToggleBtn.classList.toggle('active', voiceEnabled);
-        if (voiceStatusText) {
-            voiceStatusText.textContent = voiceEnabled ? 'Đang bật' : 'Đang tắt';
-        }
-    });
-}
-
-// Switches in Tab 4 (Queue, Skip Preview)
-const switchRows = document.querySelectorAll('.switch-row');
-switchRows.forEach(row => {
-    const btn = row.querySelector('.clean-toggle-switch');
-    if (btn) {
-        btn.addEventListener('click', () => btn.classList.toggle('active'));
-    }
-});
-
-// Update Bottom Summary Line
-function updateSummaryMeta() {
-    if (!summaryMetaLine) return;
-    const dur = durationInput ? durationInput.value : 15;
-    summaryMetaLine.textContent = `${currentRatio} · ${dur}s`;
-}
-
-function updateMotionCount() {
-    const count = selectedMotionBlockIds.size;
-    if (motionBlocksCount) motionBlocksCount.textContent = String(count);
-    const dashes = document.querySelectorAll('#motion-dashes .dash-seg');
-    dashes.forEach((dash, idx) => {
-        dash.classList.toggle('filled', idx < count);
-    });
-    updateSummaryMeta();
-}
-
-function renderCategoryChips(categories) {
-    const wrap = document.getElementById('category-chips-list');
-    if (!wrap) return;
-    wrap.innerHTML = '';
-    categories.forEach(cat => {
-        const chip = document.createElement('button');
-        chip.type = 'button';
-        const isCurrent = (catalogCategoryFilter && catalogCategoryFilter.value === (cat === 'Tất cả' ? '' : cat));
-        chip.className = 'cat-filter-chip' + (isCurrent ? ' active' : '');
-        chip.textContent = cat;
-        chip.addEventListener('click', () => {
-            if (catalogCategoryFilter) {
-                catalogCategoryFilter.value = cat === 'Tất cả' ? '' : cat;
-            }
-            renderCategoryChips(categories);
-            renderMotionBlocks();
-        });
-        wrap.appendChild(chip);
-    });
-}
-
-function renderMotionBlocks() {
-    if (!motionBlocksList) return;
-    const category = catalogCategoryFilter ? catalogCategoryFilter.value : '';
-    const style = styleSelect ? styleSelect.value : 'modern';
-    const filtered = catalogBlocks.filter((b) => {
-        const styleOk = !b.styleAffinity || b.styleAffinity.includes('any') || b.styleAffinity.includes(style);
-        const catOk = !category || b.category === category;
-        return styleOk && catOk;
-    });
-
-    // Prune hidden blocks
-    const visibleIds = new Set(filtered.map((b) => b.id));
-    for (const id of [...selectedMotionBlockIds]) {
-        if (!visibleIds.has(id)) {
-            selectedMotionBlockIds.delete(id);
-        }
-    }
-
-    motionBlocksList.innerHTML = '';
-    filtered.forEach((block) => {
-        const isSelected = selectedMotionBlockIds.has(block.id);
-        const btn = document.createElement('button');
-        btn.type = 'button';
-        btn.className = 'motion-item-btn' + (isSelected ? ' selected' : '');
-        btn.innerHTML = `
-            <span class="motion-icon-mark">${isSelected ? '<svg class="size-3" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3"><polyline points="20 6 9 17 4 12"/></svg>' : '+'}</span>
-            <span class="motion-text-col">
-                <span class="motion-name-text">${block.name}${block.runtime ? ' <span class="mb-runtime" style="font-size: 8px; background: #dcfce7; color: #15803d; padding: 1px 4px; border-radius: 99px;">core</span>' : ''}</span>
-                <span class="motion-cat-text">${block.category || ''}</span>
-            </span>`;
-
-        btn.addEventListener('click', () => {
-            if (selectedMotionBlockIds.has(block.id)) {
-                selectedMotionBlockIds.delete(block.id);
-            } else {
-                if (selectedMotionBlockIds.size >= 8) {
-                    log('Chỉ chọn tối đa 8 motion blocks', 'error');
-                    return;
-                }
-                selectedMotionBlockIds.add(block.id);
-            }
-            renderMotionBlocks();
-            updateMotionCount();
-        });
-
-        motionBlocksList.appendChild(btn);
-    });
-
-    updateMotionCount();
-}
-
-async function loadCatalog() {
-    try {
-        const res = await fetch(`${API_BASE}/api/catalog`);
-        if (!res.ok) throw new Error('Không tải được catalog');
-        const data = await res.json();
-        catalogBlocks = data.blocks || [];
-
-        if (blueprintSelect) {
-            const current = blueprintSelect.value;
-            blueprintSelect.innerHTML = '<option value="">(Mặc định — 5-beat spine)</option>';
-            (data.blueprints || []).forEach((bp) => {
-                const opt = document.createElement('option');
-                opt.value = bp.id;
-                opt.textContent = bp.name;
-                blueprintSelect.appendChild(opt);
-            });
-            if (current) blueprintSelect.value = current;
-        }
-
-        const cats = ['Tất cả', ...new Set(catalogBlocks.map((b) => b.category).filter(Boolean))].sort();
-        renderCategoryChips(cats);
-        renderMotionBlocks();
-        log(`Đã tải catalog: ${catalogBlocks.length} blocks, ${(data.blueprints || []).length} blueprints`, 'info');
-    } catch (err) {
-        log(`Catalog: ${err.message}`, 'error');
-    }
-}
-
-if (styleSelect) styleSelect.addEventListener('change', renderMotionBlocks);
-
-function log(msg, type = 'info') {
-    if (!logViewer) return;
-    const time = new Date().toLocaleTimeString('vi-VN');
-    const el = document.createElement('div');
-    el.className = `log-item ${type}`;
-    el.textContent = `[${time}] ${msg}`;
-    logViewer.appendChild(el);
-    logViewer.scrollTop = logViewer.scrollHeight;
-}
-
-function setProgress(percent) {
-    const pct = Math.min(100, Math.max(0, Math.round(percent)));
-    if (progressFill) progressFill.style.width = `${pct}%`;
-    if (progressPercent) progressPercent.textContent = `${pct}%`;
-}
-
-function displayVideo(jobId) {
-    const videoUrl = `${API_BASE}/api/jobs/${jobId}/video`;
-    if (videoEmpty) videoEmpty.style.display = 'none';
-    if (videoPlayer) {
-        videoPlayer.style.display = 'block';
-        videoPlayer.src = videoUrl;
-        videoPlayer.load();
-        videoPlayer.play().catch(() => { });
-    }
-
-    if (btnDownload) {
-        btnDownload.style.display = 'inline-flex';
-        btnDownload.href = `${API_BASE}/api/jobs/${jobId}/download`;
-    }
-
-    if (btnPreviewHtml) {
-        btnPreviewHtml.style.display = 'inline-flex';
-        btnPreviewHtml.href = `${API_BASE}/api/jobs/${jobId}/html`;
-    }
-}
-
-// Generate Video Click Handler
-if (generateBtn) {
-    generateBtn.addEventListener('click', async () => {
-        const prompt = promptInput ? promptInput.value.trim() : '';
-        if (prompt.length < 10) {
-            alert('Vui lòng nhập prompt ít nhất 10 ký tự!');
-            if (promptInput) promptInput.focus();
-            return;
-        }
-
-        generateBtn.disabled = true;
-        if (btnSpinner) btnSpinner.style.display = 'inline-block';
-        if (btnText) btnText.textContent = 'Đang tạo...';
-        setProgress(5);
-        log(`Bắt đầu tạo video: "${prompt}"`, 'info');
-
-        try {
-            let selectedStyle = styleSelect ? styleSelect.value : 'modern';
-            if (
-                selectedStyle === 'modern' &&
-                /(?:^|[^\p{L}\p{N}_])(người\s*que|stickman)(?=[^\p{L}\p{N}_]|$)/iu.test(prompt)
-            ) {
-                selectedStyle = 'stickman';
-            }
-
-            const prov = ttsProviderSelect ? ttsProviderSelect.value : 'vieneu';
-            const v = voiceSelect ? voiceSelect.value : 'Minh Quân';
-            const blueprintId = blueprintSelect && blueprintSelect.value ? blueprintSelect.value : undefined;
-            const motionBlockIds = [...selectedMotionBlockIds].slice(0, 8);
-
-            let targetDurationSec = 15;
-            if (durationInput) {
-                const parsed = parseInt(durationInput.value, 10);
-                if (Number.isFinite(parsed)) {
-                    targetDurationSec = Math.min(300, Math.max(10, parsed));
-                    durationInput.value = String(targetDurationSec);
-                } else {
-                    durationInput.value = '15';
-                }
-            }
-
-            const asyncSwitch = document.querySelector('#async-queue-switch .clean-toggle-switch');
-            const skipPreviewSwitch = document.querySelector('#skip-preview-switch .clean-toggle-switch');
-            const isAsync = asyncSwitch ? asyncSwitch.classList.contains('active') : true;
-            const skipPrev = skipPreviewSwitch ? skipPreviewSwitch.classList.contains('active') : false;
-
-            const payload = {
-                prompt: prompt,
-                aspectRatio: currentRatio,
-                targetDurationSec,
-                language: 'vi',
-                style: selectedStyle,
-                ttsProvider: voiceEnabled ? prov : undefined,
-                voice: voiceEnabled ? v : undefined,
-                async: isAsync
-            };
-
-            if (blueprintId) payload.blueprintId = blueprintId;
-            if (motionBlockIds.length) payload.motionBlockIds = motionBlockIds;
-            if (skipPrev) payload.skipPreview = true;
-
-            if (customStyleInput && customStyleInput.value.trim()) {
-                payload.customStyle = customStyleInput.value.trim();
-            }
-
-            if (customScriptJson && customScriptJson.value.trim()) {
-                try {
-                    payload.script = JSON.parse(customScriptJson.value.trim());
-                } catch (e) {
-                    log('Lỗi phân tích cú pháp JSON kịch bản tự dựng', 'error');
-                }
-            }
-
-            const res = await fetch(`${API_BASE}/api/pipeline`, {
-                method: 'POST',
-                credentials: 'include',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify(payload)
-            });
-
-            if (!res.ok) {
-                const err = await res.json();
-                throw new Error(err.error || 'Khởi tạo thất bại');
-            }
-
-            const data = await res.json();
-            const jobId = data.jobId;
-            log(`Đã khởi tạo công việc: ${jobId}`, 'info');
-
-            let lastMessage = '';
-            if (pollInterval) clearInterval(pollInterval);
-
-            pollInterval = setInterval(async () => {
-                try {
-                    const statusRes = await fetch(`${API_BASE}/api/jobs/${jobId}`);
-                    if (!statusRes.ok) return;
-
-                    const job = await statusRes.json();
-                    if (job.progress) {
-                        setProgress(job.progress.progress || 10);
-                        if (job.progress.message && job.progress.message !== lastMessage) {
-                            lastMessage = job.progress.message;
-                            log(job.progress.message, 'info');
-                        }
-                    }
-
-                    if (job.status === 'completed') {
-                        clearInterval(pollInterval);
-                        setProgress(100);
-                        log('Hoàn tất render video!', 'success');
-
-                        generateBtn.disabled = false;
-                        if (btnSpinner) btnSpinner.style.display = 'none';
-                        if (btnText) btnText.textContent = 'Tạo video';
-
-                        displayVideo(jobId);
-                    } else if (job.status === 'failed') {
-                        clearInterval(pollInterval);
-                        setProgress(0);
-                        log(`Thất bại: ${job.error || 'Lỗi không xác định'}`, 'error');
-
-                        generateBtn.disabled = false;
-                        if (btnSpinner) btnSpinner.style.display = 'none';
-                        if (btnText) btnText.textContent = 'Thử lại';
-                    }
-                } catch (pollErr) {
-                    console.error(pollErr);
-                }
-            }, 1000);
-
-        } catch (err) {
-            log(`Lỗi: ${err.message}`, 'error');
-            generateBtn.disabled = false;
-            if (btnSpinner) btnSpinner.style.display = 'none';
-            if (btnText) btnText.textContent = 'Tạo video';
-            setProgress(0);
-        }
-    });
-}
-
-// Initializer
-(async function init() {
-    handleAuthError();
-    await checkAuthConfig();
-    await checkCurrentUser();
-    await loadCatalog();
-    updateSummaryMeta();
-
-    try {
-        const res = await fetch(`${API_BASE}/api/jobs`);
-        if (res.ok) {
-            const jobs = await res.json();
-            const completedJob = jobs.find(j => j.status === 'completed');
-            if (completedJob) {
-                log(`Đã tìm thấy video trước đó: ${completedJob.topic || completedJob.jobId}`, 'info');
-                displayVideo(completedJob.jobId);
-            }
-        }
-    } catch (e) { }
 })();
+
+// Nút "Dùng mẫu": lưu mẫu rồi đi tiếp
+document.querySelectorAll('.btn-use-template').forEach(btn => {
+    btn.addEventListener('click', () => {
+        stashPrompt({
+            prompt: btn.getAttribute('data-prompt') || '',
+            style: btn.getAttribute('data-style') || '',
+            ratio: btn.getAttribute('data-ratio') || ''
+        });
+        goStudio();
+    });
+});
+
+async function checkCurrentUser() {
+    try {
+        const res = await fetch(`${API_BASE}/api/auth/me`, { credentials: 'include' });
+        isLoggedIn = res.ok;
+        if (isLoggedIn && loginOpenBtn) {
+            const user = await res.json();
+            loginOpenBtn.textContent = user.username || 'Tài khoản';
+        }
+    } catch (err) { /* chưa đăng nhập */ }
+}
 
 async function checkAuthConfig() {
     try {
@@ -621,139 +195,31 @@ async function checkAuthConfig() {
     } catch (e) { }
 }
 
-async function checkCurrentUser() {
-    try {
-        const res = await fetch(`${API_BASE}/api/auth/me`, {
-            method: 'GET',
-            credentials: 'include'
-        });
-        if (!res.ok) {
-            if (loginOpenBtn) {
-                loginOpenBtn.textContent = 'Đăng nhập';
-                loginOpenBtn.disabled = false;
-            }
-            if (logoutBtn) logoutBtn.style.display = 'none';
-            return;
-        }
-        const user = await res.json();
-        if (loginOpenBtn) {
-            loginOpenBtn.textContent = user.username;
-            loginOpenBtn.disabled = true;
-        }
-        if (logoutBtn) logoutBtn.style.display = 'inline-block';
-    } catch (err) {
-        console.error(err);
-    }
-}
+(function initHome() {
+    handleAuthError();
+    checkAuthConfig();
+    checkCurrentUser();
 
-if (logoutBtn) {
-    logoutBtn.addEventListener('click', async () => {
-        try {
-            const res = await fetch(`${API_BASE}/api/auth/logout`, {
-                method: 'POST',
-                credentials: 'include'
-            });
-            if (!res.ok) return;
-            if (loginOpenBtn) {
-                loginOpenBtn.textContent = 'Đăng nhập';
-                loginOpenBtn.disabled = false;
-            }
-            logoutBtn.style.display = 'none';
-            log('Đã đăng xuất', 'info');
-        } catch (err) {
-            console.error(err);
-        }
-    });
-}
-
-// --- Snap dots + nav active state (scroll-snap, không chiếm wheel) ---
-(function initSnapNav() {
+    // Dots + nav active theo section
     const dots = document.querySelectorAll('.dots a');
     const navLinks = document.querySelectorAll('.nav-links a[data-nav]');
-    if (!dots.length) return;
-    const map = { home: 'home', templates: 'templates', pricing: 'pricing', workspace: 'workspace' };
     const io = new IntersectionObserver((entries) => {
         entries.forEach(e => {
-            if (e.isIntersecting && map[e.target.id]) {
+            if (e.isIntersecting) {
                 const id = e.target.id;
                 dots.forEach(d => d.classList.toggle('on', d.getAttribute('href') === '#' + id));
                 navLinks.forEach(a => a.classList.toggle('on', a.getAttribute('data-nav') === id));
             }
         });
     }, { threshold: 0.55 });
-    Object.keys(map).forEach(id => {
+    ['home', 'templates', 'pricing'].forEach(id => {
         const el = document.getElementById(id);
         if (el) io.observe(el);
     });
-})();
 
-// --- Home promptbar: điền vào Studio rồi cuộn tới ---
-(function initHomePrompt() {
-    const input = document.getElementById('home-prompt-input');
-    const btn = document.getElementById('home-prompt-btn');
-    if (!input || !btn) return;
-    const go = () => {
-        const v = input.value.trim();
-        if (v && typeof setPrompt === 'function') setPrompt(v);
-        const ws = document.getElementById('workspace');
-        if (ws) ws.scrollIntoView({ behavior: 'smooth' });
-        setTimeout(() => { if (promptInput) promptInput.focus({ preventScroll: true }); }, 600);
-    };
-    btn.addEventListener('click', go);
-    input.addEventListener('keydown', (e) => {
-        if (e.key === 'Enter') { e.preventDefault(); go(); }
-    });
-})();
-
-// --- Use Template Button Click (nạp mẫu vào Studio) ---
-const useTemplateBtns = document.querySelectorAll('.btn-use-template');
-useTemplateBtns.forEach(btn => {
-    btn.addEventListener('click', () => {
-        const prompt = btn.getAttribute('data-prompt');
-        const style = btn.getAttribute('data-style');
-        const ratio = btn.getAttribute('data-ratio');
-
-        if (prompt && promptInput) {
-            promptInput.value = prompt;
-            if (promptCharCount) {
-                promptCharCount.textContent = `${prompt.length}/500 · tối thiểu 10`;
-                promptCharCount.classList.remove('warn');
-            }
-        }
-
-        if (style && styleSelect) {
-            styleSelect.value = style;
-            styleSelect.dispatchEvent(new Event('change'));
-            const styleCards = document.querySelectorAll('.style-card');
-            styleCards.forEach(c => c.classList.toggle('active', c.getAttribute('data-style') === style));
-        }
-
-        if (ratio) {
-            const ratioBtns = document.querySelectorAll('.ratio-btn');
-            ratioBtns.forEach(r => {
-                const match = r.getAttribute('data-ratio') === ratio;
-                r.classList.toggle('active', match);
-                if (match) currentRatio = ratio;
-            });
-        }
-
-        updateSummaryMeta();
-
-        const ws = document.getElementById('workspace');
-        if (ws) ws.scrollIntoView({ behavior: 'smooth' });
-        setTimeout(() => {
-            if (promptInput) promptInput.focus({ preventScroll: true });
-        }, 600);
-
-        log('Đã nạp mẫu thiết kế vào Studio thành công!', 'info');
-    });
-});
-
-// --- Billing toggle (chuyển giá tháng/năm, demo) ---
-(function initBillingToggle() {
+    // Billing toggle tháng/năm
     const spans = document.querySelectorAll('.bill-toggle span[data-period]');
     const priceVal = document.querySelector('.price-val');
-    if (!spans.length) return;
     spans.forEach(s => s.addEventListener('click', () => {
         spans.forEach(x => x.classList.remove('on'));
         s.classList.add('on');
@@ -762,12 +228,12 @@ useTemplateBtns.forEach(btn => {
             priceVal.textContent = yearly ? priceVal.getAttribute('data-yearly') : priceVal.getAttribute('data-monthly');
         }
     }));
-})();
 
-// --- Filter pills (trang trí, cuộn tới section templates) ---
-document.querySelectorAll('.tpl-head .pill').forEach(p => {
-    p.addEventListener('click', () => {
-        document.querySelectorAll('.tpl-head .pill').forEach(x => x.classList.remove('on'));
-        p.classList.add('on');
+    // Filter pills trang trí
+    document.querySelectorAll('.tpl-head .pill').forEach(p => {
+        p.addEventListener('click', () => {
+            document.querySelectorAll('.tpl-head .pill').forEach(x => x.classList.remove('on'));
+            p.classList.add('on');
+        });
     });
-});
+})();
