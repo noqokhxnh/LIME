@@ -4,182 +4,206 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>lime. — AI Video Studio</title>
+    <link rel="icon" type="image/png" href="/logo.png">
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-    <link href="https://fonts.googleapis.com/css2?family=Manrope:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;500;700&display=swap" rel="stylesheet">
-    <link rel="icon" type="image/png" href="/logo.png">
+    <link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@500;600;700&family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
     <link rel="stylesheet" href="style.css">
 </head>
-<body class="bg-canvas text-neutral-950">
+<body>
 
-    <!-- Header Navbar -->
-    <header class="header-nav">
-        <nav class="nav-container">
-            <!-- Brand Logo -->
-            <a href="#home" class="brand-logo" aria-label="lime. Về đầu trang">
+    <nav class="lime-nav">
+        <div class="lime-nav-inner">
+            <a class="brand" href="#home">
                 <img src="/logo.png" alt="lime logo" class="brand-logo-img">
-                <span class="logo-text">lime<span class="logo-dot">.</span></span>
+                <span class="logo">lime<i>.</i></span>
             </a>
-
-            <!-- Nav Links Pills -->
-            <div class="nav-links-pill">
-                <a href="#home" class="nav-link-btn active">Trang chủ</a>
-                <a href="#workspace" class="nav-link-btn">Tạo video</a>
-                <a href="#templates" class="nav-link-btn">Mẫu thiết kế</a>
-                <a href="#services" class="nav-link-btn">Gói dịch vụ</a>
+            <div class="nav-links">
+                <a href="#home" data-nav="home" class="on">Trang chủ</a>
+                <a href="#templates" data-nav="templates">Mẫu thiết kế</a>
+                <a href="#pricing" data-nav="pricing">Bảng giá</a>
+                <a href="#workspace" data-nav="workspace">Studio</a>
             </div>
-
-            <!-- Login / Logout Actions -->
-            <div class="nav-actions">
-                <button id="login-open-btn" class="btn-login-pill" type="button">Đăng nhập</button>
-                <button id="logout-btn" class="btn-login-pill btn-logout-pill" type="button" style="display: none;">Đăng xuất</button>
+            <div class="nav-cta">
+                <button type="button" class="btn btn-ghost" id="login-open-btn">Đăng nhập</button>
+                <a class="btn btn-lime" href="#workspace">Tạo video →</a>
             </div>
-        </nav>
-    </header>
+        </div>
+    </nav>
 
-    <!-- Main Single-Page Container -->
-    <main class="workspace-main">
-        <!-- Ambient Blur Orbs -->
-        <div class="blur-orb orb-left" aria-hidden="true"></div>
-        <div class="blur-orb orb-right" aria-hidden="true"></div>
+    <div class="dots" aria-hidden="true">
+        <a href="#home" class="on" title="Trang chủ"></a>
+        <a href="#templates" title="Mẫu thiết kế"></a>
+        <a href="#pricing" title="Bảng giá"></a>
+        <a href="#workspace" title="Studio"></a>
+    </div>
 
-        <!-- 1. PHẦN TRANG CHỦ (Home Intro Hero với 3D Carousel Thẻ Trượt Chồng) -->
-        <section id="home" class="intro-hero-section active-view">
-            <!-- Background Watermark Text -->
-            <div class="intro-bg-watermark" aria-hidden="true">MOTION</div>
-
-            <!-- THẺ CHỨA CHÍNH (Hero Showcase Card): Chứa nội dung mô tả (bên trái) và 3 thẻ hiệu ứng (bên phải) -->
-            <div class="hero-showcase-card intro-hero-container">
-                <!-- Phần thân chính của thẻ: 2 cột (Trái: Nội dung mô tả | Phải: 3 thẻ hiệu ứng 3D) -->
-                <div class="hero-card-main-grid">
-                    <!-- Cột bên trái: Giới thiệu & Kêu gọi hành động -->
-                    <div class="intro-left-content">
-                        <div class="hero-badge">
-                            <svg class="size-3-5" viewBox="0 0 24 24" fill="none" aria-hidden="true">
-                                <path d="M12 2.75c.58 4.4 2.84 6.64 7.25 7.25-4.41.61-6.67 2.85-7.25 7.25C11.42 12.85 9.16 10.61 4.75 10 9.16 9.39 11.42 7.15 12 2.75Z" fill="currentColor"/>
-                                <path d="M18.4 15.4c.25 1.85 1.2 2.8 3.1 3.1-1.9.3-2.85 1.25-3.1 3.1-.25-1.85-1.2-2.8-3.1-3.1 1.9-.3 2.85-1.25 3.1-3.1Z" fill="currentColor"/>
-                            </svg>
-                            <span>AI Video Generation Engine</span>
-                        </div>
-
-                        <h1 class="intro-main-title">
-                            <span class="intro-title-line1">
-                                Tạo video <span class="flip-words-container" id="flip-words" aria-live="polite"><span class="flip-word-wrapper"><span class="flip-subword"><span class="flip-letter" style="opacity: 1; transform: none; filter: none;">T</span><span class="flip-letter" style="opacity: 1; transform: none; filter: none;">i</span><span class="flip-letter" style="opacity: 1; transform: none; filter: none;">k</span><span class="flip-letter" style="opacity: 1; transform: none; filter: none;">T</span><span class="flip-letter" style="opacity: 1; transform: none; filter: none;">o</span><span class="flip-letter" style="opacity: 1; transform: none; filter: none;">k</span></span></span></span>
-                            </span>
-                            <span class="intro-title-line2">
-                                ấn tượng chỉ với 1 cú click.
-                            </span>
-                        </h1>
-
-                        <p class="intro-subtext">
-                            Chỉ cần một đoạn mô tả ý tưởng, Lime sẽ tự động viết kịch bản, biên đạo chuyển động HTML/GSAP và render thành video Full HD kèm giọng đọc AI tự nhiên. Đơn giản, tốc độ và không cần kỹ năng biên tập video.
-                        </p>
-
-                        <!-- 2 Nút hành động chính -->
-                        <div class="intro-cta-group">
-                            <a href="#workspace" class="btn-intro-primary">
-                                <svg class="size-4-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
-                                    <polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"></polygon>
-                                </svg>
-                                <span>Tạo video ngay</span>
-                            </a>
-                            <a href="#templates" class="btn-intro-secondary">
-                                <svg class="size-4-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-                                    <circle cx="12" cy="12" r="10"></circle>
-                                    <polygon points="10 8 16 12 10 16 10 8"></polygon>
-                                </svg>
-                                <span>Xem video mẫu</span>
-                            </a>
-                        </div>
-                    </div>
-
-                    <!-- Cột bên phải: 3D Stacking Cards Carousel (Chứa 3 thẻ hiệu ứng) -->
-                    <div class="carousel-3d-wrapper">
-                        <div class="carousel-3d-track" id="hero-carousel">
-                            <!-- Thẻ 1: SaaS & Tech Demo -->
-                            <div class="carousel-3d-card" data-index="0">
-                                <div class="carousel-card-inner">
-                                    <div class="card-visual-media media-saas">
-                                        <div class="media-tag">Công nghệ &amp; Phần mềm</div>
-                                        <div class="mini-mockup-frame">
-                                            <div class="mockup-header-dots"><span></span><span></span><span></span></div>
-                                            <div class="mockup-chart-bars">
-                                                <span style="height: 35%"></span>
-                                                <span style="height: 65%"></span>
-                                                <span style="height: 50%"></span>
-                                                <span style="height: 90%"></span>
-                                            </div>
-                                        </div>
-                                    </div>
-                                    <div class="card-content-meta">
-                                        <div class="card-title-row">
-                                            <h3>SaaS Launch &amp; Tech Demo</h3>
-                                            <span class="ratio-badge">16:9</span>
-                                        </div>
-                                        <p>Giới thiệu tính năng phần mềm, mockup thiết bị và biểu đồ số liệu count-up mượt mà.</p>
-                                    </div>
-                                </div>
-                            </div>
-
-                            <!-- Thẻ 2: Developer Story -->
-                            <div class="carousel-3d-card" data-index="1">
-                                <div class="carousel-card-inner">
-                                    <div class="card-visual-media media-dev">
-                                        <div class="media-tag">Developer Narrative</div>
-                                        <div class="mini-terminal-frame">
-                                            <div class="terminal-line"><span class="cmd-prompt">$</span> git commit -m "ship it"</div>
-                                            <div class="terminal-line success">Build complete in 1.2s</div>
-                                            <div class="terminal-line highlight">+ 124 additions, 0 deletions</div>
-                                        </div>
-                                    </div>
-                                    <div class="card-content-meta">
-                                        <div class="card-title-row">
-                                            <h3>Developer &amp; Terminal Story</h3>
-                                            <span class="ratio-badge">16:9</span>
-                                        </div>
-                                        <p>Kịch bản lập trình viên với hiệu ứng gõ phím terminal thời gian thực và diff cú pháp.</p>
-                                    </div>
-                                </div>
-                            </div>
-
-                            <!-- Thẻ 3: Stickman Comic Explainer -->
-                            <div class="carousel-3d-card" data-index="2">
-                                <div class="carousel-card-inner">
-                                    <div class="card-visual-media media-comic">
-                                        <div class="media-tag">Hoạt hình Người que</div>
-                                        <div class="mini-comic-frame">
-                                            <div class="comic-bubble">Ý tưởng này đỉnh thật!</div>
-                                            <div class="comic-stick-figure">
-                                                <span class="figure-head"></span>
-                                                <span class="figure-body"></span>
-                                                <span class="figure-arms"></span>
-                                            </div>
-                                        </div>
-                                    </div>
-                                    <div class="card-content-meta">
-                                        <div class="card-title-row">
-                                            <h3>Comic Stickman Explainer</h3>
-                                            <span class="ratio-badge">9:16 Shorts</span>
-                                        </div>
-                                        <p>Giải thích vấn đề dí dỏm bằng nhân vật người que vẽ tay và bóng thoại tương tác.</p>
-                                    </div>
-                                </div>
-                            </div>
-                        </div>
-
-                        <!-- Carousel Dots Indicators (3 Dots tương ứng 3 Thẻ) -->
-                        <div class="carousel-indicators">
-                            <button type="button" class="indicator-dot active" data-slide="0" aria-label="Chủ đề 1: SaaS Launch"></button>
-                            <button type="button" class="indicator-dot" data-slide="1" aria-label="Chủ đề 2: Developer Story"></button>
-                            <button type="button" class="indicator-dot" data-slide="2" aria-label="Chủ đề 3: Comic Stickman"></button>
-                        </div>
-                    </div>
+<!-- ================= SECTION 1: HOME ================= -->
+<section id="home" class="snap-section">
+    <div class="hero">
+        <div>
+            <div class="badge">✦ &nbsp;AI Video Studio</div>
+            <h1>Chữ thành phim.<br>Ý tưởng thành<br><span class="hl">chuyển động.</span></h1>
+            <p class="sub">Mô tả ý tưởng bằng một câu — LIME tự viết kịch bản, dựng motion bằng HTML/CSS/GSAP và lồng tiếng AI. Video sẵn sàng đăng chỉ trong vài phút.</p>
+            <div class="promptbar">
+                <span class="dot"></span>
+                <input id="home-prompt-input" placeholder="Mô tả video bạn muốn tạo…" maxlength="500">
+                <button id="home-prompt-btn" type="button">Tạo video →</button>
+            </div>
+            <div class="hint">Thử ngay: <b>Quảng cáo trà sữa 15s cho Gen Z</b></div>
+            <div class="stats">
+                <div class="stat"><b>12k<em>+</em></b><span>video đã dựng</span></div>
+                <div class="stat"><b>50<em>+</em></b><span>motion blocks</span></div>
+                <div class="stat"><b>15<em>s</em></b><span>từ prompt tới preview</span></div>
+            </div>
+        </div>
+        <div class="showcase">
+            <div class="shot shot-main">
+                <div class="shot-browser-bar"><i></i><i></i><i></i></div>
+                <div class="shot-body">
+                    <div class="shot-tag">SaaS · Product Demo</div>
+                    <div class="shot-title">Ra mắt tính năng mới</div>
+                    <div class="shot-sub">Mockup trình duyệt · Biểu đồ count-up · CTA chuyển đổi</div>
+                    <div class="bars"><i></i><i></i><i></i><i></i><i></i><i></i><i></i></div>
+                    <div class="shot-foot"><span class="ratio">16 : 9</span><div class="playmini"></div></div>
                 </div>
             </div>
-        </section>
+            <div class="shot shot-term">
+                <div class="term-bar"><i></i><i></i><i></i></div>
+                <div class="term-body">
+                    <div><span class="p">$</span> lime render --style modern</div>
+                    <div class="ok">✓ Build complete in 1.2s</div>
+                    <div class="dim">+ 124 additions · 0 deletions</div>
+                </div>
+            </div>
+            <div class="chip c1"><span class="sw"></span>Giọng Việt tự nhiên</div>
+            <div class="chip c2"><span class="sw"></span>Xuất 4K · MP4</div>
+        </div>
+    </div>
+    <div class="scroll-hint"><div class="mouse"></div><span>Cuộn xuống</span></div>
+</section>
+
+<!-- ================= SECTION 2: TEMPLATES ================= -->
+<section id="templates" class="snap-section">
+    <div class="tpl-head">
+        <div>
+            <div class="eyebrow">✦ &nbsp;01 · Thư viện mẫu</div>
+            <h2 class="sec">Mẫu thiết kế <em>&</em> kịch bản</h2>
+            <p class="sec-sub">Chọn một mẫu dựng sẵn — LIME tự điền nội dung của bạn vào đúng nhịp.</p>
+        </div>
+        <div class="pills">
+            <div class="pill on">Tất cả</div><div class="pill">SaaS & Tech</div><div class="pill">Lập trình</div>
+            <div class="pill">Quảng cáo</div><div class="pill">Giáo dục</div>
+        </div>
+    </div>
+    <div class="tpl-grid">
+        <div class="tpl-card">
+            <div class="tpl-visual v1"><span class="v-tag">SaaS · Tech</span><span class="v-ratio">16:9</span><i></i><i></i><i></i><i></i><i></i></div>
+            <div class="tpl-body"><h3>SaaS Launch & Product Demo</h3>
+                <p>Mockup trình duyệt, biểu đồ count-up, nút CTA chuyển đổi cao.</p>
+                <div class="tpl-meta"><span>5 phân cảnh · 25–40s</span><button type="button" class="use btn-use-template" data-prompt="Giới thiệu nền tảng AI SaaS đột phá: tự động phân tích dữ liệu, giao diện trực quan, biểu đồ tăng trưởng 300% và nút kêu gọi dùng thử miễn phí." data-style="modern" data-ratio="16:9">Dùng mẫu →</button></div></div>
+        </div>
+        <div class="tpl-card">
+            <div class="tpl-visual v2"><span class="v-tag">Lập trình</span><span class="v-ratio">16:9</span>
+                <div><div>$ git commit -m "ship it"</div><div class="g">✓ Build complete in 1.2s</div><div class="d">+ 124 additions</div></div></div>
+            <div class="tpl-body"><h3>Dev Story: Ship It</h3>
+                <p>Hiệu ứng gõ phím terminal thời gian thực, diff cú pháp nổi bật.</p>
+                <div class="tpl-meta"><span>4 phân cảnh · 20–30s</span><button type="button" class="use btn-use-template" data-prompt="Kể câu chuyện một lập trình viên ship tính năng mới trong đêm: terminal gõ lệnh, build thành công, diff code hiện lên đầy cảm hứng." data-style="modern" data-ratio="16:9">Dùng mẫu →</button></div></div>
+        </div>
+        <div class="tpl-card">
+            <div class="tpl-visual v3"><span class="v-tag">Người que</span><span class="v-ratio">9:16</span>
+                <div class="bubble">Ý tưởng đỉnh!</div><div class="stick"></div></div>
+            <div class="tpl-body"><h3>Người que giải thích</h3>
+                <p>Nhân vật vẽ tay dí dỏm, bóng thoại tương tác cho Shorts.</p>
+                <div class="tpl-meta"><span>6 phân cảnh · 30–45s</span><button type="button" class="use btn-use-template" data-prompt="Giải thích một khái niệm khó bằng phong cách hoạt hình người que dí dỏm, ngắn gọn, phù hợp video dọc." data-style="playful" data-ratio="9:16">Dùng mẫu →</button></div></div>
+        </div>
+        <div class="tpl-card">
+            <div class="tpl-visual v4"><span class="v-tag">Quảng cáo</span><span class="v-ratio">9:16</span>
+                <div class="phone">SALE<br>−50%</div></div>
+            <div class="tpl-body"><h3>Quảng cáo dọc chớp nhoáng</h3>
+                <p>Nhịp nhanh cho TikTok/Reels, chữ lớn, CTA cuối video.</p>
+                <div class="tpl-meta"><span>3 phân cảnh · 15s</span><button type="button" class="use btn-use-template" data-prompt="Quảng cáo flash sale 15 giây: giảm giá 50%, chữ lớn nổi bật, kêu gọi mua ngay cuối video." data-style="bold" data-ratio="9:16">Dùng mẫu →</button></div></div>
+        </div>
+        <div class="tpl-card">
+            <div class="tpl-visual v5"><span class="v-tag">Giáo dục</span><span class="v-ratio">16:9</span>
+                <div class="slide"><b>Bài 3: Quang hợp</b><i class="l"></i><i></i><i></i></div>
+                <div class="slide"><b>Tóm tắt</b><i></i><i class="l"></i><i></i></div></div>
+            <div class="tpl-body"><h3>Bài giảng kiến thức</h3>
+                <p>Slide sạch, bullet tự động, giọng đọc chậm rãi dễ hiểu.</p>
+                <div class="tpl-meta"><span>8 phân cảnh · 60s</span><button type="button" class="use btn-use-template" data-prompt="Bài giảng ngắn về quang hợp: slide sạch, từng ý bullet xuất hiện theo nhịp giọng đọc chậm rãi." data-style="minimal" data-ratio="16:9">Dùng mẫu →</button></div></div>
+        </div>
+        <div class="tpl-card">
+            <div class="tpl-visual v6"><span class="v-tag">SaaS · Tech</span><span class="v-ratio">16:9</span>
+                <div class="deck"><b>Pitch Deck Động</b><div class="row"><i></i><i></i><i></i></div></div></div>
+            <div class="tpl-body"><h3>Pitch deck động</h3>
+                <p>Biến slide tĩnh thành video gọi vốn có nhịp và điểm nhấn.</p>
+                <div class="tpl-meta"><span>5 phân cảnh · 40s</span><button type="button" class="use btn-use-template" data-prompt="Video pitch gọi vốn 40 giây: vấn đề, giải pháp, số liệu tăng trưởng và lời kêu gọi đầu tư." data-style="modern" data-ratio="16:9">Dùng mẫu →</button></div></div>
+        </div>
+    </div>
+    <div class="tpl-more"><a>Xem tất cả 50+ mẫu thiết kế →</a></div>
+</section>
+
+<!-- ================= SECTION 3: PRICING ================= -->
+<section id="pricing" class="snap-section">
+    <div class="price-head">
+        <div class="eyebrow">✦ &nbsp;02 · Bảng giá</div>
+        <h2 class="sec">Gói dịch vụ cho <em>mọi</em> quy mô</h2>
+        <p class="sec-sub">Bắt đầu miễn phí, nâng cấp khi bạn cần render nhiều hơn và đẹp hơn.</p>
+    </div>
+    <div class="billing">
+        <div class="bill-toggle"><span class="on" data-period="month">Theo tháng</span><span data-period="year">Theo năm <small>−20%</small></span></div>
+    </div>
+    <div class="plans">
+        <div class="plan">
+            <div class="pname">Khởi đầu</div>
+            <div class="price">0đ<small> / mãi mãi</small></div>
+            <p class="pdesc">Cho người mới thử sức với video AI.</p>
+            <ul class="feats">
+                <li>5 video / tháng · tối đa 60s</li>
+                <li>Xuất 720p, watermark LIME</li>
+                <li>10+ mẫu thiết kế cơ bản</li>
+                <li>2 giọng đọc tiếng Việt</li>
+                <li class="off">Xuất 4K không watermark</li>
+            </ul>
+            <button type="button" class="plan-btn">Bắt đầu miễn phí</button>
+        </div>
+        <div class="plan hot">
+            <div class="hot-badge">✦ Phổ biến nhất</div>
+            <div class="pname">Sáng tạo</div>
+            <div class="price"><span class="price-val" data-monthly="149k" data-yearly="119k">149k</span><small> / tháng</small></div>
+            <p class="pdesc">Cho creator và marketer đăng video đều đặn.</p>
+            <ul class="feats">
+                <li>50 video / tháng · tối đa 5 phút</li>
+                <li>Xuất 4K, không watermark</li>
+                <li>50+ mẫu thiết kế & motion blocks</li>
+                <li>8 giọng đọc, ưu tiên hàng đợi</li>
+                <li>Brand kit: logo & màu riêng</li>
+            </ul>
+            <button type="button" class="plan-btn">Nâng cấp ngay →</button>
+        </div>
+        <div class="plan">
+            <div class="pname">Đội nhóm</div>
+            <div class="price">Liên hệ<small></small></div>
+            <p class="pdesc">Cho agency và team sản xuất nội dung.</p>
+            <ul class="feats">
+                <li>Mọi quyền lợi gói Sáng tạo</li>
+                <li>Workspace chung nhiều thành viên</li>
+                <li>API render tự động</li>
+                <li>Quản lý brand kit tập trung</li>
+                <li class="off">Hỗ trợ riêng 1-1</li>
+            </ul>
+            <button type="button" class="plan-btn">Trao đổi với LIME</button>
+        </div>
+    </div>
+    <div class="foot">
+        <div class="logo">lime<i>.</i></div>
+        <div class="tag">LIME IS MOTION, EXCLUSIVE ✦</div>
+        <div>© 2026 lime. All rights reserved.</div>
+    </div>
+</section>
 
         <!-- 2. PHẦN WORKSPACE / STUDIO TẠO VIDEO -->
-        <section id="workspace" class="workspace-studio-section">
+        <section id="workspace" class="workspace-studio-section snap-section">
             <!-- Khung giao diện chính đồng nhất (Studio Showcase Card) -->
             <div class="studio-showcase-card">
                 
@@ -711,368 +735,7 @@
         </div>
         </section>
 
-        <!-- 3. PHẦN MẪU THIẾT KẾ (TEMPLATES) -->
-        <section id="templates" class="page-content-section">
-            <div class="templates-showcase-card">
-                <div class="templates-card-header">
-                    <div class="templates-header-left">
-                        <div class="hero-badge">
-                            <span>03 · Thư viện kịch bản dựng sẵn</span>
-                        </div>
-                        <h2 class="section-heading-text">Mẫu thiết kế &amp; Kịch bản chuyển động</h2>
-                    </div>
 
-                    <!-- Bộ lọc chủ đề mẫu thiết kế -->
-                    <div class="templates-filter-pills">
-                        <button type="button" class="tpl-filter-btn active" data-category="all">Tất cả mẫu (6)</button>
-                        <button type="button" class="tpl-filter-btn" data-category="tech">SaaS &amp; Tech</button>
-                        <button type="button" class="tpl-filter-btn" data-category="dev">Lập trình</button>
-                        <button type="button" class="tpl-filter-btn" data-category="comic">Người que</button>
-                        <button type="button" class="tpl-filter-btn" data-category="ads">Quảng cáo</button>
-                        <button type="button" class="tpl-filter-btn" data-category="edu">Kiến thức</button>
-                    </div>
-
-                    <!-- Phân trang mẫu thiết kế (khi xem Tất cả) -->
-                    <div class="tpl-page-dots-wrap" id="tpl-page-dots-wrap">
-                        <button type="button" class="tpl-page-dot active" data-page="0" aria-label="Xem trang 1 mẫu thiết kế">1</button>
-                        <button type="button" class="tpl-page-dot" data-page="1" aria-label="Xem trang 2 mẫu thiết kế">2</button>
-                    </div>
-                </div>
-
-                <!-- Lưới thẻ mẫu thiết kế: Luôn vừa vặn 1 hàng trên màn hình -->
-                <div class="templates-cards-grid tpl-cards-row">
-                    <!-- Mẫu 1: SaaS Launch -->
-                    <div class="template-item-card" data-category="tech" data-page="0">
-                        <div class="tpl-card-top-row">
-                            <span class="tpl-tag-badge tech">SaaS &amp; Tech</span>
-                            <span class="ratio-badge">16:9</span>
-                        </div>
-                        <h3 class="tpl-item-title">SaaS Launch &amp; Product Demo</h3>
-                        <p class="tpl-item-desc">Giới thiệu giải pháp phần mềm hiện đại, hiệu ứng mockup trình duyệt, thanh tăng trưởng số liệu count-up và nút kêu gọi đăng ký chuyển đổi cao.</p>
-                        <div class="tpl-item-meta">
-                            <span>5 Phân cảnh</span>
-                            <span>25s - 40s</span>
-                            <span>Phong cách Modern</span>
-                        </div>
-                        <button type="button" class="btn-use-template" data-prompt="Giới thiệu nền tảng AI SaaS đột phá: tự động phân tích dữ liệu, giao diện trực quan, biểu đồ tăng trưởng 300% và nút kêu gọi dùng thử miễn phí." data-style="modern" data-ratio="16:9">
-                            <span>Dùng mẫu này</span>
-                            <svg class="size-3-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M5 12h14M12 5l7 7-7 7"/></svg>
-                        </button>
-                    </div>
-
-                    <!-- Mẫu 2: Developer Terminal -->
-                    <div class="template-item-card" data-category="dev" data-page="0">
-                        <div class="tpl-card-top-row">
-                            <span class="tpl-tag-badge dev">Developer</span>
-                            <span class="ratio-badge">16:9</span>
-                        </div>
-                        <h3 class="tpl-item-title">Developer Terminal &amp; Code Story</h3>
-                        <p class="tpl-item-desc">Kịch bản cho kỹ sư công nghệ: hiệu ứng gõ phím terminal thời gian thực, bảng so sánh code diff, highlight cú pháp và thông báo deploy production thành công.</p>
-                        <div class="tpl-item-meta">
-                            <span>4 Phân cảnh</span>
-                            <span>20s - 35s</span>
-                            <span>Phong cách Terminal</span>
-                        </div>
-                        <button type="button" class="btn-use-template" data-prompt="Kể câu chuyện fix bug thần tốc: kỹ sư mở terminal, gõ lệnh npm test, git commit và deploy hệ thống lên cloud chỉ trong 60 giây." data-style="modern" data-ratio="16:9">
-                            <span>Dùng mẫu này</span>
-                            <svg class="size-3-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M5 12h14M12 5l7 7-7 7"/></svg>
-                        </button>
-                    </div>
-
-                    <!-- Mẫu 3: Stickman Comic Explainer -->
-                    <div class="template-item-card" data-category="comic" data-page="0">
-                        <div class="tpl-card-top-row">
-                            <span class="tpl-tag-badge comic">Comic Stickman</span>
-                            <span class="ratio-badge">9:16 Shorts</span>
-                        </div>
-                        <h3 class="tpl-item-title">Comic Stickman Explainer</h3>
-                        <p class="tpl-item-desc">Giải thích khái niệm phức tạp một cách hóm hỉnh với nhân vật người que vẽ tay chuyển động, bóng thoại tương tác và hiệu ứng bóng đèn ý tưởng lóe sáng.</p>
-                        <div class="tpl-item-meta">
-                            <span>4 Phân cảnh</span>
-                            <span>25s - 45s</span>
-                            <span>Phong cách Comic</span>
-                        </div>
-                        <button type="button" class="btn-use-template" data-prompt="Người que gặp khó khăn khi làm video truyền thống: mất 5 tiếng cắt ghép. Bỗng phát hiện ra Lime AI, chỉ cần 30 giây gõ ý tưởng là xong ngay video triệu view!" data-style="comic" data-ratio="9:16">
-                            <span>Dùng mẫu này</span>
-                            <svg class="size-3-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M5 12h14M12 5l7 7-7 7"/></svg>
-                        </button>
-                    </div>
-
-                    <!-- Mẫu 4: E-Commerce Flash Sale Promo -->
-                    <div class="template-item-card" data-category="ads" data-page="1" style="display: none;">
-                        <div class="tpl-card-top-row">
-                            <span class="tpl-tag-badge ads">Flash Sale &amp; Ads</span>
-                            <span class="ratio-badge">9:16 Shorts</span>
-                        </div>
-                        <h3 class="tpl-item-title">Mega Flash Sale &amp; TikTok Promo</h3>
-                        <p class="tpl-item-desc">Mẫu video bán hàng bùng nổ cho sàn TMĐT: đồng hồ đếm ngược chớp nhoáng, voucher giảm sốc 50%, hiệu ứng pháo hoa và nút giỏ hàng kích thích mua sắm.</p>
-                        <div class="tpl-item-meta">
-                            <span>3 Phân cảnh</span>
-                            <span>15s - 25s</span>
-                            <span>Phong cách Vibrant</span>
-                        </div>
-                        <button type="button" class="btn-use-template" data-prompt="Siêu sale ngày đôi 11.11 bùng nổ: Giảm giá toàn sàn 50%, voucher độc quyền 100K và miễn phí vận chuyển toàn quốc chỉ trong hôm nay!" data-style="modern" data-ratio="9:16">
-                            <span>Dùng mẫu này</span>
-                            <svg class="size-3-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M5 12h14M12 5l7 7-7 7"/></svg>
-                        </button>
-                    </div>
-
-                    <!-- Mẫu 5: Editorial & Du lịch Văn hóa -->
-                    <div class="template-item-card" data-category="edu" data-page="1" style="display: none;">
-                        <div class="tpl-card-top-row">
-                            <span class="tpl-tag-badge editorial">Editorial</span>
-                            <span class="ratio-badge">16:9</span>
-                        </div>
-                        <h3 class="tpl-item-title">Editorial &amp; Di sản Văn hóa</h3>
-                        <p class="tpl-item-desc">Đậm chất điện ảnh tài liệu với typography cổ điển tinh tế, khung trích dẫn danh ngôn trang nhã, hiệu ứng panning hình ảnh danh lam thắng cảnh Việt Nam.</p>
-                        <div class="tpl-item-meta">
-                            <span>5 Phân cảnh</span>
-                            <span>30s - 50s</span>
-                            <span>Phong cách Editorial</span>
-                        </div>
-                        <button type="button" class="btn-use-template" data-prompt="Hành trình khám phá vịnh Hạ Long: Kỳ quan thiên nhiên thế giới qua những làn sương sớm, vách đá vôi kỳ vĩ và ánh hoàng hôn ngọc bích." data-style="editorial" data-ratio="16:9">
-                            <span>Dùng mẫu này</span>
-                            <svg class="size-3-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M5 12h14M12 5l7 7-7 7"/></svg>
-                        </button>
-                    </div>
-
-                    <!-- Mẫu 6: Khóa học Mindmap -->
-                    <div class="template-item-card" data-category="edu" data-page="1" style="display: none;">
-                        <div class="tpl-card-top-row">
-                            <span class="tpl-tag-badge mindmap">Kiến thức &amp; Mindmap</span>
-                            <span class="ratio-badge">16:9</span>
-                        </div>
-                        <h3 class="tpl-item-title">Mindmap Tóm tắt Bài giảng</h3>
-                        <p class="tpl-item-desc">Trình bày sơ đồ tư duy phân nhánh trực quan, checklist từng bước logic, số liệu thống kê rõ ràng, tối ưu cho bài giảng trực tuyến và video giáo dục.</p>
-                        <div class="tpl-item-meta">
-                            <span>4 Phân cảnh</span>
-                            <span>30s - 45s</span>
-                            <span>Phong cách Minimal</span>
-                        </div>
-                        <button type="button" class="btn-use-template" data-prompt="Sơ đồ tư duy 3 bước quản lý tài chính cá nhân hiệu quả: 1. Kiểm soát chi phí thiết yếu, 2. Quỹ khẩn cấp 6 tháng, 3. Đầu tư dài hạn." data-style="modern" data-ratio="16:9">
-                            <span>Dùng mẫu này</span>
-                            <svg class="size-3-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M5 12h14M12 5l7 7-7 7"/></svg>
-                        </button>
-                    </div>
-                </div>
-
-                <!-- Banner cảm hứng tùy chỉnh kịch bản riêng gọn gàng ở chân khung -->
-                <div class="templates-custom-callout">
-                    <div class="callout-left">
-                        <div class="callout-sparkle-icon">
-                            <svg class="size-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 2v20M2 12h20M4.93 4.93l14.14 14.14M4.93 19.07l14.14-14.14"/></svg>
-                        </div>
-                        <div>
-                            <h4 class="callout-title">Bạn có ý tưởng độc đáo chưa có trong danh sách mẫu?</h4>
-                            <p class="callout-desc">Hệ thống AI của Lime hiểu ngôn ngữ tự nhiên. Chỉ cần gõ mô tả kịch bản, AI sẽ tự biên soạn hoạt ảnh riêng biệt.</p>
-                        </div>
-                    </div>
-                    <a href="#workspace" class="btn-callout-action">
-                        <span>Mở Studio &amp; Nhập ý tưởng</span>
-                        <svg class="size-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M5 12h14M12 5l7 7-7 7"/></svg>
-                    </a>
-                </div>
-            </div>
-        </section>
-
-        <!-- 4. PHẦN GÓI DỊCH VỤ (SERVICES & PRICING) -->
-        <section id="services" class="page-content-section">
-            <div class="services-showcase-card">
-                <div class="services-card-header">
-                    <div class="services-header-left">
-                        <div class="hero-badge">
-                            <span>04 · Bảng giá &amp; Cam kết</span>
-                        </div>
-                        <h2 class="section-heading-text">Gói dịch vụ phù hợp mọi quy mô</h2>
-                    </div>
-
-                    <!-- Sub-Tab Switcher: Bảng giá vs Cam kết & FAQ -->
-                    <div class="services-subtabs-pill">
-                        <button type="button" class="services-subtab-btn active" data-tab="pricing">Bảng giá gói cước</button>
-                        <button type="button" class="services-subtab-btn" data-tab="trust-faq">Cam kết &amp; FAQ</button>
-                    </div>
-                </div>
-
-                <!-- Pane 1: Bảng giá dịch vụ -->
-                <div class="services-tab-pane active" id="pane-pricing">
-                    <!-- Công tắc chu kỳ thanh toán -->
-                    <div class="billing-toggle-container">
-                        <div class="billing-toggle-pill">
-                            <button type="button" class="billing-btn active" id="billing-monthly-btn">Thanh toán Hàng tháng</button>
-                            <button type="button" class="billing-btn" id="billing-yearly-btn">
-                                <span>Thanh toán Hàng năm</span>
-                                <span class="discount-pill">Tiết kiệm 20%</span>
-                            </button>
-                        </div>
-                    </div>
-
-                    <div class="pricing-cards-grid compact-pricing">
-                        <div class="pricing-plan-card">
-                            <h3 class="plan-title">Khởi đầu (Starter)</h3>
-                            <p class="plan-sub">Trải nghiệm sức mạnh của AI sinh video chuyển động HTML.</p>
-                            <div class="plan-cost"><span class="price-val" data-monthly="0đ" data-yearly="0đ">0đ</span><span class="cycle">/tháng</span></div>
-                            <ul class="plan-perks">
-                                <li><svg class="size-3-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="20 6 9 17 4 12"/></svg> 10 video render mỗi ngày</li>
-                                <li><svg class="size-3-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="20 6 9 17 4 12"/></svg> Độ phân giải Full HD 1080p 60FPS</li>
-                                <li><svg class="size-3-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="20 6 9 17 4 12"/></svg> 11 giọng đọc VieNeu-TTS chuẩn tiếng Việt</li>
-                                <li><svg class="size-3-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="20 6 9 17 4 12"/></svg> Tỉ lệ 16:9 tiêu chuẩn</li>
-                                <li><svg class="size-3-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="20 6 9 17 4 12"/></svg> Truy cập toàn bộ Motion Blocks cơ bản</li>
-                            </ul>
-                            <a href="#workspace" class="btn-plan-action outline">Sử dụng miễn phí</a>
-                        </div>
-
-                        <div class="pricing-plan-card featured">
-                            <div class="featured-ribbon">Phổ biến nhất</div>
-                            <h3 class="plan-title">Sáng tạo (Pro Creator)</h3>
-                            <p class="plan-sub">Tối ưu cho nhà sáng tạo nội dung mạng xã hội &amp; Marketer.</p>
-                            <div class="plan-cost"><span class="price-val" data-monthly="199.000đ" data-yearly="159.000đ">199.000đ</span><span class="cycle">/tháng</span></div>
-                            <ul class="plan-perks">
-                                <li><svg class="size-3-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="20 6 9 17 4 12"/></svg> Không giới hạn số lượng video render</li>
-                                <li><svg class="size-3-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="20 6 9 17 4 12"/></svg> Hỗ trợ định dạng video dọc 9:16 (Shorts/TikTok/Reels)</li>
-                                <li><svg class="size-3-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="20 6 9 17 4 12"/></svg> Tích hợp Edge TTS &amp; OpenAI Voice nâng cao</li>
-                                <li><svg class="size-3-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="20 6 9 17 4 12"/></svg> Tùy chỉnh nhạc nền (BGM) đa kênh &amp; sound effect</li>
-                                <li><svg class="size-3-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="20 6 9 17 4 12"/></svg> Ưu tiên xử lý trên cụm máy chủ GPU tốc độ cao</li>
-                                <li><svg class="size-3-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="20 6 9 17 4 12"/></svg> Xuất video không watermark &amp; tải mã nguồn</li>
-                            </ul>
-                            <a href="#workspace" class="btn-plan-action primary">Bắt đầu dùng thử Pro</a>
-                        </div>
-
-                        <div class="pricing-plan-card">
-                            <h3 class="plan-title">Doanh nghiệp (Enterprise)</h3>
-                            <p class="plan-sub">Dành cho công ty truyền thông và sản xuất nội dung quy mô lớn.</p>
-                            <div class="plan-cost"><span class="price-val" data-monthly="Liên hệ" data-yearly="Liên hệ">Liên hệ</span><span class="cycle">/tùy biến</span></div>
-                            <ul class="plan-perks">
-                                <li><svg class="size-3-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="20 6 9 17 4 12"/></svg> Triển khai máy chủ Private On-Premise chuyên biệt</li>
-                                <li><svg class="size-3-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="20 6 9 17 4 12"/></svg> Cổng API kết nối trực tiếp CMS / ERP / CRM</li>
-                                <li><svg class="size-3-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="20 6 9 17 4 12"/></svg> Huấn luyện giọng đọc AI độc quyền cho thương hiệu</li>
-                                <li><svg class="size-3-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="20 6 9 17 4 12"/></svg> Motion Blocks thiết kế nhận diện thương hiệu riêng</li>
-                                <li><svg class="size-3-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="20 6 9 17 4 12"/></svg> Hỗ trợ kỹ thuật 24/7 cam kết SLA 99.9%</li>
-                            </ul>
-                            <a href="#workspace" class="btn-plan-action outline">Liên hệ tư vấn Enterprise</a>
-                        </div>
-                    </div>
-
-                    <!-- Dải cam kết ngắn gọn phía dưới -->
-                    <div class="services-guarantee-strip">
-                        <span>Bản quyền thương mại 100%</span>
-                        <span class="strip-sep">·</span>
-                        <span>GPU Render tốc độ cao</span>
-                        <span class="strip-sep">·</span>
-                        <span>Tải về mã nguồn sạch</span>
-                        <span class="strip-sep">·</span>
-                        <span>Hỗ trợ kỹ thuật 24/7 SLA 99.9%</span>
-                    </div>
-                </div>
-
-                <!-- Pane 2: Cam kết chất lượng & FAQ -->
-                <div class="services-tab-pane" id="pane-trust-faq">
-                    <!-- Khối cam kết 4 cột trong 1 hàng -->
-                    <div class="services-trust-grid compact-trust">
-                        <div class="trust-item-card">
-                            <div class="trust-icon">
-                                <svg class="size-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg>
-                            </div>
-                            <div>
-                                <h4 class="trust-item-title">Bản quyền 100%</h4>
-                                <p class="trust-item-desc">An toàn bật kiếm tiền trên YouTube, TikTok &amp; Facebook.</p>
-                            </div>
-                        </div>
-                        <div class="trust-item-card">
-                            <div class="trust-icon">
-                                <svg class="size-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"/></svg>
-                            </div>
-                            <div>
-                                <h4 class="trust-item-title">Cụm GPU Render</h4>
-                                <p class="trust-item-desc">Xử lý chuyển động HTML/GSAP và encode song song trên cloud.</p>
-                            </div>
-                        </div>
-                        <div class="trust-item-card">
-                            <div class="trust-icon">
-                                <svg class="size-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="16 18 22 12 16 6"/><polyline points="8 6 2 12 8 18"/></svg>
-                            </div>
-                            <div>
-                                <h4 class="trust-item-title">Mã nguồn sạch</h4>
-                                <p class="trust-item-desc">Tải về file HTML, CSS và GSAP độc lập không phụ thuộc.</p>
-                            </div>
-                        </div>
-                        <div class="trust-item-card">
-                            <div class="trust-icon">
-                                <svg class="size-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 18v-6a9 9 0 0 1 18 0v6"/><path d="M21 19a2 2 0 0 1-2 2h-1a2 2 0 0 1-2-2v-3a2 2 0 0 1 2-2h3zM3 19a2 2 0 0 0 2 2h1a2 2 0 0 0 2-2v-3a2 2 0 0 0-2-2H3z"/></svg>
-                            </div>
-                            <div>
-                                <h4 class="trust-item-title">Hỗ trợ 24/7</h4>
-                                <p class="trust-item-desc">Kỹ thuật viên sẵn sàng hỗ trợ tích hợp quy trình tạo video.</p>
-                            </div>
-                        </div>
-                    </div>
-
-                    <!-- FAQ Accordion gọn gàng -->
-                    <div class="services-faq-section compact-faq">
-                        <div class="faq-accordion-list">
-                            <details class="faq-item">
-                                <summary class="faq-question">
-                                    <span>Video tạo ra có bị dính watermark hoặc logo của trang web không?</span>
-                                    <span class="faq-chevron">
-                                        <svg class="size-3-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="6 9 12 15 18 9"/></svg>
-                                    </span>
-                                </summary>
-                                <p class="faq-answer">Hoàn toàn không. Với cả tài khoản Starter và Pro, video của bạn được kết xuất trong suốt, không kèm watermark thương hiệu, sẵn sàng xuất bản ngay lên mạng xã hội hoặc chèn vào chiến dịch quảng cáo.</p>
-                            </details>
-                            <details class="faq-item">
-                                <summary class="faq-question">
-                                    <span>Thời gian tạo xong một video trung bình mất bao lâu?</span>
-                                    <span class="faq-chevron">
-                                        <svg class="size-3-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="6 9 12 15 18 9"/></svg>
-                                    </span>
-                                </summary>
-                                <p class="faq-answer">Thông thường chỉ từ 30 đến 60 giây đối với video thời lượng 15s - 30s. Hệ thống tự động chia nhỏ kịch bản, tổng hợp âm thanh giọng đọc và kích hoạt Puppeteer render từng khung hình với tốc độ 60 khung hình/giây.</p>
-                            </details>
-                            <details class="faq-item">
-                                <summary class="faq-question">
-                                    <span>Tôi có thể tạo video dọc 9:16 cho TikTok, Reels và YouTube Shorts không?</span>
-                                    <span class="faq-chevron">
-                                        <svg class="size-3-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="6 9 12 15 18 9"/></svg>
-                                    </span>
-                                </summary>
-                                <p class="faq-answer">Có! Bạn chỉ cần chọn nút tỉ lệ 9:16 ở phần cài đặt hoặc trong danh mục mẫu thiết kế. Toàn bộ bố cục HTML, cỡ chữ và vị trí các khối Motion Blocks sẽ tự động thích ứng với màn hình dọc điện thoại.</p>
-                            </details>
-                            <details class="faq-item">
-                                <summary class="faq-question">
-                                    <span>Doanh nghiệp có thể tích hợp API để tạo video tự động hàng loạt không?</span>
-                                    <span class="faq-chevron">
-                                        <svg class="size-3-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="6 9 12 15 18 9"/></svg>
-                                    </span>
-                                </summary>
-                                <p class="faq-answer">Chắc chắn có. Gói Enterprise cung cấp RESTful API và Webhook đầy đủ, cho phép bạn truyền vào prompt hoặc danh mục sản phẩm từ sàn TMĐT để tự động sinh hàng trăm video quảng cáo mỗi ngày mà không cần thao tác tay.</p>
-                            </details>
-                        </div>
-                    </div>
-                </div>
-            </div>
-        </section>
-
-    </main>
-
-    <!-- Footer -->
-    <footer class="page-footer">
-        <div class="footer-inner">
-            <div class="footer-left">
-                <div class="footer-brand-wrap">
-                    <img src="/logo.png" alt="lime logo" class="brand-logo-img">
-                    <span class="logo-text">lime<span class="logo-dot">.</span></span>
-                </div>
-                <p class="footer-desc">Nền tảng sinh video chuyển động thông minh từ HTML, CSS &amp; GSAP hàng đầu Việt Nam.</p>
-            </div>
-            <div class="footer-links">
-                <a href="#workspace">Tạo video</a>
-                <a href="#templates">Mẫu thiết kế</a>
-                <a href="#services">Gói dịch vụ</a>
-            </div>
-            <div class="footer-copy">© 2026 lime. All rights reserved.</div>
-        </div>
-    </footer>
-
-    <!-- Modal Đăng nhập / Đăng ký -->
     <div id="login-modal" class="auth-modal">
         <div class="auth-card-modal">
             <button id="login-close-btn" class="modal-close-btn" type="button" aria-label="Đóng">&times;</button>
@@ -1129,6 +792,10 @@
     </div>
 
     <!-- Core App Logic -->
+    <script src="app.js"></script>
+
+
+
     <script src="app.js"></script>
 </body>
 </html>
