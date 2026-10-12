@@ -217,8 +217,8 @@ if (forgotPasswordLink && forgotForm) {
         forgotForm.style.display = 'flex';
         if (authSocialRow) authSocialRow.style.display = 'none';
         if (authDivider) authDivider.style.display = 'none';
-        if (authTitle) authTitle.textContent = 'Quên mật khẩu';
-        if (authSubtitle) authSubtitle.textContent = 'Vui lòng nhập mật khẩu bạn quên và xác nhận';
+        if (authTitle) authTitle.textContent = 'Đặt lại mật khẩu';
+        if (authSubtitle) authSubtitle.textContent = 'Nhập tên đăng nhập hoặc email cùng mật khẩu mới';
         if (loginMessage) loginMessage.textContent = '';
         if (forgotMessage) {
             forgotMessage.textContent = '';
@@ -252,7 +252,7 @@ async function handleResetPassword() {
         return;
     }
     if (!password) {
-        if (forgotMessage) forgotMessage.textContent = 'Vui lòng nhập mật khẩu bạn quên / mật khẩu mới';
+        if (forgotMessage) forgotMessage.textContent = 'Vui lòng nhập mật khẩu mới';
         return;
     }
     if (password.length < 6) {
@@ -267,7 +267,7 @@ async function handleResetPassword() {
     try {
         if (forgotSubmitBtn) {
             forgotSubmitBtn.disabled = true;
-            forgotSubmitBtn.textContent = 'Đang xác nhận...';
+            forgotSubmitBtn.textContent = 'Đang xử lý...';
         }
 
         const res = await fetch(`${API_BASE}/api/auth/reset-password`, {
@@ -282,7 +282,7 @@ async function handleResetPassword() {
         }
 
         if (forgotMessage) {
-            forgotMessage.textContent = data.message || 'Đổi mật khẩu thành công! Đang chuyển về đăng nhập...';
+            forgotMessage.textContent = data.message || 'Đặt lại mật khẩu thành công! Đang chuyển về đăng nhập...';
             forgotMessage.className = 'auth-status-msg success';
         }
 
@@ -293,7 +293,7 @@ async function handleResetPassword() {
         setTimeout(() => {
             if (showLoginBtn) showLoginBtn.click();
             if (loginMessage) {
-                loginMessage.textContent = 'Đổi mật khẩu thành công! Vui lòng đăng nhập với mật khẩu mới.';
+                loginMessage.textContent = 'Đặt lại mật khẩu thành công! Vui lòng đăng nhập với mật khẩu mới.';
                 loginMessage.className = 'auth-status-msg success';
             }
         }, 1200);
@@ -305,7 +305,7 @@ async function handleResetPassword() {
     } finally {
         if (forgotSubmitBtn) {
             forgotSubmitBtn.disabled = false;
-            forgotSubmitBtn.textContent = 'Xác nhận đổi mật khẩu';
+            forgotSubmitBtn.textContent = 'Đặt lại mật khẩu';
         }
     }
 }

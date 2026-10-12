@@ -10,7 +10,7 @@ import { createRemoteJWKSet, jwtVerify } from 'jose';
 const registerSchema = z.object({
     username: z.string().trim().regex(/^[a-zA-Z0-9_]{3,30}$/),
     email: z.string().trim().email(),
-    password: z.string().min(8).max(128),
+    password: z.string().min(6).max(128),
 });
 
 const loginSchema = z.object({
@@ -134,7 +134,7 @@ export async function authRoutes(app: FastifyInstance): Promise<void> {
 
         return {
             ok: true,
-            message: 'Đổi mật khẩu thành công! Vui lòng đăng nhập lại.',
+            message: 'Đặt lại mật khẩu thành công! Vui lòng đăng nhập lại.',
             username: user.username,
         };
     });

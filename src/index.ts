@@ -698,7 +698,16 @@ export async function startServer(): Promise<FastifyInstance> {
     const queue = await getQueue();
     queue.startListeners();
     const app = await buildApp({ queue, logger: true });
-    await initDatabase();
+    try {
+        await initDatabase();
+    } catch (err) {
+        if (config.NODE_ENV === "development") {
+            console.warn(`[Database] ⚠️ Could not connect to PostgreSQL: ${(err as Error).message}`);
+            console.warn(`[Database] ⚠️ Auth & Brand Kit features will be unavailable until PostgreSQL is running.`);
+        } else {
+            throw err;
+        }
+    }
     try {
         await app.listen({ port: config.PORT, host: "0.0.0.0" });
         console.log(`Backend server listening at http://localhost:${config.PORT}`);
