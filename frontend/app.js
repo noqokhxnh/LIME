@@ -493,4 +493,114 @@ async function checkAuthConfig() {
             p.classList.add('on');
         });
     });
+
+    // FlipWords Hero Animation
+    initFlipWords();
 })();
+
+// =========================================================
+// HERO FLIP WORDS (Aceternity UI style)
+// =========================================================
+function initFlipWords() {
+    const container = document.getElementById('flip-words');
+    if (!container) return;
+
+    const words = [
+        'chuyển động',
+        'thước phim',
+        'hình ảnh',
+        'câu chuyện',
+        'thực tế',
+        'khung hình',
+        'độc quyền'
+    ];
+
+    let currentIndex = 0;
+    const duration = 2800;
+
+    function createWordElement(text, isIncoming = true) {
+        const box = document.createElement('span');
+        box.className = 'flip-word-box' + (isIncoming ? ' incoming' : '');
+
+        const parts = text.split(' ');
+        parts.forEach((word, wIdx) => {
+            const wordSpan = document.createElement('span');
+            wordSpan.style.whiteSpace = 'nowrap';
+            wordSpan.style.display = 'inline-block';
+
+            for (let i = 0; i < word.length; i++) {
+                const letter = document.createElement('span');
+                letter.className = 'flip-letter';
+                letter.textContent = word[i];
+                const delay = (wIdx * 0.1 + i * 0.035).toFixed(3);
+                letter.style.setProperty('--letter-delay', `${delay}s`);
+                wordSpan.appendChild(letter);
+            }
+            box.appendChild(wordSpan);
+
+            if (wIdx < parts.length - 1) {
+                const space = document.createElement('span');
+                space.className = 'flip-space';
+                space.innerHTML = '&nbsp;';
+                box.appendChild(space);
+            }
+        });
+
+        return box;
+    }
+
+    container.innerHTML = '';
+    const initialBox = createWordElement(words[0], false);
+    container.appendChild(initialBox);
+
+    function syncWidth() {
+        const activeBox = container.querySelector('.flip-word-box:not(.outgoing)');
+        if (activeBox) {
+            const w = activeBox.offsetWidth;
+            if (w > 0) container.style.width = `${w}px`;
+        }
+    }
+
+    setTimeout(syncWidth, 60);
+
+    function nextFlip() {
+        const nextIndex = (currentIndex + 1) % words.length;
+        const nextText = words[nextIndex];
+
+        const oldBox = container.querySelector('.flip-word-box:not(.outgoing)');
+        if (oldBox) {
+            oldBox.classList.add('outgoing');
+        }
+
+        const newBox = createWordElement(nextText, true);
+        container.appendChild(newBox);
+        const targetWidth = newBox.offsetWidth;
+
+        if (targetWidth > 0) {
+            container.style.width = `${targetWidth}px`;
+        }
+
+        if (oldBox) {
+            setTimeout(() => {
+                if (oldBox && oldBox.parentElement === container) {
+                    oldBox.remove();
+                }
+            }, 420);
+        }
+
+        currentIndex = nextIndex;
+    }
+
+    let timer = setInterval(nextFlip, duration);
+
+    document.addEventListener('visibilitychange', () => {
+        if (document.hidden) {
+            clearInterval(timer);
+        } else {
+            clearInterval(timer);
+            timer = setInterval(nextFlip, duration);
+        }
+    });
+
+    window.addEventListener('resize', syncWidth);
+}
