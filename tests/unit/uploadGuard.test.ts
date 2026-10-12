@@ -103,6 +103,26 @@ describe('Module: uploadGuard (src/security/uploadGuard.ts)', () => {
             assert.ok(!result.includes('javascript:'), `Kỳ vọng không còn javascript: URI nhưng nhận: ${result}`);
         });
 
+        it('phải xóa href chứa javascript: bị làm mờ (tab, entity, whitespace, colon entity, data html)', () => {
+            const cases = [
+                `<svg><a href="java\x09script:alert(1)"><text>Click</text></a></svg>`,
+                `<svg><a href="javascript :alert(1)"><text>Click</text></a></svg>`,
+                `<svg><a href="&#x6a;avascript:alert(1)"><text>Click</text></a></svg>`,
+                `<svg><a href="jav&#x0a;ascript:alert(1)"><text>Click</text></a></svg>`,
+                `<svg><a href="javascript&colon;alert(1)"><text>Click</text></a></svg>`,
+                `<svg><a href="vbscript:msgbox(1)"><text>Click</text></a></svg>`,
+                `<svg><a href="data:text/html;base64,PHNjcmlwdD5hbGVydCgxKTwvc2NyaXB0Pg=="><text>Click</text></a></svg>`,
+            ];
+
+            for (const svg of cases) {
+                const res = sanitizeSvg(svg);
+                assert.ok(
+                    !res.includes('alert') && !res.includes('msgbox') && !res.includes('PHNjcmlwdD'),
+                    `Payload phải bị loại bỏ nhưng nhận: ${res}`
+                );
+            }
+        });
+
         it('phải giữ lại href="#id" nội bộ hợp lệ', () => {
             // href trỏ đến id nội bộ (dấu #) là bình thường trong SVG, không nên xóa
             const safe = `<svg><use href="#icon"/><symbol id="icon"><circle r="5"/></symbol></svg>`;

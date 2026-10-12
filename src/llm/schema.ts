@@ -67,14 +67,30 @@ export type WatermarkPosition = z.infer<typeof watermarkPositionSchema>;
  * - scalePercent: Kích thước logo tính theo % chiều rộng video (từ 5% đến 50%, mặc định 15%)
  * - opacity: Độ mờ đục / độ rõ nét của logo (từ 0.1: mờ 10% đến 1.0: rõ đặc 100%, mặc định 0.8)
  */
-export const watermarkConfigSchema = z.object({
+export const watermarkConfigSchema = z.preprocess((val: any) => {
+    if (val && typeof val === 'object') {
+        const logo = val.logoPath ?? val.logoUrl ?? val.logo_url;
+        const scale = val.scalePercent ?? val.scalePct ?? val.scale_pct;
+        const x = val.xPercent ?? val.xPct ?? val.x_pct;
+        const y = val.yPercent ?? val.yPct ?? val.y_pct;
+        return {
+            ...val,
+            logoPath: logo,
+            scalePercent: scale !== undefined ? Number(scale) : undefined,
+            xPercent: x !== undefined && x !== null ? Number(x) : undefined,
+            yPercent: y !== undefined && y !== null ? Number(y) : undefined,
+            opacity: val.opacity !== undefined ? Number(val.opacity) : undefined,
+        };
+    }
+    return val;
+}, z.object({
     logoPath: z.string().min(1, 'Đường dẫn tệp logo không được để trống'),
     position: watermarkPositionSchema.default('top-right'),
     xPercent: z.number().min(0, 'Tọa độ X không được nhỏ hơn 0%').max(100, 'Tọa độ X không được vượt quá 100%').optional(),
     yPercent: z.number().min(0, 'Tọa độ Y không được nhỏ hơn 0%').max(100, 'Tọa độ Y không được vượt quá 100%').optional(),
     scalePercent: z.number().min(5, 'Kích thước logo tối thiểu là 5% chiều ngang video').max(50, 'Kích thước logo tối đa là 50% chiều ngang video').default(15),
     opacity: z.number().min(0.1, 'Độ mờ đục tối thiểu là 0.1 (10%)').max(1.0, 'Độ mờ đục tối đa là 1.0 (100%)').default(0.8),
-});
+}));
 export type WatermarkConfig = z.infer<typeof watermarkConfigSchema>;
 
 export const videoRequestSchema = z.object({

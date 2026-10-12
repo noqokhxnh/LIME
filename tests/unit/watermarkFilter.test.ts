@@ -183,7 +183,7 @@ describe('Module: watermarkFilter (src/pipeline/watermarkFilter.ts)', () => {
     // ─────────────────────────────────────────────────────────
     describe('TC-WMF-003: Tính chiều rộng logo theo scalePercent', () => {
 
-        it('scalePercent=10 trên video 1920px => chiều rộng logo phải là 192px', () => {
+        it('scalePercent=10 trên video 1920px => chiều rộng logo phải là 192px (chiều cao chẵn -2)', () => {
             const config: WatermarkConfig = {
                 logoPath: '/tmp/logo.png',
                 position: 'top-left',
@@ -193,14 +193,14 @@ describe('Module: watermarkFilter (src/pipeline/watermarkFilter.ts)', () => {
 
             const result = buildWatermarkFilter(config, VIDEO_W, VIDEO_H);
 
-            // Phần scale trong chuỗi filter phải chứa "scale=192:-1"
+            // Phần scale trong chuỗi filter phải chứa "scale=192:-2" để đảm bảo kích thước chẵn
             assert.ok(
-                result.filterComplex.includes('scale=192:-1'),
-                `Kỳ vọng scale=192:-1 nhưng nhận được: ${result.filterComplex}`
+                result.filterComplex.includes('scale=192:-2'),
+                `Kỳ vọng scale=192:-2 nhưng nhận được: ${result.filterComplex}`
             );
         });
 
-        it('scalePercent=25 trên video 1920px => chiều rộng logo phải là 480px', () => {
+        it('scalePercent=25 trên video 1920px => chiều rộng logo phải là 480px (chiều cao chẵn -2)', () => {
             const config: WatermarkConfig = {
                 logoPath: '/tmp/logo.png',
                 position: 'top-left',
@@ -211,12 +211,12 @@ describe('Module: watermarkFilter (src/pipeline/watermarkFilter.ts)', () => {
             const result = buildWatermarkFilter(config, VIDEO_W, VIDEO_H);
 
             assert.ok(
-                result.filterComplex.includes('scale=480:-1'),
-                `Kỳ vọng scale=480:-1 nhưng nhận được: ${result.filterComplex}`
+                result.filterComplex.includes('scale=480:-2'),
+                `Kỳ vọng scale=480:-2 nhưng nhận được: ${result.filterComplex}`
             );
         });
 
-        it('scalePercent=50 trên video 1080px (dọc) => chiều rộng logo phải là 540px', () => {
+        it('scalePercent=50 trên video 1080px (dọc) => chiều rộng logo phải là 540px (chiều cao chẵn -2)', () => {
             const config: WatermarkConfig = {
                 logoPath: '/tmp/logo.png',
                 position: 'top-left',
@@ -228,8 +228,41 @@ describe('Module: watermarkFilter (src/pipeline/watermarkFilter.ts)', () => {
             const result = buildWatermarkFilter(config, 1080, 1920);
 
             assert.ok(
-                result.filterComplex.includes('scale=540:-1'),
-                `Kỳ vọng scale=540:-1 nhưng nhận được: ${result.filterComplex}`
+                result.filterComplex.includes('scale=540:-2'),
+                `Kỳ vọng scale=540:-2 nhưng nhận được: ${result.filterComplex}`
+            );
+        });
+
+        it('scalePercent không hợp lệ (NaN) => fallback về 15% (288px trên video 1920)', () => {
+            const config: any = {
+                logoPath: '/tmp/logo.png',
+                position: 'top-left',
+                scalePercent: NaN,
+                opacity: 1.0,
+            };
+
+            const result = buildWatermarkFilter(config, VIDEO_W, VIDEO_H);
+
+            assert.ok(
+                result.filterComplex.includes('scale=288:-2'),
+                `Kỳ vọng fallback scale=288:-2 nhưng nhận được: ${result.filterComplex}`
+            );
+        });
+
+        it('targetWidth là số lẻ => tự động làm tròn lên số chẵn tiếp theo', () => {
+            // scalePercent=11 trên video 1080px: 1080 * 0.11 = 118.8 -> round = 119 (lẻ) -> làm tròn thành 120
+            const config: WatermarkConfig = {
+                logoPath: '/tmp/logo.png',
+                position: 'top-left',
+                scalePercent: 11,
+                opacity: 1.0,
+            };
+
+            const result = buildWatermarkFilter(config, 1080, 1920);
+
+            assert.ok(
+                result.filterComplex.includes('scale=120:-2'),
+                `Kỳ vọng số chẵn scale=120:-2 nhưng nhận được: ${result.filterComplex}`
             );
         });
     });

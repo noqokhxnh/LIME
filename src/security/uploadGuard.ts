@@ -142,10 +142,47 @@ const ALLOWED_SVG_ATTRS = new Set([
     'href', 'xlink:href',
 ]);
 
+/**
+ * Kiểm tra xem URI có nguy hiểm không (chống XSS qua href/xlink:href).
+ * Giải mã HTML/XML entities, loại bỏ khoảng trắng và ký tự điều khiển để chặn
+ * các kỹ thuật lách kiểm tra như `java\tscript:`, `&#x6a;avascript:`, `javascript&colon;`.
+ */
+export function isDangerousUri(value: string): boolean {
+    if (!value) return false;
+
+    // Decode hex and decimal character references and colon entities
+    const decoded = value
+        .replace(/&#x([0-9a-f]+);?/gi, (_, hex) => {
+            try { return String.fromCharCode(parseInt(hex, 16)); } catch { return ''; }
+        })
+        .replace(/&#([0-9]+);?/g, (_, dec) => {
+            try { return String.fromCharCode(parseInt(dec, 10)); } catch { return ''; }
+        })
+        .replace(/&colon;?/gi, ':');
+
+    // Strip control characters (\u0000- , \u007f-\u009f), ASCII spaces, and zero-width chars
+    const normalized = decoded
+        .replace(/[\u0000- \u007f-\u009f\s​-‍﻿]/g, '')
+        .toLowerCase();
+
+    // Block script schemes
+    if (normalized.startsWith('javascript:') || normalized.startsWith('vbscript:')) {
+        return true;
+    }
+
+    // Block dangerous data URIs; only allow safe raster image MIME types
+    if (normalized.startsWith('data:') && !/^data:image\/(png|jpeg|jpg|webp|gif);base64,/i.test(normalized)) {
+        return true;
+    }
+
+    return false;
+}
+
 /** Kiểm tra giá trị thuộc tính style có chứa mẫu CSS nguy hiểm không */
 function isDangerousStyleValue(value: string): boolean {
     const v = value.toLowerCase();
     return (
+        isDangerousUri(value) ||
         v.includes('javascript:') ||
         v.includes('vbscript:') ||
         /expression\s*\(/.test(v) ||
@@ -212,10 +249,9 @@ export function sanitizeSvg(svgContent: string): string {
                 continue;
             }
 
-            // href/xlink:href: xóa khi trỏ tới javascript:/vbscript:, giữ href nội bộ (#id)
+            // href/xlink:href: xóa khi trỏ tới URI nguy hiểm (javascript:, vbscript:, data: độc hại), giữ href nội bộ (#id)
             if (lower === 'href' || lower === 'xlink:href') {
-                const v = value.trim().toLowerCase();
-                if (v.startsWith('javascript:') || v.startsWith('vbscript:')) {
+                if (isDangerousUri(value)) {
                     $(el).removeAttr(name);
                 }
                 continue;
@@ -337,6 +373,16 @@ export function generateSafeFilePath(
 /** Thư mục duy nhất được phép chứa file logo dùng làm watermark */
 export const LOGOS_DIR = resolve(process.cwd(), 'tmp', 'uploads', 'logos');
 
+/** Lấy đường dẫn canonical của LOGOS_DIR (giải quyết symlinks như /tmp -> /private/tmp) */
+export function getCanonicalLogosDir(): string {
+    mkdirSync(LOGOS_DIR, { recursive: true });
+    try {
+        return realpathSync(LOGOS_DIR);
+    } catch {
+        return LOGOS_DIR;
+    }
+}
+
 /** Tên file logo hợp lệ: chỉ gồm ký tự an toàn + đuôi ảnh cho phép */
 const SAFE_LOGO_FILENAME = /^[A-Za-z0-9][A-Za-z0-9._-]*\.(png|jpg|jpeg|svg|webp)$/i;
 
@@ -376,8 +422,14 @@ export function resolveLogoPath(logoPath: string): string | null {
     }
 
     // Chỉ chấp nhận file nằm trong LOGOS_DIR (chặn ../ và symlink trỏ ra ngoài)
-    const rel = relative(LOGOS_DIR, real);
-    if (!rel || rel === '..' || rel.startsWith(`..${sep}`)) {
+    const canonicalLogosDir = getCanonicalLogosDir();
+    const relCanonical = relative(canonicalLogosDir, real);
+    const relResolved = relative(LOGOS_DIR, real);
+
+    const isInsideCanonical = relCanonical && relCanonical !== '..' && !relCanonical.startsWith(`..${sep}`);
+    const isInsideResolved = relResolved && relResolved !== '..' && !relResolved.startsWith(`..${sep}`);
+
+    if (!isInsideCanonical && !isInsideResolved) {
         return null;
     }
 

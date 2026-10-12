@@ -34,15 +34,25 @@ export function buildWatermarkFilter(
     logoLabel = '2:v',
     padding = 24
 ): WatermarkFilterResult {
-    // 1. Tính chiều rộng logo theo tỉ lệ phần trăm chiều rộng video
-    const scaleRatio = config.scalePercent / 100;
-    const targetWidth = Math.max(1, Math.round(videoWidth * scaleRatio));
-    
-    // Đảm bảo opacity nằm trong khoảng an toàn 0.1 đến 1.0
-    const opacity = Math.min(1.0, Math.max(0.1, config.opacity));
+    // 1. Chuẩn hoá scalePercent (fallback 15% theo schema nếu không hợp lệ)
+    const rawScale = Number(config?.scalePercent);
+    const scalePercent = Number.isFinite(rawScale) && rawScale >= 5 && rawScale <= 50 ? rawScale : 15;
+    const scaleRatio = scalePercent / 100;
+    let targetWidth = Math.round(videoWidth * scaleRatio);
 
-    // Bước 1: Scale logo giữ nguyên tỉ lệ gốc (h=-1) và gán độ mờ Alpha
-    const prepareLogo = `[${logoLabel}]scale=${targetWidth}:-1,format=rgba,colorchannelmixer=aa=${opacity}[wm]`;
+    // Đảm bảo targetWidth luôn là số chẵn
+    if (targetWidth % 2 !== 0) {
+        targetWidth += 1;
+    }
+    targetWidth = Math.max(2, targetWidth);
+
+    // Đảm bảo opacity nằm trong khoảng an toàn 0.1 đến 1.0
+    const rawOpacity = Number(config?.opacity);
+    const validOpacity = Number.isFinite(rawOpacity) ? rawOpacity : 0.8;
+    const opacity = Math.min(1.0, Math.max(0.1, validOpacity));
+
+    // Bước 1: Scale logo với chiều cao chẵn (h=-2) và gán độ mờ Alpha
+    const prepareLogo = `[${logoLabel}]scale=${targetWidth}:-2,format=rgba,colorchannelmixer=aa=${opacity}[wm]`;
 
     // Bước 2: Tính toán biểu thức tọa độ vị trí X và Y
     let xExpr = `${padding}`;

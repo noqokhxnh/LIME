@@ -93,7 +93,15 @@ export async function renderVideo(options: RenderVideoOptions): Promise<string> 
                 // thư mục tmp/uploads/logos/ (chống LFI/Path Traversal —
                 // chặn đọc file tùy ý trên server và thiết bị đặc biệt
                 // như /dev/zero có thể treo worker render).
-                const logoPath = watermark?.logoPath ? resolveLogoPath(watermark.logoPath) : null;
+                let logoPath: string | null = null;
+                if (watermark?.logoPath) {
+                    logoPath = resolveLogoPath(watermark.logoPath);
+                    if (!logoPath) {
+                        console.warn(
+                            `[Renderer] Watermark logo không tìm thấy hoặc nằm ngoài thư mục cho phép: "${watermark.logoPath}". Bỏ qua gắn watermark.`
+                        );
+                    }
+                }
                 const hasWatermark = !!logoPath;
 
                 // ── Bước 1: Các input đầu vào ───────────────────────────────
@@ -172,6 +180,15 @@ export async function renderVideo(options: RenderVideoOptions): Promise<string> 
                     errorOutput += data.toString();
                 });
 
+                // Xử lý lỗi EPIPE trên stdin khi FFmpeg thoát sớm để chống crash tiến trình Node
+                let stdinError: any = null;
+                ff.stdin.on("error", (err: any) => {
+                    stdinError = err;
+                    if (err.code !== 'EPIPE' && err.code !== 'ERR_STREAM_DESTROYED') {
+                        console.warn("[Renderer] ff.stdin error:", err);
+                    }
+                });
+
                 const reportStep = Math.max(1, Math.floor(totalFrames / 10));
                 let lastBuf: Buffer | null = null;
 
@@ -201,21 +218,31 @@ export async function renderVideo(options: RenderVideoOptions): Promise<string> 
                         }
                     }
 
-                    if (!ff.stdin.write(buf)) {
-                        await new Promise((r) => ff.stdin.once("drain", r));
+                    if (ff.stdin.writable && !ff.stdin.destroyed) {
+                        const canWrite = ff.stdin.write(buf);
+                        if (!canWrite) {
+                            await new Promise((r) => ff.stdin.once("drain", r));
+                        }
+                    } else {
+                        // FFmpeg đã đóng stdin hoặc thoát sớm, ngừng ghi khung hình và chờ sự kiện close
+                        break;
                     }
+
                     if (i % reportStep === 0 || i === totalFrames - 1) {
                         const pct = Math.round(((i + 1) / totalFrames) * 100);
                         onProgress?.(`Rendering frames: ${i + 1}/${totalFrames} (${pct}%)`, pct);
                     }
                 }
-                ff.stdin.end();
+                if (ff.stdin.writable && !ff.stdin.destroyed) {
+                    ff.stdin.end();
+                }
 
                 await new Promise<void>((res, rej) => {
                     ff.on("close", (code) => {
                         if (code === 0) {
                             res();
                         } else {
+                            console.error("[Renderer] FFMPEG FULL ERROR OUTPUT:\n", errorOutput);
                             rej(new Error(`ffmpeg render failed with code ${code}: ${errorOutput.slice(-500)}`));
                         }
                     });
