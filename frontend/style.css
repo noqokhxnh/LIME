@@ -1908,6 +1908,25 @@ background: var(--neutral-200);
     color: #52525b;
 }
 
+.auth-note-box {
+    display: flex;
+    align-items: flex-start;
+    gap: 10px;
+    padding: 11px 14px;
+    border-radius: 10px;
+    background: #f7fee7;
+    border: 1px solid #d9f99d;
+    color: #365314;
+    font-size: 13px;
+    line-height: 1.45;
+}
+
+.auth-note-box svg {
+    flex-shrink: 0;
+    margin-top: 1.5px;
+    color: #65a30d;
+}
+
 .soft-scrollbar {
 scrollbar-width: thin;
     scrollbar-color: var(--neutral-300) transparent;
