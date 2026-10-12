@@ -264,7 +264,7 @@ export async function authRoutes(app: FastifyInstance): Promise<void> {
             }
 
             await createSession(user.id, reply);
-            return reply.redirect('/');
+            return reply.redirect('/workspace');
         } catch (error) {
             request.log.error(
                 { err: error },

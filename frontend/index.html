@@ -22,11 +22,10 @@
                 <a href="#home" data-nav="home" class="on">Trang chủ</a>
                 <a href="#templates" data-nav="templates">Mẫu thiết kế</a>
                 <a href="#pricing" data-nav="pricing">Bảng giá</a>
-                <a href="#workspace" data-nav="workspace">Studio</a>
             </div>
             <div class="nav-cta">
                 <button type="button" class="btn btn-ghost" id="login-open-btn">Đăng nhập</button>
-                <a class="btn btn-lime" href="#workspace">Tạo video →</a>
+                <button type="button" class="btn btn-lime" id="cta-create-btn">Tạo video →</button>
             </div>
         </div>
     </nav>
@@ -35,7 +34,6 @@
         <a href="#home" class="on" title="Trang chủ"></a>
         <a href="#templates" title="Mẫu thiết kế"></a>
         <a href="#pricing" title="Bảng giá"></a>
-        <a href="#workspace" title="Studio"></a>
     </div>
 
 <!-- ================= SECTION 1: HOME ================= -->
@@ -115,14 +113,14 @@
                 <div class="bubble">Ý tưởng đỉnh!</div><div class="stick"></div></div>
             <div class="tpl-body"><h3>Người que giải thích</h3>
                 <p>Nhân vật vẽ tay dí dỏm, bóng thoại tương tác cho Shorts.</p>
-                <div class="tpl-meta"><span>6 phân cảnh · 30–45s</span><button type="button" class="use btn-use-template" data-prompt="Giải thích một khái niệm khó bằng phong cách hoạt hình người que dí dỏm, ngắn gọn, phù hợp video dọc." data-style="playful" data-ratio="9:16">Dùng mẫu →</button></div></div>
+                <div class="tpl-meta"><span>6 phân cảnh · 30–45s</span><button type="button" class="use btn-use-template" data-prompt="Giải thích một khái niệm khó bằng phong cách hoạt hình người que dí dỏm, ngắn gọn, phù hợp video dọc." data-style="stickman" data-ratio="9:16">Dùng mẫu →</button></div></div>
         </div>
         <div class="tpl-card">
             <div class="tpl-visual v4"><span class="v-tag">Quảng cáo</span><span class="v-ratio">9:16</span>
                 <div class="phone">SALE<br>−50%</div></div>
             <div class="tpl-body"><h3>Quảng cáo dọc chớp nhoáng</h3>
                 <p>Nhịp nhanh cho TikTok/Reels, chữ lớn, CTA cuối video.</p>
-                <div class="tpl-meta"><span>3 phân cảnh · 15s</span><button type="button" class="use btn-use-template" data-prompt="Quảng cáo flash sale 15 giây: giảm giá 50%, chữ lớn nổi bật, kêu gọi mua ngay cuối video." data-style="bold" data-ratio="9:16">Dùng mẫu →</button></div></div>
+                <div class="tpl-meta"><span>3 phân cảnh · 15s</span><button type="button" class="use btn-use-template" data-prompt="Quảng cáo flash sale 15 giây: giảm giá 50%, chữ lớn nổi bật, kêu gọi mua ngay cuối video." data-style="modern" data-ratio="9:16">Dùng mẫu →</button></div></div>
         </div>
         <div class="tpl-card">
             <div class="tpl-visual v5"><span class="v-tag">Giáo dục</span><span class="v-ratio">16:9</span>
@@ -165,7 +163,7 @@
                 <li>2 giọng đọc tiếng Việt</li>
                 <li class="off">Xuất 4K không watermark</li>
             </ul>
-            <button type="button" class="plan-btn">Bắt đầu miễn phí</button>
+            <button type="button" class="plan-btn plan-cta">Bắt đầu miễn phí</button>
         </div>
         <div class="plan hot">
             <div class="hot-badge">✦ Phổ biến nhất</div>
@@ -179,7 +177,7 @@
                 <li>8 giọng đọc, ưu tiên hàng đợi</li>
                 <li>Brand kit: logo & màu riêng</li>
             </ul>
-            <button type="button" class="plan-btn">Nâng cấp ngay →</button>
+            <button type="button" class="plan-btn plan-cta">Nâng cấp ngay →</button>
         </div>
         <div class="plan">
             <div class="pname">Đội nhóm</div>
@@ -192,7 +190,7 @@
                 <li>Quản lý brand kit tập trung</li>
                 <li class="off">Hỗ trợ riêng 1-1</li>
             </ul>
-            <button type="button" class="plan-btn">Trao đổi với LIME</button>
+            <button type="button" class="plan-btn plan-cta">Trao đổi với LIME</button>
         </div>
     </div>
     <div class="foot">
@@ -203,539 +201,6 @@
 </section>
 
         <!-- 2. PHẦN WORKSPACE / STUDIO TẠO VIDEO -->
-        <section id="workspace" class="workspace-studio-section snap-section">
-            <!-- Khung giao diện chính đồng nhất (Studio Showcase Card) -->
-            <div class="studio-showcase-card">
-                
-                <!-- Thanh tiêu đề tích hợp gọn gàng trong khung -->
-                <div class="studio-card-header">
-                    <div class="studio-header-left">
-                        <div class="hero-badge studio-badge">
-                            <svg class="size-3-5" viewBox="0 0 24 24" fill="none" aria-hidden="true">
-                                <path d="M12 2.75c.58 4.4 2.84 6.64 7.25 7.25-4.41.61-6.67 2.85-7.25 7.25C11.42 12.85 9.16 10.61 4.75 10 9.16 9.39 11.42 7.15 12 2.75Z" fill="currentColor"/>
-                                <path d="M18.4 15.4c.25 1.85 1.2 2.8 3.1 3.1-1.9.3-2.85 1.25-3.1 3.1-.25-1.85-1.2-2.8-3.1-3.1 1.9-.3 2.85-1.25 3.1-3.1Z" fill="currentColor"/>
-                            </svg>
-                            <span>AI Video Studio</span>
-                        </div>
-                        <h2 class="studio-main-heading">
-                            Biến ý tưởng thành <span class="hero-highlight">video.<span class="highlight-bar" aria-hidden="true"></span></span>
-                        </h2>
-                        <span class="studio-header-sub">Biên đạo HTML/GSAP và render Full HD tự động</span>
-                    </div>
-                    <div class="studio-header-right">
-                        <div class="studio-feature-pill">
-                            <span class="pill-live-dot"></span>
-                            <span>Full HD 60FPS · AI Voiceover</span>
-                        </div>
-                        <div class="studio-shortcut-hint">
-                            <kbd>Ctrl</kbd> + <kbd>Enter</kbd> để tạo nhanh
-                        </div>
-                    </div>
-                </div>
-
-                <!-- Lưới 2 cột chính: Cột trái (Video & Prompt) | Cột phải (Cấu hình) -->
-                <div class="studio-layout-grid">
-            
-            <!-- CỘT BÊN TRÁI: Video Player & Ô nhập Prompt -->
-            <section class="studio-left-col">
-                
-                <!-- 1. Video Player Container -->
-                <div class="video-outer-card">
-                    <div class="video-grid-box" id="video-grid-container">
-                        
-                        <!-- Empty State Decorative Floating Elements -->
-                        <div id="video-empty" class="video-empty-decor">
-                            <div class="decor-shape shape-lime"></div>
-                            <div class="decor-shape shape-glass"></div>
-                            <div class="decor-shape shape-purple"></div>
-                            <div class="decor-overlay"></div>
-
-                            <div class="preview-badge-top">
-                                <span class="badge-dot-pulse"></span>
-                                <span>Khung xem trước</span>
-                            </div>
-
-                            <button id="preview-play-btn" class="preview-play-btn" type="button" aria-label="Phát video xem trước">
-                                <svg class="size-6" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
-                                    <path d="m9 7 8 5-8 5V7Z" />
-                                </svg>
-                            </button>
-
-                            <div class="video-timeline-bar">
-                                <span class="timeline-time">00:00</span>
-                                <div class="timeline-track">
-                                    <div class="timeline-fill" style="width: 16%;"></div>
-                                </div>
-                                <span class="timeline-time" id="timeline-duration-label">00:15</span>
-                            </div>
-                        </div>
-
-                        <!-- Real Video Player Element (Shown when ready) -->
-                        <video id="video-player" controls playsinline style="display: none;"></video>
-                    </div>
-
-                    <!-- Video Actions: Download & Preview HTML -->
-                    <div class="video-action-links">
-                        <a id="btn-download" class="btn-video-action" style="display: none;" download>
-                            <svg class="size-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-                                <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path>
-                                <polyline points="7 10 12 15 17 10"></polyline>
-                                <line x1="12" y1="15" x2="12" y2="3"></line>
-                            </svg>
-                            <span>Tải video MP4</span>
-                        </a>
-                        <a id="btn-preview-html" class="btn-video-action outline" style="display: none;" target="_blank">
-                            <svg class="size-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-                                <circle cx="12" cy="12" r="10"></circle>
-                                <line x1="2" y1="12" x2="22" y2="12"></line>
-                                <path d="M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z"></path>
-                            </svg>
-                            <span>Xem bản HTML gốc</span>
-                        </a>
-                    </div>
-
-                    <!-- Integrated Progress Bar & Log Stream -->
-                    <div class="pipeline-status-panel">
-                        <div class="status-panel-head">
-                            <span class="status-label-text">Tiến độ dựng video</span>
-                            <span id="progress-percent" class="status-percent-text">0%</span>
-                        </div>
-                        <div class="status-progress-track">
-                            <div id="progress-bar-fill" class="status-progress-bar"></div>
-                        </div>
-                        <div class="status-log-scroller">
-                            <div id="log-viewer" class="log-stream-box">
-                                <div class="log-item info">[Hệ thống] Sẵn sàng tạo video. Vui lòng nhập prompt.</div>
-                            </div>
-                        </div>
-                    </div>
-                </div>
-
-                <!-- 2. Prompt Card -->
-                <div class="prompt-box-card">
-                    <div class="prompt-header-row">
-                        <label for="prompt-input" class="prompt-label">
-                            <svg class="size-4-5 text-lime-600" viewBox="0 0 24 24" fill="none" aria-hidden="true">
-                                <path d="m4 20 10.7-10.7M12.8 7.2l4 4" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/>
-                                <path d="M18 2v3M16.5 3.5h3M20 8.5v2M19 9.5h2M9 3v2M8 4h2" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/>
-                            </svg>
-                            <span>Ý tưởng video</span>
-                        </label>
-                        <span id="prompt-char-count" class="prompt-counter">0/500 · tối thiểu 10</span>
-                    </div>
-
-                    <textarea
-                        id="prompt-input"
-                        class="prompt-textarea"
-                        placeholder="Ví dụ: Tạo video giới thiệu một đôi giày chạy bộ giữa thành phố tương lai..."
-                        rows="3"
-                    ></textarea>
-
-                    <!-- Prompt Quick Suggestions -->
-                    <div class="prompt-suggestions-row">
-                        <span class="suggestions-label">Gợi ý:</span>
-                        <div class="suggestions-chips">
-                            <button type="button" class="sug-chip" onclick="setPrompt('Tạo video giới thiệu du lịch vịnh Hạ Long 3 cảnh đẹp kỳ vĩ, nhịp dựng hiện đại.')">Hạ Long</button>
-                            <button type="button" class="sug-chip" onclick="setPrompt('Tạo video giới thiệu phố cổ Hà Nội ngàn năm văn hiến, âm điệu sâu lắng.')">Hà Nội</button>
-                            <button type="button" class="sug-chip" onclick="setPrompt('Tạo video đồ họa công nghệ trí tuệ nhân tạo AI tương lai 2026, phong cách cyberpunk.')">Công nghệ AI</button>
-                        </div>
-                    </div>
-
-                    <!-- Action Row: Upload Attachment & Generate CTA -->
-                    <div class="prompt-action-row">
-                        <button type="button" class="btn-icon-upload" aria-label="Tải ảnh tham chiếu">
-                            <svg class="size-4-5" viewBox="0 0 24 24" fill="none" aria-hidden="true">
-                                <path d="M12 15V4m0 0L8 8m4-4 4 4M5 14v4.5A1.5 1.5 0 0 0 6.5 20h11a1.5 1.5 0 0 0 1.5-1.5V14" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/>
-                            </svg>
-                        </button>
-
-                        <button id="generate-btn" class="btn-generate-cta" type="button">
-                            <span id="btn-spinner" class="spinner-icon" style="display: none;"></span>
-                            <svg class="size-4 btn-sparkle" viewBox="0 0 24 24" fill="none" aria-hidden="true">
-                                <path d="M12 2.75c.58 4.4 2.84 6.64 7.25 7.25-4.41.61-6.67 2.85-7.25 7.25C11.42 12.85 9.16 10.61 4.75 10 9.16 9.39 11.42 7.15 12 2.75Z" fill="currentColor"/>
-                                <path d="M18.4 15.4c.25 1.85 1.2 2.8 3.1 3.1-1.9.3-2.85 1.25-3.1 3.1-.25-1.85-1.2-2.8-3.1-3.1 1.9-.3 2.85-1.25 3.1-3.1Z" fill="currentColor"/>
-                            </svg>
-                            <span id="btn-text">Tạo video</span>
-                        </button>
-                    </div>
-                </div>
-
-            </section>
-
-            <!-- CỘT BÊN PHẢI: Tùy chỉnh video (Card Accordion/Tabs chuẩn mẫu App.tsx) -->
-            <aside class="studio-right-col">
-                <div class="settings-card-box">
-                    
-                    <!-- Settings Header -->
-                    <div class="settings-head-row">
-                        <div>
-                            <h2 class="settings-title">Tùy chỉnh video</h2>
-                            <p class="settings-subtitle">Thiết lập nội dung theo từng bước</p>
-                        </div>
-                        <span class="settings-head-icon">
-                            <svg class="size-4-5" viewBox="0 0 24 24" fill="none" aria-hidden="true">
-                                <rect x="3" y="4" width="18" height="16" rx="3" stroke="currentColor" stroke-width="1.7"/>
-                                <circle cx="8.5" cy="9" r="1.5" fill="currentColor"/>
-                                <path d="m5.5 17 4-4 3 3 2.5-2.5 3.5 3.5" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"/>
-                            </svg>
-                        </span>
-                    </div>
-
-                    <!-- 3-Tabs Navigation (01 Cơ bản, 02 Âm thanh, 03 Nâng cao) -->
-                    <div class="tabs-nav-bar" role="tablist" aria-label="Nhóm tùy chỉnh video">
-                        <button type="button" class="tab-nav-btn active" data-tab="basic" role="tab" aria-selected="true">
-                            <span class="tab-mark">01</span>
-                            <span class="tab-label">Cơ bản</span>
-                        </button>
-                        <button type="button" class="tab-nav-btn" data-tab="audio" role="tab" aria-selected="false">
-                            <span class="tab-mark">02</span>
-                            <span class="tab-label">Âm thanh</span>
-                        </button>
-                        <button type="button" class="tab-nav-btn" data-tab="advanced" role="tab" aria-selected="false">
-                            <span class="tab-mark">03</span>
-                            <span class="tab-label">Nâng cao</span>
-                        </button>
-                    </div>
-
-                    <!-- Scrollable Settings Tab Panels -->
-                    <div class="settings-panels-scroll soft-scrollbar">
-                        
-                        <!-- TAB 1: Cơ bản (basic) -->
-                        <div id="tab-panel-basic" class="tab-panel active" role="tabpanel">
-                            
-                            <!-- 1.1 Phong cách hình ảnh (Styles Visual Cards) -->
-                            <section class="settings-sub-section">
-                                <div class="sub-section-head">
-                                    <h3 class="sub-title">Phong cách hình ảnh</h3>
-                                    <p class="sub-desc">Chọn ngôn ngữ thị giác cho toàn bộ video</p>
-                                </div>
-                                
-                                <div class="styles-cards-grid">
-                                    <button type="button" class="style-choice-card active" data-style="modern">
-                                        <span class="style-preview-banner style-grad-modern"></span>
-                                        <span class="style-card-bottom">
-                                            <span class="style-card-name">Modern Tech</span>
-                                            <span class="style-check-dot"><svg class="size-3" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3"><polyline points="20 6 9 17 4 12"/></svg></span>
-                                        </span>
-                                    </button>
-
-                                    <button type="button" class="style-choice-card" data-style="classic">
-                                        <span class="style-preview-banner style-grad-classic"></span>
-                                        <span class="style-card-bottom">
-                                            <span class="style-card-name">Editorial / Documentary</span>
-                                            <span class="style-check-dot"><svg class="size-3" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3"><polyline points="20 6 9 17 4 12"/></svg></span>
-                                        </span>
-                                    </button>
-
-                                    <button type="button" class="style-choice-card" data-style="stickman">
-                                        <span class="style-preview-banner style-grad-stickman"></span>
-                                        <span class="style-card-bottom">
-                                            <span class="style-card-name">Stickman Comic</span>
-                                            <span class="style-check-dot"><svg class="size-3" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3"><polyline points="20 6 9 17 4 12"/></svg></span>
-                                        </span>
-                                    </button>
-
-                                    <button type="button" class="style-choice-card" data-style="minimal">
-                                        <span class="style-preview-banner style-grad-minimal"></span>
-                                        <span class="style-card-bottom">
-                                            <span class="style-card-name">Swiss Minimal</span>
-                                            <span class="style-check-dot"><svg class="size-3" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3"><polyline points="20 6 9 17 4 12"/></svg></span>
-                                        </span>
-                                    </button>
-                                </div>
-
-                                <!-- Đồng bộ với backend select id="style-select" -->
-                                <select id="style-select" style="display: none;">
-                                    <option value="modern" selected>Modern Tech</option>
-                                    <option value="classic">Editorial / Documentary</option>
-                                    <option value="stickman">Stickman Comic</option>
-                                    <option value="minimal">Swiss Minimal</option>
-                                </select>
-                            </section>
-
-                            <!-- 1.2 Định dạng đầu ra (Ratio & Duration) -->
-                            <section class="settings-sub-section bordered-box">
-                                <div class="sub-section-head">
-                                    <h3 class="sub-title">Định dạng đầu ra</h3>
-                                    <p class="sub-desc">Kích thước khung hình và độ dài video</p>
-                                </div>
-
-                                <div class="ratio-buttons-grid">
-                                    <button type="button" class="ratio-btn active" data-ratio="16:9">
-                                        <span class="ratio-rect rect-16-9"></span>
-                                        <span>16:9</span>
-                                    </button>
-                                    <button type="button" class="ratio-btn" data-ratio="9:16">
-                                        <span class="ratio-rect rect-9-16"></span>
-                                        <span>9:16</span>
-                                    </button>
-                                    <button type="button" class="ratio-btn" data-ratio="1:1">
-                                        <span class="ratio-rect rect-1-1"></span>
-                                        <span>1:1</span>
-                                    </button>
-                                    <button type="button" class="ratio-btn" data-ratio="4:3">
-                                        <span class="ratio-rect rect-4-3"></span>
-                                        <span>4:3</span>
-                                    </button>
-                                </div>
-
-                                <div class="duration-input-box">
-                                    <div class="duration-labels-row">
-                                        <span class="dur-title">Thời lượng video</span>
-                                        <span class="dur-range-hint">10–300 giây</span>
-                                    </div>
-                                    <div class="duration-input-field">
-                                        <input
-                                            id="duration-input"
-                                            class="dur-number-input"
-                                            type="number"
-                                            min="10"
-                                            max="300"
-                                            step="5"
-                                            value="15"
-                                        />
-                                        <span class="dur-unit-label">giây</span>
-                                    </div>
-                                </div>
-                            </section>
-
-                            <!-- 1.3 Cấu trúc kịch bản (Cinematic Blueprint) -->
-                            <section class="settings-sub-section">
-                                <div class="sub-section-head">
-                                    <h3 class="sub-title">Cấu trúc kịch bản</h3>
-                                    <p class="sub-desc">Blueprint quyết định nhịp kể và cách chia cảnh</p>
-                                </div>
-
-                                <div class="custom-select-control">
-                                    <span class="control-label">CINEMATIC BLUEPRINT</span>
-                                    <div class="select-field-wrap">
-                                        <select id="blueprint-select" class="clean-select">
-                                            <option value="">(Mặc định — 5-beat spine)</option>
-                                        </select>
-                                        <svg class="select-chevron" viewBox="0 0 20 20" fill="none" aria-hidden="true">
-                                            <path d="m6.5 8 3.5 3.5L13.5 8" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/>
-                                        </svg>
-                                    </div>
-                                </div>
-                            </section>
-
-                        </div>
-
-                        <!-- TAB 2: Âm thanh (audio) -->
-                        <div id="tab-panel-audio" class="tab-panel" role="tabpanel">
-                            
-                            <!-- Voice Banner Toggle -->
-                            <div class="voice-banner-dark">
-                                <div class="voice-banner-left">
-                                    <span class="waveform-box">
-                                        <span class="waveform-bars">
-                                            <i></i><i></i><i></i><i></i>
-                                        </span>
-                                    </span>
-                                    <div>
-                                        <span class="voice-banner-title">Giọng đọc AI</span>
-                                        <span id="voice-status-text" class="voice-banner-sub">Đang bật</span>
-                                    </div>
-                                </div>
-                                <button type="button" id="voice-toggle-btn" class="voice-toggle-switch active" aria-label="Bật tắt giọng đọc">
-                                    <span class="toggle-knob"></span>
-                                </button>
-                            </div>
-
-                            <!-- TTS Engines List -->
-                            <div class="tts-engines-section">
-                                <div class="sub-section-head">
-                                    <h3 class="sub-title">Công nghệ giọng nói</h3>
-                                    <p class="sub-desc">Chọn bộ máy tổng hợp phù hợp với nhu cầu</p>
-                                </div>
-
-                                <div class="tts-engines-list">
-                                    <button type="button" class="tts-engine-card active" data-engine="vieneu">
-                                        <span class="engine-radio-circle"><span></span></span>
-                                        <span class="engine-info">
-                                            <span class="engine-name">VieNeu-TTS</span>
-                                            <span class="engine-sub">Local AI · Tự chủ · Siêu nhẹ</span>
-                                        </span>
-                                        <span class="engine-badge-pill">Đề xuất</span>
-                                    </button>
-
-                                    <button type="button" class="tts-engine-card" data-engine="edge">
-                                        <span class="engine-radio-circle"><span></span></span>
-                                        <span class="engine-info">
-                                            <span class="engine-name">Edge TTS</span>
-                                            <span class="engine-sub">Microsoft Cloud · Miễn phí</span>
-                                        </span>
-                                    </button>
-
-                                    <button type="button" class="tts-engine-card" data-engine="openai">
-                                        <span class="engine-radio-circle"><span></span></span>
-                                        <span class="engine-info">
-                                            <span class="engine-name">OpenAI TTS</span>
-                                            <span class="engine-sub">Cloud · Chất lượng cao</span>
-                                        </span>
-                                    </button>
-
-                                    <button type="button" class="tts-engine-card" data-engine="elevenlabs">
-                                        <span class="engine-radio-circle"><span></span></span>
-                                        <span class="engine-info">
-                                            <span class="engine-name">ElevenLabs AI</span>
-                                            <span class="engine-sub">Cloud · Giọng chân thực</span>
-                                        </span>
-                                    </button>
-                                </div>
-
-                                <!-- Đồng bộ với backend select id="tts-provider-select" -->
-                                <select id="tts-provider-select" style="display: none;">
-                                    <option value="vieneu" selected>VieNeu-TTS</option>
-                                    <option value="edge">Edge TTS</option>
-                                    <option value="openai">OpenAI TTS</option>
-                                    <option value="elevenlabs">ElevenLabs AI</option>
-                                </select>
-                            </div>
-
-                            <!-- Giọng đọc / Nhân vật Select -->
-                            <div class="custom-select-control" id="voice-select-group">
-                                <span class="control-label">GIỌNG ĐỌC / NHÂN VẬT</span>
-                                <div class="select-field-wrap">
-                                    <select id="voice-select" class="clean-select">
-                                        <optgroup label="VieNeu-TTS (11 giọng)">
-                                            <option value="Minh Quân" selected>Minh Quân (Nam · Bắc · Tự nhiên)</option>
-                                            <option value="Mai Anh">Mai Anh (Nữ · Bắc · Tin tức)</option>
-                                            <option value="Adam">Adam (Nam · Nam · Tự nhiên)</option>
-                                            <option value="Ái Hân">Ái Hân (Nữ · Nam · Tin tức)</option>
-                                            <option value="Mỹ Duyên">Mỹ Duyên (Nữ · Bắc · Đọc truyện)</option>
-                                            <option value="Đức Trí">Đức Trí (Nam · Bắc · Đọc truyện)</option>
-                                            <option value="Hữu Quân">Hữu Quân (Nam · Bắc · Tin tức)</option>
-                                            <option value="Xuân Tiên">Xuân Tiên (Nữ · Bắc · Tin tức)</option>
-                                            <option value="Trúc Ly">Trúc Ly (Nữ · Bắc · Tự nhiên)</option>
-                                            <option value="Anh Khôi">Anh Khôi (Nam · Bắc · Kể chuyện)</option>
-                                            <option value="Mạnh Dũng">Mạnh Dũng (Nam · Bắc · Tự nhiên)</option>
-                                        </optgroup>
-                                        <optgroup label="Edge TTS (Cloud)">
-                                            <option value="vi-VN-HoaiMyNeural">Hoài My (Nữ · Bắc)</option>
-                                            <option value="vi-VN-NamMinhNeural">Nam Minh (Nam · Bắc)</option>
-                                        </optgroup>
-                                    </select>
-                                    <svg class="select-chevron" viewBox="0 0 20 20" fill="none" aria-hidden="true">
-                                        <path d="m6.5 8 3.5 3.5L13.5 8" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/>
-                                    </svg>
-                                </div>
-                            </div>
-
-                        </div>
-
-                        <!-- TAB 4: Nâng cao (advanced) -->
-                        <div id="tab-panel-advanced" class="tab-panel" role="tabpanel">
-                            
-                            <div class="pipeline-tip-box">
-                                <p class="tip-title">Tùy chọn dành cho pipeline</p>
-                                <p class="tip-desc">Chỉ thay đổi khi bạn cần kiểm soát sâu quá trình tạo video.</p>
-                            </div>
-
-                            <label class="custom-input-label">
-                                <span class="label-heading">Mô tả phong cách riêng</span>
-                                <span class="label-sub">Bổ sung yêu cầu đồ họa ngoài phong cách đã chọn</span>
-                                <textarea id="custom-style-input" class="advanced-textarea" placeholder="Ví dụ: Dùng đường nét mảnh, chuyển cảnh chậm..."></textarea>
-                            </label>
-
-                            <div class="advanced-grid-2">
-                                <div class="custom-select-control">
-                                    <span class="control-label">NGÔN NGỮ</span>
-                                    <div class="select-field-wrap">
-                                        <select class="clean-select">
-                                            <option value="vi">vi — Tiếng Việt</option>
-                                        </select>
-                                        <svg class="select-chevron" viewBox="0 0 20 20" fill="none" aria-hidden="true">
-                                            <path d="m6.5 8 3.5 3.5L13.5 8" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/>
-                                        </svg>
-                                    </div>
-                                </div>
-
-                                <div class="bgm-upload-control">
-                                    <span class="control-label">NHẠC NỀN</span>
-                                    <button type="button" class="bgm-upload-field">
-                                        <svg class="size-3-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-                                            <path d="M12 15V4m0 0L8 8m4-4 4 4M5 14v4.5A1.5 1.5 0 0 0 6.5 20h11a1.5 1.5 0 0 0 1.5-1.5V14"/>
-                                        </svg>
-                                        <span>Chọn audio</span>
-                                    </button>
-                                </div>
-                            </div>
-
-                            <label class="custom-input-label">
-                                <span class="label-heading">Kịch bản tự dựng</span>
-                                <span class="label-sub">JSON phân cảnh sẽ bỏ qua bước sinh kịch bản AI</span>
-                                <textarea id="custom-script-json" class="advanced-textarea code-font" placeholder='{ "scenes": [] }'></textarea>
-                            </label>
-
-                            <!-- Switches -->
-                            <div class="switches-list">
-                                <div class="switch-row" id="async-queue-switch">
-                                    <div>
-                                        <span class="switch-name">Xử lý qua Queue</span>
-                                        <span class="switch-desc">Tạo video bất đồng bộ</span>
-                                    </div>
-                                    <button type="button" class="clean-toggle-switch active">
-                                        <span class="toggle-knob"></span>
-                                    </button>
-                                </div>
-
-                                <div class="switch-row" id="skip-preview-switch">
-                                    <div>
-                                        <span class="switch-name">Bỏ qua ảnh xem trước</span>
-                                        <span class="switch-desc">Render thẳng video hoàn chỉnh</span>
-                                    </div>
-                                    <button type="button" class="clean-toggle-switch">
-                                        <span class="toggle-knob"></span>
-                                    </button>
-                                </div>
-                            </div>
-
-                        </div>
-
-                    </div>
-
-                    <!-- Bottom Status Summary Banner -->
-                    <div class="settings-bottom-summary">
-                        <div>
-                            <div class="summary-status-row">
-                                <span class="summary-green-dot"></span>
-                                <p class="summary-status-title">Cấu hình sẵn sàng</p>
-                            </div>
-                            <p class="summary-status-meta" id="summary-meta-line">16:9 · 15s</p>
-                        </div>
-                        <span class="summary-eta-badge">~ 2 phút</span>
-                    </div>
-
-                    </div>
-                </aside>
-            </div>
-
-            <!-- Thanh thông tin phím tắt & hướng dẫn nhanh tích hợp cuối khung -->
-            <div class="studio-card-footer">
-                <div class="tip-inline-item">
-                    <span class="tip-icon">
-                        <svg class="tip-icon-svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="2" y="4" width="20" height="16" rx="2"/><line x1="6" y1="8" x2="6.01" y2="8"/><line x1="10" y1="8" x2="10.01" y2="8"/><line x1="14" y1="8" x2="14.01" y2="8"/><line x1="18" y1="8" x2="18.01" y2="8"/><line x1="6" y1="12" x2="6.01" y2="12"/><line x1="18" y1="12" x2="18.01" y2="12"/><line x1="9" y1="16" x2="15" y2="16"/></svg>
-                    </span>
-                    <span><strong>Phím tắt nhanh:</strong> Nhấn <kbd>Ctrl</kbd> + <kbd>Enter</kbd> trong ô nhập để render tức thì</span>
-                </div>
-                <div class="tip-inline-item">
-                    <span class="tip-icon">
-                        <svg class="tip-icon-svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3" y="3" width="18" height="18" rx="2"/><circle cx="8.5" cy="8.5" r="1.5"/><polyline points="21 15 16 10 5 21"/></svg>
-                    </span>
-                    <span><strong>Tỉ lệ đa kênh:</strong> Hỗ trợ 16:9 YouTube/Desktop và 9:16 Shorts cho TikTok/Reels</span>
-                </div>
-                <div class="tip-inline-item">
-                    <span class="tip-icon">
-                        <svg class="tip-icon-svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"/></svg>
-                    </span>
-                    <span><strong>Động cơ GSAP:</strong> Hoạt ảnh mượt mà, render video Full HD 1080p bằng Puppeteer Headless</span>
-                </div>
-            </div>
-        </div>
-        </section>
-
-
     <div id="login-modal" class="auth-modal">
         <div class="auth-card-modal">
             <button id="login-close-btn" class="modal-close-btn" type="button" aria-label="Đóng">&times;</button>
