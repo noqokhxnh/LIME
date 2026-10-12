@@ -756,6 +756,79 @@
                             </p>
                         </div>
                     </form>
+
+                    <!-- Forgot Password Form -->
+                    <form id="forgot-form" class="auth-form-fields" style="display: none;" onsubmit="return false;">
+                        <div class="auth-note-box">
+                            <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                                <circle cx="12" cy="12" r="10"></circle>
+                                <line x1="12" y1="8" x2="12" y2="12"></line>
+                                <line x1="12" y1="16" x2="12.01" y2="16"></line>
+                            </svg>
+                            <span>Vui lòng nhập mật khẩu bạn quên và xác nhận để thiết lập mật khẩu mới.</span>
+                        </div>
+
+                        <div class="auth-input-group">
+                            <label for="forgot-username">Tên đăng nhập hoặc Email</label>
+                            <div class="auth-input-wrapper">
+                                <span class="auth-input-left-icon">
+                                    <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                                        <path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"></path>
+                                        <circle cx="12" cy="7" r="4"></circle>
+                                    </svg>
+                                </span>
+                                <input id="forgot-username" class="clean-auth-input with-left-icon" type="text" placeholder="name@example.com" autocomplete="username">
+                            </div>
+                        </div>
+
+                        <div class="auth-input-group">
+                            <label for="forgot-password">Mật khẩu bạn quên / Mật khẩu mới</label>
+                            <div class="auth-input-wrapper">
+                                <span class="auth-input-left-icon">
+                                    <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                                        <rect x="3" y="11" width="18" height="11" rx="2" ry="2"></rect>
+                                        <circle cx="12" cy="16" r="1"></circle>
+                                        <path d="M7 11V7a5 5 0 0 1 10 0v4"></path>
+                                    </svg>
+                                </span>
+                                <input id="forgot-password" class="clean-auth-input with-left-icon with-right-icon" type="password" placeholder="Nhập mật khẩu mới (tối thiểu 6 ký tự)" autocomplete="new-password">
+                                <button id="forgot-password-toggle" class="auth-password-toggle" type="button" aria-label="Hiện/ẩn mật khẩu">
+                                    <svg class="eye-icon" xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                                        <path d="M2 12s3-7 10-7 10 7 10 7-3 7-10 7-10-7-10-7Z" />
+                                        <circle cx="12" cy="12" r="3" />
+                                    </svg>
+                                </button>
+                            </div>
+                        </div>
+
+                        <div class="auth-input-group">
+                            <label for="forgot-confirm-password">Xác nhận mật khẩu</label>
+                            <div class="auth-input-wrapper">
+                                <span class="auth-input-left-icon">
+                                    <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                                        <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"></path>
+                                    </svg>
+                                </span>
+                                <input id="forgot-confirm-password" class="clean-auth-input with-left-icon with-right-icon" type="password" placeholder="Nhập lại mật khẩu để xác nhận" autocomplete="new-password">
+                                <button id="forgot-confirm-password-toggle" class="auth-password-toggle" type="button" aria-label="Hiện/ẩn mật khẩu">
+                                    <svg class="eye-icon" xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                                        <path d="M2 12s3-7 10-7 10 7 10 7-3 7-10 7-10-7-10-7Z" />
+                                        <circle cx="12" cy="12" r="3" />
+                                    </svg>
+                                </button>
+                            </div>
+                        </div>
+
+                        <button id="forgot-submit-btn" class="btn-auth-submit" type="submit">Xác nhận đổi mật khẩu</button>
+                        <p id="forgot-message" class="auth-status-msg"></p>
+
+                        <div class="auth-foot-actions">
+                            <p class="auth-foot-text">
+                                Đã nhớ mật khẩu?
+                                <button id="show-login-from-forgot-btn" class="link-switch-auth" type="button">Đăng nhập</button>
+                            </p>
+                        </div>
+                    </form>
                 </div>
             </div>
 

@@ -18,6 +18,12 @@ const loginSchema = z.object({
     password: z.string().min(1).max(128),
 });
 
+const resetPasswordSchema = z.object({
+    username: z.string().trim().min(1).max(255),
+    password: z.string().min(6).max(128),
+    confirmPassword: z.string().min(6).max(128).optional(),
+});
+
 function isUniqueViolation(error: unknown): boolean {
     if (typeof error !== 'object' || error === null || !('code' in error)) {
         return false;
@@ -92,6 +98,44 @@ export async function authRoutes(app: FastifyInstance): Promise<void> {
             username: user.username,
             email: user.email,
             createdAt: new Date(user.created_at).toISOString(),
+        };
+    });
+
+    app.post('/api/auth/reset-password', async (request, reply) => {
+        const parsed = resetPasswordSchema.safeParse(request.body);
+        if (!parsed.success) {
+            return reply.status(400).send({
+                error: 'Dữ liệu không hợp lệ. Mật khẩu phải có từ 6 đến 128 ký tự.',
+            });
+        }
+        const { username, password, confirmPassword } = parsed.data;
+        if (confirmPassword && password !== confirmPassword) {
+            return reply.status(400).send({
+                error: 'Mật khẩu xác nhận không khớp',
+            });
+        }
+
+        const result = await db.query(
+            'SELECT id, username, email FROM users WHERE LOWER(username) = LOWER($1) OR LOWER(email) = LOWER($1) LIMIT 1',
+            [username]
+        );
+        const user = result.rows[0];
+        if (!user) {
+            return reply.status(404).send({
+                error: 'Không tìm thấy tài khoản với tên đăng nhập hoặc email này',
+            });
+        }
+
+        const passwordHash = await bcrypt.hash(password, 12);
+        await db.query(
+            'UPDATE users SET password_hash = $1 WHERE id = $2',
+            [passwordHash, user.id]
+        );
+
+        return {
+            ok: true,
+            message: 'Đổi mật khẩu thành công! Vui lòng đăng nhập lại.',
+            username: user.username,
         };
     });
 

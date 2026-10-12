@@ -29,6 +29,13 @@ const forgotPasswordLink = document.getElementById('forgot-password-link');
 const authSocialRow = document.getElementById('auth-social-row');
 const authDivider = document.getElementById('auth-divider');
 const registerTerms = document.getElementById('register-terms');
+const forgotForm = document.getElementById('forgot-form');
+const forgotUsername = document.getElementById('forgot-username');
+const forgotPassword = document.getElementById('forgot-password');
+const forgotConfirmPassword = document.getElementById('forgot-confirm-password');
+const forgotSubmitBtn = document.getElementById('forgot-submit-btn');
+const forgotMessage = document.getElementById('forgot-message');
+const showLoginFromForgotBtn = document.getElementById('show-login-from-forgot-btn');
 
 // Helpers for Eye / EyeOff password visibility toggle
 function initPasswordToggle(inputId, toggleBtnId) {
@@ -49,6 +56,8 @@ function initPasswordToggle(inputId, toggleBtnId) {
 }
 initPasswordToggle('login-password', 'login-password-toggle');
 initPasswordToggle('register-password', 'register-password-toggle');
+initPasswordToggle('forgot-password', 'forgot-password-toggle');
+initPasswordToggle('forgot-confirm-password', 'forgot-confirm-password-toggle');
 
 let isGoogleAuthEnabled = false;
 
@@ -184,7 +193,8 @@ if (showRegisterBtn) {
 
 if (showLoginBtn) {
     showLoginBtn.addEventListener('click', () => {
-        registerForm.style.display = 'none';
+        if (registerForm) registerForm.style.display = 'none';
+        if (forgotForm) forgotForm.style.display = 'none';
         loginForm.style.display = 'flex';
         if (authSocialRow) authSocialRow.style.display = 'grid';
         if (authDivider) authDivider.style.display = 'flex';
@@ -192,8 +202,120 @@ if (showLoginBtn) {
         if (authSubtitle) authSubtitle.textContent = 'Nhập thông tin tài khoản của bạn để đăng nhập';
         if (loginMessage) loginMessage.textContent = '';
         if (registerMessage) registerMessage.textContent = '';
+        if (forgotMessage) forgotMessage.textContent = '';
     });
 }
+
+if (forgotPasswordLink && forgotForm) {
+    forgotPasswordLink.addEventListener('click', (e) => {
+        e.preventDefault();
+        if (loginForm) loginForm.style.display = 'none';
+        if (registerForm) registerForm.style.display = 'none';
+        forgotForm.style.display = 'flex';
+        if (authSocialRow) authSocialRow.style.display = 'none';
+        if (authDivider) authDivider.style.display = 'none';
+        if (authTitle) authTitle.textContent = 'Quên mật khẩu';
+        if (authSubtitle) authSubtitle.textContent = 'Vui lòng nhập mật khẩu bạn quên và xác nhận';
+        if (loginMessage) loginMessage.textContent = '';
+        if (forgotMessage) {
+            forgotMessage.textContent = '';
+            forgotMessage.className = 'auth-status-msg';
+        }
+        if (loginUsername && forgotUsername && loginUsername.value.trim()) {
+            forgotUsername.value = loginUsername.value.trim();
+        }
+    });
+}
+
+if (showLoginFromForgotBtn && forgotForm) {
+    showLoginFromForgotBtn.addEventListener('click', () => {
+        if (showLoginBtn) showLoginBtn.click();
+    });
+}
+
+async function handleResetPassword() {
+    if (!forgotUsername || !forgotPassword || !forgotConfirmPassword) return;
+    const username = forgotUsername.value.trim();
+    const password = forgotPassword.value;
+    const confirmPassword = forgotConfirmPassword.value;
+
+    if (forgotMessage) {
+        forgotMessage.textContent = '';
+        forgotMessage.className = 'auth-status-msg';
+    }
+
+    if (!username) {
+        if (forgotMessage) forgotMessage.textContent = 'Vui lòng nhập tên đăng nhập hoặc email';
+        return;
+    }
+    if (!password) {
+        if (forgotMessage) forgotMessage.textContent = 'Vui lòng nhập mật khẩu bạn quên / mật khẩu mới';
+        return;
+    }
+    if (password.length < 6) {
+        if (forgotMessage) forgotMessage.textContent = 'Mật khẩu phải có tối thiểu 6 ký tự';
+        return;
+    }
+    if (password !== confirmPassword) {
+        if (forgotMessage) forgotMessage.textContent = 'Mật khẩu xác nhận không khớp';
+        return;
+    }
+
+    try {
+        if (forgotSubmitBtn) {
+            forgotSubmitBtn.disabled = true;
+            forgotSubmitBtn.textContent = 'Đang xác nhận...';
+        }
+
+        const res = await fetch(`${API_BASE}/api/auth/reset-password`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ username, password, confirmPassword })
+        });
+
+        const data = await res.json();
+        if (!res.ok) {
+            throw new Error(data.error || 'Đặt lại mật khẩu thất bại');
+        }
+
+        if (forgotMessage) {
+            forgotMessage.textContent = data.message || 'Đổi mật khẩu thành công! Đang chuyển về đăng nhập...';
+            forgotMessage.className = 'auth-status-msg success';
+        }
+
+        if (loginUsername && data.username) {
+            loginUsername.value = data.username;
+        }
+
+        setTimeout(() => {
+            if (showLoginBtn) showLoginBtn.click();
+            if (loginMessage) {
+                loginMessage.textContent = 'Đổi mật khẩu thành công! Vui lòng đăng nhập với mật khẩu mới.';
+                loginMessage.className = 'auth-status-msg success';
+            }
+        }, 1200);
+    } catch (err) {
+        if (forgotMessage) {
+            forgotMessage.textContent = err.message;
+            forgotMessage.className = 'auth-status-msg error';
+        }
+    } finally {
+        if (forgotSubmitBtn) {
+            forgotSubmitBtn.disabled = false;
+            forgotSubmitBtn.textContent = 'Xác nhận đổi mật khẩu';
+        }
+    }
+}
+
+if (forgotSubmitBtn) forgotSubmitBtn.addEventListener('click', handleResetPassword);
+[forgotUsername, forgotPassword, forgotConfirmPassword].forEach(inp => {
+    inp?.addEventListener('keydown', (e) => {
+        if (e.key === 'Enter') {
+            e.preventDefault();
+            handleResetPassword();
+        }
+    });
+});
 
 if (registerTerms && registerSubmitBtn) {
     registerTerms.addEventListener('change', () => {
