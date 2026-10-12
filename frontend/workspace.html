@@ -740,8 +740,8 @@
                                     </svg>
                                 </span>
                                 <span class="auth-terms-text">
-                                    Tôi đồng ý với <a href="#" class="auth-terms-link">Điều khoản dịch vụ</a> và <a
-                                        href="#" class="auth-terms-link">Chính sách bảo mật</a>
+                                    Tôi đồng ý với <a href="#" class="auth-terms-link open-terms-btn" data-legal="terms">Điều khoản dịch vụ</a> và <a
+                                        href="#" class="auth-terms-link open-privacy-btn" data-legal="privacy">Chính sách bảo mật</a>
                                 </span>
                             </label>
                         </div>
@@ -759,7 +759,95 @@
                 </div>
             </div>
 
+            <!-- Modal Điều khoản dịch vụ & Chính sách bảo mật (Demo) -->
+            <div id="legal-modal" class="legal-modal" aria-hidden="true" role="dialog" aria-modal="true">
+                <div class="legal-card-modal">
+                    <button id="legal-close-btn" class="modal-close-btn" type="button" aria-label="Đóng">
+                        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                            <line x1="18" y1="6" x2="6" y2="18"></line>
+                            <line x1="6" y1="6" x2="18" y2="18"></line>
+                        </svg>
+                    </button>
+
+                    <!-- Header -->
+                    <div class="legal-modal-head">
+                        <div class="legal-modal-badge">✦ Pháp lý &amp; Chính sách LIME (Demo)</div>
+                        <h3 class="legal-modal-title">Điều khoản &amp; Chính sách bảo mật</h3>
+                        <p class="legal-modal-subtitle">Quy định sử dụng nền tảng LIME AI Video Studio và cam kết bảo vệ dữ liệu người dùng</p>
+                        <div class="legal-modal-tabs">
+                            <button type="button" class="legal-tab-trigger active" id="legal-tab-terms">
+                                1. Điều khoản dịch vụ
+                            </button>
+                            <button type="button" class="legal-tab-trigger" id="legal-tab-privacy">
+                                2. Chính sách bảo mật
+                            </button>
+                        </div>
+                    </div>
+
+                    <!-- Scrollable Content -->
+                    <div class="legal-modal-body soft-scrollbar">
+                        <!-- PANE 1: ĐIỀU KHOẢN DỊCH VỤ -->
+                        <div id="legal-content-terms" class="legal-tab-content active">
+                            <div class="legal-sec-title"><span class="legal-badge-num">1</span> Giới thiệu &amp; Chấp thuận dịch vụ</div>
+                            <p>LIME là nền tảng sáng tạo video tự động ứng dụng trí tuệ nhân tạo, hoạt họa Web (HTML5/CSS3/GSAP) và giọng đọc tổng hợp (TTS). Khi đăng ký tài khoản hoặc sử dụng dịch vụ, bạn xác nhận đã đọc, hiểu và đồng ý với toàn bộ các điều khoản này.</p>
+
+                            <div class="legal-sec-title"><span class="legal-badge-num">2</span> Tài khoản người dùng &amp; Bảo mật</div>
+                            <p>Người dùng có trách nhiệm bảo mật mật khẩu và chịu trách nhiệm với mọi hoạt động diễn ra dưới tài khoản của mình. Tuyệt đối không chia sẻ tài khoản cho bên thứ ba trái phép.</p>
+
+                            <div class="legal-callout">
+                                <b>✦ Bản quyền thành phẩm (Output):</b> Toàn bộ video MP4 và kịch bản do bạn tạo bằng LIME thuộc quyền sở hữu của bạn. Bạn được toàn quyền tải về, chỉnh sửa và khai thác thương mại hợp pháp.
+                            </div>
+
+                            <div class="legal-sec-title"><span class="legal-badge-num">3</span> Hành vi bị nghiêm cấm</div>
+                            <ul>
+                                <li>Tạo video vi phạm pháp luật, khiêu dâm, bạo lực, vu khống danh dự hoặc kích động thù địch.</li>
+                                <li>Sử dụng văn bản giọng đọc AI để giả mạo danh tính cá nhân hoặc lừa đảo tài chính.</li>
+                                <li>Tấn công kỹ thuật: spam API, can thiệp trái phép vào hàng đợi render hoặc khai thác lỗ hổng bảo mật.</li>
+                            </ul>
+
+                            <div class="legal-sec-title"><span class="legal-badge-num">4</span> Giới hạn trách nhiệm (Bản Demo)</div>
+                            <p>Hệ thống hiện đang vận hành dưới dạng thử nghiệm công nghệ. LIME không chịu trách nhiệm với sự cố gián đoạn từ các dịch vụ bên thứ ba (LLM/TTS) hoặc tranh chấp bản quyền do prompt người dùng đưa vào.</p>
+                        </div>
+
+                        <!-- PANE 2: CHÍNH SÁCH BẢO MẬT -->
+                        <div id="legal-content-privacy" class="legal-tab-content">
+                            <div class="legal-sec-title"><span class="legal-badge-num">1</span> Dữ liệu thu thập</div>
+                            <p>Chúng tôi chỉ thu thập thông tin tối thiểu cần thiết để vận hành:</p>
+                            <ul>
+                                <li><b>Tài khoản:</b> Email, tên đăng nhập, mật khẩu được mã hóa một chiều an toàn bằng thuật toán <code>bcrypt</code> (không lưu plaintext).</li>
+                                <li><b>Dữ liệu dự án:</b> Câu lệnh prompt, kịch bản phân cảnh, cấu hình giọng nói và video kết xuất MP4/HTML.</li>
+                                <li><b>Phiên làm việc:</b> Cookie kỹ thuật và JSON Web Token (JWT) an toàn.</li>
+                            </ul>
+
+                            <div class="legal-callout">
+                                <b>✦ Cam kết bảo vệ dữ liệu:</b> LIME cam kết <b>KHÔNG BAO GIỜ</b> bán, cho thuê hoặc chuyển nhượng thông tin cá nhân hay kịch bản sáng tạo của bạn cho bất kỳ bên thứ ba quảng cáo nào.
+                            </div>
+
+                            <div class="legal-sec-title"><span class="legal-badge-num">2</span> Nhà cung cấp AI &amp; TTS bên thứ ba</div>
+                            <p>Nội dung prompt và văn bản kịch bản được gửi tới các dịch vụ giọng đọc (Microsoft Edge TTS, VieNeu, OpenAI, ElevenLabs) phục vụ trực tiếp việc tổng hợp âm thanh theo thiết lập của bạn.</p>
+
+                            <div class="legal-sec-title"><span class="legal-badge-num">3</span> Quyền hạn của người dùng</div>
+                            <p>Bạn có toàn quyền tải về video của mình, yêu cầu xóa dự án hoặc xóa vĩnh viễn tài khoản và toàn bộ dữ liệu liên quan khỏi hệ thống bất cứ lúc nào.</p>
+                            <p>Liên hệ giải đáp: <b>support@lime.vn</b> hoặc <b>privacy@lime.vn</b>.</p>
+                        </div>
+                    </div>
+
+                    <!-- Footer -->
+                    <div class="legal-modal-foot">
+                        <a href="/legal.html" target="_blank" class="legal-foot-link">
+                            <span>Xem văn bản đầy đủ</span>
+                            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                                <line x1="7" y1="17" x2="17" y2="7"></line>
+                                <polyline points="7 7 17 7 17 17"></polyline>
+                            </svg>
+                        </a>
+                        <button type="button" class="btn-legal-accept" id="btn-legal-accept">Đã hiểu &amp; Đồng ý</button>
+                    </div>
+                </div>
+            </div>
+
             <!-- Core App Logic -->
+            <script src="legal-modal.js"></script>
             <script src="workspace.js"></script>
 </body>
 

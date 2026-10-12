@@ -1,0 +1,465 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Điều khoản dịch vụ & Chính sách bảo mật — LIME AI Video Studio</title>
+    <link rel="icon" type="image/png" href="/logo.png">
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@500;600;700&family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="style.css">
+    <style>
+        body {
+            background: #F6F5F0;
+            color: var(--ink);
+            font-family: var(--font-body);
+            line-height: 1.65;
+            margin: 0;
+            padding: 0;
+        }
+
+        .legal-page-header {
+            position: sticky;
+            top: 0;
+            z-index: 50;
+            background: rgba(246, 245, 240, 0.92);
+            backdrop-filter: blur(12px);
+            border-bottom: 1px solid var(--line);
+            padding: 16px 32px;
+        }
+
+        .legal-header-inner {
+            max-width: 980px;
+            margin: 0 auto;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+        }
+
+        .legal-brand {
+            display: inline-flex;
+            align-items: center;
+            gap: 10px;
+            text-decoration: none;
+            color: var(--ink);
+        }
+
+        .legal-brand img {
+            width: 30px;
+            height: 30px;
+            border-radius: 8px;
+        }
+
+        .legal-brand span {
+            font-family: var(--font-display);
+            font-weight: 700;
+            font-size: 22px;
+            letter-spacing: -0.5px;
+        }
+
+        .legal-brand span i {
+            font-style: normal;
+            color: var(--lime-deep);
+        }
+
+        .btn-back-home {
+            display: inline-flex;
+            align-items: center;
+            gap: 8px;
+            padding: 9px 18px;
+            border-radius: 999px;
+            background: #ffffff;
+            border: 1px solid var(--line);
+            color: var(--ink);
+            font-size: 14px;
+            font-weight: 600;
+            text-decoration: none;
+            transition: all 0.2s ease;
+        }
+
+        .btn-back-home:hover {
+            border-color: var(--ink);
+            background: #fdfdfc;
+        }
+
+        .legal-container {
+            max-width: 980px;
+            margin: 0 auto;
+            padding: 48px 24px 80px;
+        }
+
+        .legal-hero {
+            margin-bottom: 36px;
+        }
+
+        .legal-badge {
+            display: inline-flex;
+            align-items: center;
+            gap: 6px;
+            font-size: 12px;
+            font-weight: 700;
+            text-transform: uppercase;
+            letter-spacing: 1.2px;
+            padding: 6px 14px;
+            background: #ffffff;
+            border: 1px solid var(--line);
+            border-radius: 999px;
+            color: var(--muted);
+            margin-bottom: 16px;
+        }
+
+        .legal-hero h1 {
+            font-family: var(--font-display);
+            font-size: 38px;
+            font-weight: 700;
+            letter-spacing: -1.2px;
+            margin: 0 0 12px;
+            line-height: 1.2;
+        }
+
+        .legal-hero p {
+            color: var(--muted);
+            font-size: 16px;
+            margin: 0;
+            max-width: 680px;
+        }
+
+        /* Tabs Switcher */
+        .legal-tabs-bar {
+            display: inline-flex;
+            background: #EBE8DD;
+            padding: 4px;
+            border-radius: 14px;
+            gap: 4px;
+            margin-bottom: 36px;
+        }
+
+        .legal-tab-btn {
+            border: none;
+            background: transparent;
+            padding: 10px 22px;
+            font-size: 14.5px;
+            font-weight: 700;
+            font-family: var(--font-body);
+            border-radius: 10px;
+            cursor: pointer;
+            color: var(--muted);
+            transition: all 0.2s ease;
+        }
+
+        .legal-tab-btn.active {
+            background: #ffffff;
+            color: var(--ink);
+            box-shadow: 0 2px 8px rgba(0, 0, 0, 0.08);
+        }
+
+        /* Content Card */
+        .legal-card {
+            background: #ffffff;
+            border: 1px solid var(--line);
+            border-radius: 20px;
+            padding: 40px;
+            box-shadow: 0 15px 40px rgba(20, 22, 15, 0.04);
+        }
+
+        .legal-pane {
+            display: none;
+        }
+
+        .legal-pane.active {
+            display: block;
+        }
+
+        .legal-card h2 {
+            font-family: var(--font-display);
+            font-size: 22px;
+            font-weight: 700;
+            letter-spacing: -0.5px;
+            margin: 32px 0 14px;
+            padding-bottom: 8px;
+            border-bottom: 1px solid #f0efe9;
+            color: var(--ink);
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+
+        .legal-card h2:first-of-type {
+            margin-top: 0;
+        }
+
+        .legal-num {
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            width: 28px;
+            height: 28px;
+            border-radius: 8px;
+            background: var(--lime);
+            color: var(--lime-ink);
+            font-size: 13px;
+            font-weight: 800;
+        }
+
+        .legal-card p {
+            margin: 0 0 14px;
+            color: #404439;
+            font-size: 15px;
+        }
+
+        .legal-card ul {
+            margin: 0 0 20px;
+            padding-left: 20px;
+            color: #404439;
+            font-size: 15px;
+        }
+
+        .legal-card li {
+            margin-bottom: 8px;
+        }
+
+        .legal-highlight {
+            background: rgba(212, 249, 51, 0.18);
+            border: 1px solid rgba(143, 190, 10, 0.35);
+            border-left: 4px solid var(--lime-deep);
+            padding: 16px 20px;
+            border-radius: 12px;
+            margin: 20px 0;
+            font-size: 14.5px;
+            color: #2b3318;
+        }
+
+        .legal-highlight b {
+            color: #1a2208;
+        }
+
+        .legal-meta-box {
+            display: flex;
+            gap: 20px;
+            padding: 16px 20px;
+            background: #F8F7F2;
+            border-radius: 12px;
+            margin-bottom: 30px;
+            font-size: 13.5px;
+            color: var(--muted);
+            border: 1px solid var(--line);
+        }
+
+        .legal-meta-box span b {
+            color: var(--ink);
+        }
+
+        .legal-footer {
+            margin-top: 40px;
+            padding-top: 24px;
+            border-top: 1px solid var(--line);
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            font-size: 13.5px;
+            color: var(--muted);
+        }
+
+        @media (max-width: 640px) {
+            .legal-card { padding: 24px 20px; }
+            .legal-hero h1 { font-size: 28px; }
+            .legal-header-inner { padding: 0 16px; }
+            .legal-tabs-bar { width: 100%; display: flex; }
+            .legal-tab-btn { flex: 1; text-align: center; padding: 10px 8px; font-size: 13px; }
+            .legal-footer { flex-direction: column; gap: 12px; text-align: center; }
+        }
+    </style>
+</head>
+<body>
+
+    <!-- Header -->
+    <header class="legal-page-header">
+        <div class="legal-header-inner">
+            <a class="legal-brand" href="/">
+                <img src="/logo.png" alt="LIME Logo">
+                <span>lime<i>.</i></span>
+            </a>
+            <a class="btn-back-home" href="/">
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                    <line x1="19" y1="12" x2="5" y2="12"></line>
+                    <polyline points="12 19 5 12 12 5"></polyline>
+                </svg>
+                <span>Về trang chủ</span>
+            </a>
+        </div>
+    </header>
+
+    <main class="legal-container">
+        <!-- Hero Title -->
+        <div class="legal-hero">
+            <div class="legal-badge">✦ Pháp lý &amp; Chính sách người dùng (Demo)</div>
+            <h1>Điều khoản dịch vụ &amp; Chính sách bảo mật</h1>
+            <p>Quy định chi tiết về việc sử dụng nền tảng LIME AI Video Studio, quyền sở hữu nội dung, và cam kết bảo vệ dữ liệu cá nhân của người dùng.</p>
+        </div>
+
+        <!-- Tab Controls -->
+        <div class="legal-tabs-bar" role="tablist">
+            <button type="button" class="legal-tab-btn active" id="tab-terms-btn" role="tab" aria-selected="true" data-tab="terms">
+                1. Điều khoản dịch vụ (Terms of Service)
+            </button>
+            <button type="button" class="legal-tab-btn" id="tab-privacy-btn" role="tab" aria-selected="false" data-tab="privacy">
+                2. Chính sách bảo mật (Privacy Policy)
+            </button>
+        </div>
+
+        <!-- Main Content Card -->
+        <div class="legal-card">
+            
+            <!-- META BOX -->
+            <div class="legal-meta-box">
+                <span>Trạng thái: <b>Bản thử nghiệm (Demo / Beta)</b></span>
+                <span>Hiệu lực từ: <b>12/10/2026</b></span>
+                <span>Phiên bản: <b>v1.2.0</b></span>
+            </div>
+
+            <!-- ================= PANE 1: ĐIỀU KHOẢN DỊCH VỤ ================= -->
+            <div id="pane-terms" class="legal-pane active" role="tabpanel">
+                <h2><span class="legal-num">1</span> Giới thiệu và Phạm vi áp dụng</h2>
+                <p>Chào mừng bạn đến với <b>LIME</b> (viết tắt của <i>"Lime AI Video Studio"</i>). LIME là giải pháp công nghệ tạo video thông minh tự động hóa toàn diện quy trình: từ phân tích câu lệnh (prompt), chia phân cảnh kịch bản, dựng chuyển động đồ họa bằng công nghệ Web (HTML5, CSS3, GSAP Animation), lồng tiếng trí tuệ nhân tạo (TTS) và render video Full HD (MP4).</p>
+                <p>Khi bạn tạo tài khoản, đăng nhập, hoặc sử dụng bất kỳ tính năng nào trên trang web và hệ thống của LIME, bạn xác nhận rằng bạn đã đọc, hiểu và đồng ý chịu sự ràng buộc của các Điều khoản dịch vụ này.</p>
+
+                <h2><span class="legal-num">2</span> Tài khoản và Trách nhiệm người dùng</h2>
+                <p>Để trải nghiệm đầy đủ các tính năng lưu trữ dự án, render video và tải về thành phẩm, bạn cần tạo tài khoản trên hệ thống:</p>
+                <ul>
+                    <li><b>Tính chính xác của thông tin:</b> Bạn cam kết cung cấp thông tin đăng ký (tên người dùng, email) chính xác và chịu trách nhiệm cập nhật khi có thay đổi.</li>
+                    <li><b>Bảo mật thông tin đăng nhập:</b> Bạn có nghĩa vụ tự bảo quản mật khẩu và mã phiên truy cập. Bạn phải chịu trách nhiệm về tất cả các hành vi diễn ra dưới tài khoản của mình.</li>
+                    <li><b>Thông báo sự cố:</b> Trường hợp phát hiện tài khoản bị xâm nhập trái phép, bạn có nghĩa vụ thông báo ngay cho đội ngũ quản trị LIME.</li>
+                </ul>
+
+                <div class="legal-highlight">
+                    <b>✦ Lưu ý bản Demo:</b> Hệ thống đang hoạt động dưới chế độ thử nghiệm nội bộ. Chúng tôi có quyền thiết lập định mức giới hạn số lần tạo video (rate limits) hoặc dọn dẹp các tệp tạm thời không hoạt động sau thời gian quy định.
+                </div>
+
+                <h2><span class="legal-num">3</span> Quyền sở hữu trí tuệ &amp; Bản quyền video sinh ra</h2>
+                <p>Chúng tôi tôn trọng quyền sáng tạo của người dùng và làm rõ ranh giới bản quyền như sau:</p>
+                <ul>
+                    <li><b>Sản phẩm video hoàn thiện (Output):</b> Toàn bộ video MP4, kịch bản do AI biên soạn dựa trên prompt của bạn thuộc quyền sở hữu của bạn. Bạn được toàn quyền tải về, biên tập lại, chia sẻ hoặc khai thác thương mại cho các mục đích tiếp thị, quảng cáo, giải trí hợp pháp.</li>
+                    <li><b>Công nghệ cốt lõi của LIME:</b> Toàn bộ giao diện, mã nguồn xử lý pipeline, bộ motion blocks độc quyền, logo thương hiệu và các tài sản số của LIME thuộc quyền sở hữu trí tuệ duy nhất của LIME. Người dùng không được phép sao chép, dịch ngược mã nguồn (reverse engineering) hoặc sao chép hệ thống khi chưa được cho phép bằng văn bản.</li>
+                </ul>
+
+                <h2><span class="legal-num">4</span> Tiêu chuẩn nội dung &amp; Hành vi nghiêm cấm</h2>
+                <p>Nhằm duy trì môi trường sáng tạo lành mạnh, an toàn và tuân thủ pháp luật, người dùng cam kết <b>KHÔNG</b> sử dụng LIME để:</p>
+                <ul>
+                    <li>Tạo video chứa nội dung khiêu dâm, bạo lực cực đoan, kích động thù địch, phân biệt chủng tộc hoặc tôn giáo.</li>
+                    <li>Tuyên truyền tin giả, lừa đảo tài chính, vu khống hoặc xúc phạm danh dự của bất kỳ cá nhân hay tổ chức nào.</li>
+                    <li>Sử dụng văn bản giọng đọc giả mạo danh tính chính trị gia, người nổi tiếng hoặc nhân vật công chúng mà không được phép.</li>
+                    <li>Thực hiện các cuộc tấn công kỹ thuật: spam yêu cầu (DDoS), khai thác lỗ hổng bảo mật, tải lên mã độc hại hoặc can thiệp bất hợp pháp vào hàng đợi tính toán (Job Queue/Redis).</li>
+                </ul>
+
+                <h2><span class="legal-num">5</span> Giới hạn trách nhiệm (Disclaimer)</h2>
+                <p>Dịch vụ LIME được cung cấp trên nguyên tắc <i>"nguyên trạng" (as-is)</i> trong khuôn khổ thử nghiệm công nghệ:</p>
+                <ul>
+                    <li>Chúng tôi không đảm bảo rằng việc sinh video sẽ không bao giờ gặp gián đoạn hoặc không có lỗi phát sinh do hạ tầng mạng, thời gian phản hồi của các mô hình AI hoặc các nhà cung cấp TTS đám mây.</li>
+                    <li>LIME không chịu trách nhiệm pháp lý đối với bất kỳ khiếu nại bản quyền nào phát sinh do người dùng cố tình đưa vào prompt các nhãn hiệu, nhân vật hoặc nội dung có bản quyền thuộc bên thứ ba.</li>
+                </ul>
+
+                <h2><span class="legal-num">6</span> Điều chỉnh điều khoản &amp; Chấm dứt dịch vụ</h2>
+                <p>LIME có quyền cập nhật các điều khoản này theo thời gian để phù hợp với sự phát triển của sản phẩm. Các sửa đổi sẽ có hiệu lực ngay khi được đăng tải trên trang này. Nếu bạn không đồng ý với các điều khoản sửa đổi, bạn có thể ngừng sử dụng dịch vụ và yêu cầu xóa tài khoản.</p>
+            </div>
+
+            <!-- ================= PANE 2: CHÍNH SÁCH BẢO MẬT ================= -->
+            <div id="pane-privacy" class="legal-pane" role="tabpanel">
+                <h2><span class="legal-num">1</span> Thông tin chúng tôi thu thập</h2>
+                <p>Khi bạn sử dụng LIME AI Video Studio, chúng tôi chỉ thu thập những thông tin cần thiết nhất để vận hành quy trình render video:</p>
+                <ul>
+                    <li><b>Thông tin tài khoản:</b> Tên người dùng (username), địa chỉ email, mật khẩu được băm mã hóa một chiều (hashing với thuật toán bảo mật cao bcrypt).</li>
+                    <li><b>Dữ liệu dự án:</b> Câu lệnh mô tả ý tưởng (prompt), kịch bản phân cảnh, cấu hình giọng nói AI, tỷ lệ khung hình (aspect ratio) và phong cách đồ họa được lựa chọn.</li>
+                    <li><b>Tệp phương tiện kết xuất:</b> Các tệp video định dạng MP4, mã HTML preview động, tệp âm thanh giọng đọc WAV/MP3 được lưu trữ tạm thời trong kho lưu trữ dữ liệu của dự án.</li>
+                    <li><b>Nhật ký kỹ thuật (System Logs):</b> Địa chỉ IP, tác vụ render trong hàng đợi (Job ID), thời gian hoàn tất và thông báo lỗi nhằm mục đích kiểm tra và tối ưu hiệu năng pipeline.</li>
+                </ul>
+
+                <h2><span class="legal-num">2</span> Mục đích sử dụng dữ liệu</h2>
+                <p>Chúng tôi chỉ sử dụng dữ liệu thu thập được cho các mục đích hợp pháp sau:</p>
+                <ul>
+                    <li>Thực thi quy trình tự động: Gửi prompt đến mô hình AI để sinh kịch bản phân cảnh, kích hoạt động cơ render video và tổng hợp âm thanh.</li>
+                    <li>Duy trì phiên làm việc: Lưu trữ lịch sử dự án để bạn có thể xem lại, tải video hoặc chỉnh sửa tiếp theo trong Workspace.</li>
+                    <li>Cải tiến dịch vụ: Khắc phục lỗi hiển thị HTML/GSAP, nâng cấp thư viện chuyển động (Motion Blocks) và tối ưu độ trễ render.</li>
+                </ul>
+
+                <div class="legal-highlight">
+                    <b>✦ Cam kết không thương mại hóa dữ liệu:</b> LIME cam kết <b>KHÔNG BAO GIỜ</b> bán, cho thuê hoặc chuyển nhượng thông tin cá nhân hay kịch bản sáng tạo của bạn cho các bên thứ ba quảng cáo.
+                </div>
+
+                <h2><span class="legal-num">3</span> Lưu trữ và Bảo mật thông tin</h2>
+                <p>Chúng tôi áp dụng các tiêu chuẩn kỹ thuật hiện đại để bảo vệ an toàn cho dữ liệu của bạn:</p>
+                <ul>
+                    <li><b>Bảo mật mật khẩu:</b> Mật khẩu người dùng được băm mã hóa bằng thuật toán <code>bcrypt</code> với độ phức tạp cao, không bao giờ được lưu trữ dưới dạng văn bản thô (plain text).</li>
+                    <li><b>Xác thực phiên bảo mật:</b> Phiên đăng nhập được quản lý bằng chuẩn JWT (JSON Web Token) được ký điện tử, hỗ trợ cơ chế lưu trữ bảo mật qua cookie an toàn.</li>
+                    <li><b>Bảo vệ môi trường máy chủ:</b> Toàn bộ hệ thống cơ sở dữ liệu và hàng đợi render (PostgreSQL / Redis / BullMQ) được vận hành trong phân vùng mạng nội bộ có tường lửa bảo vệ.</li>
+                </ul>
+
+                <h2><span class="legal-num">4</span> Chia sẻ dữ liệu với bên thứ ba (Dịch vụ AI &amp; TTS)</h2>
+                <p>Để hoàn thiện video, hệ thống có thể chuyển tiếp nội dung kịch bản văn bản của bạn đến các nhà cung cấp dịch vụ được tích hợp trong hệ thống theo lựa chọn của bạn:</p>
+                <ul>
+                    <li><b>Nhà cung cấp giọng đọc TTS:</b> Microsoft Edge TTS, VieNeu-TTS (mô hình cục bộ), OpenAI Audio API, hoặc ElevenLabs API để chuyển thể văn bản kịch bản thành giọng đọc tự nhiên.</li>
+                    <li><b>Mô hình ngôn ngữ AI:</b> Xử lý prompt người dùng thành cấu trúc phân cảnh JSON chuẩn hóa.</li>
+                </ul>
+                <p>Các đối tác trên chỉ nhận dữ liệu văn bản cần thiết để phục vụ tác vụ sinh âm thanh/nội dung và không được phép sử dụng dữ liệu đó cho mục đích nào khác.</p>
+
+                <h2><span class="legal-num">5</span> Quyền kiểm soát của người dùng</h2>
+                <p>Bạn luôn có toàn quyền kiểm soát dữ liệu của mình trên hệ thống LIME:</p>
+                <ul>
+                    <li><b>Xem và tải về:</b> Bạn có thể xem toàn bộ các job video đã tạo, tải video MP4 hoặc mã nguồn HTML bất cứ lúc nào.</li>
+                    <li><b>Xóa dữ liệu:</b> Bạn có quyền yêu cầu xóa các video đã render hoặc xóa vĩnh viễn tài khoản và toàn bộ dữ liệu liên quan khỏi cơ sở dữ liệu.</li>
+                    <li><b>Bật/tắt tính năng:</b> Bạn có thể tùy chọn tắt tính năng lồng tiếng (Voiceover) hoặc chọn xử lý giọng đọc hoàn toàn bằng mô hình cục bộ (VieNeu) để bảo mật tối đa.</li>
+                </ul>
+
+                <h2><span class="legal-num">6</span> Cookie và Công nghệ theo dõi</h2>
+                <p>LIME chỉ sử dụng cookie và Session Storage kỹ thuật thiết yếu nhằm duy trì trạng thái đăng nhập của bạn và lưu tạm câu lệnh prompt khi bạn điều hướng từ trang chủ vào studio. Chúng tôi không sử dụng các cookie theo dõi quảng cáo từ bên thứ ba (Third-party tracking cookies).</p>
+
+                <h2><span class="legal-num">7</span> Thông tin liên hệ</h2>
+                <p>Nếu bạn có bất kỳ câu hỏi, góp ý hoặc yêu cầu nào liên quan đến Điều khoản dịch vụ hoặc Chính sách bảo mật này, xin vui lòng liên hệ:</p>
+                <ul>
+                    <li><b>Email hỗ trợ kỹ thuật:</b> <a href="mailto:support@lime.vn" style="color: var(--lime-deep); font-weight: 600;">support@lime.vn</a></li>
+                    <li><b>Email phụ trách chính sách:</b> <a href="mailto:privacy@lime.vn" style="color: var(--lime-deep); font-weight: 600;">privacy@lime.vn</a></li>
+                    <li><b>Địa chỉ dự án:</b> LIME AI Video Studio Demo, Việt Nam.</li>
+                </ul>
+            </div>
+
+            <!-- Footer Card -->
+            <div class="legal-footer">
+                <div>© 2026 LIME AI Video Studio. Bản quyền thuộc về LIME.</div>
+                <div>Demo Version · Thiết kế cho thử nghiệm hệ thống</div>
+            </div>
+        </div>
+    </main>
+
+    <script>
+        // Tab switching logic for legal page
+        const tabTermsBtn = document.getElementById('tab-terms-btn');
+        const tabPrivacyBtn = document.getElementById('tab-privacy-btn');
+        const paneTerms = document.getElementById('pane-terms');
+        const panePrivacy = document.getElementById('pane-privacy');
+
+        function setTab(tab) {
+            const isTerms = tab === 'terms';
+            tabTermsBtn.classList.toggle('active', isTerms);
+            tabTermsBtn.setAttribute('aria-selected', isTerms ? 'true' : 'false');
+            tabPrivacyBtn.classList.toggle('active', !isTerms);
+            tabPrivacyBtn.setAttribute('aria-selected', !isTerms ? 'true' : 'false');
+            paneTerms.classList.toggle('active', isTerms);
+            panePrivacy.classList.toggle('active', !isTerms);
+            window.location.hash = tab;
+        }
+
+        tabTermsBtn.addEventListener('click', () => setTab('terms'));
+        tabPrivacyBtn.addEventListener('click', () => setTab('privacy'));
+
+        // Check URL hash or query params
+        const urlParams = new URLSearchParams(window.location.search);
+        const queryTab = urlParams.get('tab');
+        const hash = window.location.hash.replace('#', '');
+        if (queryTab === 'privacy' || hash === 'privacy') {
+            setTab('privacy');
+        } else {
+            setTab('terms');
+        }
+    </script>
+</body>
+</html>

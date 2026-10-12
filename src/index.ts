@@ -113,6 +113,18 @@ export async function buildApp(options: { logger?: boolean, queue?: IVideoQueue 
         reply.status(404).send("Workspace not found");
     });
 
+    const serveLegal = async (_request: FastifyRequest, reply: FastifyReply) => {
+        const htmlPath = join(frontendDir, "legal.html");
+        if (existsSync(htmlPath)) {
+            reply.type("text/html; charset=utf-8").send(createReadStream(htmlPath));
+            return reply;
+        }
+        reply.status(404).send("Legal page not found");
+    };
+    app.get("/legal", serveLegal);
+    app.get("/terms", serveLegal);
+    app.get("/privacy", serveLegal);
+
     app.get("/api/health", async () => {
         const config = getConfig();
         return {
