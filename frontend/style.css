@@ -2559,6 +2559,14 @@ button:focus-visible, input:focus-visible, textarea:focus-visible, select:focus-
         border-radius: 24px;
         gap: 20px;
     }
+    .intro-main-title {
+        font-size: clamp(1.6rem, 5.5vw, 2.05rem);
+        line-height: 1.22;
+    }
+    .flip-word-wrapper {
+        padding: 1px 10px 2px;
+        border-radius: 10px;
+    }
 }
 
 .intro-left-content {
@@ -2566,19 +2574,108 @@ button:focus-visible, input:focus-visible, textarea:focus-visible, select:focus-
 }
 
 .intro-main-title {
-    font-size: clamp(2.4rem, 4.5vw, 3.85rem);
-    font-weight: 800;
-    line-height: 1.05;
-    letter-spacing: -0.05em;
+    font-size: clamp(2.1rem, 3.8vw, 3.35rem);
+    font-weight: 850;
+    line-height: 1.18;
+    letter-spacing: -0.04em;
     color: var(--neutral-950);
     margin: 16px 0 18px;
 }
 
-.intro-gradient-text {
+.intro-title-line1 {
     display: block;
-    background: linear-gradient(135deg, #171717 35%, #65a30d 100%);
-    -webkit-background-clip: text;
-    -webkit-text-fill-color: transparent;
+    white-space: nowrap;
+    color: var(--neutral-950);
+}
+
+.intro-title-line2 {
+    display: block;
+    color: var(--neutral-950);
+    margin-top: 4px;
+}
+
+/* FlipWords Component - Aceternity Inspired (Spring Letter Animation) */
+.flip-words-container {
+    position: relative;
+    display: inline-flex;
+    align-items: center;
+    vertical-align: -0.06em;
+    padding: 0;
+    margin-left: 6px;
+    white-space: nowrap;
+    min-height: 1.15em;
+    transition: width 0.35s cubic-bezier(0.25, 1, 0.5, 1);
+}
+
+.flip-word-wrapper {
+    display: inline-flex;
+    align-items: center;
+    white-space: nowrap;
+    position: relative;
+    z-index: 2;
+    padding: 2px 14px 4px;
+    border-radius: 14px;
+    background: linear-gradient(135deg, rgba(217, 249, 157, 0.5) 0%, rgba(190, 242, 100, 0.28) 100%);
+    border: 1.5px solid rgba(132, 204, 22, 0.45);
+    box-shadow: 0 4px 16px -2px rgba(163, 230, 53, 0.28), inset 0 1px 0 rgba(255, 255, 255, 0.95);
+    color: #3f6212;
+    font-weight: 850;
+    will-change: transform, opacity, filter;
+}
+
+.flip-subword {
+    display: inline-flex;
+    align-items: center;
+    white-space: nowrap;
+}
+
+.flip-letter {
+    display: inline-block;
+    opacity: 0;
+    transform: translateY(10px);
+    filter: blur(8px);
+    animation: flipLetterEnter 0.35s cubic-bezier(0.25, 0.46, 0.45, 0.94) forwards;
+    will-change: transform, opacity, filter;
+}
+
+.flip-space {
+    display: inline-block;
+    width: 0.25em;
+}
+
+@keyframes flipLetterEnter {
+    0% {
+        opacity: 0;
+        transform: translateY(10px);
+        filter: blur(8px);
+    }
+    100% {
+        opacity: 1;
+        transform: translateY(0);
+        filter: blur(0px);
+    }
+}
+
+.flip-word-wrapper.flip-word-exit {
+    position: absolute;
+    left: 0;
+    top: 0;
+    z-index: 1;
+    pointer-events: none;
+    animation: flipWordExit 0.4s cubic-bezier(0.25, 1, 0.5, 1) forwards;
+}
+
+@keyframes flipWordExit {
+    0% {
+        opacity: 1;
+        transform: translate(0, 0) scale(1);
+        filter: blur(0px);
+    }
+    100% {
+        opacity: 0;
+        transform: translate(40px, -40px) scale(2);
+        filter: blur(8px);
+    }
 }
 
 .intro-subtext {
@@ -2951,60 +3048,33 @@ button:focus-visible, input:focus-visible, textarea:focus-visible, select:focus-
    Băng chuyền nội dung (Conveyor Belt - Đặt dưới cùng trong Thẻ chứa chính)
    ===================================================================== */
 .hero-card-conveyor-wrap {
-    width: 100%;
-    border-top: 1px solid rgba(0, 0, 0, 0.06);
-    padding-top: 22px;
+    width: calc(100% + 96px);
+    margin: 0 -48px -24px;
+    padding: 22px 32px 24px;
+    border-radius: 0 0 35px 35px;
+    background: linear-gradient(180deg, rgba(248, 250, 252, 0.75) 0%, rgba(241, 245, 249, 0.95) 100%);
+    border-top: 1px solid rgba(0, 0, 0, 0.07);
+    box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.9);
     display: flex;
     align-items: center;
-    gap: 16px;
     overflow: hidden;
     position: relative;
-}
-
-.conveyor-belt-label {
-    display: inline-flex;
-    align-items: center;
-    gap: 8px;
-    padding: 6px 14px;
-    border-radius: var(--radius-full);
-    background: var(--neutral-100);
-    border: 1px solid rgba(0, 0, 0, 0.06);
-    font-size: 11px;
-    font-weight: 800;
-    color: var(--neutral-800);
-    white-space: nowrap;
-    flex-shrink: 0;
-    letter-spacing: 0.02em;
-}
-
-.conveyor-pulse-dot {
-    width: 7px;
-    height: 7px;
-    border-radius: 50%;
-    background: var(--lime-500);
-    box-shadow: 0 0 10px rgba(163, 230, 53, 0.9);
-    animation: pulseDot 2s ease-in-out infinite;
-}
-
-@keyframes pulseDot {
-    0%, 100% { opacity: 1; transform: scale(1); }
-    50% { opacity: 0.45; transform: scale(0.8); }
 }
 
 .conveyor-belt-viewport {
-    flex: 1;
+    width: 100%;
     overflow: hidden;
     position: relative;
-    mask-image: linear-gradient(to right, transparent, black 4%, black 96%, transparent);
-    -webkit-mask-image: linear-gradient(to right, transparent, black 4%, black 96%, transparent);
+    mask-image: linear-gradient(to right, transparent 0%, black 4%, black 96%, transparent 100%);
+    -webkit-mask-image: linear-gradient(to right, transparent 0%, black 4%, black 96%, transparent 100%);
 }
 
 .conveyor-belt-track {
     display: flex;
     align-items: center;
-    gap: 12px;
+    gap: 14px;
     width: max-content;
-    animation: conveyorScroll 34s linear infinite;
+    animation: conveyorScroll 36s linear infinite;
     will-change: transform;
 }
 
@@ -3024,45 +3094,85 @@ button:focus-visible, input:focus-visible, textarea:focus-visible, select:focus-
 .conveyor-item-chip {
     display: inline-flex;
     align-items: center;
-    gap: 8px;
-    padding: 7px 16px;
+    gap: 11px;
+    padding: 8px 18px 8px 10px;
     border-radius: var(--radius-full);
     background: #ffffff;
-    border: 1px solid rgba(0, 0, 0, 0.08);
-    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.02);
+    border: 1px solid rgba(15, 23, 42, 0.09);
+    box-shadow: 
+        0 4px 14px -2px rgba(15, 23, 42, 0.05),
+        0 1px 3px rgba(0, 0, 0, 0.03),
+        inset 0 1px 0 rgba(255, 255, 255, 1);
     white-space: nowrap;
-    font-size: 12px;
-    font-weight: 700;
-    color: var(--neutral-700);
-    transition: all 0.2s ease;
+    transition: all 0.25s cubic-bezier(0.16, 1, 0.3, 1);
     user-select: none;
-    cursor: default;
+    cursor: pointer;
 }
 
 .conveyor-item-chip:hover {
-    transform: translateY(-2px);
-    border-color: var(--lime-500);
-    color: var(--neutral-950);
-    box-shadow: 0 8px 20px rgba(163, 230, 53, 0.22);
+    transform: translateY(-3px) scale(1.02);
+    border-color: #84cc16;
+    background: #ffffff;
+    box-shadow: 
+        0 12px 28px -4px rgba(132, 204, 22, 0.32),
+        0 4px 10px rgba(0, 0, 0, 0.04),
+        inset 0 1px 0 rgba(255, 255, 255, 1);
 }
 
 .chip-icon {
-    font-size: 14px;
+    width: 30px;
+    height: 30px;
+    border-radius: 50%;
+    background: linear-gradient(135deg, rgba(217, 249, 157, 0.65) 0%, rgba(163, 230, 53, 0.38) 100%);
+    border: 1px solid rgba(132, 204, 22, 0.38);
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 15px;
     line-height: 1;
+    box-shadow: 0 2px 6px rgba(163, 230, 53, 0.25);
+    flex-shrink: 0;
+    transition: transform 0.25s ease, box-shadow 0.25s ease;
+}
+
+.conveyor-item-chip:hover .chip-icon {
+    transform: scale(1.1);
+    box-shadow: 0 0 12px rgba(163, 230, 53, 0.7);
 }
 
 .chip-title {
-    letter-spacing: -0.01em;
+    font-size: 13px;
+    font-weight: 750;
+    color: #0f172a;
+    letter-spacing: -0.015em;
 }
 
-@media (max-width: 768px) {
+@media (max-width: 1024px) {
     .hero-card-conveyor-wrap {
-        flex-direction: column;
-        align-items: flex-start;
-        gap: 12px;
+        width: calc(100% + 48px);
+        margin: 0 -24px -20px;
+        padding: 18px 20px 20px;
+        border-radius: 0 0 32px 32px;
     }
-    .conveyor-belt-viewport {
-        width: 100%;
+}
+
+@media (max-width: 640px) {
+    .hero-card-conveyor-wrap {
+        width: calc(100% + 28px);
+        margin: 0 -14px -16px;
+        padding: 14px 12px 16px;
+        border-radius: 0 0 24px 24px;
+    }
+    .conveyor-item-chip {
+        padding: 7px 14px 7px 8px;
+    }
+    .chip-icon {
+        width: 26px;
+        height: 26px;
+        font-size: 13px;
+    }
+    .chip-title {
+        font-size: 12px;
     }
 }
 
