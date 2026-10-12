@@ -1,6 +1,7 @@
-import { mkdirSync } from 'node:fs';
-import { join, extname } from 'node:path';
+import { mkdirSync, realpathSync, statSync } from 'node:fs';
+import { join, resolve, relative, basename, sep } from 'node:path';
 import { v4 as uuidv4 } from 'uuid';
+import { load } from 'cheerio';
 
 // ============================================================
 // MODULE BẢO MẬT UPLOAD LOGO / WATERMARK
@@ -83,50 +84,151 @@ export function validateMagicBytes(buffer: Buffer, mime: string): boolean {
     return false;
 }
 
+// ─────────────────────────────────────────────────────────────
+// SANITIZE SVG THEO DANH SÁCH TRẮNG (WHITELIST) QUA XML PARSER
+//
+// Thay vì dùng regex (dễ bị lách như `<svg/onload="...">` — regex cũ
+// yêu cầu khoảng trắng trước `on` nên không khớp), toàn bộ SVG được
+// parse thành cây DOM rồi chỉ giữ lại thẻ/thuộc tính nằm trong danh
+// sách trắng:
+//   - Mọi event handler `on*` (onload, onclick, onerror, ...) đều bị xóa,
+//     kể cả khi không có khoảng trắng đứng trước.
+//   - Thẻ <script>, <style>, <foreignObject>, <metadata> bị xóa toàn bộ
+//     kèm nội dung bên trong.
+//   - Thẻ lạ khác: chỉ bỏ thẻ bọc ngoài, giữ lại nội dung text con.
+//   - Chỉ thị XML (<?xml ...?>, <!DOCTYPE ...>, <!ENTITY ...>) bị xóa
+//     để chặn tấn công XXE.
+//   - Thuộc tính href/xlink:href trỏ tới `javascript:` (hoặc vbscript:)
+//     bị xóa; href nội bộ (`#id`) được giữ lại.
+// ─────────────────────────────────────────────────────────────
+
+/** Các thẻ SVG được phép giữ lại */
+const ALLOWED_SVG_TAGS = new Set([
+    'svg', 'g', 'defs', 'desc', 'title', 'symbol', 'use',
+    'path', 'rect', 'circle', 'ellipse', 'line', 'polyline', 'polygon',
+    'text', 'tspan', 'textpath', 'a',
+    'lineargradient', 'radialgradient', 'stop',
+    'clippath', 'mask', 'pattern', 'image',
+]);
+
+/**
+ * Các thẻ bị xóa toàn bộ kèm nội dung bên trong:
+ * script/style có thể chứa mã độc, foreignObject cho phép nhúng HTML
+ * tùy ý, metadata có thể chứa nội dung không kiểm soát.
+ */
+const STRIP_ENTIRELY_TAGS = new Set(['script', 'style', 'foreignobject', 'metadata']);
+
+/** Thuộc tính SVG được phép (so sánh không phân biệt hoa/thường) */
+const ALLOWED_SVG_ATTRS = new Set([
+    'id', 'class',
+    'xmlns', 'xmlns:xlink',
+    'x', 'y', 'width', 'height', 'cx', 'cy', 'r', 'rx', 'ry',
+    'x1', 'y1', 'x2', 'y2', 'dx', 'dy', 'd', 'points',
+    'viewbox', 'preserveaspectratio',
+    'fill', 'fill-opacity', 'fill-rule',
+    'stroke', 'stroke-width', 'stroke-opacity', 'stroke-linecap', 'stroke-linejoin',
+    'stroke-dasharray', 'stroke-dashoffset',
+    'opacity', 'transform', 'transform-origin',
+    'gradientunits', 'gradienttransform', 'spreadmethod',
+    'offset', 'stop-color', 'stop-opacity',
+    'clip-path', 'clip-rule', 'mask',
+    'patternunits', 'patterncontentunits', 'patterntransform',
+    'maskunits', 'maskcontentunits',
+    'font-family', 'font-size', 'font-weight', 'font-style',
+    'text-anchor', 'dominant-baseline', 'alignment-baseline',
+    'letter-spacing', 'word-spacing', 'rotate',
+    'textlength', 'lengthadjust',
+    'style',
+    'href', 'xlink:href',
+]);
+
+/** Kiểm tra giá trị thuộc tính style có chứa mẫu CSS nguy hiểm không */
+function isDangerousStyleValue(value: string): boolean {
+    const v = value.toLowerCase();
+    return (
+        v.includes('javascript:') ||
+        v.includes('vbscript:') ||
+        /expression\s*\(/.test(v) ||
+        /url\s*\(\s*['"]?(?!#)/.test(v) // url(...) không trỏ tới id nội bộ (#...)
+    );
+}
+
 /**
  * Làm sạch (sanitize) nội dung SVG để loại bỏ mã độc.
  *
  * Các mối nguy hiểm trong SVG:
  *   - XSS qua thẻ <script>: cho phép chạy JavaScript
  *   - XSS qua event handler: onload="alert(1)", onclick="fetch(...)", ...
+ *     kể cả dạng không có khoảng trắng như `<svg/onload="...">`
  *   - XXE (XML External Entity): <!ENTITY xxe SYSTEM "file:///etc/passwd">
  *     cho phép đọc file trên server
  *   - foreignObject: cho phép nhúng HTML tùy ý vào SVG
- *   - use href: có thể tham chiếu đến tài nguyên ngoài
+ *   - href trỏ tới javascript:: thực thi mã khi click
  *
  * @param svgContent  Chuỗi nội dung SVG thô do người dùng upload
  * @returns Chuỗi SVG đã được làm sạch, an toàn để lưu và hiển thị
  */
 export function sanitizeSvg(svgContent: string): string {
-    let clean = svgContent;
+    const $ = load(svgContent, { xml: true });
 
-    // 1. Xóa toàn bộ thẻ <script>...</script> (kể cả nhiều dòng)
-    clean = clean.replace(/<script[\s\S]*?<\/script>/gi, '');
+    // 1. Xóa toàn bộ chỉ thị XML: <?xml ...?>, <!DOCTYPE ...>, <!ENTITY ...>
+    //    để chặn tấn công XXE ngay từ khâu parse.
+    $.root().contents().each((_i, el: any) => {
+        if (el.type === 'directive') {
+            $(el).remove();
+        }
+    });
 
-    // 2. Xóa thẻ <script ... /> tự đóng
-    clean = clean.replace(/<script[^>]*\/>/gi, '');
+    // 2. Duyệt mọi thẻ, chỉ giữ lại thẻ/thuộc tính trong danh sách trắng.
+    $('*').each((_i, el: any) => {
+        const tag = String(el.tagName || '').toLowerCase();
 
-    // 3. Xóa toàn bộ event handler dạng on* (onload, onclick, onerror, ...)
-    //    Ví dụ: onload="maliciousCode()" → bị xóa
-    clean = clean.replace(/\s+on\w+\s*=\s*["'][^"']*["']/gi, '');
+        // Thẻ nguy hiểm: xóa toàn bộ kèm nội dung bên trong
+        if (STRIP_ENTIRELY_TAGS.has(tag)) {
+            $(el).remove();
+            return;
+        }
 
-    // 4. Xóa các khai báo <!DOCTYPE và <!ENTITY để chặn tấn công XXE
-    //    Ví dụ: <!ENTITY xxe SYSTEM "file:///etc/passwd"> → bị xóa
-    clean = clean.replace(/<!DOCTYPE[^>]*>/gi, '');
-    clean = clean.replace(/<!ENTITY[^>]*>/gi, '');
+        // Thẻ lạ: bỏ thẻ bọc ngoài nhưng giữ lại nội dung con
+        if (!ALLOWED_SVG_TAGS.has(tag)) {
+            $(el).replaceWith($(el).contents());
+            return;
+        }
 
-    // 5. Xóa thẻ <foreignObject> cho phép nhúng HTML tùy ý vào SVG
-    clean = clean.replace(/<foreignObject[\s\S]*?<\/foreignObject>/gi, '');
+        const attribs: Record<string, string> = el.attribs || {};
+        for (const name of Object.keys(attribs)) {
+            const lower = name.toLowerCase();
+            const value = attribs[name] ?? '';
 
-    // 6. Xóa thuộc tính href trỏ đến javascript: (JavaScript URI)
-    //    Ví dụ: href="javascript:alert(1)" → bị xóa
-    clean = clean.replace(/href\s*=\s*["']javascript:[^"']*["']/gi, '');
+            // Chặn mọi event handler on* (kể cả dạng <svg/onload="...">)
+            if (lower.startsWith('on')) {
+                $(el).removeAttr(name);
+                continue;
+            }
 
-    // 7. Xóa thuộc tính xlink:href trỏ đến bên ngoài (dạng URL http/https/data)
-    //    Nhưng giữ lại xlink:href trỏ đến id nội bộ (bắt đầu bằng #)
-    clean = clean.replace(/xlink:href\s*=\s*["'](?!#)[^"']*["']/gi, '');
+            // Thuộc tính không nằm trong danh sách trắng → xóa
+            if (!ALLOWED_SVG_ATTRS.has(lower)) {
+                $(el).removeAttr(name);
+                continue;
+            }
 
-    return clean;
+            // href/xlink:href: xóa khi trỏ tới javascript:/vbscript:, giữ href nội bộ (#id)
+            if (lower === 'href' || lower === 'xlink:href') {
+                const v = value.trim().toLowerCase();
+                if (v.startsWith('javascript:') || v.startsWith('vbscript:')) {
+                    $(el).removeAttr(name);
+                }
+                continue;
+            }
+
+            // style: chỉ xóa khi chứa mẫu CSS nguy hiểm
+            if (lower === 'style' && isDangerousStyleValue(value)) {
+                $(el).removeAttr(name);
+            }
+        }
+    });
+
+    return $.xml();
 }
 
 /**
@@ -221,4 +323,72 @@ export function generateSafeFilePath(
 
     // Tên file = UUID ngẫu nhiên (không thể đoán, không chứa ký tự nguy hiểm)
     return join(uploadDir, `${uuidv4()}${ext}`);
+}
+
+// ─────────────────────────────────────────────────────────────
+// GIỚI HẠN PHẠM VI ĐƯỜNG DẪN LOGO (chống LFI / Path Traversal)
+//
+// Client chỉ được tham chiếu tới file logo nằm trong thư mục
+// tmp/uploads/logos/ (nơi API upload lưu file). Mọi đường dẫn khác —
+// kể cả đường dẫn tuyệt đối như /etc/passwd hay thiết bị đặc biệt
+// như /dev/zero — đều bị từ chối.
+// ─────────────────────────────────────────────────────────────
+
+/** Thư mục duy nhất được phép chứa file logo dùng làm watermark */
+export const LOGOS_DIR = resolve(process.cwd(), 'tmp', 'uploads', 'logos');
+
+/** Tên file logo hợp lệ: chỉ gồm ký tự an toàn + đuôi ảnh cho phép */
+const SAFE_LOGO_FILENAME = /^[A-Za-z0-9][A-Za-z0-9._-]*\.(png|jpg|jpeg|svg|webp)$/i;
+
+/**
+ * Chuẩn hoá và kiểm tra đường dẫn logo do client cung cấp.
+ *
+ * Chấp nhận 3 dạng đầu vào:
+ *   1. URL tĩnh do API upload trả về: "/uploads/logos/<uuid>.png"
+ *   2. Đường dẫn tuyệt đối nằm trong thư mục logos
+ *      (tương thích các bản ghi brand kit đã lưu trước đây)
+ *   3. Đường dẫn tương đối (được quy chiếu về thư mục logos)
+ *
+ * @param logoPath  Đường dẫn logo do client gửi lên
+ * @returns Đường dẫn tuyệt đối đã canonicalize (kể cả symlink) nếu file
+ *          tồn tại, là file thường và nằm trong LOGOS_DIR; ngược lại null.
+ */
+export function resolveLogoPath(logoPath: string): string | null {
+    if (typeof logoPath !== 'string' || !logoPath.trim()) return null;
+    const input = logoPath.trim();
+
+    let candidate: string;
+    if (input.startsWith('/uploads/logos/')) {
+        // Dạng URL tĩnh: chỉ lấy tên file, loại bỏ mọi thành phần đường dẫn khác
+        const name = basename(input);
+        if (!SAFE_LOGO_FILENAME.test(name)) return null;
+        candidate = join(LOGOS_DIR, name);
+    } else {
+        candidate = resolve(input);
+    }
+
+    let real: string;
+    try {
+        // Canonicalize đường dẫn và resolve symlink; throw nếu file không tồn tại
+        real = realpathSync(candidate);
+    } catch {
+        return null;
+    }
+
+    // Chỉ chấp nhận file nằm trong LOGOS_DIR (chặn ../ và symlink trỏ ra ngoài)
+    const rel = relative(LOGOS_DIR, real);
+    if (!rel || rel === '..' || rel.startsWith(`..${sep}`)) {
+        return null;
+    }
+
+    // Tên file phải an toàn và phải là file thường
+    // (chặn thiết bị đặc biệt như /dev/zero, FIFO, thư mục)
+    if (!SAFE_LOGO_FILENAME.test(basename(real))) return null;
+    try {
+        if (!statSync(real).isFile()) return null;
+    } catch {
+        return null;
+    }
+
+    return real;
 }
