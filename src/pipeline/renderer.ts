@@ -13,7 +13,69 @@ export interface RenderVideoOptions {
     height: number;
     fps?: number;
     durationSec: number;
+    concurrency?: number;
+    signal?: AbortSignal;
     onProgress?: (msg: string, percent?: number) => void;
+}
+
+export interface RenderChunk {
+    index: number;
+    startFrame: number;
+    endFrame: number; // exclusive
+    frameCount: number;
+    startTimeSec: number;
+    endTimeSec: number;
+    chunkOutputPath: string;
+}
+
+/**
+ * Chia timeline video thành các chunk song song độc lập.
+ * 
+ * @param totalFrames Tổng số frame của video (>= 1)
+ * @param fps Tốc độ khung hình (frame rate)
+ * @param maxConcurrency Số lượng chunk song song tối đa
+ * @param tempDir Thư mục chứa các file video chunk tạm
+ * @param minFramesPerChunk Số frame tối thiểu trong 1 chunk để tránh phân mảnh quá mức (mặc định: 15)
+ */
+export function calculateRenderChunks(
+    totalFrames: number,
+    fps: number,
+    maxConcurrency: number,
+    tempDir: string,
+    minFramesPerChunk = 15
+): RenderChunk[] {
+    const safeTotalFrames = Math.max(1, Math.floor(totalFrames));
+    const safeFps = Math.max(1, fps);
+    const safeMaxConcurrency = Math.max(1, Math.floor(maxConcurrency));
+
+    // Tự động giới hạn số chunk dựa trên số frame tối thiểu mỗi chunk
+    const concurrency = Math.max(
+        1,
+        Math.min(safeMaxConcurrency, Math.ceil(safeTotalFrames / Math.max(1, minFramesPerChunk)))
+    );
+
+    const baseFrames = Math.floor(safeTotalFrames / concurrency);
+    const remainder = safeTotalFrames % concurrency;
+
+    const chunks: RenderChunk[] = [];
+    let currentStart = 0;
+
+    for (let i = 0; i < concurrency; i++) {
+        const count = baseFrames + (i < remainder ? 1 : 0);
+        const end = currentStart + count;
+        chunks.push({
+            index: i,
+            startFrame: currentStart,
+            endFrame: end,
+            frameCount: count,
+            startTimeSec: currentStart / safeFps,
+            endTimeSec: end / safeFps,
+            chunkOutputPath: resolve(tempDir, `chunk_${i}.mp4`),
+        });
+        currentStart = end;
+    }
+
+    return chunks;
 }
 
 /**

@@ -33,6 +33,8 @@ describe('Module 1: Config & Environment (src/config.ts)', () => {
         'Default_FPS',
         'Default_Width',
         'Default_Height',
+        'RENDER_MAX_CONCURRENCY',
+        'RENDER_CONCURRENCY',
     ];
 
     function cleanConfigEnv(): void {
@@ -71,6 +73,7 @@ describe('Module 1: Config & Environment (src/config.ts)', () => {
             assert.strictEqual(config.Default_FPS, 30, 'Default_FPS mặc định phải là 30');
             assert.strictEqual(config.Default_Width, 1920, 'Default_Width mặc định phải là 1920');
             assert.strictEqual(config.Default_Height, 1080, 'Default_Height mặc định phải là 1080');
+            assert.strictEqual(config.RENDER_MAX_CONCURRENCY, 4, 'RENDER_MAX_CONCURRENCY mặc định phải là 4');
             assert.strictEqual(config.OpenAI_Model, 'gpt-5.3-codex');
             assert.strictEqual(config.DeepSeek_Model, 'deepseek-4-flash');
             assert.strictEqual(config.Gemini_Model, 'gemini-3.5-flash');
@@ -88,6 +91,7 @@ describe('Module 1: Config & Environment (src/config.ts)', () => {
             process.env.LLM_Provider = 'openai';
             process.env.TTS_Provider = 'elevenlabs';
             process.env.Default_FPS = '60';
+            process.env.RENDER_MAX_CONCURRENCY = '8';
 
             const config = getConfig();
 
@@ -96,6 +100,7 @@ describe('Module 1: Config & Environment (src/config.ts)', () => {
             assert.strictEqual(config.LLM_Provider, 'openai');
             assert.strictEqual(config.TTS_Provider, 'elevenlabs');
             assert.strictEqual(config.Default_FPS, 60);
+            assert.strictEqual(config.RENDER_MAX_CONCURRENCY, 8);
         });
 
         it('phải parse đúng khi LLM_Provider là 9router', () => {
