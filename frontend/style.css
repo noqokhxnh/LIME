@@ -2119,6 +2119,14 @@ body {
     background: rgba(246, 245, 240, 0.88);
     backdrop-filter: blur(12px); -webkit-backdrop-filter: blur(12px);
     border-bottom: 1px solid var(--line);
+    transition: transform 0.38s cubic-bezier(0.16, 1, 0.3, 1), background 0.3s ease, box-shadow 0.3s ease;
+    will-change: transform;
+}
+.lime-nav.nav-scrolled {
+    box-shadow: 0 4px 20px rgba(20, 22, 15, 0.05);
+}
+.lime-nav.nav-hidden {
+    transform: translateY(-105%);
 }
 .lime-nav-inner {
     max-width: 1440px; height: 100%; margin: 0 auto; padding: 0 48px;

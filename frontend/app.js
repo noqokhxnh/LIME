@@ -494,9 +494,79 @@ async function checkAuthConfig() {
         });
     });
 
+    // Smart Navbar (trượt lên khi lướt xuống, trượt xuống khi lướt lên)
+    initSmartNavbar();
+
     // FlipWords Hero Animation
     initFlipWords();
 })();
+
+// =========================================================
+// SMART NAVBAR (Ẩn khi lướt xuống, hiện khi lướt lên)
+// =========================================================
+function initSmartNavbar() {
+    const nav = document.querySelector('.lime-nav');
+    if (!nav) return;
+
+    let lastScrollY = window.pageYOffset || document.documentElement.scrollTop;
+    let ticking = false;
+    let isClickScrolling = false;
+    let clickTimeout = null;
+    const threshold = 6; // Ngưỡng cuộn tối thiểu tránh rung giật
+
+    function updateNav() {
+        const currentScrollY = Math.max(0, window.pageYOffset || document.documentElement.scrollTop);
+        const diff = currentScrollY - lastScrollY;
+
+        // Nếu vừa click vào link điều hướng (Trang chủ, Mẫu thiết kế, Bảng giá)
+        if (isClickScrolling) {
+            lastScrollY = currentScrollY;
+            ticking = false;
+            return;
+        }
+
+        // Khi ở sát đỉnh trang (section 1), thanh nav luôn hiển thị cố định
+        if (currentScrollY <= 24) {
+            nav.classList.remove('nav-hidden');
+            nav.classList.remove('nav-scrolled');
+        } else {
+            nav.classList.add('nav-scrolled');
+
+            if (Math.abs(diff) >= threshold) {
+                if (diff > 0 && currentScrollY > 76) {
+                    // Lướt xuống (scroll down): trượt lên và ẩn đi
+                    nav.classList.add('nav-hidden');
+                } else if (diff < 0) {
+                    // Lướt lên (scroll up): trượt xuống hiển thị lại
+                    nav.classList.remove('nav-hidden');
+                }
+            }
+        }
+
+        lastScrollY = currentScrollY;
+        ticking = false;
+    }
+
+    window.addEventListener('scroll', () => {
+        if (!ticking) {
+            window.requestAnimationFrame(updateNav);
+            ticking = true;
+        }
+    }, { passive: true });
+
+    // Khi người dùng bấm vào các liên kết điều hướng trên thanh nav hoặc dot
+    document.querySelectorAll('.nav-links a, .dots a, .brand').forEach(link => {
+        link.addEventListener('click', () => {
+            nav.classList.remove('nav-hidden');
+            isClickScrolling = true;
+            if (clickTimeout) clearTimeout(clickTimeout);
+            clickTimeout = setTimeout(() => {
+                isClickScrolling = false;
+                lastScrollY = Math.max(0, window.pageYOffset || document.documentElement.scrollTop);
+            }, 850);
+        });
+    });
+}
 
 // =========================================================
 // HERO FLIP WORDS (Aceternity UI style)
