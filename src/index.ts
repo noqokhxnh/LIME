@@ -1,11 +1,13 @@
 import fastify, { FastifyInstance, FastifyRequest, FastifyReply } from "fastify";
 import fastifyCors from "@fastify/cors";
 import fastifyStatic from "@fastify/static";
-import { existsSync, createReadStream, statSync } from "node:fs";
+import fastifyMultipart from "@fastify/multipart";
+import { existsSync, createReadStream, statSync, writeFileSync, mkdirSync } from "node:fs";
 import { join } from "node:path";
 import { v4 } from "uuid";
 import { getConfig } from "./config.js";
-import { videoRequestSchema, type videoRequest, type videoScript } from "./llm/schema.js";
+import { getCurrentUser } from "./auth/session.js";
+import { videoRequestSchema, watermarkConfigSchema, type videoRequest, type videoScript } from "./llm/schema.js";
 import { generateScript } from "./pipeline/scriptGenerator.js";
 import { initDatabase } from "./database/index.js";
 import fastifyCookie from "@fastify/cookie";
@@ -15,6 +17,8 @@ import { processVideoJob } from "./queue/handler.js";
 import { IVideoQueue } from "./queue/interfaces.js";
 import { validatePrompt } from "./security/promptGuard.js";
 import { rateLimiter } from "./security/rateLimiter.js";
+import { validateUploadedFile, generateSafeFilePath } from "./security/uploadGuard.js";
+import { getBrandKitByUserId, upsertBrandKit } from "./database/brandKit.js";
 import { getCatalog, listBlueprints, listMotionBlocks } from "./templates/index.js";
 
 export const jobIpMap = new Map<string, string>();
@@ -30,6 +34,15 @@ export async function buildApp(options: { logger?: boolean, queue?: IVideoQueue 
     await app.register(fastifyCookie);
     await app.register(authRoutes);
 
+    // Đăng ký plugin xử lý upload file (multipart/form-data).
+    // Giới hạn kích thước mỗi file tối đa 5MB để tránh tấn công DoS bằng file lớn.
+    await app.register(fastifyMultipart, {
+        limits: {
+            fileSize: 5 * 1024 * 1024, // 5MB
+            files: 1,                  // Chỉ chấp nhận 1 file mỗi request
+        },
+    });
+
     const frontendDir = join(process.cwd(), "frontend");
     if (existsSync(frontendDir)) {
         await app.register(fastifyStatic, {
@@ -39,9 +52,30 @@ export async function buildApp(options: { logger?: boolean, queue?: IVideoQueue 
         });
     }
 
+    // Đăng ký phục vụ tệp tĩnh ảnh logo từ thư mục tmp/uploads/logos kèm headers bảo mật
+    const logosDir = join(process.cwd(), "tmp", "uploads", "logos");
+    mkdirSync(logosDir, { recursive: true });
+    await app.register(fastifyStatic, {
+        root: logosDir,
+        prefix: "/uploads/logos/",
+        decorateReply: false,
+        setHeaders: (res) => {
+            res.header("Content-Security-Policy", "default-src 'none'; style-src 'unsafe-inline'; sandbox");
+            res.header("X-Content-Type-Options", "nosniff");
+            res.header("X-Frame-Options", "DENY");
+        },
+    });
+
     app.addHook("preHandler", async (request, reply) => {
         const url = request.url;
-        if (url.startsWith("/api/script/draft") || url.startsWith("/api/pipeline") || url.startsWith("/api/generate") || url.startsWith("/api/source/")) {
+        if (
+            url.startsWith("/api/script/draft") ||
+            url.startsWith("/api/pipeline") ||
+            url.startsWith("/api/generate") ||
+            url.startsWith("/api/source/") ||
+            url.startsWith("/api/brand-kit") ||
+            url.startsWith("/api/user/brand-kit")
+        ) {
             const ip = request.ip || '127.0.0.1';
             if (!rateLimiter.checkRpm(ip)) {
                 reply.status(429).send({ error: "Too Many Requests (RPM exceeded)" });
@@ -49,8 +83,9 @@ export async function buildApp(options: { logger?: boolean, queue?: IVideoQueue 
             }
 
             const body = request.body as any;
-            if (body && body.prompt) {
-                const check = validatePrompt(body.prompt);
+            const promptCandidate = body?.prompt ?? body?.text ?? body?.topic;
+            if (typeof promptCandidate === 'string') {
+                const check = validatePrompt(promptCandidate);
                 if (!check.isValid) {
                     reply.status(400).send({ error: check.reason });
                     return reply;
@@ -465,6 +500,168 @@ export async function buildApp(options: { logger?: boolean, queue?: IVideoQueue 
         }
         reply.header("Content-Disposition", `attachment; filename="video-${jobId}.mp4"`);
         reply.type("video/mp4").send(createReadStream(videoPath));
+    });
+    // ──────────────────────────────────────────────────────────────
+    // ROUTE: POST /api/brand-kit/upload
+    // Mục tiêu: Cho phép người dùng upload ảnh logo lên server.
+    //
+    // Quy trình xử lý:
+    //   1. Nhận file qua multipart/form-data (field tên "logo")
+    //   2. Đọc toàn bộ dữ liệu nhị phân vào Buffer
+    //   3. Gọi validateUploadedFile() để kiểm tra bảo mật:
+    //      - Kích thước <= 5MB
+    //      - MIME type hợp lệ (PNG/JPEG/SVG/WEBP)
+    //      - Magic bytes khớp MIME type (chống giả mạo định dạng)
+    //      - SVG: sanitize loại bỏ mã độc XSS/XXE
+    //   4. Lưu file với tên UUID ngẫu nhiên (chống Path Traversal)
+    //   5. Trả về đường dẫn URL để dùng trong watermark.logoPath
+    // ──────────────────────────────────────────────────────────────
+    app.post("/api/brand-kit/upload", async (request: FastifyRequest, reply: FastifyReply) => {
+        try {
+            // Yêu cầu đăng nhập: chống upload ẩn danh gây đầy ổ đĩa (DoS)
+            const user = await getCurrentUser(request);
+            if (!user) {
+                reply.status(401);
+                return { error: 'Yêu cầu đăng nhập để tải logo lên.' };
+            }
+
+            // Lấy file từ form-data (field name phải là "logo")
+            const data = await request.file();
+            if (!data) {
+                reply.status(400);
+                return { error: 'Không tìm thấy file trong request. Hãy gửi file với field name là "logo".' };
+            }
+
+            // Đọc toàn bộ nội dung file vào Buffer để kiểm tra
+            const chunks: Buffer[] = [];
+            for await (const chunk of data.file) {
+                chunks.push(chunk);
+            }
+
+            if (data.file.truncated) {
+                reply.status(413);
+                return { error: 'File tải lên bị cắt ngắn hoặc vượt quá dung lượng cho phép (tối đa 5MB).' };
+            }
+
+            const fileBuffer = Buffer.concat(chunks);
+
+            // Kiểm tra bảo mật toàn diện (kích thước, MIME, magic bytes, SVG sanitize)
+            const mimeType = data.mimetype || 'application/octet-stream';
+            const validation = validateUploadedFile(fileBuffer, mimeType);
+
+            if (!validation.isValid) {
+                reply.status(400);
+                return { error: validation.reason };
+            }
+
+            // Tạo đường dẫn lưu file với tên UUID (an toàn, không thể đoán)
+            const savePath = generateSafeFilePath(mimeType);
+
+            // Ghi file: SVG bắt buộc phải dùng nội dung đã sanitize và không được rỗng
+            if (mimeType === 'image/svg+xml') {
+                if (!validation.sanitizedContent || !validation.sanitizedContent.trim()) {
+                    reply.status(400);
+                    return { error: 'Nội dung SVG rỗng hoặc không hợp lệ sau khi làm sạch.' };
+                }
+                writeFileSync(savePath, validation.sanitizedContent, 'utf-8');
+            } else {
+                writeFileSync(savePath, fileBuffer);
+            }
+
+            // Tạo URL công khai để client dùng trong trường watermark.logoPath
+            // Đường dẫn tương đối từ thư mục gốc của dự án
+            const relativeUrl = `/uploads/logos/${savePath.split(/[\\/]/).pop()}`;
+
+            return {
+                success: true,
+                logoUrl: relativeUrl,   // Client dùng giá trị này làm watermark.logoPath
+                mimeType,
+            };
+            // Lưu ý: KHÔNG trả về đường dẫn tuyệt đối trên server (filePath)
+            // để tránh lộ cấu trúc thư mục và tránh việc client gửi absolute path.
+        } catch (err: any) {
+            reply.status(500);
+            return { error: `Lỗi khi xử lý file upload: ${err.message}` };
+        }
+    });
+    // ──────────────────────────────────────────────────────────────
+    // ROUTE: GET /api/user/brand-kit
+    // Mục tiêu: Lấy cài đặt logo hiện tại của tài khoản người dùng.
+    // Trả về null nếu người dùng chưa thiết lập brand kit lần nào.
+    // ──────────────────────────────────────────────────────────────
+    app.get("/api/user/brand-kit", async (request: FastifyRequest, reply: FastifyReply) => {
+        try {
+            // Xác thực qua session cookie (getCurrentUser), thay vì đọc
+            // (request as any).user vốn không được gán ở bất kỳ đâu.
+            const user = await getCurrentUser(request);
+            if (!user) {
+                reply.status(401);
+                return { error: 'Yêu cầu đăng nhập để truy cập cài đặt brand kit.' };
+            }
+
+            const brandKit = await getBrandKitByUserId(user.id);
+
+            // Trả về null nếu chưa thiết lập, client tự hiển thị UI mặc định
+            return { brandKit };
+        } catch (err: any) {
+            reply.status(500);
+            return { error: `Lỗi khi đọc cài đặt brand kit: ${err.message}` };
+        }
+    });
+
+    // ──────────────────────────────────────────────────────────────
+    // ROUTE: PUT /api/user/brand-kit
+    // Mục tiêu: Lưu (tạo mới hoặc cập nhật) cài đặt logo của người dùng.
+    // Dùng upsert nên không cần kiểm tra tồn tại trước.
+    // ──────────────────────────────────────────────────────────────
+    app.put("/api/user/brand-kit", async (request: FastifyRequest, reply: FastifyReply) => {
+        try {
+            const user = await getCurrentUser(request);
+            if (!user) {
+                reply.status(401);
+                return { error: 'Yêu cầu đăng nhập để lưu cài đặt brand kit.' };
+            }
+
+            // Lấy dữ liệu từ body và kiểm tra các trường bắt buộc
+            const body = (request.body as any) || {};
+
+            // logoUrl phải là đường dẫn logo do API upload trả về
+            // (không chấp nhận absolute path để tránh hợp thức hoá LFI)
+            if (typeof body.logoUrl !== 'string' || !body.logoUrl.startsWith('/uploads/logos/')) {
+                reply.status(400);
+                return { error: 'Trường logoUrl phải là đường dẫn logo đã upload (/uploads/logos/...).' };
+            }
+
+            // Validate toàn bộ body bằng watermarkConfigSchema (zod):
+            // chặn position quá dài (cột VARCHAR(20)), scalePct/opacity ngoài khoảng, ...
+            const parsed = watermarkConfigSchema.safeParse({
+                logoPath: body.logoUrl,
+                position: body.position ?? undefined,
+                scalePercent: body.scalePct ?? undefined,
+                opacity: body.opacity ?? undefined,
+                xPercent: body.xPct ?? undefined,
+                yPercent: body.yPct ?? undefined,
+            });
+            if (!parsed.success) {
+                reply.status(400);
+                return { error: 'Dữ liệu brand kit không hợp lệ.', details: parsed.error.flatten() };
+            }
+            const cfg = parsed.data;
+
+            const saved = await upsertBrandKit(user.id, {
+                logoUrl:  cfg.logoPath,
+                position: cfg.position,
+                scalePct: cfg.scalePercent,
+                opacity:  cfg.opacity,
+                xPct:     cfg.xPercent ?? null,
+                yPct:     cfg.yPercent ?? null,
+            });
+
+            return { success: true, brandKit: saved };
+        } catch (err: any) {
+            reply.status(500);
+            return { error: `Lỗi khi lưu cài đặt brand kit: ${err.message}` };
+        }
     });
 
     return app;

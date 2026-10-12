@@ -675,3 +675,128 @@ textarea:focus {
         grid-template-columns: 1fr;
     }
 }
+
+/* ==================== BRAND KIT & WATERMARK UI ==================== */
+
+.logo-upload-box {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    flex-wrap: wrap;
+}
+
+.logo-filename {
+    font-size: 0.82rem;
+    color: var(--text-sub);
+    max-width: 200px;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.btn-chip.danger {
+    color: var(--danger);
+    border-color: rgba(239, 68, 68, 0.4);
+    padding: 4px 8px;
+}
+
+.btn-chip.danger:hover {
+    background: rgba(239, 68, 68, 0.15);
+    border-color: var(--danger);
+}
+
+.position-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 8px;
+}
+
+.pos-btn {
+    padding: 9px 12px;
+    background: #0f172a;
+    border: 1px solid var(--border-color);
+    border-radius: 6px;
+    color: var(--text-sub);
+    font-size: 0.82rem;
+    font-weight: 500;
+    cursor: pointer;
+    transition: all 0.15s ease;
+    text-align: center;
+}
+
+.pos-btn:hover {
+    border-color: var(--primary);
+    color: var(--text-main);
+    background: #1e293b;
+}
+
+.pos-btn.active {
+    border-color: var(--primary);
+    background: rgba(59, 130, 246, 0.18);
+    color: #60a5fa;
+    font-weight: 600;
+    box-shadow: 0 0 0 1px var(--primary);
+}
+
+.slider-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+}
+
+.slider-badge {
+    font-size: 0.8rem;
+    font-weight: 600;
+    color: #38bdf8;
+    background: rgba(56, 189, 248, 0.12);
+    padding: 2px 8px;
+    border-radius: 999px;
+}
+
+input[type="range"] {
+    width: 100%;
+    accent-color: var(--primary);
+    cursor: pointer;
+    background: #1e293b;
+    border-radius: 4px;
+    height: 6px;
+}
+
+/* Lớp xem thử (Live Preview Overlay) logo trên video */
+.watermark-preview-overlay {
+    position: absolute;
+    pointer-events: none;
+    z-index: 5;
+    object-fit: contain;
+    transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+    filter: drop-shadow(0 2px 4px rgba(0, 0, 0, 0.45));
+}
+
+.watermark-preview-overlay.pos-top-left {
+    top: 5%;
+    left: 5%;
+    right: auto;
+    bottom: auto;
+}
+
+.watermark-preview-overlay.pos-top-right {
+    top: 5%;
+    right: 5%;
+    left: auto;
+    bottom: auto;
+}
+
+.watermark-preview-overlay.pos-bottom-left {
+    bottom: 5%;
+    left: 5%;
+    right: auto;
+    top: auto;
+}
+
+.watermark-preview-overlay.pos-bottom-right {
+    bottom: 5%;
+    right: 5%;
+    left: auto;
+    top: auto;
+}
+
