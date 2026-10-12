@@ -6,7 +6,8 @@ import { existsSync, createReadStream, statSync, writeFileSync, mkdirSync } from
 import { join } from "node:path";
 import { v4 } from "uuid";
 import { getConfig } from "./config.js";
-import { videoRequestSchema, type videoRequest, type videoScript } from "./llm/schema.js";
+import { getCurrentUser } from "./auth/session.js";
+import { videoRequestSchema, watermarkConfigSchema, type videoRequest, type videoScript } from "./llm/schema.js";
 import { generateScript } from "./pipeline/scriptGenerator.js";
 import { initDatabase } from "./database/index.js";
 import fastifyCookie from "@fastify/cookie";
@@ -62,7 +63,7 @@ export async function buildApp(options: { logger?: boolean, queue?: IVideoQueue 
 
     app.addHook("preHandler", async (request, reply) => {
         const url = request.url;
-        if (url.startsWith("/api/script/draft") || url.startsWith("/api/pipeline") || url.startsWith("/api/generate") || url.startsWith("/api/source/")) {
+        if (url.startsWith("/api/script/draft") || url.startsWith("/api/pipeline") || url.startsWith("/api/generate") || url.startsWith("/api/source/") || url.startsWith("/api/brand-kit")) {
             const ip = request.ip || '127.0.0.1';
             if (!rateLimiter.checkRpm(ip)) {
                 reply.status(429).send({ error: "Too Many Requests (RPM exceeded)" });
@@ -504,6 +505,13 @@ export async function buildApp(options: { logger?: boolean, queue?: IVideoQueue 
     // ──────────────────────────────────────────────────────────────
     app.post("/api/brand-kit/upload", async (request: FastifyRequest, reply: FastifyReply) => {
         try {
+            // Yêu cầu đăng nhập: chống upload ẩn danh gây đầy ổ đĩa (DoS)
+            const user = await getCurrentUser(request);
+            if (!user) {
+                reply.status(401);
+                return { error: 'Yêu cầu đăng nhập để tải logo lên.' };
+            }
+
             // Lấy file từ form-data (field name phải là "logo")
             const data = await request.file();
             if (!data) {
@@ -544,9 +552,10 @@ export async function buildApp(options: { logger?: boolean, queue?: IVideoQueue 
             return {
                 success: true,
                 logoUrl: relativeUrl,   // Client dùng giá trị này làm watermark.logoPath
-                filePath: savePath,     // Đường dẫn tuyệt đối trên server (dùng nội bộ)
                 mimeType,
             };
+            // Lưu ý: KHÔNG trả về đường dẫn tuyệt đối trên server (filePath)
+            // để tránh lộ cấu trúc thư mục và tránh việc client gửi absolute path.
         } catch (err: any) {
             reply.status(500);
             return { error: `Lỗi khi xử lý file upload: ${err.message}` };
@@ -559,14 +568,15 @@ export async function buildApp(options: { logger?: boolean, queue?: IVideoQueue 
     // ──────────────────────────────────────────────────────────────
     app.get("/api/user/brand-kit", async (request: FastifyRequest, reply: FastifyReply) => {
         try {
-            // Lấy userId từ JWT session (cùng cơ chế với các route yêu cầu xác thực khác)
-            const userId = (request as any).user?.id;
-            if (!userId) {
+            // Xác thực qua session cookie (getCurrentUser), thay vì đọc
+            // (request as any).user vốn không được gán ở bất kỳ đâu.
+            const user = await getCurrentUser(request);
+            if (!user) {
                 reply.status(401);
                 return { error: 'Yêu cầu đăng nhập để truy cập cài đặt brand kit.' };
             }
 
-            const brandKit = await getBrandKitByUserId(userId);
+            const brandKit = await getBrandKitByUserId(user.id);
 
             // Trả về null nếu chưa thiết lập, client tự hiển thị UI mặc định
             return { brandKit };
@@ -583,8 +593,8 @@ export async function buildApp(options: { logger?: boolean, queue?: IVideoQueue 
     // ──────────────────────────────────────────────────────────────
     app.put("/api/user/brand-kit", async (request: FastifyRequest, reply: FastifyReply) => {
         try {
-            const userId = (request as any).user?.id;
-            if (!userId) {
+            const user = await getCurrentUser(request);
+            if (!user) {
                 reply.status(401);
                 return { error: 'Yêu cầu đăng nhập để lưu cài đặt brand kit.' };
             }
@@ -592,18 +602,36 @@ export async function buildApp(options: { logger?: boolean, queue?: IVideoQueue 
             // Lấy dữ liệu từ body và kiểm tra các trường bắt buộc
             const body = (request.body as any) || {};
 
-            if (!body.logoUrl || typeof body.logoUrl !== 'string') {
+            // logoUrl phải là đường dẫn logo do API upload trả về
+            // (không chấp nhận absolute path để tránh hợp thức hoá LFI)
+            if (typeof body.logoUrl !== 'string' || !body.logoUrl.startsWith('/uploads/logos/')) {
                 reply.status(400);
-                return { error: 'Trường logoUrl là bắt buộc và phải là chuỗi ký tự.' };
+                return { error: 'Trường logoUrl phải là đường dẫn logo đã upload (/uploads/logos/...).' };
             }
 
-            const saved = await upsertBrandKit(userId, {
-                logoUrl:  body.logoUrl,
-                position: body.position  ?? 'top-right',
-                scalePct: body.scalePct  ?? 15,
-                opacity:  body.opacity   ?? 0.8,
-                xPct:     body.xPct      ?? null,
-                yPct:     body.yPct      ?? null,
+            // Validate toàn bộ body bằng watermarkConfigSchema (zod):
+            // chặn position quá dài (cột VARCHAR(20)), scalePct/opacity ngoài khoảng, ...
+            const parsed = watermarkConfigSchema.safeParse({
+                logoPath: body.logoUrl,
+                position: body.position ?? undefined,
+                scalePercent: body.scalePct ?? undefined,
+                opacity: body.opacity ?? undefined,
+                xPercent: body.xPct ?? undefined,
+                yPercent: body.yPct ?? undefined,
+            });
+            if (!parsed.success) {
+                reply.status(400);
+                return { error: 'Dữ liệu brand kit không hợp lệ.', details: parsed.error.flatten() };
+            }
+            const cfg = parsed.data;
+
+            const saved = await upsertBrandKit(user.id, {
+                logoUrl:  cfg.logoPath,
+                position: cfg.position,
+                scalePct: cfg.scalePercent,
+                opacity:  cfg.opacity,
+                xPct:     cfg.xPercent ?? null,
+                yPct:     cfg.yPercent ?? null,
             });
 
             return { success: true, brandKit: saved };

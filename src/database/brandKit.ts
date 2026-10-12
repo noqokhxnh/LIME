@@ -23,6 +23,25 @@ export interface BrandKitRow {
 }
 
 /**
+ * Chuẩn hoá một bản ghi brand kit từ PostgreSQL.
+ *
+ * Driver `pg` trả cột NUMERIC về dạng string trong JavaScript, nên cần
+ * ép kiểu rõ ràng để API luôn trả về number cho client.
+ */
+function toBrandKitRow(row: BrandKitRow): BrandKitRow {
+    return {
+        user_id: row.user_id,
+        logo_url: row.logo_url,
+        position: row.position,
+        scale_pct: Number(row.scale_pct),
+        opacity: Number(row.opacity),
+        x_pct: row.x_pct == null ? null : Number(row.x_pct),
+        y_pct: row.y_pct == null ? null : Number(row.y_pct),
+        updated_at: row.updated_at,
+    };
+}
+
+/**
  * Dữ liệu đầu vào để tạo hoặc cập nhật brand kit.
  * Không bao gồm user_id (được truyền riêng) và updated_at (tự động).
  */
@@ -52,7 +71,8 @@ export async function getBrandKitByUserId(userId: string): Promise<BrandKitRow |
     );
 
     // rows[0] là bản ghi đầu tiên; undefined nếu không tìm thấy → trả null
-    return result.rows[0] ?? null;
+    const row = result.rows[0] ?? null;
+    return row ? toBrandKitRow(row) : null;
 }
 
 /**
@@ -96,5 +116,5 @@ export async function upsertBrandKit(
     );
 
     // RETURNING đảm bảo luôn trả về đúng 1 hàng sau khi INSERT/UPDATE
-    return result.rows[0];
+    return toBrandKitRow(result.rows[0]);
 }

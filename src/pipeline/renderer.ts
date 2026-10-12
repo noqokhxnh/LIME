@@ -6,6 +6,7 @@ import { launchPreviewBrowser, seekToTimestamp, setupBrowserDiagnostics, dumpDia
 import { withRetry, isAbortError } from "./retry.js";
 import { WatermarkConfig } from "../llm/schema.js";
 import { buildWatermarkFilter } from "./watermarkFilter.js";
+import { resolveLogoPath } from "../security/uploadGuard.js";
 
 export interface RenderVideoOptions {
     htmlPath: string;
@@ -88,8 +89,12 @@ export async function renderVideo(options: RenderVideoOptions): Promise<string> 
 
                 const hasAudio = existsSync(audioPath);
 
-                // Kiểm tra logo có tồn tại trên đĩa không trước khi dùng
-                const hasWatermark = !!watermark && existsSync(watermark.logoPath);
+                // Chuẩn hoá đường dẫn logo: chỉ chấp nhận file nằm trong
+                // thư mục tmp/uploads/logos/ (chống LFI/Path Traversal —
+                // chặn đọc file tùy ý trên server và thiết bị đặc biệt
+                // như /dev/zero có thể treo worker render).
+                const logoPath = watermark?.logoPath ? resolveLogoPath(watermark.logoPath) : null;
+                const hasWatermark = !!logoPath;
 
                 // ── Bước 1: Các input đầu vào ───────────────────────────────
                 // Input 0: luồng video từ Playwright (pipe stdin)
@@ -110,7 +115,7 @@ export async function renderVideo(options: RenderVideoOptions): Promise<string> 
                 // Thứ tự thêm audio trước logo để nhãn luồng nhất quán:
                 //   0:v = video, 1:v = audio (nếu có), 2:v = logo (nếu có)
                 if (hasWatermark) {
-                    ffmpegArgs.push("-i", watermark!.logoPath);
+                    ffmpegArgs.push("-i", logoPath!);
                 }
 
                 // ── Bước 2: Bộ lọc ghép logo (-filter_complex) ──────────────
