@@ -2,9 +2,10 @@ import { describe, it, before, after } from 'node:test';
 import assert from 'node:assert/strict';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
-import { mkdtempSync, rmSync, existsSync, writeFileSync, statSync } from 'node:fs';
+import { mkdtempSync, mkdirSync, rmSync, existsSync, writeFileSync, statSync } from 'node:fs';
 import { renderVideo } from '../../src/pipeline/renderer.js';
 import { buildWatermarkFilter } from '../../src/pipeline/watermarkFilter.js';
+import { LOGOS_DIR } from '../../src/security/uploadGuard.js';
 import { type WatermarkConfig } from '../../src/llm/schema.js';
 
 // =========================================================================
@@ -75,8 +76,11 @@ describe('E2E Integration Test: Watermark Video Rendering (src/pipeline/renderer
 </html>`;
         writeFileSync(htmlPath, htmlContent, 'utf-8');
 
-        // 2. Tạo file ảnh logo PNG mẫu trên đĩa
-        logoPath = join(testWorkDir, 'sample_logo.png');
+        // 2. Tạo file ảnh logo PNG mẫu trên đĩa.
+        //    Logo phải nằm trong thư mục logos được phép (LOGOS_DIR) vì
+        //    renderer chỉ chấp nhận logoPath đã qua kiểm tra giới hạn phạm vi.
+        mkdirSync(LOGOS_DIR, { recursive: true });
+        logoPath = join(LOGOS_DIR, `watermark-e2e-${Date.now()}.png`);
         writeFileSync(logoPath, Buffer.from(SAMPLE_PNG_BASE64, 'base64'));
 
         // 3. Đường dẫn file video đầu ra
@@ -91,6 +95,12 @@ describe('E2E Integration Test: Watermark Video Rendering (src/pipeline/renderer
             } catch {
                 // Bỏ qua lỗi khóa file tạm trên Windows nếu có
             }
+        }
+        // Dọn dẹp file logo test trong thư mục logos được phép
+        try {
+            if (logoPath && existsSync(logoPath)) rmSync(logoPath, { force: true });
+        } catch {
+            // Bỏ qua lỗi dọn dẹp
         }
     });
 

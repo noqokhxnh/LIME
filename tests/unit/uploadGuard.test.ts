@@ -1,10 +1,14 @@
 import { describe, it } from 'node:test';
 import assert from 'node:assert/strict';
+import { join } from 'node:path';
+import { mkdirSync, writeFileSync, rmSync, realpathSync } from 'node:fs';
 import {
     sanitizeSvg,
     validateMagicBytes,
     validateUploadedFile,
     generateSafeFilePath,
+    resolveLogoPath,
+    LOGOS_DIR,
     ALLOWED_MIME_TYPES,
     MAX_FILE_SIZE_BYTES,
 } from '../../src/security/uploadGuard.js';
@@ -317,6 +321,83 @@ describe('Module: uploadGuard (src/security/uploadGuard.ts)', () => {
             assert.ok(!ALLOWED_MIME_TYPES.includes('application/pdf'), 'Không được cho phép PDF');
             assert.ok(!ALLOWED_MIME_TYPES.includes('text/html'), 'Không được cho phép HTML');
             assert.ok(!ALLOWED_MIME_TYPES.includes('application/javascript'), 'Không được cho phép JS');
+        });
+    });
+
+    // ─────────────────────────────────────────────────────────
+    // TC-UG-007: sanitizeSvg() chặn kỹ thuật lách regex `<svg/onload=...>`
+    // ─────────────────────────────────────────────────────────
+    describe('TC-UG-007: sanitizeSvg() chặn event handler không có khoảng trắng', () => {
+
+        it('phải xóa onload trong `<svg/onload="alert(1)">`', () => {
+            const malicious = `<svg/onload="alert(1)"><circle r="10"/></svg>`;
+            const result = sanitizeSvg(malicious);
+
+            assert.ok(!result.includes('onload'), `Kỳ vọng không còn onload nhưng nhận: ${result}`);
+            assert.ok(!result.includes('alert'), `Kỳ vọng không còn alert() nhưng nhận: ${result}`);
+            assert.ok(result.includes('<circle'), 'Phần tử hợp lệ <circle> phải được giữ lại');
+        });
+
+        it('phải xóa event handler viết hoa/không có dấu ngoặc kép', () => {
+            const malicious = `<svg><rect ONCLICK=stealData() /></svg>`;
+            const result = sanitizeSvg(malicious);
+
+            assert.ok(!result.toLowerCase().includes('onclick'), 'Kỳ vọng không còn onclick');
+            assert.ok(!result.includes('stealData'), 'Kỳ vọng không còn stealData()');
+        });
+    });
+
+    // ─────────────────────────────────────────────────────────
+    // TC-UG-008: resolveLogoPath() giới hạn phạm vi đường dẫn logo
+    // ─────────────────────────────────────────────────────────
+    describe('TC-UG-008: resolveLogoPath() chỉ chấp nhận file trong thư mục logos', () => {
+        const TEST_LOGO_DIR = join(LOGOS_DIR);
+
+        it('phải từ chối đường dẫn tuyệt đối ngoài thư mục logos (LFI)', () => {
+            assert.strictEqual(resolveLogoPath('/etc/passwd'), null);
+            assert.strictEqual(resolveLogoPath('/etc/hostname'), null);
+        });
+
+        it('phải từ chối path traversal dạng ../', () => {
+            assert.strictEqual(resolveLogoPath('../../etc/passwd'), null);
+            assert.strictEqual(resolveLogoPath('/uploads/logos/../../etc/passwd'), null);
+        });
+
+        it('phải từ chối thiết bị đặc biệt như /dev/zero (chống DoS treo worker)', () => {
+            assert.strictEqual(resolveLogoPath('/dev/zero'), null);
+        });
+
+        it('phải từ chối file không tồn tại', () => {
+            assert.strictEqual(
+                resolveLogoPath('/uploads/logos/00000000-0000-0000-0000-000000000000.png'),
+                null
+            );
+        });
+
+        it('phải chấp nhận URL tĩnh hợp lệ trỏ tới file logo thật', () => {
+            mkdirSync(TEST_LOGO_DIR, { recursive: true });
+            const name = `unit-test-${Date.now()}.png`;
+            const abs = join(TEST_LOGO_DIR, name);
+            writeFileSync(abs, makePngBuffer());
+            try {
+                const resolved = resolveLogoPath(`/uploads/logos/${name}`);
+                assert.ok(resolved, 'Kỳ vọng resolve được đường dẫn hợp lệ');
+                assert.strictEqual(resolved, realpathSync(abs));
+            } finally {
+                rmSync(abs, { force: true });
+            }
+        });
+
+        it('phải chấp nhận đường dẫn tuyệt đối nằm trong thư mục logos', () => {
+            mkdirSync(TEST_LOGO_DIR, { recursive: true });
+            const name = `unit-test-abs-${Date.now()}.png`;
+            const abs = join(TEST_LOGO_DIR, name);
+            writeFileSync(abs, makePngBuffer());
+            try {
+                assert.strictEqual(resolveLogoPath(abs), realpathSync(abs));
+            } finally {
+                rmSync(abs, { force: true });
+            }
         });
     });
 });
