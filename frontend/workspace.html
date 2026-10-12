@@ -544,58 +544,118 @@
         </main>
 
 
-    <div id="login-modal" class="auth-modal">
+    <!-- Thẻ Đăng nhập & Đăng ký (Modal nằm giữa trang, nền mờ) -->
+    <div id="login-modal" class="auth-modal" aria-hidden="true" role="dialog" aria-modal="true">
         <div class="auth-card-modal">
-            <button id="login-close-btn" class="modal-close-btn" type="button" aria-label="Đóng">&times;</button>
+            <button id="login-close-btn" class="modal-close-btn" type="button" aria-label="Đóng">
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                    <line x1="18" y1="6" x2="6" y2="18"></line>
+                    <line x1="6" y1="6" x2="18" y2="18"></line>
+                </svg>
+            </button>
             
-            <div class="modal-intro">
-                <h2 id="auth-title" class="auth-head-title">Đăng nhập</h2>
-                <p class="auth-head-sub">Chào mừng bạn quay trở lại với lime.</p>
+            <!-- Header có User Icon badge -->
+            <div class="auth-header">
+                <div class="auth-user-badge">
+                    <svg xmlns="http://www.w3.org/2000/svg" width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                        <path d="M19 21v-2a4 4 0 0 0-4-4H9a4 4 0 0 0-4 4v2" />
+                        <circle cx="12" cy="7" r="4" />
+                    </svg>
+                </div>
+                <div>
+                    <h2 id="auth-title" class="auth-title">Chào mừng trở lại</h2>
+                    <p id="auth-subtitle" class="auth-subtitle">Nhập thông tin tài khoản của bạn để đăng nhập</p>
+                </div>
             </div>
 
-            <div class="auth-switch-link-row">
-                <button id="show-register-btn" class="link-switch-auth" type="button">Chưa có tài khoản? Đăng ký ngay</button>
+            <!-- Đăng nhập mạng xã hội: Apple & Google (đã bỏ X, cân đối 2 cột) -->
+            <div class="auth-social-row">
+                <button id="apple-login-btn" class="auth-social-btn" type="button" aria-label="Đăng nhập với Apple">
+                    <svg class="auth-social-svg" xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24">
+                        <path fill="currentColor" d="M18.71 19.5C17.88 20.74 17 21.95 15.66 21.97C14.32 22 13.89 21.18 12.37 21.18C10.84 21.18 10.37 21.95 9.09997 22C7.78997 22.05 6.79997 20.68 5.95997 19.47C4.24997 17 2.93997 12.45 4.69997 9.39C5.56997 7.87 7.12997 6.91 8.81997 6.88C10.1 6.86 11.32 7.75 12.11 7.75C12.89 7.75 14.37 6.68 15.92 6.84C16.57 6.87 18.39 7.1 19.56 8.82C19.47 8.88 17.39 10.1 17.41 12.63C17.44 15.65 20.06 16.66 20.09 16.67C20.06 16.74 19.67 18.11 18.71 19.5ZM13 3.5C13.73 2.67 14.94 2.04 15.94 2C16.07 3.17 15.6 4.35 14.9 5.19C14.21 6.04 13.07 6.7 11.95 6.61C11.8 5.46 12.36 4.26 13 3.5Z" />
+                    </svg>
+                    <span>Apple</span>
+                </button>
+                <button id="google-login-btn" class="auth-social-btn" type="button" aria-label="Đăng nhập với Google">
+                    <svg class="auth-social-svg" xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24">
+                        <path d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z" fill="#4285F4"></path>
+                        <path d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z" fill="#34A853"></path>
+                        <path d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.07H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.93l3.66-2.84z" fill="#FBBC05"></path>
+                        <path d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z" fill="#EA4335"></path>
+                    </svg>
+                    <span>Google</span>
+                </button>
+            </div>
+
+            <!-- Divider -->
+            <div class="auth-divider">
+                <span class="auth-divider-line"></span>
+                <span class="auth-divider-text">Hoặc tiếp tục với</span>
+                <span class="auth-divider-line"></span>
             </div>
 
             <!-- Login Form -->
-            <div id="login-form" class="auth-form-fields">
+            <form id="login-form" class="auth-form-fields" onsubmit="return false;">
                 <div class="auth-input-group">
-                    <label for="login-username">Tên đăng nhập</label>
-                    <input id="login-username" class="clean-auth-input" type="text" placeholder="Nhập tên đăng nhập">
+                    <label for="login-username">Tên đăng nhập hoặc Email</label>
+                    <input id="login-username" class="clean-auth-input" type="text" placeholder="name@example.com" autocomplete="username">
                 </div>
                 <div class="auth-input-group">
                     <label for="login-password">Mật khẩu</label>
-                    <input id="login-password" class="clean-auth-input" type="password" placeholder="Nhập mật khẩu">
+                    <div class="auth-password-wrapper">
+                        <input id="login-password" class="clean-auth-input" type="password" placeholder="Nhập mật khẩu" autocomplete="current-password">
+                        <button id="login-password-toggle" class="auth-password-toggle" type="button" aria-label="Hiện/ẩn mật khẩu">
+                            <svg class="eye-icon" xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                                <path d="M2 12s3-7 10-7 10 7 10 7-3 7-10 7-10-7-10-7Z" />
+                                <circle cx="12" cy="12" r="3" />
+                            </svg>
+                        </button>
+                    </div>
                 </div>
-                <button id="login-submit-btn" class="btn-auth-submit" type="button">Đăng nhập</button>
-                
-                <div class="auth-divider-line"><span>hoặc</span></div>
-
-                <button id="google-login-btn" class="btn-google-auth" type="button">
-                    <img src="https://www.gstatic.com/firebasejs/ui/2.0.0/images/auth/google.svg" alt="Google">
-                    <span>Đăng nhập với Google</span>
-                </button>
+                <button id="login-submit-btn" class="btn-auth-submit" type="submit">Đăng nhập</button>
                 <p id="login-message" class="auth-status-msg"></p>
-            </div>
+
+                <div class="auth-foot-actions">
+                    <p class="auth-foot-text">
+                        Chưa có tài khoản?
+                        <button id="show-register-btn" class="link-switch-auth" type="button">Đăng ký ngay</button>
+                    </p>
+                    <a href="#" id="forgot-password-link" class="link-forgot-pass">Quên mật khẩu?</a>
+                </div>
+            </form>
 
             <!-- Register Form -->
-            <div id="register-form" class="auth-form-fields" style="display: none;">
+            <form id="register-form" class="auth-form-fields" style="display: none;" onsubmit="return false;">
                 <div class="auth-input-group">
                     <label for="register-username">Tên đăng nhập</label>
-                    <input id="register-username" class="clean-auth-input" type="text" placeholder="Chọn tên đăng nhập">
+                    <input id="register-username" class="clean-auth-input" type="text" placeholder="Chọn tên đăng nhập" autocomplete="username">
                 </div>
                 <div class="auth-input-group">
                     <label for="register-email">Địa chỉ Email</label>
-                    <input id="register-email" class="clean-auth-input" type="email" placeholder="name@example.com">
+                    <input id="register-email" class="clean-auth-input" type="email" placeholder="name@example.com" autocomplete="email">
                 </div>
                 <div class="auth-input-group">
                     <label for="register-password">Mật khẩu</label>
-                    <input id="register-password" class="clean-auth-input" type="password" placeholder="Tối thiểu 6 ký tự">
+                    <div class="auth-password-wrapper">
+                        <input id="register-password" class="clean-auth-input" type="password" placeholder="Tối thiểu 6 ký tự" autocomplete="new-password">
+                        <button id="register-password-toggle" class="auth-password-toggle" type="button" aria-label="Hiện/ẩn mật khẩu">
+                            <svg class="eye-icon" xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                                <path d="M2 12s3-7 10-7 10 7 10 7-3 7-10 7-10-7-10-7Z" />
+                                <circle cx="12" cy="12" r="3" />
+                            </svg>
+                        </button>
+                    </div>
                 </div>
-                <button id="register-submit-btn" class="btn-auth-submit" type="button">Tạo tài khoản</button>
-                <button id="show-login-btn" class="link-switch-auth back-login" type="button">Đã có tài khoản? Quay lại đăng nhập</button>
+                <button id="register-submit-btn" class="btn-auth-submit" type="submit">Tạo tài khoản</button>
                 <p id="register-message" class="auth-status-msg"></p>
-            </div>
+
+                <div class="auth-foot-actions">
+                    <p class="auth-foot-text">
+                        Đã có tài khoản?
+                        <button id="show-login-btn" class="link-switch-auth" type="button">Quay lại đăng nhập</button>
+                    </p>
+                </div>
+            </form>
         </div>
     </div>
 
