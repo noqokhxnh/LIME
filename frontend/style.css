@@ -3564,20 +3564,27 @@ h2.sec em {
 
 .plans {
     display: grid;
-    grid-template-columns: repeat(3, 1fr);
-    gap: 20px;
+    grid-template-columns: repeat(4, 1fr);
+    gap: 16px;
     width: 100%;
-    max-width: 1180px;
+    max-width: 1360px;
     margin: 0 auto;
-    padding: 0 48px;
+    padding: 0 24px;
     position: relative;
+}
+
+@media (max-width: 1100px) {
+    .plans {
+        grid-template-columns: repeat(2, 1fr);
+        max-width: 760px;
+    }
 }
 
 .plan {
     background: #fff;
     border: 1px solid var(--line);
-    border-radius: 24px;
-    padding: 30px;
+    border-radius: 22px;
+    padding: 26px 20px;
     display: flex;
     flex-direction: column;
     box-shadow: 0 14px 36px rgba(20, 22, 15, 0.06);
@@ -3613,18 +3620,18 @@ h2.sec em {
     transform: translateX(-50%);
     background: var(--lime);
     color: var(--lime-ink);
-    font-size: 12px;
+    font-size: 11px;
     font-weight: 700;
-    padding: 7px 18px;
+    padding: 6px 16px;
     border-radius: 999px;
     white-space: nowrap;
 }
 
 .plan .price {
     font-family: var(--font-display);
-    font-size: 46px;
+    font-size: 38px;
     font-weight: 700;
-    letter-spacing: -1.6px;
+    letter-spacing: -1.4px;
 }
 
 .plan .price small {
