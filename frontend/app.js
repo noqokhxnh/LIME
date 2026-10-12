@@ -244,8 +244,9 @@ function initBrandKitUI() {
                     throw new Error(data.error || 'Tải logo lên thất bại');
                 }
 
-                // Lưu đường dẫn file trên server (dùng cho ffmpeg) và đường dẫn URL
-                watermarkState.logoPath = data.filePath || data.logoUrl;
+                // Lưu URL logo do server trả về (không dùng đường dẫn tuyệt đối
+                // trên server để tránh lộ cấu trúc thư mục)
+                watermarkState.logoPath = data.logoUrl;
                 watermarkState.logoUrl = data.logoUrl.startsWith('http') ? data.logoUrl : `${API_BASE}${data.logoUrl}`;
                 updateWatermarkPreview();
                 log(`Tải logo thành công: ${file.name}`, 'success');
