@@ -168,6 +168,10 @@ export async function runFullPipeline(option: orchestratorOptions): Promise<full
                     const scaled = pct !== undefined ? Math.round(80 + pct * 0.19) : 85;
                     logProgress("render", scaled, msg);
                 },
+                // Truyền cấu hình logo từ yêu cầu người dùng xuống renderer.
+                // Nếu người dùng không gửi logo thì giá trị này là undefined
+                // và renderer sẽ tự bỏ qua bước ghép logo.
+                watermark: request.watermark,
             });
             timing["render"] = Date.now() - phaseStart;
         }
