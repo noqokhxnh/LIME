@@ -12,6 +12,7 @@
         href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@500;600;700&family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap"
         rel="stylesheet">
     <link rel="stylesheet" href="style.css">
+    <link rel="stylesheet" href="vietqr.css">
 </head>
 
 <body>
@@ -209,46 +210,70 @@
                     năm <small>−20%</small></span></div>
         </div>
         <div class="plans">
+            <!-- GÓI 1: FREE -->
             <div class="plan">
-                <div class="pname">Khởi đầu</div>
+                <div class="pname">Free</div>
                 <div class="price">0đ<small> / mãi mãi</small></div>
-                <p class="pdesc">Cho người mới thử sức với video AI.</p>
+                <p class="pdesc">Trải nghiệm tạo video AI miễn phí.</p>
                 <ul class="feats">
-                    <li>5 video / tháng · tối đa 60s</li>
-                    <li>Xuất 720p, watermark LIME</li>
+                    <li>30 token free</li>
+                    <li>Giọng đọc tiếng Việt cơ bản</li>
+                    <li>Xuất 720p (watermark LIME)</li>
                     <li>10+ mẫu thiết kế cơ bản</li>
-                    <li>2 giọng đọc tiếng Việt</li>
-                    <li class="off">Xuất 4K không watermark</li>
+                    <li class="off">Chèn watermark riêng vào video</li>
+                    <li class="off">Mở khoá toàn bộ giới hạn</li>
                 </ul>
-                <button type="button" class="plan-btn plan-cta">Bắt đầu miễn phí</button>
+                <button type="button" class="plan-btn plan-cta" data-plan="free">Bắt đầu miễn phí</button>
             </div>
+
+            <!-- GÓI 2: PRO (99k) - HOT -->
             <div class="plan hot">
                 <div class="hot-badge">✦ Phổ biến nhất</div>
-                <div class="pname">Sáng tạo</div>
-                <div class="price"><span class="price-val" data-monthly="149k" data-yearly="119k">149k</span><small> /
+                <div class="pname">Pro</div>
+                <div class="price"><span class="price-val" data-monthly="99k" data-yearly="79k">99k</span><small> /
                         tháng</small></div>
-                <p class="pdesc">Cho creator và marketer đăng video đều đặn.</p>
+                <p class="pdesc">Cho creator và marketer cá nhân.</p>
                 <ul class="feats">
-                    <li>50 video / tháng · tối đa 5 phút</li>
-                    <li>Xuất 4K, không watermark</li>
-                    <li>50+ mẫu thiết kế & motion blocks</li>
-                    <li>8 giọng đọc, ưu tiên hàng đợi</li>
-                    <li>Brand kit: logo & màu riêng</li>
+                    <li>200 token / tháng</li>
+                    <li>Giọng đọc nhiều hơn, đa ngữ điệu</li>
+                    <li>Chèn watermark riêng vào video</li>
+                    <li>Tích hợp Brand kit riêng</li>
+                    <li>Xuất video Full HD / 2K</li>
+                    <li>Ưu tiên hàng đợi render</li>
                 </ul>
-                <button type="button" class="plan-btn plan-cta">Nâng cấp ngay →</button>
+                <button type="button" class="plan-btn plan-cta" data-plan="pro">Nâng cấp Pro →</button>
             </div>
+
+            <!-- GÓI 3: MAX (499k) -->
             <div class="plan">
-                <div class="pname">Đội nhóm</div>
-                <div class="price">Liên hệ<small></small></div>
-                <p class="pdesc">Cho agency và team sản xuất nội dung.</p>
+                <div class="pname">Max</div>
+                <div class="price"><span class="price-val" data-monthly="499k" data-yearly="399k">499k</span><small> /
+                        tháng</small></div>
+                <p class="pdesc">Mở khoá toàn bộ giới hạn sáng tạo.</p>
                 <ul class="feats">
-                    <li>Mọi quyền lợi gói Sáng tạo</li>
-                    <li>Workspace chung nhiều thành viên</li>
-                    <li>API render tự động</li>
-                    <li>Quản lý brand kit tập trung</li>
-                    <li class="off">Hỗ trợ riêng 1-1</li>
+                    <li>Mở khoá toàn bộ giới hạn</li>
+                    <li>Không giới hạn token video</li>
+                    <li>Toàn bộ giọng đọc cao cấp</li>
+                    <li>Chèn watermark riêng &amp; Brand kit</li>
+                    <li>Xuất 4K 60fps siêu nét</li>
+                    <li>Ưu tiên render Turbo Queue</li>
                 </ul>
-                <button type="button" class="plan-btn plan-cta">Trao đổi với LIME</button>
+                <button type="button" class="plan-btn plan-cta" data-plan="max">Nâng cấp Max →</button>
+            </div>
+
+            <!-- GÓI 4: ENTERPRISE -->
+            <div class="plan">
+                <div class="pname">Enterprise</div>
+                <div class="price">Liên hệ<small></small></div>
+                <p class="pdesc">Cho agency và doanh nghiệp lớn.</p>
+                <ul class="feats">
+                    <li>Toàn bộ quyền lợi gói Max</li>
+                    <li>Workspace chung nhiều thành viên</li>
+                    <li>Hệ thống API render tự động</li>
+                    <li>Brand kit phân quyền phòng ban</li>
+                    <li class="off">Hỗ trợ kỹ thuật riêng 1-1</li>
+                </ul>
+                <button type="button" class="plan-btn plan-cta" data-plan="team">Liên hệ LIME</button>
             </div>
         </div>
         <div class="foot">
@@ -674,8 +699,267 @@
         </div>
     </div>
 
+    <!-- ================= MODAL THANH TOÁN VIETQR ================= -->
+    <div id="vietqr-modal" class="vietqr-modal" aria-hidden="true" role="dialog" aria-modal="true">
+        <div class="vietqr-card">
+            <!-- Nút đóng -->
+            <button id="vietqr-close-btn" class="vietqr-close-btn" type="button" aria-label="Đóng thanh toán">
+                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
+                    stroke-linecap="round" stroke-linejoin="round">
+                    <line x1="18" y1="6" x2="6" y2="18"></line>
+                    <line x1="6" y1="6" x2="18" y2="18"></line>
+                </svg>
+            </button>
+
+            <!-- Top bar -->
+            <div class="vietqr-header-bar">
+                <div class="vietqr-trust-badge">
+                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"
+                        stroke-linecap="round" stroke-linejoin="round">
+                        <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"></path>
+                    </svg>
+                    <span>Cổng thanh toán VietQR 24/7 · Tự động kích hoạt</span>
+                </div>
+                <div class="vietqr-timer-pill" title="Thời gian giữ mã giao dịch">
+                    <span class="vietqr-timer-dot"></span>
+                    <span>Hiệu lực: <b id="vietqr-timer-text">15:00</b></span>
+                </div>
+            </div>
+
+            <!-- Body Grid (QR + Chi tiết chuyển khoản) -->
+            <div class="vietqr-body-grid">
+                <!-- CỘT TRÁI: Mã QR -->
+                <div class="vietqr-qr-col">
+                    <div class="vietqr-brand-row">
+                        <div class="vietqr-logo-tag">
+                            <span class="blue">Viet</span><span class="red">QR</span>
+                        </div>
+                        <span class="vietqr-napas-tag">NAPAS 247</span>
+                    </div>
+
+                    <div class="vietqr-code-box">
+                        <div class="vietqr-scanline"></div>
+                        <img id="vietqr-img" class="vietqr-code-img" src="" alt="Mã VietQR thanh toán">
+                    </div>
+
+                    <div class="vietqr-code-caption">
+                        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+                            stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                            <path d="M4 7V4h3"></path>
+                            <path d="M20 7V4h-3"></path>
+                            <path d="M4 17v3h3"></path>
+                            <path d="M20 17v3h-3"></path>
+                        </svg>
+                        <span>Mở App ngân hàng bất kỳ để quét mã</span>
+                    </div>
+
+                    <div class="vietqr-actions-row">
+                        <button type="button" id="vietqr-download-btn" class="vietqr-btn-sub">
+                            <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+                                stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                                <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path>
+                                <polyline points="7 10 12 15 17 10"></polyline>
+                                <line x1="12" y1="15" x2="12" y2="3"></line>
+                            </svg>
+                            <span>Lưu ảnh QR</span>
+                        </button>
+                        <a href="https://vietqr.net" target="_blank" rel="noopener noreferrer" class="vietqr-btn-sub">
+                            <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+                                stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                                <circle cx="12" cy="12" r="10"></circle>
+                                <path d="m9 12 2 2 4-4"></path>
+                            </svg>
+                            <span>HD Quét mã</span>
+                        </a>
+                    </div>
+                </div>
+
+                <!-- CỘT PHẢI: Thông tin chuyển khoản -->
+                <div class="vietqr-info-col">
+                    <!-- Gói dịch vụ & Chu kỳ -->
+                    <div class="vietqr-plan-card">
+                        <div class="vietqr-plan-meta">
+                            <h3>PRO</h3>
+                            <p>50 video 4K/tháng · Brand kit &amp; Ưu tiên render</p>
+                        </div>
+                        <div class="vietqr-cycle-toggle">
+                            <button type="button" class="vietqr-cycle-btn active" data-cycle="month">Tháng</button>
+                            <button type="button" class="vietqr-cycle-btn" data-cycle="year">Năm
+                                <small>-20%</small></button>
+                        </div>
+                    </div>
+
+                    <!-- Danh sách trường chuyển khoản -->
+                    <div class="vietqr-details-table">
+                        <!-- Ngân hàng -->
+                        <div class="vietqr-field-row">
+                            <span class="vietqr-field-label">
+                                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+                                    stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                                    <path d="M3 21h18"></path>
+                                    <path d="M3 10h18"></path>
+                                    <path d="M5 6l7-3 7 3"></path>
+                                    <path d="M4 10v11"></path>
+                                    <path d="M20 10v11"></path>
+                                    <path d="M8 14v3"></path>
+                                    <path d="M12 14v3"></path>
+                                    <path d="M16 14v3"></path>
+                                </svg>
+                                Ngân hàng
+                            </span>
+                            <div class="vietqr-field-content">
+                                <span class="vietqr-field-val" id="vietqr-val-bank">MBBank (Quân Đội)</span>
+                            </div>
+                        </div>
+
+                        <!-- Số tài khoản -->
+                        <div class="vietqr-field-row">
+                            <span class="vietqr-field-label">
+                                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+                                    stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                                    <rect width="20" height="14" x="2" y="5" rx="2"></rect>
+                                    <line x1="2" x2="22" y1="10" y2="10"></line>
+                                </svg>
+                                Số tài khoản
+                            </span>
+                            <div class="vietqr-field-content">
+                                <span class="vietqr-field-val" id="vietqr-val-account"
+                                    data-copy="0982618707">0982618707</span>
+                                <button type="button" class="vietqr-copy-btn" data-target="vietqr-val-account"
+                                    title="Sao chép số tài khoản">
+                                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+                                        stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                                        <rect width="14" height="14" x="8" y="8" rx="2" ry="2"></rect>
+                                        <path d="M4 16c-1.1 0-2-.9-2-2V4c0-1.1.9-2 2-2h10c1.1 0 2 .9 2 2"></path>
+                                    </svg>
+                                    <span class="vietqr-copied-tip">Đã chép!</span>
+                                </button>
+                            </div>
+                        </div>
+
+                        <!-- Chủ tài khoản -->
+                        <div class="vietqr-field-row">
+                            <span class="vietqr-field-label">
+                                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+                                    stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                                    <path d="M19 21v-2a4 4 0 0 0-4-4H9a4 4 0 0 0-4 4v2"></path>
+                                    <circle cx="12" cy="7" r="4"></circle>
+                                </svg>
+                                Chủ tài khoản
+                            </span>
+                            <div class="vietqr-field-content">
+                                <span class="vietqr-field-val" id="vietqr-val-name">NGUYEN QUANG KHANH</span>
+                            </div>
+                        </div>
+
+                        <!-- Số tiền -->
+                        <div class="vietqr-field-row highlight">
+                            <span class="vietqr-field-label">
+                                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+                                    stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                                    <line x1="12" x2="12" y1="2" y2="22"></line>
+                                    <path d="M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"></path>
+                                </svg>
+                                Số tiền
+                            </span>
+                            <div class="vietqr-field-content">
+                                <span class="vietqr-field-val amount" id="vietqr-val-amount" data-copy="149000">149.000
+                                    đ</span>
+                                <button type="button" class="vietqr-copy-btn" data-target="vietqr-val-amount"
+                                    title="Sao chép số tiền">
+                                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+                                        stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                                        <rect width="14" height="14" x="8" y="8" rx="2" ry="2"></rect>
+                                        <path d="M4 16c-1.1 0-2-.9-2-2V4c0-1.1.9-2 2-2h10c1.1 0 2 .9 2 2"></path>
+                                    </svg>
+                                    <span class="vietqr-copied-tip">Đã chép!</span>
+                                </button>
+                            </div>
+                        </div>
+
+                        <!-- Nội dung chuyển khoản -->
+                        <div class="vietqr-field-row highlight">
+                            <span class="vietqr-field-label">
+                                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+                                    stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                                    <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path>
+                                    <polyline points="14 2 14 8 20 8"></polyline>
+                                </svg>
+                                Lời nhắn / Memo
+                            </span>
+                            <div class="vietqr-field-content">
+                                <span class="vietqr-field-val code" id="vietqr-val-memo" data-copy="">LIME 8826</span>
+                                <button type="button" class="vietqr-copy-btn" data-target="vietqr-val-memo"
+                                    title="Sao chép nội dung chuyển khoản">
+                                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+                                        stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                                        <rect width="14" height="14" x="8" y="8" rx="2" ry="2"></rect>
+                                        <path d="M4 16c-1.1 0-2-.9-2-2V4c0-1.1.9-2 2-2h10c1.1 0 2 .9 2 2"></path>
+                                    </svg>
+                                    <span class="vietqr-copied-tip">Đã chép!</span>
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Ghi chú nội dung -->
+                    <div class="vietqr-memo-note">
+                        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+                            stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                            <circle cx="12" cy="12" r="10"></circle>
+                            <line x1="12" y1="8" x2="12" y2="12"></line>
+                            <line x1="12" y1="16" x2="12.01" y2="16"></line>
+                        </svg>
+                        <span>Vui lòng giữ <b>chính xác</b> nội dung chuyển khoản để hệ thống bot nhận diện và kích hoạt
+                            tự động trong 30 giây.</span>
+                    </div>
+
+                    <!-- Trạng thái chờ -->
+                    <div class="vietqr-status-indicator">
+                        <span class="vietqr-status-radar"></span>
+                        <span>Đang chờ tín hiệu chuyển khoản từ ngân hàng...</span>
+                    </div>
+
+                    <!-- Nút xác nhận thanh toán -->
+                    <button type="button" id="vietqr-submit-btn" class="vietqr-submit-btn">
+                        <span class="vietqr-btn-spinner"></span>
+                        <span>Tôi đã hoàn tất chuyển khoản</span>
+                        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+                            stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+                            <polyline points="20 6 9 17 4 12"></polyline>
+                        </svg>
+                    </button>
+                </div>
+            </div>
+
+            <!-- SUCCESS SCREEN -->
+            <div class="vietqr-success-card">
+                <div class="vietqr-success-icon-wrap">
+                    <svg width="36" height="36" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3"
+                        stroke-linecap="round" stroke-linejoin="round">
+                        <polyline points="20 6 9 17 4 12"></polyline>
+                    </svg>
+                </div>
+                <h3 class="vietqr-success-title">Thanh toán thành công!</h3>
+                <p class="vietqr-success-desc">
+                    Hệ thống đã ghi nhận giao dịch của bạn. Gói dịch vụ đã được kích hoạt trực tiếp vào tài khoản của
+                    bạn.
+                </p>
+                <div class="vietqr-success-plan-info">
+                    <span>Gói dịch vụ: <b id="vietqr-success-plan-name">Gói Sáng tạo (1 Tháng)</b></span>
+                    <span>·</span>
+                    <span>Mã đơn: <b id="vietqr-success-code">LIME 8826</b></span>
+                </div>
+                <button type="button" id="vietqr-success-btn" class="vietqr-success-btn">
+                    Vào Studio tạo video ngay →
+                </button>
+            </div>
+        </div>
+    </div>
+
     <!-- Core App Logic -->
     <script src="legal-modal.js"></script>
+    <script src="vietqr-modal.js"></script>
     <script src="app.js"></script>
 </body>
 

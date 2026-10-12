@@ -401,7 +401,32 @@ function stashPrompt(data) {
 }
 
 document.getElementById('cta-create-btn')?.addEventListener('click', goStudio);
-document.querySelectorAll('.plan-cta').forEach(b => b.addEventListener('click', goStudio));
+document.querySelectorAll('.plan-cta').forEach(b => {
+    b.addEventListener('click', (e) => {
+        const plan = b.getAttribute('data-plan');
+        if (plan === 'pro' || plan === 'creator' || b.closest('.plan.hot')) {
+            e.preventDefault();
+            e.stopPropagation();
+            if (typeof window.openVietQRModal === 'function') {
+                window.openVietQRModal({ plan: 'pro' });
+            }
+            return;
+        }
+        if (plan === 'max') {
+            e.preventDefault();
+            e.stopPropagation();
+            if (typeof window.openVietQRModal === 'function') {
+                window.openVietQRModal({ plan: 'max' });
+            }
+            return;
+        }
+        if (plan === 'team') {
+            window.open('mailto:contact@lime.vn?subject=Tu%20van%20goi%20Enterprise%20LIME', '_blank');
+            return;
+        }
+        goStudio();
+    });
+});
 
 // Promptbar trang chủ: lưu prompt rồi đi tiếp theo trạng thái đăng nhập
 (function initHomePrompt() {
@@ -476,14 +501,15 @@ async function checkAuthConfig() {
 
     // Billing toggle tháng/năm
     const spans = document.querySelectorAll('.bill-toggle span[data-period]');
-    const priceVal = document.querySelector('.price-val');
+    const priceVals = document.querySelectorAll('.price-val');
     spans.forEach(s => s.addEventListener('click', () => {
         spans.forEach(x => x.classList.remove('on'));
         s.classList.add('on');
-        if (priceVal) {
-            const yearly = s.getAttribute('data-period') === 'year';
-            priceVal.textContent = yearly ? priceVal.getAttribute('data-yearly') : priceVal.getAttribute('data-monthly');
-        }
+        const yearly = s.getAttribute('data-period') === 'year';
+        priceVals.forEach(pv => {
+            const val = yearly ? pv.getAttribute('data-yearly') : pv.getAttribute('data-monthly');
+            if (val) pv.textContent = val;
+        });
     }));
 
     // Filter pills trang trí
