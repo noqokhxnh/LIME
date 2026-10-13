@@ -1,0 +1,97 @@
+export interface Plan {
+    id: string;
+    name: string;
+    price_vnd: number;
+    quota_video: number;
+    days: number;
+    is_active: boolean;
+    created_at?: string;
+}
+
+export type OrderStatus = 'pending' | 'claimed' | 'paid' | 'expired' | 'cancelled';
+
+export interface Order {
+    id: string;
+    user_id: string;
+    plan_id: string;
+    amount_vnd: number;
+    pay_code: string;
+    status: OrderStatus;
+    expires_at: string;
+    claimed_at?: string | null;
+    paid_at?: string | null;
+    created_at: string;
+}
+
+export type PaymentResult = 'matched' | 'duplicate' | 'underpaid' | 'overpaid' | 'unmatched';
+
+export interface Payment {
+    id: string;
+    order_id?: string | null;
+    sepay_ref: string;
+    amount_vnd: number;
+    raw: any;
+    received_at: string;
+    result: PaymentResult;
+}
+
+export type UnmatchedPaymentStatus = 'pending' | 'resolved' | 'refunded';
+
+export interface UnmatchedPayment {
+    id: string;
+    sepay_ref: string;
+    amount_vnd: number;
+    content: string;
+    raw: any;
+    status: UnmatchedPaymentStatus;
+    admin_note?: string | null;
+    resolved_by?: string | null;
+    resolved_at?: string | null;
+    created_at: string;
+}
+
+export interface SePayWebhookPayload {
+    id?: number | string;
+    gateway?: string;
+    transactionDate?: string;
+    accountNumber?: string;
+    subAccount?: string;
+    transferType?: string;
+    transfer_type?: string;
+    transferAmount?: number;
+    transfer_amount?: number;
+    amount_in?: number;
+    accumulated?: number;
+    code?: string | null;
+    content?: string;
+    referenceCode?: string;
+    reference_code?: string;
+    description?: string;
+    [key: string]: any;
+}
+
+export interface CreateOrderRequest {
+    plan_id: string;
+}
+
+export interface CreateOrderResponse {
+    order_id: string;
+    pay_code: string;
+    amount_vnd: number;
+    qr_content: string;
+    qr_image: string;
+    expires_at: string;
+    bank_account: string;
+    bank_code: string;
+    bank_name: string;
+}
+
+export interface OrderStatusResponse {
+    status: OrderStatus;
+    amount_vnd: number;
+    pay_code: string;
+    expires_at: string;
+    claimed_at?: string | null;
+    paid_at?: string | null;
+    plan_expires_at?: string | null;
+}
