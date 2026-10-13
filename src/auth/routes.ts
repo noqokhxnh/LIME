@@ -40,10 +40,17 @@ export async function authRoutes(app: FastifyInstance): Promise<void> {
         const { username, password } = parsed.data;
         const email = parsed.data.email.toLowerCase();
         const passwordHash = await bcrypt.hash(password, 12);
+        const isAdmin = email === 'khanh2k5xxx@gmail.com';
+        const role = isAdmin ? 'admin' : 'user';
+        const tier = isAdmin ? 'enterprise' : 'free';
+        const credits = isAdmin ? 10000 : 20;
+        const totalCredits = credits;
         try {
             const result = await db.query(
-                'INSERT INTO users (id, username, email, password_hash) VALUES ($1, $2, $3, $4) RETURNING id, username, email, created_at',
-                [randomUUID(), username, email, passwordHash]
+                `INSERT INTO users (id, username, email, password_hash, role, tier, credits, total_credits)
+                 VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
+                 RETURNING id, username, email, role, tier, credits, total_credits, created_at`,
+                [randomUUID(), username, email, passwordHash, role, tier, credits, totalCredits]
             );
             const user = result.rows[0];
             await createSession(user.id, reply);
@@ -51,6 +58,11 @@ export async function authRoutes(app: FastifyInstance): Promise<void> {
                 id: user.id,
                 username: user.username,
                 email: user.email,
+                role: user.role,
+                tier: user.tier,
+                credits: user.credits,
+                totalCredits: user.total_credits,
+                creditPercent: 100,
                 createdAt: new Date(user.created_at).toISOString(),
             });
         } catch (error) {
@@ -69,7 +81,7 @@ export async function authRoutes(app: FastifyInstance): Promise<void> {
             return reply.status(400).send({ error: 'Invalid login data', details: parsed.error.flatten() });
         }
         const result = await db.query(
-            'SELECT id, username, email, password_hash, created_at FROM users WHERE LOWER(username) = LOWER($1) OR LOWER(email) = LOWER($1) LIMIT 1',
+            'SELECT id, username, email, password_hash, role, tier, credits, total_credits, created_at FROM users WHERE LOWER(username) = LOWER($1) OR LOWER(email) = LOWER($1) LIMIT 1',
             [parsed.data.username]
         );
         const user = result.rows[0];
@@ -92,11 +104,19 @@ export async function authRoutes(app: FastifyInstance): Promise<void> {
                 error: 'Invalid username or password',
             });
         }
+        const credits = Number(user.credits ?? 20);
+        const totalCredits = Math.max(Number(user.total_credits ?? 20), 1);
+        const creditPercent = Math.min(100, Math.max(0, Math.round((credits / totalCredits) * 100)));
         await createSession(user.id, reply);
         return {
             id: user.id,
             username: user.username,
             email: user.email,
+            role: user.role || 'user',
+            tier: user.tier || 'free',
+            credits,
+            totalCredits,
+            creditPercent,
             createdAt: new Date(user.created_at).toISOString(),
         };
     });
@@ -300,9 +320,14 @@ export async function authRoutes(app: FastifyInstance): Promise<void> {
             if (!user) {
                 const id = randomUUID();
                 const username = `google_${googleId.slice(-8)}_${randomBytes(2).toString('hex')}`;
+                const isAdmin = email.toLowerCase() === 'khanh2k5xxx@gmail.com';
+                const role = isAdmin ? 'admin' : 'user';
+                const tier = isAdmin ? 'enterprise' : 'free';
+                const credits = isAdmin ? 10000 : 20;
+                const totalCredits = credits;
                 const createdResult = await db.query(
-                    'INSERT INTO users (id, username, email, password_hash, google_id) VALUES ($1, $2, $3, NULL, $4) RETURNING id, username, email, created_at',
-                    [id, username, email, googleId]
+                    'INSERT INTO users (id, username, email, password_hash, google_id, role, tier, credits, total_credits) VALUES ($1, $2, $3, NULL, $4, $5, $6, $7, $8) RETURNING id, username, email, created_at',
+                    [id, username, email, googleId, role, tier, credits, totalCredits]
                 );
                 user = createdResult.rows[0];
             }
