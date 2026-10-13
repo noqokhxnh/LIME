@@ -428,7 +428,7 @@
                 } else {
                     const studioBtn = document.getElementById('nav-studio-btn') || document.querySelector('a[href="#studio"]');
                     if (studioBtn) studioBtn.click();
-                    else window.location.href = '/workspace.html';
+                    else window.location.href = '/workspace';
                 }
             });
         }

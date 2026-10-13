@@ -134,17 +134,7 @@ export async function buildApp(options: { logger?: boolean, queue?: IVideoQueue 
     });
 
     app.get("/ui", async (_request: FastifyRequest, reply: FastifyReply) => {
-        const htmlPath = join(frontendDir, "workspace.html");
-        if (existsSync(htmlPath)) {
-            reply.type("text/html; charset=utf-8").send(createReadStream(htmlPath));
-            return reply;
-        }
-        const fallbackPath = join(frontendDir, "index.html");
-        if (existsSync(fallbackPath)) {
-            reply.type("text/html; charset=utf-8").send(createReadStream(fallbackPath));
-            return reply;
-        }
-        reply.status(404).send("Frontend not found");
+        return reply.redirect("/workspace", 302);
     });
 
     app.get("/workspace", async (_request: FastifyRequest, reply: FastifyReply) => {
