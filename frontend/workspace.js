@@ -14,10 +14,35 @@ const loginPassword = document.getElementById('login-password');
 const loginMessage = document.getElementById('login-message');
 const wsUsername = document.getElementById('ws-username');
 const wsLogoutBtn = document.getElementById('ws-logout-btn');
+const wsUserBtn = document.getElementById('ws-user-btn');
+const wsUserDropdown = document.getElementById('ws-user-dropdown');
 function setWsUser(name, role) {
     if (wsUsername) wsUsername.textContent = name || '';
+    const avatar = document.getElementById('ws-user-avatar');
+    if (avatar) avatar.textContent = (name || 'U').charAt(0).toUpperCase();
     const adminLink = document.getElementById('ws-admin-link');
-    if (adminLink && role === 'admin') adminLink.style.display = 'inline-block';
+    if (adminLink) adminLink.style.display = role === 'admin' ? 'flex' : 'none';
+}
+
+if (wsUserBtn && wsUserDropdown) {
+    wsUserBtn.addEventListener('click', (e) => {
+        e.stopPropagation();
+        const isOpen = wsUserDropdown.classList.toggle('show');
+        wsUserBtn.setAttribute('aria-expanded', isOpen ? 'true' : 'false');
+    });
+    document.addEventListener('click', (e) => {
+        if (!wsUserBtn.contains(e.target) && !wsUserDropdown.contains(e.target)) {
+            wsUserDropdown.classList.remove('show');
+            wsUserBtn.setAttribute('aria-expanded', 'false');
+        }
+    });
+    document.addEventListener('keydown', (e) => {
+        if (e.key === 'Escape' && wsUserDropdown.classList.contains('show')) {
+            wsUserDropdown.classList.remove('show');
+            wsUserBtn.setAttribute('aria-expanded', 'false');
+            wsUserBtn.focus();
+        }
+    });
 }
 const loginForm = document.getElementById('login-form');
 const registerForm = document.getElementById('register-form');
