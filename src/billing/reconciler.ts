@@ -59,12 +59,13 @@ export async function syncSepayTransactions(): Promise<{ processed: number; matc
                 continue;
             }
 
-            const ref = (tx.reference_number || tx.id).toString().trim();
-            if (!ref) continue;
+            const sepayId = (tx.id !== undefined && tx.id !== null) ? String(tx.id).trim() : String(tx.reference_number || '').trim();
+            if (!sepayId) continue;
+            const bankRef = tx.reference_number ? String(tx.reference_number).trim() : '';
 
             // Check if already processed
-            const existingPayment = await billingStorage.findPaymentBySepayRef(ref);
-            const existingUnmatched = await billingStorage.findUnmatchedPaymentBySepayRef(ref);
+            const existingPayment = await billingStorage.findPaymentBySepayRef(sepayId);
+            const existingUnmatched = await billingStorage.findUnmatchedPaymentBySepayRef(sepayId);
             if (existingPayment || existingUnmatched) {
                 skipped++;
                 continue;
@@ -73,8 +74,8 @@ export async function syncSepayTransactions(): Promise<{ processed: number; matc
             // Map SePay API format to Webhook format
             const payload = {
                 id: tx.id,
-                reference_code: ref,
-                referenceCode: ref,
+                reference_code: bankRef,
+                referenceCode: bankRef,
                 transfer_type: 'in',
                 transfer_amount: amountIn,
                 amount_in: amountIn,
@@ -91,7 +92,7 @@ export async function syncSepayTransactions(): Promise<{ processed: number; matc
                     matched++;
                 }
             } catch (err) {
-                console.error(`[SePay Reconciler] Error processing transaction ${ref}:`, err);
+                console.error(`[SePay Reconciler] Error processing transaction ${sepayId}:`, err);
                 errors++;
             }
         }
