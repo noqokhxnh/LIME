@@ -22,7 +22,7 @@ export const OrdersView = {
                         <span class="filter-label">Quản lý giao dịch nạp credits & đăng ký gói</span>
                     </div>
                     <div class="filter-actions">
-                        <button class="btn btn-secondary" id="btn-refresh-orders">↻ Làm mới</button>
+                        <button class="btn btn-secondary" id="btn-refresh-orders">Làm mới</button>
                     </div>
                 </div>
             </div>
