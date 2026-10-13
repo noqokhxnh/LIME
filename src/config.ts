@@ -72,6 +72,7 @@ const envSchema = z.object({
 
     // VietQR & SePay Billing Configuration
     SEPAY_API_KEY: z.string().optional(),
+    SEPAY_WEBHOOK_SECRET: z.string().optional(),
     BANK_ACCOUNT: z.string().default('0982618707'),
     BANK_CODE: z.string().default('MB'),
     BANK_BIN: z.string().default('970422'),
@@ -81,6 +82,8 @@ const envSchema = z.object({
     ORDER_TTL_MINUTES: z.coerce.number().default(15),
     CLAIMED_EXTEND_MINUTES: z.coerce.number().default(30),
     SEPAY_IP_ALLOWLIST: z.string().optional(),
+    SEPAY_IP_ALLOWLIST_ENABLED: z.enum(['true', 'false', '1', '0']).default('false').transform(val => val === 'true' || val === '1'),
+    SEPAY_TEST_MODE: z.enum(['true', 'false', '1', '0']).default('false').transform(val => val === 'true' || val === '1'),
 });
 
 export type Config = z.infer<typeof envSchema>;
