@@ -1,0 +1,720 @@
+/* ==========================================================================
+   LIME AI Video Studio — VietQR Payment Modal Styles (Light Mode)
+   Aesthetic: Crisp Clean Light UI, tactile microinteractions, high-contrast QR
+   ========================================================================== */
+
+.vietqr-modal {
+    position: fixed;
+    inset: 0;
+    background: rgba(15, 23, 42, 0.55);
+    backdrop-filter: blur(14px);
+    -webkit-backdrop-filter: blur(14px);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    z-index: 10000;
+    padding: 16px;
+    opacity: 0;
+    pointer-events: none;
+    transition: opacity 0.25s cubic-bezier(0.16, 1, 0.3, 1), backdrop-filter 0.25s ease;
+    overflow-y: auto;
+}
+
+.vietqr-modal.show {
+    opacity: 1;
+    pointer-events: auto;
+}
+
+.vietqr-card {
+    position: relative;
+    width: 100%;
+    max-width: 900px;
+    background: #ffffff;
+    border: 1px solid #e4e4e7;
+    border-radius: 24px;
+    box-shadow: 
+        0 25px 65px -15px rgba(0, 0, 0, 0.16),
+        0 0 0 1px rgba(0, 0, 0, 0.04),
+        0 8px 20px -6px rgba(0, 0, 0, 0.06);
+    padding: 32px 36px;
+    color: #18181b;
+    font-family: var(--font-main, 'Manrope', -apple-system, sans-serif);
+    transform: translateY(16px) scale(0.98);
+    transition: transform 0.28s cubic-bezier(0.16, 1, 0.3, 1);
+    box-sizing: border-box;
+    margin: auto;
+}
+
+.vietqr-modal.show .vietqr-card {
+    transform: translateY(0) scale(1);
+}
+
+/* Close button */
+.vietqr-close-btn {
+    position: absolute;
+    top: 20px;
+    right: 20px;
+    width: 36px;
+    height: 36px;
+    border-radius: 10px;
+    background: #f4f4f5;
+    border: 1px solid #e4e4e7;
+    color: #71717a;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    cursor: pointer;
+    transition: all 0.18s ease;
+    z-index: 5;
+}
+
+.vietqr-close-btn:hover {
+    background: #e4e4e7;
+    color: #09090b;
+    border-color: #d4d4d8;
+    transform: rotate(90deg);
+}
+
+/* Modal Top Badge & Header */
+.vietqr-header-bar {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    margin-bottom: 24px;
+    padding-bottom: 16px;
+    border-bottom: 1px solid #f4f4f5;
+    flex-wrap: wrap;
+    gap: 12px;
+}
+
+.vietqr-trust-badge {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    background: #f7fee7;
+    border: 1px solid #d9f99d;
+    padding: 6px 14px;
+    border-radius: 999px;
+    font-size: 12px;
+    font-weight: 700;
+    color: #3f6212;
+    letter-spacing: 0.01em;
+}
+
+.vietqr-trust-badge svg {
+    color: #65a30d;
+}
+
+.vietqr-timer-pill {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    background: #f4f4f5;
+    border: 1px solid #e4e4e7;
+    padding: 6px 14px;
+    border-radius: 999px;
+    font-size: 12.5px;
+    color: #3f3f46;
+    font-family: var(--font-mono, 'JetBrains Mono', monospace);
+}
+
+.vietqr-timer-dot {
+    width: 7px;
+    height: 7px;
+    border-radius: 50%;
+    background: #65a30d;
+    box-shadow: 0 0 8px rgba(101, 163, 13, 0.7);
+    animation: vietqrPulse 1.8s infinite;
+}
+
+.vietqr-timer-pill.warning .vietqr-timer-dot {
+    background: #f59e0b;
+    box-shadow: 0 0 8px #f59e0b;
+}
+
+.vietqr-timer-pill.warning {
+    background: #fffbeb;
+    color: #b45309;
+    border-color: #fde68a;
+}
+
+@keyframes vietqrPulse {
+    0%, 100% { opacity: 1; transform: scale(1); }
+    50% { opacity: 0.35; transform: scale(0.85); }
+}
+
+/* Two-column Grid (Tăng độ rộng cột QR) */
+.vietqr-body-grid {
+    display: grid;
+    grid-template-columns: 350px 1fr;
+    gap: 32px;
+    align-items: start;
+}
+
+/* LEFT: QR Code Column (Phóng to QR) */
+.vietqr-qr-col {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    background: #fafaf9;
+    border: 1px solid #f0f0ee;
+    border-radius: 20px;
+    padding: 22px;
+    position: relative;
+    box-sizing: border-box;
+    box-shadow: inset 0 1px 2px rgba(0, 0, 0, 0.02);
+}
+
+.vietqr-brand-row {
+    width: 100%;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    margin-bottom: 14px;
+    padding: 0 6px;
+}
+
+.vietqr-logo-tag {
+    font-size: 15px;
+    font-weight: 800;
+    letter-spacing: -0.02em;
+    display: inline-flex;
+    align-items: center;
+    gap: 3px;
+}
+
+.vietqr-logo-tag .blue {
+    color: #005baa;
+}
+
+.vietqr-logo-tag .red {
+    color: #e31837;
+}
+
+.vietqr-napas-tag {
+    font-size: 11px;
+    font-weight: 800;
+    color: #0284c7;
+    background: #e0f2fe;
+    border: 1px solid #bae6fd;
+    padding: 3px 8px;
+    border-radius: 5px;
+    letter-spacing: 0.04em;
+}
+
+/* QR Code Box (Phóng to lên 290px x 290px) */
+.vietqr-code-box {
+    position: relative;
+    width: 290px;
+    height: 290px;
+    background: #ffffff;
+    border-radius: 18px;
+    padding: 12px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    border: 1.5px solid #e4e4e7;
+    box-shadow: 
+        0 12px 28px -6px rgba(0, 0, 0, 0.1),
+        0 4px 10px -2px rgba(0, 0, 0, 0.04);
+    overflow: hidden;
+    margin-bottom: 16px;
+}
+
+.vietqr-code-img {
+    width: 100%;
+    height: 100%;
+    object-fit: contain;
+    border-radius: 10px;
+    display: block;
+    transition: opacity 0.2s ease;
+}
+
+/* Laser scan line animation */
+.vietqr-scanline {
+    position: absolute;
+    left: 10px;
+    right: 10px;
+    height: 2.5px;
+    background: linear-gradient(90deg, transparent, #84cc16 35%, #65a30d 50%, #84cc16 65%, transparent);
+    box-shadow: 0 0 10px rgba(101, 163, 13, 0.75), 0 0 3px #84cc16;
+    top: 12px;
+    animation: vietqrScan 3s ease-in-out infinite alternate;
+    pointer-events: none;
+    z-index: 2;
+}
+
+@keyframes vietqrScan {
+    0% { top: 14px; opacity: 0.35; }
+    50% { opacity: 0.95; }
+    100% { top: 272px; opacity: 0.35; }
+}
+
+.vietqr-code-caption {
+    font-size: 12.5px;
+    font-weight: 600;
+    color: #71717a;
+    text-align: center;
+    margin-bottom: 14px;
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    justify-content: center;
+}
+
+/* QR Buttons (Download & Open App) */
+.vietqr-actions-row {
+    width: 100%;
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 10px;
+}
+
+.vietqr-btn-sub {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 6px;
+    padding: 9px 12px;
+    border-radius: 10px;
+    background: #ffffff;
+    border: 1px solid #e4e4e7;
+    color: #27272a;
+    font-size: 12.5px;
+    font-weight: 700;
+    cursor: pointer;
+    transition: all 0.15s ease;
+    text-decoration: none;
+    box-shadow: 0 1px 2px rgba(0, 0, 0, 0.04);
+}
+
+.vietqr-btn-sub:hover {
+    background: #f4f4f5;
+    border-color: #d4d4d8;
+    color: #09090b;
+    transform: translateY(-1px);
+}
+
+/* RIGHT: Details & Transfer Info Column */
+.vietqr-info-col {
+    display: flex;
+    flex-direction: column;
+    gap: 18px;
+}
+
+.vietqr-plan-card {
+    background: #f7fee7;
+    border: 1px solid #d9f99d;
+    border-radius: 16px;
+    padding: 16px 20px;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 16px;
+    flex-wrap: wrap;
+}
+
+.vietqr-plan-meta h3 {
+    font-size: 18px;
+    font-weight: 800;
+    color: #14532d;
+    margin-bottom: 3px;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+
+.vietqr-plan-meta p {
+    font-size: 12.5px;
+    color: #4b5563;
+    margin: 0;
+}
+
+.vietqr-cycle-toggle {
+    display: inline-flex;
+    background: #ffffff;
+    border: 1px solid #e4e4e7;
+    border-radius: 10px;
+    padding: 3px;
+    gap: 3px;
+    box-shadow: 0 1px 3px rgba(0, 0, 0, 0.04);
+}
+
+.vietqr-cycle-btn {
+    border: none;
+    background: transparent;
+    color: #71717a;
+    padding: 6px 14px;
+    border-radius: 7px;
+    font-size: 12px;
+    font-weight: 600;
+    cursor: pointer;
+    transition: all 0.15s ease;
+    display: inline-flex;
+    align-items: center;
+    gap: 5px;
+}
+
+.vietqr-cycle-btn.active {
+    background: #84cc16;
+    color: #0c1404;
+    font-weight: 800;
+    box-shadow: 0 1px 3px rgba(132, 204, 22, 0.3);
+}
+
+.vietqr-cycle-btn small {
+    font-size: 10px;
+    color: #e11d48;
+    background: #ffe4e6;
+    padding: 1px 5px;
+    border-radius: 4px;
+    font-weight: 800;
+}
+
+.vietqr-cycle-btn.active small {
+    background: #0c1404;
+    color: #bef264;
+}
+
+/* Fields list */
+.vietqr-details-table {
+    display: flex;
+    flex-direction: column;
+    gap: 9px;
+}
+
+.vietqr-field-row {
+    background: #ffffff;
+    border: 1px solid #f0f0ee;
+    border-radius: 12px;
+    padding: 11px 15px;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+    transition: all 0.15s ease;
+    box-shadow: 0 1px 2px rgba(0, 0, 0, 0.02);
+}
+
+.vietqr-field-row:hover {
+    border-color: #e4e4e7;
+    background: #fcfcfc;
+}
+
+.vietqr-field-row.highlight {
+    background: #fbfef7;
+    border-color: #bef264;
+}
+
+.vietqr-field-label {
+    font-size: 12.5px;
+    font-weight: 600;
+    color: #71717a;
+    min-width: 120px;
+    display: flex;
+    align-items: center;
+    gap: 7px;
+}
+
+.vietqr-field-content {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    text-align: right;
+    margin-left: auto;
+}
+
+.vietqr-field-val {
+    font-size: 14.5px;
+    font-weight: 700;
+    color: #09090b;
+    font-family: var(--font-mono, 'JetBrains Mono', monospace);
+}
+
+.vietqr-field-val.amount {
+    color: #15803d;
+    font-size: 17px;
+    font-weight: 800;
+}
+
+.vietqr-field-val.code {
+    color: #b45309;
+    background: #fffbeb;
+    padding: 3px 10px;
+    border-radius: 6px;
+    border: 1.5px dashed #fcd34d;
+    font-size: 15px;
+}
+
+/* Copy Button */
+.vietqr-copy-btn {
+    border: 1px solid #e4e4e7;
+    background: #f4f4f5;
+    color: #71717a;
+    width: 30px;
+    height: 30px;
+    border-radius: 8px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    cursor: pointer;
+    transition: all 0.15s ease;
+    position: relative;
+    flex-shrink: 0;
+}
+
+.vietqr-copy-btn:hover {
+    background: #ecfccb;
+    border-color: #bef264;
+    color: #3f6212;
+    transform: scale(1.05);
+}
+
+.vietqr-copy-btn.copied {
+    background: #84cc16;
+    border-color: #84cc16;
+    color: #ffffff;
+}
+
+/* Tooltip on copied */
+.vietqr-copied-tip {
+    position: absolute;
+    bottom: calc(100% + 6px);
+    right: 50%;
+    transform: translateX(50%);
+    background: #09090b;
+    color: #ffffff;
+    font-size: 10px;
+    font-weight: 700;
+    padding: 3px 7px;
+    border-radius: 4px;
+    white-space: nowrap;
+    opacity: 0;
+    pointer-events: none;
+    transition: opacity 0.15s ease;
+    box-shadow: 0 4px 10px rgba(0, 0, 0, 0.15);
+}
+
+.vietqr-copy-btn.copied .vietqr-copied-tip {
+    opacity: 1;
+}
+
+/* Memo notice */
+.vietqr-memo-note {
+    background: #fffbeb;
+    border: 1px solid #fef3c7;
+    border-radius: 12px;
+    padding: 10px 14px;
+    font-size: 12px;
+    color: #92400e;
+    display: flex;
+    align-items: flex-start;
+    gap: 8px;
+    line-height: 1.45;
+}
+
+.vietqr-memo-note svg {
+    flex-shrink: 0;
+    margin-top: 1px;
+    color: #d97706;
+}
+
+/* Listening status */
+.vietqr-status-indicator {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    font-size: 12px;
+    color: #71717a;
+    padding: 2px 0;
+}
+
+.vietqr-status-radar {
+    position: relative;
+    width: 10px;
+    height: 10px;
+}
+
+.vietqr-status-radar::before {
+    content: '';
+    position: absolute;
+    inset: 0;
+    border-radius: 50%;
+    background: #65a30d;
+}
+
+.vietqr-status-radar::after {
+    content: '';
+    position: absolute;
+    inset: -3px;
+    border-radius: 50%;
+    border: 1.5px solid #65a30d;
+    animation: vietqrRadar 1.6s cubic-bezier(0.24, 0, 0.38, 1) infinite;
+}
+
+@keyframes vietqrRadar {
+    0% { transform: scale(0.6); opacity: 1; }
+    100% { transform: scale(2.2); opacity: 0; }
+}
+
+/* Submit Confirmation Button */
+.vietqr-submit-btn {
+    width: 100%;
+    padding: 14px 20px;
+    border-radius: 12px;
+    border: none;
+    background: #84cc16;
+    background: linear-gradient(135deg, #a3e635 0%, #84cc16 100%);
+    color: #0c1404;
+    font-size: 14.5px;
+    font-weight: 800;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 8px;
+    transition: all 0.2s cubic-bezier(0.16, 1, 0.3, 1);
+    box-shadow: 0 10px 25px -6px rgba(132, 204, 22, 0.45);
+}
+
+.vietqr-submit-btn:hover {
+    transform: translateY(-1px);
+    box-shadow: 0 14px 30px -6px rgba(132, 204, 22, 0.6);
+    background: #bef264;
+}
+
+.vietqr-submit-btn:active {
+    transform: translateY(1px);
+}
+
+.vietqr-submit-btn.loading {
+    opacity: 0.8;
+    pointer-events: none;
+}
+
+.vietqr-btn-spinner {
+    width: 16px;
+    height: 16px;
+    border: 2px solid rgba(0, 0, 0, 0.2);
+    border-top-color: #000;
+    border-radius: 50%;
+    animation: vietqrSpin 0.7s linear infinite;
+    display: none;
+}
+
+.vietqr-submit-btn.loading .vietqr-btn-spinner {
+    display: inline-block;
+}
+
+@keyframes vietqrSpin {
+    to { transform: rotate(360deg); }
+}
+
+/* SUCCESS SCREEN OVERLAY */
+.vietqr-success-card {
+    display: none;
+    text-align: center;
+    padding: 40px 20px;
+    flex-direction: column;
+    align-items: center;
+    gap: 18px;
+    animation: vietqrFadeIn 0.35s ease;
+}
+
+@keyframes vietqrFadeIn {
+    from { opacity: 0; transform: translateY(10px); }
+    to { opacity: 1; transform: translateY(0); }
+}
+
+.vietqr-success-icon-wrap {
+    width: 72px;
+    height: 72px;
+    border-radius: 50%;
+    background: #ecfccb;
+    border: 2px solid #84cc16;
+    color: #4d7c0f;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    box-shadow: 0 0 35px rgba(132, 204, 22, 0.25);
+}
+
+.vietqr-success-title {
+    font-size: 24px;
+    font-weight: 800;
+    color: #09090b;
+    margin: 0;
+}
+
+.vietqr-success-desc {
+    font-size: 14px;
+    color: #71717a;
+    max-width: 460px;
+    line-height: 1.55;
+    margin: 0;
+}
+
+.vietqr-success-plan-info {
+    background: #f4f4f5;
+    border: 1px solid #e4e4e7;
+    border-radius: 12px;
+    padding: 14px 24px;
+    font-size: 13.5px;
+    color: #18181b;
+    display: flex;
+    gap: 20px;
+    align-items: center;
+}
+
+.vietqr-success-plan-info b {
+    color: #4d7c0f;
+}
+
+.vietqr-success-btn {
+    padding: 12px 28px;
+    border-radius: 10px;
+    border: none;
+    background: #84cc16;
+    color: #0c1404;
+    font-size: 14px;
+    font-weight: 800;
+    cursor: pointer;
+    transition: all 0.15s ease;
+    box-shadow: 0 8px 20px rgba(132, 204, 22, 0.35);
+}
+
+.vietqr-success-btn:hover {
+    background: #bef264;
+    transform: translateY(-1px);
+}
+
+/* RESPONSIVE DESIGN */
+@media (max-width: 820px) {
+    .vietqr-card {
+        padding: 24px 20px;
+        max-width: 100%;
+        border-radius: 20px;
+    }
+
+    .vietqr-body-grid {
+        grid-template-columns: 1fr;
+        gap: 24px;
+    }
+
+    .vietqr-qr-col {
+        order: -1;
+    }
+
+    .vietqr-code-box {
+        width: 260px;
+        height: 260px;
+    }
+
+    .vietqr-field-label {
+        min-width: 90px;
+    }
+
+    .vietqr-field-val {
+        font-size: 13.5px;
+    }
+}
