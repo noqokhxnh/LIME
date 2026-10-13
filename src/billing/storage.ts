@@ -10,6 +10,7 @@ import type {
     UnmatchedPayment,
     PaymentResult,
     UnmatchedPaymentStatus,
+    Refund,
 } from './types.js';
 
 export const DEFAULT_PLANS: Plan[] = [
@@ -75,7 +76,12 @@ export interface IBillingStorage {
         raw: any;
     }): Promise<Payment>;
     getUserPlanExpiry(userId: string): Promise<string | null>;
-    getUnmatchedPayments(): Promise<UnmatchedPayment[]>;
+    findPaymentById(id: string): Promise<Payment | null>;
+    listDuplicatePayments(): Promise<Payment[]>;
+    getUnmatchedPayments(status?: string): Promise<UnmatchedPayment[]>;
+    recordRefund(item: Omit<Refund, 'id' | 'created_at' | 'refunded_at'>): Promise<Refund>;
+    listRefunds(): Promise<Refund[]>;
+    cancelOrder(orderId: string): Promise<Order | null>;
     resolveUnmatchedPayment(
         id: string,
         status: UnmatchedPaymentStatus,
@@ -86,7 +92,7 @@ export interface IBillingStorage {
     resetForTesting?(): Promise<void>;
 }
 
-class PostgresBillingStorage implements IBillingStorage {
+export class PostgresBillingStorage implements IBillingStorage {
     async getPlans(): Promise<Plan[]> {
         const res = await db.query('SELECT * FROM plans WHERE is_active = true ORDER BY price_vnd ASC');
         if (res.rows.length === 0) {
@@ -394,8 +400,11 @@ class PostgresBillingStorage implements IBillingStorage {
         return new Date(res.rows[0].plan_expires_at).toISOString();
     }
 
-    async getUnmatchedPayments(): Promise<UnmatchedPayment[]> {
-        const res = await db.query('SELECT * FROM unmatched_payments ORDER BY created_at DESC LIMIT 100');
+    async getUnmatchedPayments(status?: string): Promise<UnmatchedPayment[]> {
+        const filter = status && status !== 'all' ? status : null;
+        const res = filter
+            ? await db.query('SELECT * FROM unmatched_payments WHERE status = $1 ORDER BY created_at DESC LIMIT 100', [filter])
+            : await db.query('SELECT * FROM unmatched_payments ORDER BY created_at DESC LIMIT 100');
         return res.rows.map(r => ({
             id: r.id,
             sepay_ref: r.sepay_ref,
@@ -408,6 +417,89 @@ class PostgresBillingStorage implements IBillingStorage {
             resolved_at: r.resolved_at ? new Date(r.resolved_at).toISOString() : null,
             created_at: new Date(r.created_at).toISOString(),
         }));
+    }
+
+    async findPaymentById(id: string): Promise<Payment | null> {
+        const res = await db.query('SELECT * FROM payments WHERE id = $1 LIMIT 1', [id]);
+        if (res.rows.length === 0) return null;
+        const r = res.rows[0];
+        return {
+            id: r.id,
+            order_id: r.order_id,
+            sepay_ref: r.sepay_ref,
+            amount_vnd: r.amount_vnd,
+            raw: r.raw,
+            received_at: new Date(r.received_at).toISOString(),
+            result: r.result,
+        };
+    }
+
+    async listDuplicatePayments(): Promise<Payment[]> {
+        const res = await db.query(
+            `SELECT * FROM payments WHERE result = 'duplicate' ORDER BY received_at DESC LIMIT 100`
+        );
+        return res.rows.map(r => ({
+            id: r.id,
+            order_id: r.order_id,
+            sepay_ref: r.sepay_ref,
+            amount_vnd: r.amount_vnd,
+            raw: r.raw,
+            received_at: new Date(r.received_at).toISOString(),
+            result: r.result,
+        }));
+    }
+
+    async recordRefund(item: Omit<Refund, 'id' | 'created_at' | 'refunded_at'>): Promise<Refund> {
+        const id = randomUUID();
+        const res = await db.query(
+            `INSERT INTO refunds (id, source_type, source_id, sepay_ref, amount_vnd, bank_account, bank_name, admin_note, refunded_by)
+             VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
+             RETURNING *`,
+            [id, item.source_type, item.source_id, item.sepay_ref, item.amount_vnd, item.bank_account, item.bank_name, item.admin_note || null, item.refunded_by || null]
+        );
+        const r = res.rows[0];
+        return {
+            id: r.id,
+            source_type: r.source_type,
+            source_id: r.source_id,
+            sepay_ref: r.sepay_ref,
+            amount_vnd: r.amount_vnd,
+            bank_account: r.bank_account,
+            bank_name: r.bank_name,
+            admin_note: r.admin_note,
+            refunded_by: r.refunded_by,
+            refunded_at: new Date(r.refunded_at).toISOString(),
+            created_at: new Date(r.created_at).toISOString(),
+        };
+    }
+
+    async listRefunds(): Promise<Refund[]> {
+        const res = await db.query('SELECT * FROM refunds ORDER BY created_at DESC LIMIT 100');
+        return res.rows.map(r => ({
+            id: r.id,
+            source_type: r.source_type,
+            source_id: r.source_id,
+            sepay_ref: r.sepay_ref,
+            amount_vnd: r.amount_vnd,
+            bank_account: r.bank_account,
+            bank_name: r.bank_name,
+            admin_note: r.admin_note,
+            refunded_by: r.refunded_by,
+            refunded_at: new Date(r.refunded_at).toISOString(),
+            created_at: new Date(r.created_at).toISOString(),
+        }));
+    }
+
+    async cancelOrder(orderId: string): Promise<Order | null> {
+        const res = await db.query(
+            `UPDATE orders
+             SET status = 'cancelled'
+             WHERE id = $1 AND status IN ('pending', 'claimed')
+             RETURNING *`,
+            [orderId]
+        );
+        if (res.rows.length === 0) return null;
+        return this.mapOrder(res.rows[0]);
     }
 
     async resolveUnmatchedPayment(
@@ -471,16 +563,18 @@ class PostgresBillingStorage implements IBillingStorage {
     }
 
     async resetForTesting(): Promise<void> {
+        await db.query('DELETE FROM refunds');
         await db.query('DELETE FROM payments');
         await db.query('DELETE FROM unmatched_payments');
         await db.query('DELETE FROM orders');
     }
 }
 
-class InMemoryBillingStorage implements IBillingStorage {
+export class InMemoryBillingStorage implements IBillingStorage {
     private orders = new Map<string, Order>();
     private payments = new Map<string, Payment>();
     private unmatched = new Map<string, UnmatchedPayment>();
+    private refunds = new Map<string, Refund>();
     private userExpiries = new Map<string, string>();
     private userCredits = new Map<string, number>();
     private filePath: string;
@@ -502,6 +596,9 @@ class InMemoryBillingStorage implements IBillingStorage {
                 }
                 if (data.unmatched) {
                     for (const u of data.unmatched) this.unmatched.set(u.id, u);
+                }
+                if (data.refunds) {
+                    for (const r of data.refunds) this.refunds.set(r.id, r);
                 }
                 if (data.userExpiries) {
                     for (const [k, v] of Object.entries(data.userExpiries)) this.userExpiries.set(k, v as string);
@@ -525,6 +622,7 @@ class InMemoryBillingStorage implements IBillingStorage {
                 orders: Array.from(this.orders.values()),
                 payments: Array.from(this.payments.values()),
                 unmatched: Array.from(this.unmatched.values()),
+                refunds: Array.from(this.refunds.values()),
                 userExpiries: Object.fromEntries(this.userExpiries.entries()),
                 userCredits: Object.fromEntries(this.userCredits.entries()),
             };
@@ -732,8 +830,49 @@ class InMemoryBillingStorage implements IBillingStorage {
         return this.userExpiries.get(userId) || null;
     }
 
-    async getUnmatchedPayments(): Promise<UnmatchedPayment[]> {
-        return Array.from(this.unmatched.values()).sort((a, b) => (b.created_at > a.created_at ? 1 : -1));
+    async getUnmatchedPayments(status?: string): Promise<UnmatchedPayment[]> {
+        let list = Array.from(this.unmatched.values());
+        if (status && status !== 'all') {
+            list = list.filter(u => u.status === status);
+        }
+        return list.sort((a, b) => (b.created_at > a.created_at ? 1 : -1));
+    }
+
+    async findPaymentById(id: string): Promise<Payment | null> {
+        return this.payments.get(id) || null;
+    }
+
+    async listDuplicatePayments(): Promise<Payment[]> {
+        return Array.from(this.payments.values())
+            .filter(p => p.result === 'duplicate')
+            .sort((a, b) => (b.received_at > a.received_at ? 1 : -1));
+    }
+
+    async recordRefund(item: Omit<Refund, 'id' | 'created_at' | 'refunded_at'>): Promise<Refund> {
+        const id = randomUUID();
+        const now = new Date().toISOString();
+        const refund: Refund = {
+            ...item,
+            id,
+            refunded_at: now,
+            created_at: now,
+        };
+        this.refunds.set(id, refund);
+        this.saveToDisk();
+        return refund;
+    }
+
+    async listRefunds(): Promise<Refund[]> {
+        return Array.from(this.refunds.values()).sort((a, b) => (b.created_at > a.created_at ? 1 : -1));
+    }
+
+    async cancelOrder(orderId: string): Promise<Order | null> {
+        const order = this.orders.get(orderId);
+        if (!order) return null;
+        if (order.status !== 'pending' && order.status !== 'claimed') return null;
+        order.status = 'cancelled';
+        this.saveToDisk();
+        return order;
     }
 
     async resolveUnmatchedPayment(
@@ -763,6 +902,7 @@ class InMemoryBillingStorage implements IBillingStorage {
         this.orders.clear();
         this.payments.clear();
         this.unmatched.clear();
+        this.refunds.clear();
         this.userExpiries.clear();
         this.userCredits.clear();
         try {
