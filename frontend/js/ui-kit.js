@@ -176,5 +176,12 @@
         else if (confirmResolver) UI.Confirm.resolve(false);
     });
 
+    UI.toast = (message, type = 'info', duration) => UI.Toast.show(message, type, duration);
+    UI.confirm = (message, title = 'Xác nhận') => UI.Confirm.show({ message, title });
+
     global.LIMEUI = UI;
-})(window);
+})(typeof window !== 'undefined' ? window : globalThis);
+
+export const LIMEUI = (typeof window !== 'undefined' ? window.LIMEUI : undefined) || {};
+export default LIMEUI;
+
