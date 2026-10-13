@@ -6,43 +6,58 @@
     <title>Cài đặt & Tùy biến — LIME Studio</title>
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-    <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&family=JetBrains+Mono:wght@500;600&display=swap" rel="stylesheet">
+    <link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;600;700&family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@500;600;700&display=swap" rel="stylesheet">
     <link rel="stylesheet" href="/style.css">
     <link rel="stylesheet" href="/css/ui-kit.css">
     <style>
         :root {
-            --bg-dark: #090a0f;
-            --bg-card: rgba(18, 20, 29, 0.85);
-            --border-card: rgba(255, 255, 255, 0.08);
-            --primary-lime: #a3e635;
-            --primary-glow: rgba(163, 230, 53, 0.25);
-            --text-main: #f8fafc;
-            --text-muted: #94a3b8;
+            --paper: #F6F5F0;
+            --card: #FFFFFF;
+            --ink: #14160F;
+            --muted: #6E7268;
+            --line: #E7E5DC;
+            --lime: #B9E72B;
+            --lime-deep: #8FBE0A;
+            --lime-ink: #22300A;
+            --soft: #EAF6C3;
+            --dark: #15170F;
+            --danger: #DC2626;
+            /* tương thích inline style cũ trong HTML */
+            --text-main: var(--ink);
+            --text-muted: var(--muted);
+            --border-card: var(--line);
         }
 
         body {
-            background-color: var(--bg-dark);
-            color: var(--text-main);
-            font-family: 'Plus Jakarta Sans', sans-serif;
+            background-color: var(--paper);
+            background-image:
+                linear-gradient(rgba(20, 22, 15, 0.05) 1px, transparent 1px),
+                linear-gradient(90deg, rgba(20, 22, 15, 0.05) 1px, transparent 1px);
+            background-size: 32px 32px;
+            color: var(--ink);
+            font-family: 'Inter', system-ui, sans-serif;
             min-height: 100vh;
             margin: 0;
             padding: 0;
             display: flex;
             flex-direction: column;
-            background-image:
-                radial-gradient(ellipse at 85% 15%, rgba(163, 230, 53, 0.07) 0%, transparent 45%),
-                radial-gradient(ellipse at 15% 85%, rgba(56, 189, 248, 0.05) 0%, transparent 50%);
             background-attachment: fixed;
+        }
+
+        h1, h3, .nav-brand span {
+            font-family: 'Space Grotesk', 'Inter', system-ui, sans-serif;
         }
 
         .settings-nav {
             display: flex;
             align-items: center;
             justify-content: space-between;
-            padding: 1rem 2rem;
-            background: rgba(10, 12, 18, 0.8);
+            padding: 0 2rem;
+            height: 76px;
+            background: rgba(246, 245, 240, 0.88);
             backdrop-filter: blur(12px);
-            border-bottom: 1px solid var(--border-card);
+            -webkit-backdrop-filter: blur(12px);
+            border-bottom: 1px solid var(--line);
             position: sticky;
             top: 0;
             z-index: 50;
@@ -53,7 +68,7 @@
             align-items: center;
             gap: 0.75rem;
             text-decoration: none;
-            color: var(--text-main);
+            color: var(--ink);
         }
 
         .nav-brand img {
@@ -63,31 +78,32 @@
         }
 
         .nav-brand span {
-            font-weight: 800;
+            font-weight: 700;
             font-size: 1.15rem;
             letter-spacing: -0.02em;
-            background: linear-gradient(135deg, #fff 0%, #cbd5e1 100%);
-            -webkit-background-clip: text;
-            -webkit-text-fill-color: transparent;
+            color: var(--ink);
         }
 
         .btn-nav {
-            padding: 0.5rem 1rem;
-            border-radius: 8px;
+            padding: 0.55rem 1.1rem;
+            border-radius: 9999px;
             font-size: 0.875rem;
             font-weight: 600;
             text-decoration: none;
-            transition: all 0.2s ease;
+            transition: all 0.2s cubic-bezier(0.16, 1, 0.3, 1);
             display: inline-flex;
             align-items: center;
             gap: 0.4rem;
-            color: var(--text-muted);
-            border: 1px solid transparent;
+            color: var(--muted);
+            background: #fff;
+            border: 1px solid var(--line);
+            cursor: pointer;
+            font-family: 'Inter', system-ui, sans-serif;
         }
 
         .btn-nav:hover {
-            color: var(--text-main);
-            background: rgba(255, 255, 255, 0.05);
+            color: var(--ink);
+            border-color: var(--lime-deep);
         }
 
         .settings-container {
@@ -104,13 +120,14 @@
 
         .settings-header h1 {
             font-size: 1.85rem;
-            font-weight: 800;
+            font-weight: 700;
             margin: 0 0 0.5rem 0;
             letter-spacing: -0.02em;
+            color: var(--ink);
         }
 
         .settings-header p {
-            color: var(--text-muted);
+            color: var(--muted);
             margin: 0;
             font-size: 0.95rem;
         }
@@ -118,35 +135,42 @@
         /* Tabs styling */
         .settings-tabs {
             display: flex;
-            gap: 0.5rem;
-            border-bottom: 1px solid var(--border-card);
+            gap: 0.25rem;
+            border-bottom: 1px solid var(--line);
             margin-bottom: 2rem;
             overflow-x: auto;
+            background: var(--card);
+            border-top: 1px solid var(--line);
+            border-left: 1px solid var(--line);
+            border-right: 1px solid var(--line);
+            border-radius: 16px 16px 0 0;
+            padding: 0.5rem 0.75rem 0;
         }
 
         .tab-btn {
             background: none;
             border: none;
             padding: 0.75rem 1.25rem;
-            color: var(--text-muted);
+            color: var(--muted);
             font-weight: 600;
             font-size: 0.95rem;
             cursor: pointer;
             border-bottom: 2px solid transparent;
-            transition: all 0.2s ease;
+            transition: color 0.2s ease, border-color 0.2s ease;
             display: inline-flex;
             align-items: center;
             gap: 0.5rem;
             white-space: nowrap;
+            font-family: 'Inter', system-ui, sans-serif;
         }
 
         .tab-btn:hover {
-            color: var(--text-main);
+            color: var(--ink);
         }
 
         .tab-btn.active {
-            color: var(--primary-lime);
-            border-bottom-color: var(--primary-lime);
+            color: var(--lime-ink);
+            border-bottom-color: var(--lime-deep);
         }
 
         /* Settings Card Panels */
@@ -159,23 +183,23 @@
         }
 
         .card-panel {
-            background: var(--bg-card);
-            border: 1px solid var(--border-card);
-            border-radius: 18px;
+            background: var(--card);
+            border: 1px solid var(--line);
+            border-radius: 20px;
             padding: 2rem;
-            backdrop-filter: blur(14px);
             margin-bottom: 2rem;
-            box-shadow: 0 10px 30px rgba(0, 0, 0, 0.25);
+            box-shadow: 0 2px 12px rgba(20, 22, 15, 0.06);
         }
 
         .card-panel h3 {
             margin: 0 0 0.4rem 0;
             font-size: 1.25rem;
             font-weight: 700;
+            color: var(--ink);
         }
 
         .card-panel .card-subtitle {
-            color: var(--text-muted);
+            color: var(--muted);
             font-size: 0.875rem;
             margin: 0 0 1.5rem 0;
         }
@@ -189,25 +213,34 @@
             font-weight: 600;
             font-size: 0.875rem;
             margin-bottom: 0.5rem;
-            color: #e2e8f0;
+            color: var(--ink);
         }
 
         .form-control {
             width: 100%;
             padding: 0.75rem 1rem;
-            background: rgba(10, 12, 18, 0.7);
-            border: 1px solid var(--border-card);
-            border-radius: 10px;
-            color: #fff;
+            background: var(--card);
+            border: 1px solid var(--line);
+            border-radius: 12px;
+            color: var(--ink);
             font-size: 0.95rem;
+            font-family: 'Inter', system-ui, sans-serif;
             box-sizing: border-box;
-            transition: border-color 0.2s ease;
+            transition: border-color 0.2s ease, box-shadow 0.2s ease;
+        }
+
+        .form-control::placeholder {
+            color: var(--muted);
         }
 
         .form-control:focus {
             outline: none;
-            border-color: var(--primary-lime);
-            box-shadow: 0 0 0 2px rgba(163, 230, 53, 0.2);
+            border-color: var(--lime-deep);
+            box-shadow: 0 0 0 3px rgba(185, 231, 43, 0.35);
+        }
+
+        select.form-control {
+            cursor: pointer;
         }
 
         .form-row-2 {
@@ -217,24 +250,25 @@
         }
 
         .btn-save {
-            background: var(--primary-lime);
-            color: #000;
+            background: var(--lime);
+            color: var(--lime-ink);
             font-weight: 700;
-            padding: 0.75rem 1.75rem;
-            border-radius: 10px;
+            padding: 0.8rem 1.9rem;
+            border-radius: 9999px;
             border: none;
             cursor: pointer;
             font-size: 0.95rem;
-            transition: all 0.2s ease;
-            box-shadow: 0 2px 10px var(--primary-glow);
+            font-family: 'Inter', system-ui, sans-serif;
+            transition: transform 0.2s cubic-bezier(0.16, 1, 0.3, 1), box-shadow 0.2s ease;
+            box-shadow: 0 6px 20px rgba(143, 190, 10, 0.35);
             display: inline-flex;
             align-items: center;
             gap: 0.5rem;
         }
 
         .btn-save:hover {
-            background: #bef264;
             transform: translateY(-1px);
+            box-shadow: 0 8px 24px rgba(143, 190, 10, 0.45);
         }
 
         /* Brand Kit Watermark Preview */
@@ -242,9 +276,9 @@
             position: relative;
             width: 100%;
             height: 220px;
-            background: #000;
-            border: 1px dashed rgba(255, 255, 255, 0.15);
-            border-radius: 12px;
+            background: var(--paper);
+            border: 1px dashed var(--line);
+            border-radius: 16px;
             overflow: hidden;
             display: flex;
             align-items: center;
@@ -253,7 +287,7 @@
         }
 
         .preview-video-placeholder {
-            color: rgba(255, 255, 255, 0.2);
+            color: var(--muted);
             font-weight: 600;
             letter-spacing: 0.05em;
             text-transform: uppercase;
@@ -275,8 +309,12 @@
         .pos-bottom-right { bottom: 16px; right: 16px; }
 
         @media (max-width: 640px) {
+            .settings-nav { padding: 0 1rem; }
             .form-row-2 {
                 grid-template-columns: 1fr;
+            }
+            .card-panel {
+                padding: 1.5rem;
             }
         }
     </style>
@@ -290,15 +328,12 @@
 
         <div style="display: flex; align-items: center; gap: 0.5rem;">
             <a href="/ui" class="btn-nav">
-                <span>⚡</span>
                 <span>Studio</span>
             </a>
             <a href="/profile" class="btn-nav">
-                <span>👤</span>
                 <span>Hồ sơ</span>
             </a>
             <a href="/admin" id="nav-admin-link" class="btn-nav" style="display: none; color: #f87171;">
-                <span>🛡️</span>
                 <span>Quản trị</span>
             </a>
         </div>
@@ -313,15 +348,12 @@
         <!-- Navigation Tabs -->
         <div class="settings-tabs">
             <button class="tab-btn active" data-tab="ai-voice">
-                <span>🤖</span>
                 <span>AI & Giọng đọc</span>
             </button>
             <button class="tab-btn" data-tab="brand-kit">
-                <span>🎨</span>
                 <span>Brand Kit & Watermark</span>
             </button>
             <button class="tab-btn" data-tab="security">
-                <span>🔒</span>
                 <span>Tài khoản & Bảo mật</span>
             </button>
         </div>
