@@ -30,10 +30,30 @@
             <button type="button" class="ws-tab" data-ws="export">Xuất bản</button>
         </nav>
         <div class="top-right">
-            <a href="/profile" class="ws-nav-link" style="color: #cbd5e1; text-decoration: none; font-size: 0.85rem; margin-right: 0.5rem;" title="Trang cá nhân">👤 <span id="ws-username" class="ws-user"></span></a>
-            <a href="/setting" class="ws-nav-link" style="color: #94a3b8; text-decoration: none; font-size: 0.85rem; margin-right: 0.5rem;" title="Cài đặt">⚙️</a>
-            <a href="/admin" id="ws-admin-link" class="ws-nav-link" style="display: none; color: #f87171; text-decoration: none; font-size: 0.85rem; margin-right: 0.5rem; font-weight: 600;" title="Quản trị Super Admin">🛡️ Admin</a>
-            <button type="button" id="ws-logout-btn" class="ws-logout">Đăng xuất</button>
+            <div class="ws-user-menu" id="ws-user-menu">
+                <button type="button" class="ws-user-btn" id="ws-user-btn" aria-haspopup="true" aria-expanded="false" title="Menu người dùng">
+                    <span class="ws-user-avatar" id="ws-user-avatar">U</span>
+                    <span id="ws-username" class="ws-user-name"></span>
+                    <svg class="ws-user-arrow" width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+                        <path d="m6 9 6 6 6-6"/>
+                    </svg>
+                </button>
+                <div class="ws-user-dropdown" id="ws-user-dropdown" role="menu">
+                    <a href="/profile" class="ws-dropdown-item" role="menuitem">
+                        <span>Thông tin tài khoản</span>
+                    </a>
+                    <a href="/setting" class="ws-dropdown-item" role="menuitem">
+                        <span>Cài đặt</span>
+                    </a>
+                    <a href="/admin" id="ws-admin-link" class="ws-dropdown-item ws-dropdown-admin" role="menuitem" style="display: none;">
+                        <span>Quản trị Admin</span>
+                    </a>
+                    <div class="ws-dropdown-divider"></div>
+                    <button type="button" id="ws-logout-btn" class="ws-dropdown-item ws-dropdown-logout" role="menuitem">
+                        <span>Đăng xuất</span>
+                    </button>
+                </div>
+            </div>
             <button type="button" class="btn-export" id="topbar-export-btn">Xuất bản ↓</button>
         </div>
     </header>
