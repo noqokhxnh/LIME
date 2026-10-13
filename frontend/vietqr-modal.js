@@ -145,7 +145,7 @@
 
         const planMetaTitle = document.querySelector('.vietqr-plan-meta h3');
         const planMetaDesc = document.querySelector('.vietqr-plan-meta p');
-        if (planMetaTitle) planMetaTitle.textContent = `✦ ${plan.name}`;
+        if (planMetaTitle) planMetaTitle.textContent = plan.name;
         if (planMetaDesc) planMetaDesc.textContent = plan.features;
 
         document.querySelectorAll('.vietqr-cycle-btn').forEach(btn => {
@@ -357,7 +357,7 @@
                 console.warn('[VietQR] Claim error:', e);
             }
             submitBtn.classList.remove('loading');
-            submitBtn.textContent = '✓ Đang chờ ngân hàng xác nhận giao dịch...';
+            submitBtn.textContent = 'Đang chờ ngân hàng xác nhận giao dịch...';
         } else {
             // Simulated fallback
             setTimeout(() => {
