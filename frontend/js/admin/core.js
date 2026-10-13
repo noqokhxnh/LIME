@@ -22,34 +22,22 @@ export const AdminCore = {
     async init() {
         AdminState.init();
 
-        // 1. Strict Auth Guard
-        let token = AdminApi.getToken();
-        if (!token) {
-            try {
-                const cookieRes = await fetch('/api/auth/me', { credentials: 'include' });
-                const authData = await cookieRes.json();
-                if (authData?.authenticated && authData?.token) {
-                    localStorage.setItem('vidtml_token', authData.token);
-                    token = authData.token;
-                }
-            } catch (e) {}
-        }
-
-        if (!token) {
-            console.warn('[Admin] Chưa đăng nhập, chuyển hướng về trang chủ.');
-            window.location.replace('/');
-            return;
-        }
-
+        // 1. Strict Auth Guard (Session Cookie Authentication)
         try {
             const authRes = await AdminApi.getMe();
-            if (!authRes.authenticated || !authRes.user || authRes.user.role !== 'admin') {
+            const user = authRes?.user || authRes;
+            if (!user || user.role !== 'admin') {
                 console.warn('[Admin] Tài khoản không có quyền Admin, chuyển hướng về trang chủ.');
                 window.location.replace('/');
                 return;
             }
-            this.currentUser = authRes.user;
-            this.renderUserProfile(authRes.user);
+            if (user.status === 'banned') {
+                console.warn('[Admin] Tài khoản quản trị đã bị khóa, chuyển hướng về trang chủ.');
+                window.location.replace('/');
+                return;
+            }
+            this.currentUser = user;
+            this.renderUserProfile(user);
         } catch (err) {
             console.error('[Admin] Lỗi xác thực tài khoản:', err);
             window.location.replace('/');
@@ -79,10 +67,11 @@ export const AdminCore = {
         const roleEl = document.getElementById('admin-sidebar-user-role');
         const avatarEl = document.getElementById('admin-sidebar-user-avatar');
 
-        if (nameEl) nameEl.textContent = user.name || user.email;
+        const displayName = user.name || user.username || user.email || 'Admin';
+        if (nameEl) nameEl.textContent = displayName;
         if (roleEl) roleEl.textContent = (user.role || 'Admin').toUpperCase();
         if (avatarEl) {
-            avatarEl.textContent = (user.name || user.email || 'A').slice(0, 1).toUpperCase();
+            avatarEl.textContent = displayName.slice(0, 1).toUpperCase();
         }
     },
 
