@@ -267,19 +267,15 @@ describe('Module 9: Fastify API Server & Health Endpoint (src/index.ts)', () => 
         });
     });
 
-    describe('TC-API-007: Giao diện Web Studio (GET /ui và GET / với Accept text/html)', () => {
-        it('phải phục vụ giao diện HTML khi truy cập GET /ui', async () => {
+    describe('TC-API-007: Giao diện Web Studio (GET /ui chuyển hướng về /workspace, GET / với Accept text/html)', () => {
+        it('phải chuyển hướng 302 về /workspace khi truy cập GET /ui', async () => {
             const response = await app.inject({
                 method: 'GET',
                 url: '/ui',
             });
 
-            assert.strictEqual(response.statusCode, 200);
-            assert.ok(response.headers['content-type']?.includes('text/html'));
-            assert.ok(response.body.includes('prompt-input'));
-            assert.ok(response.body.includes('generate-btn'));
-            assert.ok(response.body.includes('log-viewer'));
-            assert.ok(response.body.includes('video-player'));
+            assert.strictEqual(response.statusCode, 302);
+            assert.strictEqual(response.headers['location'], '/workspace');
         });
 
         it('phải phục vụ giao diện HTML khi trình duyệt truy cập GET / với header Accept text/html', async () => {

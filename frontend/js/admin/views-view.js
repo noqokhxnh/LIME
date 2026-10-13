@@ -146,7 +146,7 @@ export const ViewsView = {
                             <select class="select-custom" id="filter-views-path">
                                 <option value="all" ${state.path === 'all' ? 'selected' : ''}>Tất cả trang</option>
                                 <option value="/" ${state.path === '/' ? 'selected' : ''}>/ (Trang chủ)</option>
-                                <option value="/ui" ${state.path === '/ui' ? 'selected' : ''}>/ui (Studio)</option>
+                                <option value="/workspace" ${state.path === '/workspace' || state.path === '/ui' ? 'selected' : ''}>/workspace (Studio)</option>
                                 <option value="/admin" ${state.path === '/admin' ? 'selected' : ''}>/admin (Quản trị)</option>
                             </select>
                         </div>
@@ -442,7 +442,7 @@ export const ViewsView = {
                 const timestamp = v.timestamp ? new Date(v.timestamp).toLocaleString('vi-VN') : 'N/A';
 
                 const deviceBadgeClass = v.device === 'Mobile' ? 'badge-primary' : v.device === 'Tablet' ? 'badge-info' : v.device === 'Bot' ? 'badge-warning' : 'badge-neutral';
-                const pathBadgeClass = v.path === '/admin' ? 'badge-warning' : v.path === '/ui' ? 'badge-primary' : 'badge-neutral';
+                const pathBadgeClass = v.path === '/admin' ? 'badge-warning' : (v.path === '/workspace' || v.path === '/ui') ? 'badge-primary' : 'badge-neutral';
 
                 const userDisplay = v.userEmail || v.userName
                     ? `<div style="display: flex; align-items: center; gap: 6px;"><span class="badge badge-primary" style="font-size: 10px;">User</span><div style="font-weight: 500; color: var(--text-main); font-size: 12px; max-width: 160px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;" title="${escapeHtml(v.userName || v.userEmail)}">${escapeHtml(v.userName || v.userEmail)}</div></div><div style="font-size: 11px; color: var(--text-muted); font-family: var(--font-mono); margin-top: 2px;">${escapeHtml(v.ip)}</div>`
