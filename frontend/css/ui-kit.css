@@ -1,0 +1,107 @@
+/* ============================================================
+   LIME UI Kit — shared toast / drawer / confirm
+   Đồng bộ design system: light paper #F6F5F0, accent lime #B9E72B
+   ============================================================ */
+:root {
+    --lime-paper: #F6F5F0;
+    --lime-surface: rgba(255, 255, 255, 0.94);
+    --lime-surface-raised: #FFFFFF;
+    --lime-ink: #14160F;
+    --lime-secondary: #6E7268;
+    --lime-rule: #E7E5DC;
+    --lime-accent: #B9E72B;
+    --lime-accent-deep: #8FBE0A;
+    --lime-accent-ink: #22300A;
+    --lime-red: #DC2626;
+    --lime-shadow: 0 18px 48px rgba(20, 22, 15, 0.14), 0 2px 12px rgba(20, 22, 15, 0.06);
+    --lime-ease: cubic-bezier(.16, 1, .3, 1);
+}
+
+.lime-toast-region {
+    position: fixed; z-index: 12000; right: 22px; bottom: 22px;
+    display: flex; flex-direction: column; align-items: flex-end; gap: 8px;
+    pointer-events: none;
+}
+.lime-toast {
+    max-width: min(420px, calc(100vw - 32px)); padding: 12px 16px;
+    border: 1px solid var(--lime-rule); border-left: 3px solid var(--lime-accent);
+    border-radius: 12px;
+    background: var(--lime-surface-raised); color: var(--lime-ink);
+    box-shadow: var(--lime-shadow);
+    font: 500 13px/1.45 'Inter', system-ui, sans-serif;
+    animation: lime-toast-in 180ms var(--lime-ease) both;
+    pointer-events: auto;
+}
+.lime-toast-success { border-left-color: #65A30D; }
+.lime-toast-error { border-left-color: var(--lime-red); }
+.lime-toast-info { border-left-color: #1D4ED8; }
+.lime-toast-warning { border-left-color: #B45309; }
+.lime-toast.is-leaving { opacity: 0; transform: translateY(6px); transition: 180ms ease; }
+@keyframes lime-toast-in { from { opacity: 0; transform: translateY(7px); } to { opacity: 1; transform: translateY(0); } }
+
+.lime-drawer-backdrop {
+    position: fixed; z-index: 10990; inset: 0; background: rgba(20, 22, 15, 0.35);
+    opacity: 0; transition: opacity 300ms var(--lime-ease); pointer-events: none;
+}
+.lime-drawer-backdrop[hidden], .lime-confirm-backdrop[hidden] { display: none; }
+.lime-drawer-backdrop.is-open { opacity: 1; pointer-events: auto; }
+.lime-drawer-panel {
+    position: fixed; z-index: 10991; inset: 0 0 0 auto; width: min(480px, 92vw);
+    display: flex; flex-direction: column; overflow: hidden;
+    color: var(--lime-ink); background: var(--lime-paper);
+    border-left: 1px solid var(--lime-rule); box-shadow: var(--lime-shadow);
+    transform: translateX(102%);
+    transition: transform 300ms var(--lime-ease);
+}
+.lime-drawer-panel.is-open { transform: translateX(0); }
+/* Admin styles also target .drawer-panel; keep the shared panel above its backdrop. */
+.lime-drawer-panel.drawer-panel { z-index: 10991; }
+.lime-drawer-header, .lime-drawer-footer {
+    flex: 0 0 auto; min-height: 52px; padding: 12px 20px;
+    display: flex; align-items: center; justify-content: space-between;
+    background: var(--lime-surface-raised); border-bottom: 1px solid var(--lime-rule);
+}
+.lime-drawer-footer { justify-content: flex-end; gap: 8px; border: 0; border-top: 1px solid var(--lime-rule); }
+.lime-drawer-title { color: var(--lime-ink); font-family: 'Space Grotesk', 'Inter', sans-serif; font-size: 16px; font-weight: 700; }
+.lime-drawer-subtitle { margin-top: 2px; color: var(--lime-secondary); font-size: 12px; }
+.lime-drawer-body { flex: 1; min-height: 0; overflow: auto; padding: 20px; font-family: 'Inter', system-ui, sans-serif; }
+.lime-close-button {
+    width: 30px; height: 30px; border: 1px solid var(--lime-rule); border-radius: 50%;
+    background: #fff; color: var(--lime-secondary); cursor: pointer; font-size: 16px; line-height: 1;
+    transition: border-color 180ms var(--lime-ease), color 180ms var(--lime-ease);
+}
+.lime-close-button:hover { border-color: var(--lime-accent-deep); color: var(--lime-ink); }
+
+.lime-confirm-backdrop {
+    position: fixed; z-index: 11990; inset: 0; display: grid; place-items: center; padding: 18px;
+    background: rgba(20, 22, 15, 0.35); opacity: 0;
+    transition: opacity 180ms ease; pointer-events: none;
+}
+.lime-confirm-backdrop.is-open { opacity: 1; pointer-events: auto; }
+.lime-confirm-dialog {
+    width: min(420px, 100%); padding: 22px; border: 1px solid var(--lime-rule); border-radius: 20px;
+    background: var(--lime-surface-raised); color: var(--lime-ink); box-shadow: var(--lime-shadow);
+    font: 13px/1.55 'Inter', system-ui, sans-serif;
+    transform: translateY(5px) scale(.99); transition: transform 180ms var(--lime-ease);
+}
+.lime-confirm-backdrop.is-open .lime-confirm-dialog { transform: none; }
+.lime-confirm-dialog h2 { margin: 0 0 9px; font-family: 'Space Grotesk', 'Inter', sans-serif; font-size: 17px; font-weight: 700; }
+.lime-confirm-actions { display: flex; justify-content: flex-end; gap: 8px; margin-top: 22px; }
+.lime-confirm-actions button {
+    min-height: 34px; padding: 0 18px; border: 1px solid var(--lime-rule); border-radius: 9999px;
+    background: #fff; color: var(--lime-ink); font: inherit; font-weight: 600; cursor: pointer;
+    transition: border-color 180ms var(--lime-ease);
+}
+.lime-confirm-actions button:hover { border-color: var(--lime-accent-deep); }
+.lime-confirm-actions button[data-action="confirm"] { background: var(--lime-accent); color: var(--lime-accent-ink); border-color: var(--lime-accent); }
+.lime-confirm-actions button.is-danger { background: var(--lime-red); border-color: var(--lime-red); color: #fff; }
+.lime-confirm-actions button:focus-visible, .lime-close-button:focus-visible { outline: 2px solid var(--lime-accent-deep); outline-offset: 2px; }
+
+@media (max-width: 520px) {
+    .lime-toast-region { right: 12px; bottom: 12px; left: 12px; align-items: stretch; }
+    .lime-toast { max-width: none; }
+    .lime-drawer-panel { width: 100vw; }
+}
+@media (prefers-reduced-motion: reduce) {
+    .lime-toast, .lime-drawer-backdrop, .lime-drawer-panel, .lime-confirm-backdrop, .lime-confirm-dialog { animation-duration: .01ms; transition-duration: .01ms; }
+}

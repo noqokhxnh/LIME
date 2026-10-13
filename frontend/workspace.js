@@ -14,8 +14,10 @@ const loginPassword = document.getElementById('login-password');
 const loginMessage = document.getElementById('login-message');
 const wsUsername = document.getElementById('ws-username');
 const wsLogoutBtn = document.getElementById('ws-logout-btn');
-function setWsUser(name) {
+function setWsUser(name, role) {
     if (wsUsername) wsUsername.textContent = name || '';
+    const adminLink = document.getElementById('ws-admin-link');
+    if (adminLink && role === 'admin') adminLink.style.display = 'inline-block';
 }
 const loginForm = document.getElementById('login-form');
 const registerForm = document.getElementById('register-form');
@@ -1163,8 +1165,9 @@ async function checkCurrentUser() {
     try {
         const res = await fetch(`${API_BASE}/api/auth/me`, { method: 'GET', credentials: 'include' });
         if (!res.ok) { window.location.href = '/?auth=open'; return; }
-        const user = await res.json();
-        setWsUser(user.username);
+        const data = await res.json();
+        const user = data.user || data;
+        setWsUser(user.username, user.role);
     } catch (err) { window.location.href = '/?auth=open'; }
 }
 
