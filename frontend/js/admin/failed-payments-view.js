@@ -25,10 +25,16 @@ function formatTime(iso) {
     return iso ? new Date(iso).toLocaleString('vi-VN') : 'N/A';
 }
 
-// Che giữa STK, chỉ hiện 4 số đầu và 4 số cuối
+// Che giữa STK:
+// - Không có chữ số: 'N/A'
+// - <= 4 số: '***' + digits (ví dụ '123' -> '***123', tránh lặp số '12***23')
+// - 5 đến 8 số: 2 số đầu + '***' + 2 số cuối (không chồng lấn)
+// - > 8 số: 4 số đầu + '***' + 4 số cuối
 function maskBankAccount(acc) {
     const digits = String(acc || '').replace(/\D/g, '');
-    if (digits.length <= 8) return digits ? `${digits.slice(0, 2)}***${digits.slice(-2)}` : 'N/A';
+    if (!digits) return 'N/A';
+    if (digits.length <= 4) return `***${digits}`;
+    if (digits.length <= 8) return `${digits.slice(0, 2)}***${digits.slice(-2)}`;
     return `${digits.slice(0, 4)}***${digits.slice(-4)}`;
 }
 
@@ -166,6 +172,19 @@ export const FailedPaymentsView = {
         this.fetchUnmatched();
         this.fetchDuplicates();
         this.fetchRefunds();
+        this.refreshPendingBadge();
+    },
+
+    async refreshPendingBadge() {
+        const failedTag = document.getElementById('nav-tag-failed');
+        if (failedTag) {
+            try {
+                const um = await AdminApi.getUnmatched('pending');
+                failedTag.textContent = um.total ?? (um.unmatched || []).length;
+            } catch {
+                // ignore
+            }
+        }
     },
 
     // ---------------------------------------------------------
@@ -271,6 +290,7 @@ export const FailedPaymentsView = {
                         Toast.success('Đã đối soát giao dịch.');
                         Drawer.close();
                         this.fetchUnmatched();
+                        this.refreshPendingBadge();
                     } catch (err) {
                         Toast.error(`Lỗi: ${err.message}`);
                     }
