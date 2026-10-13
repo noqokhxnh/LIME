@@ -853,7 +853,7 @@ if (motionSearch) motionSearch.addEventListener('input', renderMotionBlocks);
 function updateSummaryMeta() {
     const dur = durationInput ? (durationInput.value || 15) : 15;
     if (summaryMetaLine) summaryMetaLine.textContent = `${currentRatio} · ${dur}s`;
-    if (statusEta) statusEta.textContent = `⏱ ~${Math.max(1, Math.round(dur / 8))} phút render`;
+    if (statusEta) statusEta.textContent = `~${Math.max(1, Math.round(dur / 8))} phút render`;
 }
 
 /* ================= MOTION CATALOG ================= */
@@ -1002,7 +1002,7 @@ async function loadRenderQueue() {
                 <span>${j.durationSec ? Math.round(j.durationSec) + 's · ' : ''}${esc(j.status)}</span>
                 ${j.status !== 'completed' && j.status !== 'failed' ? `<div class="prog"><i style="width:${pct}%"></i></div>` : ''}</div>
                 ${pill}
-                ${j.status === 'completed' ? `<a class="dl" href="${API_BASE}/api/jobs/${j.jobId}/download" download>Tải ↓</a>` : ''}`;
+                ${j.status === 'completed' ? `<a class="dl" href="${API_BASE}/api/jobs/${j.jobId}/download" download>Tải MP4</a>` : ''}`;
             renderQueue.appendChild(el);
         });
         return jobs;
@@ -1126,7 +1126,7 @@ if (generateBtn) {
                         generateBtn.disabled = false;
                         if (exportRenderBtn) exportRenderBtn.disabled = false;
                         if (btnSpinner) btnSpinner.style.display = 'none';
-                        if (btnText) btnText.textContent = 'Tạo lại ⟳';
+                        if (btnText) btnText.textContent = 'Tạo lại';
                         const full = await fetchJobDetail(jobId);
                         if (full) applyProject(full, project.topic);
                         displayVideo(jobId);
@@ -1150,7 +1150,7 @@ if (generateBtn) {
             generateBtn.disabled = false;
             if (exportRenderBtn) exportRenderBtn.disabled = false;
             if (btnSpinner) btnSpinner.style.display = 'none';
-            if (btnText) btnText.textContent = 'Tạo lại ⟳';
+            if (btnText) btnText.textContent = 'Tạo lại';
             setProgress(0);
         }
     });
