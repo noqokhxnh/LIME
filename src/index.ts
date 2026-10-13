@@ -22,6 +22,10 @@ import { rateLimiter } from "./security/rateLimiter.js";
 import { validateUploadedFile, generateSafeFilePath } from "./security/uploadGuard.js";
 import { getBrandKitByUserId, upsertBrandKit } from "./database/brandKit.js";
 import { getCatalog, listBlueprints, listMotionBlocks } from "./templates/index.js";
+import { adminRoutes } from "./admin/routes.js";
+import { systemSettings } from "./admin/systemSettings.js";
+import { pageViewTracker } from "./security/pageViewTracker.js";
+import { db } from "./database/index.js";
 
 export const jobIpMap = new Map<string, string>();
 
@@ -36,6 +40,7 @@ export async function buildApp(options: { logger?: boolean, queue?: IVideoQueue 
     await app.register(fastifyCookie);
     await app.register(authRoutes);
     await app.register(billingRoutes);
+    await app.register(adminRoutes, { queue });
 
     // Đăng ký plugin xử lý upload file (multipart/form-data).
     // Giới hạn kích thước mỗi file tối đa 5MB để tránh tấn công DoS bằng file lớn.
@@ -162,6 +167,161 @@ export async function buildApp(options: { logger?: boolean, queue?: IVideoQueue 
     app.get("/legal", serveLegal);
     app.get("/terms", serveLegal);
     app.get("/privacy", serveLegal);
+
+    app.get("/public/logo.png", async (_request: FastifyRequest, reply: FastifyReply) => {
+        const logoPath = join(frontendDir, "logo.png");
+        if (existsSync(logoPath)) {
+            reply.type("image/png").send(createReadStream(logoPath));
+            return reply;
+        }
+        reply.status(404).send("Logo not found");
+    });
+
+    app.get("/admin", async (request: FastifyRequest, reply: FastifyReply) => {
+        const user = await getCurrentUser(request);
+        if (!user) {
+            return reply.redirect("/?auth=open&error=admin_required");
+        }
+        if (user.role !== "admin") {
+            reply.status(403);
+            return reply.send({ error: "Chỉ tài khoản Super Admin mới có quyền truy cập trang quản trị." });
+        }
+        const htmlPath = join(frontendDir, "admin.html");
+        if (existsSync(htmlPath)) {
+            reply.type("text/html; charset=utf-8").send(createReadStream(htmlPath));
+            return reply;
+        }
+        reply.status(404).send("Admin portal frontend not found");
+    });
+
+    app.get("/profile", async (request: FastifyRequest, reply: FastifyReply) => {
+        const user = await getCurrentUser(request);
+        if (!user) {
+            return reply.redirect("/?auth=open");
+        }
+        const htmlPath = join(frontendDir, "profile.html");
+        if (existsSync(htmlPath)) {
+            reply.type("text/html; charset=utf-8").send(createReadStream(htmlPath));
+            return reply;
+        }
+        reply.status(404).send("Profile page not found");
+    });
+
+    const serveSettings = async (request: FastifyRequest, reply: FastifyReply) => {
+        const user = await getCurrentUser(request);
+        if (!user) {
+            return reply.redirect("/?auth=open");
+        }
+        const htmlPath = join(frontendDir, "settings.html");
+        if (existsSync(htmlPath)) {
+            reply.type("text/html; charset=utf-8").send(createReadStream(htmlPath));
+            return reply;
+        }
+        reply.status(404).send("Settings page not found");
+    };
+    app.get("/setting", serveSettings);
+    app.get("/settings", serveSettings);
+
+    app.get("/api/settings", async (request: FastifyRequest) => {
+        const sys = systemSettings.get();
+        const user = await getCurrentUser(request);
+
+        const currentSettings = {
+            llmProvider: user?.preferences?.llmProvider || sys.defaultLlmProvider,
+            llmModel: user?.preferences?.llmModel || sys.defaultLlmModel,
+            ttsProvider: user?.preferences?.ttsProvider || sys.defaultTtsProvider,
+            ttsVoice: user?.preferences?.ttsVoice || sys.defaultTtsVoice,
+            elevenlabsApiKey: user?.preferences?.elevenlabsApiKey ? "••••••••" : "",
+            maintenanceMode: sys.maintenanceMode,
+            systemNotice: sys.systemNotice,
+            maxConcurrentJobs: sys.maxConcurrentJobs,
+            allowSandboxPayments: sys.allowSandboxPayments,
+        };
+
+        return {
+            settings: currentSettings,
+            userPreferences: user?.preferences || {},
+            providers: {
+                llm: ["deepseek", "gemini", "claude", "openai", "9router"],
+                tts: ["edge", "vieneu", "openai", "google", "elevenlabs"],
+            },
+        };
+    });
+
+    app.put("/api/settings", async (request: FastifyRequest, reply: FastifyReply) => {
+        const user = await getCurrentUser(request);
+        if (!user) {
+            reply.status(401);
+            return { error: "Yêu cầu đăng nhập để lưu cài đặt." };
+        }
+
+        const body = (request.body as any) || {};
+        const config = getConfig();
+
+        const currentPrefs = user.preferences || {};
+        const newPrefs = {
+            ...currentPrefs,
+            ...(body.llmProvider ? { llmProvider: body.llmProvider } : {}),
+            ...(body.llmModel ? { llmModel: body.llmModel } : {}),
+            ...(body.ttsProvider ? { ttsProvider: body.ttsProvider } : {}),
+            ...(body.ttsVoice ? { ttsVoice: body.ttsVoice } : {}),
+            ...(body.elevenlabsApiKey !== undefined && body.elevenlabsApiKey !== "••••••••"
+                ? { elevenlabsApiKey: body.elevenlabsApiKey }
+                : {}),
+            ...(body.watermark ? { watermark: body.watermark } : {}),
+        };
+
+        if (config.DATABASE_URL) {
+            try {
+                await db.query(
+                    `UPDATE users SET preferences = $1, updated_at = NOW() WHERE id = $2`,
+                    [JSON.stringify(newPrefs), user.id]
+                );
+            } catch (err) {
+                console.error("[Settings] Error updating user preferences:", err);
+            }
+        }
+
+        if (user.role === "admin") {
+            const sysKeys = ["maintenanceMode", "registrationEnabled", "maxConcurrentJobs", "systemNotice", "allowSandboxPayments"];
+            const sysUpdates: any = {};
+            for (const k of sysKeys) {
+                if (body[k] !== undefined) sysUpdates[k] = body[k];
+            }
+            if (Object.keys(sysUpdates).length > 0) {
+                systemSettings.update(sysUpdates, user.email);
+            }
+        }
+
+        return {
+            success: true,
+            preferences: newPrefs,
+        };
+    });
+
+    app.addHook("onResponse", async (request) => {
+        const url = request.url.split("?")[0];
+        if (
+            request.method === "GET" &&
+            !url.startsWith("/api/") &&
+            !url.startsWith("/uploads/") &&
+            !url.includes(".")
+        ) {
+            try {
+                const user = await getCurrentUser(request);
+                await pageViewTracker.track({
+                    ip: request.ip,
+                    path: url,
+                    userAgent: (request.headers["user-agent"] as string) || "",
+                    referrer: (request.headers["referer"] as string) || "",
+                    request,
+                    userId: user?.id,
+                    userEmail: user?.email,
+                    userName: user?.username,
+                });
+            } catch {}
+        }
+    });
 
     app.get("/api/health", async () => {
         const config = getConfig();

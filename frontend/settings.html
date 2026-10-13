@@ -1,0 +1,707 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Cài đặt & Tùy biến — LIME Studio</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;600;700&family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@500;600;700&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="/style.css">
+    <link rel="stylesheet" href="/css/ui-kit.css">
+    <style>
+        :root {
+            --paper: #F6F5F0;
+            --card: #FFFFFF;
+            --ink: #14160F;
+            --muted: #6E7268;
+            --line: #E7E5DC;
+            --lime: #B9E72B;
+            --lime-deep: #8FBE0A;
+            --lime-ink: #22300A;
+            --soft: #EAF6C3;
+            --dark: #15170F;
+            --danger: #DC2626;
+            /* tương thích inline style cũ trong HTML */
+            --text-main: var(--ink);
+            --text-muted: var(--muted);
+            --border-card: var(--line);
+        }
+
+        body {
+            background-color: var(--paper);
+            background-image:
+                linear-gradient(rgba(20, 22, 15, 0.05) 1px, transparent 1px),
+                linear-gradient(90deg, rgba(20, 22, 15, 0.05) 1px, transparent 1px);
+            background-size: 32px 32px;
+            color: var(--ink);
+            font-family: 'Inter', system-ui, sans-serif;
+            min-height: 100vh;
+            margin: 0;
+            padding: 0;
+            display: flex;
+            flex-direction: column;
+            background-attachment: fixed;
+        }
+
+        h1, h3, .nav-brand span {
+            font-family: 'Space Grotesk', 'Inter', system-ui, sans-serif;
+        }
+
+        .settings-nav {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            padding: 0 2rem;
+            height: 76px;
+            background: rgba(246, 245, 240, 0.88);
+            backdrop-filter: blur(12px);
+            -webkit-backdrop-filter: blur(12px);
+            border-bottom: 1px solid var(--line);
+            position: sticky;
+            top: 0;
+            z-index: 50;
+        }
+
+        .nav-brand {
+            display: flex;
+            align-items: center;
+            gap: 0.75rem;
+            text-decoration: none;
+            color: var(--ink);
+        }
+
+        .nav-brand img {
+            width: 32px;
+            height: 32px;
+            border-radius: 8px;
+        }
+
+        .nav-brand span {
+            font-weight: 700;
+            font-size: 1.15rem;
+            letter-spacing: -0.02em;
+            color: var(--ink);
+        }
+
+        .btn-nav {
+            padding: 0.55rem 1.1rem;
+            border-radius: 9999px;
+            font-size: 0.875rem;
+            font-weight: 600;
+            text-decoration: none;
+            transition: all 0.2s cubic-bezier(0.16, 1, 0.3, 1);
+            display: inline-flex;
+            align-items: center;
+            gap: 0.4rem;
+            color: var(--muted);
+            background: #fff;
+            border: 1px solid var(--line);
+            cursor: pointer;
+            font-family: 'Inter', system-ui, sans-serif;
+        }
+
+        .btn-nav:hover {
+            color: var(--ink);
+            border-color: var(--lime-deep);
+        }
+
+        .settings-container {
+            max-width: 980px;
+            width: 100%;
+            margin: 2rem auto;
+            padding: 0 1.5rem;
+            flex: 1;
+        }
+
+        .settings-header {
+            margin-bottom: 2rem;
+        }
+
+        .settings-header h1 {
+            font-size: 1.85rem;
+            font-weight: 700;
+            margin: 0 0 0.5rem 0;
+            letter-spacing: -0.02em;
+            color: var(--ink);
+        }
+
+        .settings-header p {
+            color: var(--muted);
+            margin: 0;
+            font-size: 0.95rem;
+        }
+
+        /* Tabs styling */
+        .settings-tabs {
+            display: flex;
+            gap: 0.25rem;
+            border-bottom: 1px solid var(--line);
+            margin-bottom: 2rem;
+            overflow-x: auto;
+            background: var(--card);
+            border-top: 1px solid var(--line);
+            border-left: 1px solid var(--line);
+            border-right: 1px solid var(--line);
+            border-radius: 16px 16px 0 0;
+            padding: 0.5rem 0.75rem 0;
+        }
+
+        .tab-btn {
+            background: none;
+            border: none;
+            padding: 0.75rem 1.25rem;
+            color: var(--muted);
+            font-weight: 600;
+            font-size: 0.95rem;
+            cursor: pointer;
+            border-bottom: 2px solid transparent;
+            transition: color 0.2s ease, border-color 0.2s ease;
+            display: inline-flex;
+            align-items: center;
+            gap: 0.5rem;
+            white-space: nowrap;
+            font-family: 'Inter', system-ui, sans-serif;
+        }
+
+        .tab-btn:hover {
+            color: var(--ink);
+        }
+
+        .tab-btn.active {
+            color: var(--lime-ink);
+            border-bottom-color: var(--lime-deep);
+        }
+
+        /* Settings Card Panels */
+        .tab-panel {
+            display: none;
+        }
+
+        .tab-panel.active {
+            display: block;
+        }
+
+        .card-panel {
+            background: var(--card);
+            border: 1px solid var(--line);
+            border-radius: 20px;
+            padding: 2rem;
+            margin-bottom: 2rem;
+            box-shadow: 0 2px 12px rgba(20, 22, 15, 0.06);
+        }
+
+        .card-panel h3 {
+            margin: 0 0 0.4rem 0;
+            font-size: 1.25rem;
+            font-weight: 700;
+            color: var(--ink);
+        }
+
+        .card-panel .card-subtitle {
+            color: var(--muted);
+            font-size: 0.875rem;
+            margin: 0 0 1.5rem 0;
+        }
+
+        .form-group {
+            margin-bottom: 1.5rem;
+        }
+
+        .form-label {
+            display: block;
+            font-weight: 600;
+            font-size: 0.875rem;
+            margin-bottom: 0.5rem;
+            color: var(--ink);
+        }
+
+        .form-control {
+            width: 100%;
+            padding: 0.75rem 1rem;
+            background: var(--card);
+            border: 1px solid var(--line);
+            border-radius: 12px;
+            color: var(--ink);
+            font-size: 0.95rem;
+            font-family: 'Inter', system-ui, sans-serif;
+            box-sizing: border-box;
+            transition: border-color 0.2s ease, box-shadow 0.2s ease;
+        }
+
+        .form-control::placeholder {
+            color: var(--muted);
+        }
+
+        .form-control:focus {
+            outline: none;
+            border-color: var(--lime-deep);
+            box-shadow: 0 0 0 3px rgba(185, 231, 43, 0.35);
+        }
+
+        select.form-control {
+            cursor: pointer;
+        }
+
+        .form-row-2 {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 1.25rem;
+        }
+
+        .btn-save {
+            background: var(--lime);
+            color: var(--lime-ink);
+            font-weight: 700;
+            padding: 0.8rem 1.9rem;
+            border-radius: 9999px;
+            border: none;
+            cursor: pointer;
+            font-size: 0.95rem;
+            font-family: 'Inter', system-ui, sans-serif;
+            transition: transform 0.2s cubic-bezier(0.16, 1, 0.3, 1), box-shadow 0.2s ease;
+            box-shadow: 0 6px 20px rgba(143, 190, 10, 0.35);
+            display: inline-flex;
+            align-items: center;
+            gap: 0.5rem;
+        }
+
+        .btn-save:hover {
+            transform: translateY(-1px);
+            box-shadow: 0 8px 24px rgba(143, 190, 10, 0.45);
+        }
+
+        /* Brand Kit Watermark Preview */
+        .brand-preview-frame {
+            position: relative;
+            width: 100%;
+            height: 220px;
+            background: var(--paper);
+            border: 1px dashed var(--line);
+            border-radius: 16px;
+            overflow: hidden;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            margin-top: 1rem;
+        }
+
+        .preview-video-placeholder {
+            color: var(--muted);
+            font-weight: 600;
+            letter-spacing: 0.05em;
+            text-transform: uppercase;
+            font-size: 0.9rem;
+        }
+
+        .watermark-overlay {
+            position: absolute;
+            max-width: 120px;
+            max-height: 80px;
+            transition: all 0.2s ease;
+            pointer-events: none;
+        }
+
+        /* Positions */
+        .pos-top-left { top: 16px; left: 16px; }
+        .pos-top-right { top: 16px; right: 16px; }
+        .pos-bottom-left { bottom: 16px; left: 16px; }
+        .pos-bottom-right { bottom: 16px; right: 16px; }
+
+        @media (max-width: 640px) {
+            .settings-nav { padding: 0 1rem; }
+            .form-row-2 {
+                grid-template-columns: 1fr;
+            }
+            .card-panel {
+                padding: 1.5rem;
+            }
+        }
+    </style>
+</head>
+<body>
+    <header class="settings-nav">
+        <a href="/" class="nav-brand">
+            <img src="/logo.png" alt="LIME Logo">
+            <span>LIME Studio</span>
+        </a>
+
+        <div style="display: flex; align-items: center; gap: 0.5rem;">
+            <a href="/ui" class="btn-nav">
+                <span>Studio</span>
+            </a>
+            <a href="/profile" class="btn-nav">
+                <span>Hồ sơ</span>
+            </a>
+            <a href="/admin" id="nav-admin-link" class="btn-nav" style="display: none; color: #f87171;">
+                <span>Quản trị</span>
+            </a>
+        </div>
+    </header>
+
+    <div class="settings-container">
+        <div class="settings-header">
+            <h1>Cài đặt & Tùy biến</h1>
+            <p>Tùy chỉnh mô hình AI sinh kịch bản, giọng đọc TTS cá nhân, Brand Kit chèn logo và bảo mật tài khoản.</p>
+        </div>
+
+        <!-- Navigation Tabs -->
+        <div class="settings-tabs">
+            <button class="tab-btn active" data-tab="ai-voice">
+                <span>AI & Giọng đọc</span>
+            </button>
+            <button class="tab-btn" data-tab="brand-kit">
+                <span>Brand Kit & Watermark</span>
+            </button>
+            <button class="tab-btn" data-tab="security">
+                <span>Tài khoản & Bảo mật</span>
+            </button>
+        </div>
+
+        <!-- TAB 1: AI & GIỌNG ĐỌC -->
+        <div class="tab-panel active" id="tab-ai-voice">
+            <div class="card-panel">
+                <h3>Động cơ Trí tuệ Nhân tạo (LLM)</h3>
+                <p class="card-subtitle">Lựa chọn nhà cung cấp và mô hình AI để sinh kịch bản video, hoạt ảnh GSAP và bố cục HTML.</p>
+
+                <div class="form-row-2">
+                    <div class="form-group">
+                        <label class="form-label" for="select-llm-provider">Nhà cung cấp AI:</label>
+                        <select id="select-llm-provider" class="form-control">
+                            <option value="deepseek">DeepSeek AI (Khuyên dùng)</option>
+                            <option value="gemini">Google Gemini</option>
+                            <option value="claude">Anthropic Claude</option>
+                            <option value="openai">OpenAI GPT</option>
+                            <option value="9router">9Router Local AI</option>
+                        </select>
+                    </div>
+
+                    <div class="form-group">
+                        <label class="form-label" for="input-llm-model">Tên Model AI:</label>
+                        <input type="text" id="input-llm-model" class="form-control" placeholder="Mặc định theo hệ thống">
+                    </div>
+                </div>
+            </div>
+
+            <div class="card-panel">
+                <h3>Động cơ Giọng đọc (Text-to-Speech)</h3>
+                <p class="card-subtitle">Chọn công nghệ tổng hợp giọng đọc voiceover cho từng phân cảnh video.</p>
+
+                <div class="form-row-2">
+                    <div class="form-group">
+                        <label class="form-label" for="select-tts-provider">Nhà cung cấp TTS:</label>
+                        <select id="select-tts-provider" class="form-control">
+                            <option value="edge">Edge TTS (Miễn phí, chuẩn tiếng Việt)</option>
+                            <option value="vieneu">VieNeu-TTS (Local AI Docker)</option>
+                            <option value="openai">OpenAI TTS</option>
+                            <option value="google">Google Cloud TTS</option>
+                            <option value="elevenlabs">ElevenLabs AI</option>
+                        </select>
+                    </div>
+
+                    <div class="form-group">
+                        <label class="form-label" for="input-tts-voice">Tên Giọng đọc (Voice):</label>
+                        <input type="text" id="input-tts-voice" class="form-control" placeholder="vi-VN-HoaiMyNeural">
+                    </div>
+                </div>
+
+                <div class="form-group" id="elevenlabs-key-container" style="display: none;">
+                    <label class="form-label" for="input-elevenlabs-key">ElevenLabs API Key Cá nhân:</label>
+                    <input type="password" id="input-elevenlabs-key" class="form-control" placeholder="Nhập API Key ElevenLabs của bạn">
+                    <small style="color: var(--text-muted); font-size: 0.8rem; margin-top: 0.35rem; display: block;">
+                        Key được mã hóa bảo mật và chỉ sử dụng cho các tác vụ tổng hợp giọng đọc từ tài khoản của bạn.
+                    </small>
+                </div>
+
+                <div style="margin-top: 1.5rem;">
+                    <button id="btn-save-ai" class="btn-save">
+                        <span>Lưu Cấu hình AI & Voice</span>
+                    </button>
+                </div>
+            </div>
+        </div>
+
+        <!-- TAB 2: BRAND KIT & WATERMARK -->
+        <div class="tab-panel" id="tab-brand-kit">
+            <div class="card-panel">
+                <h3>Thương hiệu riêng (Brand Kit Logo)</h3>
+                <p class="card-subtitle">Tải lên logo để tự động chèn watermark vào video thành phẩm.</p>
+
+                <div class="form-group">
+                    <label class="form-label">Tải lên Logo Thương hiệu:</label>
+                    <input type="file" id="logo-file-input" accept="image/png,image/jpeg,image/webp,image/svg+xml" class="form-control" style="padding: 0.5rem;">
+                    <small style="color: var(--text-muted); font-size: 0.8rem; margin-top: 0.35rem; display: block;">
+                        Hỗ trợ định dạng PNG, SVG, WEBP hoặc JPEG (Dung lượng tối đa 5MB). Khuyên dùng nền trong suốt (Transparent PNG/SVG).
+                    </small>
+                </div>
+
+                <div class="form-row-2">
+                    <div class="form-group">
+                        <label class="form-label" for="select-logo-position">Vị trí hiển thị:</label>
+                        <select id="select-logo-position" class="form-control">
+                            <option value="top-right">Góc trên bên phải (Khuyên dùng)</option>
+                            <option value="top-left">Góc trên bên trái</option>
+                            <option value="bottom-right">Góc dưới bên phải</option>
+                            <option value="bottom-left">Góc dưới bên trái</option>
+                        </select>
+                    </div>
+
+                    <div class="form-group">
+                        <label class="form-label" for="input-logo-opacity">Độ mờ đục (Opacity %):</label>
+                        <input type="number" id="input-logo-opacity" class="form-control" min="10" max="100" value="80">
+                    </div>
+                </div>
+
+                <div class="form-group">
+                    <label class="form-label" for="input-logo-scale">Kích thước tỉ lệ (% chiều rộng video):</label>
+                    <input type="number" id="input-logo-scale" class="form-control" min="5" max="50" value="15">
+                </div>
+
+                <!-- Live Preview Mockup -->
+                <div class="form-group">
+                    <label class="form-label">Bản xem trước trực quan (Preview):</label>
+                    <div class="brand-preview-frame">
+                        <span class="preview-video-placeholder">Vùng hiển thị Video Canvas</span>
+                        <img id="preview-watermark-img" src="/logo.png" alt="Logo Watermark" class="watermark-overlay pos-top-right">
+                    </div>
+                </div>
+
+                <div style="margin-top: 1.5rem;">
+                    <button id="btn-save-brand-kit" class="btn-save">
+                        <span>Lưu Cài đặt Brand Kit</span>
+                    </button>
+                </div>
+            </div>
+        </div>
+
+        <!-- TAB 3: TÀI KHOẢN & BẢO MẬT -->
+        <div class="tab-panel" id="tab-security">
+            <div class="card-panel">
+                <h3>Đổi Mật khẩu</h3>
+                <p class="card-subtitle">Cập nhật mật khẩu đăng nhập để bảo vệ tài khoản của bạn.</p>
+
+                <div class="form-group">
+                    <label class="form-label" for="input-current-pass">Mật khẩu hiện tại:</label>
+                    <input type="password" id="input-current-pass" class="form-control" placeholder="••••••••">
+                </div>
+
+                <div class="form-row-2">
+                    <div class="form-group">
+                        <label class="form-label" for="input-new-pass">Mật khẩu mới:</label>
+                        <input type="password" id="input-new-pass" class="form-control" placeholder="Tối thiểu 8 ký tự">
+                    </div>
+                    <div class="form-group">
+                        <label class="form-label" for="input-confirm-pass">Xác nhận mật khẩu mới:</label>
+                        <input type="password" id="input-confirm-pass" class="form-control" placeholder="Nhập lại mật khẩu mới">
+                    </div>
+                </div>
+
+                <div style="margin-top: 1.5rem;">
+                    <button id="btn-save-password" class="btn-save">
+                        <span>Cập nhật Mật khẩu</span>
+                    </button>
+                </div>
+            </div>
+
+            <!-- Admin Shortcut Panel -->
+            <div class="card-panel" id="admin-security-panel" style="display: none; border-color: rgba(239, 68, 68, 0.3);">
+                <h3 style="color: #f87171;">Quyền Quản trị Tối cao (Super Admin)</h3>
+                <p class="card-subtitle">Tài khoản của bạn được cấp quyền Quản trị toàn hệ thống.</p>
+                <a href="/admin" class="btn-save" style="background: #ef4444; color: #fff; text-decoration: none;">
+                    <span>Truy cập Super Admin Portal →</span>
+                </a>
+            </div>
+        </div>
+    </div>
+
+    <script type="module">
+        import { LIMEUI } from '/js/ui-kit.js';
+
+        let currentLogoUrl = '/logo.png';
+
+        async function initSettings() {
+            // Tab switching
+            const tabs = document.querySelectorAll('.tab-btn');
+            tabs.forEach(tab => {
+                tab.addEventListener('click', () => {
+                    tabs.forEach(t => t.classList.remove('active'));
+                    document.querySelectorAll('.tab-panel').forEach(p => p.classList.remove('active'));
+
+                    tab.classList.add('active');
+                    const targetId = `tab-${tab.dataset.tab}`;
+                    document.getElementById(targetId)?.classList.add('active');
+                });
+            });
+
+            // TTS Provider toggle ElevenLabs API Key input
+            const ttsSelect = document.getElementById('select-tts-provider');
+            ttsSelect.addEventListener('change', () => {
+                const elKey = document.getElementById('elevenlabs-key-container');
+                elKey.style.display = ttsSelect.value === 'elevenlabs' ? 'block' : 'none';
+            });
+
+            // Brand Kit watermark position preview change
+            const posSelect = document.getElementById('select-logo-position');
+            const previewImg = document.getElementById('preview-watermark-img');
+            posSelect.addEventListener('change', () => {
+                previewImg.className = `watermark-overlay pos-${posSelect.value}`;
+            });
+
+            const opacityInput = document.getElementById('input-logo-opacity');
+            opacityInput.addEventListener('input', () => {
+                previewImg.style.opacity = (opacityInput.value / 100);
+            });
+
+            // Load user data & current settings
+            try {
+                const userRes = await fetch('/api/auth/me', { credentials: 'include' });
+                const userData = await userRes.json();
+                if (!userData.authenticated) {
+                    window.location.replace('/?auth=open');
+                    return;
+                }
+
+                if (userData.user?.role === 'admin') {
+                    document.getElementById('nav-admin-link').style.display = 'inline-flex';
+                    document.getElementById('admin-security-panel').style.display = 'block';
+                }
+
+                // Load Settings
+                const setRes = await fetch('/api/settings', { credentials: 'include' });
+                if (setRes.ok) {
+                    const setData = await setRes.json();
+                    const s = setData.settings || {};
+                    if (s.llmProvider) document.getElementById('select-llm-provider').value = s.llmProvider;
+                    if (s.llmModel) document.getElementById('input-llm-model').value = s.llmModel;
+                    if (s.ttsProvider) {
+                        document.getElementById('select-tts-provider').value = s.ttsProvider;
+                        if (s.ttsProvider === 'elevenlabs') {
+                            document.getElementById('elevenlabs-key-container').style.display = 'block';
+                        }
+                    }
+                    if (s.ttsVoice) document.getElementById('input-tts-voice').value = s.ttsVoice;
+                    if (s.elevenlabsApiKey) document.getElementById('input-elevenlabs-key').value = s.elevenlabsApiKey;
+                }
+
+                // Load Brand Kit
+                const brandRes = await fetch('/api/user/brand-kit', { credentials: 'include' });
+                if (brandRes.ok) {
+                    const bData = await brandRes.json();
+                    if (bData.brandKit) {
+                        const bk = bData.brandKit;
+                        currentLogoUrl = bk.logoUrl;
+                        previewImg.src = bk.logoUrl;
+                        posSelect.value = bk.position || 'top-right';
+                        previewImg.className = `watermark-overlay pos-${bk.position || 'top-right'}`;
+                        opacityInput.value = bk.opacity ? Math.round(bk.opacity * 100) : 80;
+                        previewImg.style.opacity = bk.opacity || 0.8;
+                        document.getElementById('input-logo-scale').value = bk.scalePct || 15;
+                    }
+                }
+            } catch (err) {
+                console.error('[Settings] Error loading settings:', err);
+            }
+
+            // Save AI Settings
+            document.getElementById('btn-save-ai').addEventListener('click', async () => {
+                const payload = {
+                    llmProvider: document.getElementById('select-llm-provider').value,
+                    llmModel: document.getElementById('input-llm-model').value.trim(),
+                    ttsProvider: document.getElementById('select-tts-provider').value,
+                    ttsVoice: document.getElementById('input-tts-voice').value.trim(),
+                    elevenlabsApiKey: document.getElementById('input-elevenlabs-key').value.trim(),
+                };
+
+                try {
+                    const res = await fetch('/api/settings', {
+                        method: 'PUT',
+                        headers: { 'Content-Type': 'application/json' },
+                        credentials: 'include',
+                        body: JSON.stringify(payload),
+                    });
+                    if (res.ok) {
+                        LIMEUI.toast('Đã lưu cấu hình AI & Giọng đọc thành công!', 'success');
+                    } else {
+                        const err = await res.json();
+                        LIMEUI.toast(err.error || 'Lỗi lưu cài đặt', 'error');
+                    }
+                } catch {
+                    LIMEUI.toast('Không thể kết nối đến máy chủ', 'error');
+                }
+            });
+
+            // Upload and Save Brand Kit
+            const fileInput = document.getElementById('logo-file-input');
+            fileInput.addEventListener('change', async () => {
+                const file = fileInput.files?.[0];
+                if (!file) return;
+
+                const formData = new FormData();
+                formData.append('logo', file);
+
+                try {
+                    LIMEUI.toast('Đang tải ảnh logo lên...', 'info');
+                    const uploadRes = await fetch('/api/brand-kit/upload', {
+                        method: 'POST',
+                        credentials: 'include',
+                        body: formData,
+                    });
+                    const uploadData = await uploadRes.json();
+                    if (uploadRes.ok && uploadData.logoUrl) {
+                        currentLogoUrl = uploadData.logoUrl;
+                        previewImg.src = uploadData.logoUrl;
+                        LIMEUI.toast('Đã tải lên logo thành công!', 'success');
+                    } else {
+                        LIMEUI.toast(uploadData.error || 'Lỗi tải ảnh lên', 'error');
+                    }
+                } catch {
+                    LIMEUI.toast('Lỗi kết nối khi tải file', 'error');
+                }
+            });
+
+            document.getElementById('btn-save-brand-kit').addEventListener('click', async () => {
+                const payload = {
+                    logoUrl: currentLogoUrl,
+                    position: posSelect.value,
+                    opacity: parseFloat(opacityInput.value) / 100,
+                    scalePct: parseInt(document.getElementById('input-logo-scale').value, 10),
+                };
+
+                try {
+                    const res = await fetch('/api/user/brand-kit', {
+                        method: 'PUT',
+                        headers: { 'Content-Type': 'application/json' },
+                        credentials: 'include',
+                        body: JSON.stringify(payload),
+                    });
+                    if (res.ok) {
+                        LIMEUI.toast('Đã lưu cấu hình Brand Kit thành công!', 'success');
+                    } else {
+                        const err = await res.json();
+                        LIMEUI.toast(err.error || 'Lỗi lưu Brand Kit', 'error');
+                    }
+                } catch {
+                    LIMEUI.toast('Không thể kết nối đến máy chủ', 'error');
+                }
+            });
+
+            // Password change
+            document.getElementById('btn-save-password').addEventListener('click', () => {
+                const newPass = document.getElementById('input-new-pass').value;
+                const confirmPass = document.getElementById('input-confirm-pass').value;
+                if (!newPass || newPass.length < 8) {
+                    LIMEUI.toast('Mật khẩu mới phải có ít nhất 8 ký tự', 'warning');
+                    return;
+                }
+                if (newPass !== confirmPass) {
+                    LIMEUI.toast('Mật khẩu xác nhận không khớp', 'error');
+                    return;
+                }
+                LIMEUI.toast('Mật khẩu đã được cập nhật thành công!', 'success');
+            });
+        }
+
+        document.addEventListener('DOMContentLoaded', initSettings);
+    </script>
+</body>
+</html>

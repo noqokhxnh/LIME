@@ -1,0 +1,874 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Hồ sơ cá nhân — LIME Studio</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;600;700&family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@500;600;700&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="/style.css">
+    <link rel="stylesheet" href="/css/ui-kit.css">
+    <link rel="stylesheet" href="/vietqr.css">
+    <style>
+        :root {
+            --paper: #F6F5F0;
+            --card: #FFFFFF;
+            --ink: #14160F;
+            --muted: #6E7268;
+            --line: #E7E5DC;
+            --lime: #B9E72B;
+            --lime-deep: #8FBE0A;
+            --lime-ink: #22300A;
+            --soft: #EAF6C3;
+            --dark: #15170F;
+            --danger: #DC2626;
+            --warning: #B45309;
+            /* tương thích inline style cũ trong HTML */
+            --text-main: var(--ink);
+            --text-muted: var(--muted);
+            --border-card: var(--line);
+        }
+
+        body {
+            background-color: var(--paper);
+            background-image:
+                linear-gradient(rgba(20, 22, 15, 0.05) 1px, transparent 1px),
+                linear-gradient(90deg, rgba(20, 22, 15, 0.05) 1px, transparent 1px);
+            background-size: 32px 32px;
+            color: var(--ink);
+            font-family: 'Inter', system-ui, sans-serif;
+            min-height: 100vh;
+            margin: 0;
+            padding: 0;
+            display: flex;
+            flex-direction: column;
+            background-attachment: fixed;
+        }
+
+        h1, h2, h3, .gauge-percent, .stat-value, .nav-brand span {
+            font-family: 'Space Grotesk', 'Inter', system-ui, sans-serif;
+        }
+
+        /* Header Navbar */
+        .profile-nav {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            padding: 0 2rem;
+            height: 76px;
+            background: rgba(246, 245, 240, 0.88);
+            backdrop-filter: blur(12px);
+            -webkit-backdrop-filter: blur(12px);
+            border-bottom: 1px solid var(--line);
+            position: sticky;
+            top: 0;
+            z-index: 50;
+        }
+
+        .nav-brand {
+            display: flex;
+            align-items: center;
+            gap: 0.75rem;
+            text-decoration: none;
+            color: var(--ink);
+        }
+
+        .nav-brand img {
+            width: 32px;
+            height: 32px;
+            border-radius: 8px;
+        }
+
+        .nav-brand span {
+            font-weight: 700;
+            font-size: 1.15rem;
+            letter-spacing: -0.02em;
+            color: var(--ink);
+        }
+
+        .nav-actions {
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+        }
+
+        .btn-nav {
+            padding: 0.55rem 1.1rem;
+            border-radius: 9999px;
+            font-size: 0.875rem;
+            font-weight: 600;
+            text-decoration: none;
+            transition: all 0.2s cubic-bezier(0.16, 1, 0.3, 1);
+            display: inline-flex;
+            align-items: center;
+            gap: 0.4rem;
+            color: var(--ink);
+            background: #fff;
+            border: 1px solid var(--line);
+            cursor: pointer;
+            font-family: 'Inter', system-ui, sans-serif;
+        }
+
+        .btn-nav:hover {
+            border-color: var(--lime-deep);
+            transform: translateY(-1px);
+        }
+
+        .btn-nav-ghost {
+            color: var(--muted);
+        }
+
+        .btn-nav-ghost:hover {
+            color: var(--ink);
+        }
+
+        .btn-nav-primary {
+            background: var(--lime);
+            color: var(--lime-ink);
+            font-weight: 700;
+            border-color: var(--lime);
+            box-shadow: 0 6px 20px rgba(143, 190, 10, 0.35);
+        }
+
+        .btn-nav-primary:hover {
+            border-color: var(--lime);
+            transform: translateY(-1px);
+        }
+
+        /* Container Layout */
+        .profile-container {
+            max-width: 1040px;
+            width: 100%;
+            margin: 2rem auto;
+            padding: 0 1.5rem;
+            flex: 1;
+        }
+
+        /* User Header Banner */
+        .user-hero-card {
+            background: var(--card);
+            border: 1px solid var(--line);
+            border-radius: 20px;
+            padding: 2rem;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            gap: 1.5rem;
+            margin-bottom: 2rem;
+            box-shadow: 0 2px 12px rgba(20, 22, 15, 0.06);
+            position: relative;
+            overflow: hidden;
+        }
+
+        .user-hero-card::before {
+            content: '';
+            position: absolute;
+            top: 0;
+            left: 0;
+            right: 0;
+            height: 3px;
+            background: linear-gradient(90deg, var(--lime), var(--lime-deep));
+        }
+
+        .user-info-group {
+            display: flex;
+            align-items: center;
+            gap: 1.5rem;
+        }
+
+        .user-avatar-large {
+            width: 76px;
+            height: 76px;
+            border-radius: 20px;
+            background: var(--soft);
+            border: 1px solid var(--lime);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 2rem;
+            font-weight: 800;
+            color: var(--lime-ink);
+            font-family: 'Space Grotesk', 'Inter', system-ui, sans-serif;
+        }
+
+        .user-details h2 {
+            margin: 0 0 0.4rem 0;
+            font-size: 1.5rem;
+            font-weight: 700;
+            letter-spacing: -0.02em;
+            color: var(--ink);
+        }
+
+        .user-meta-badges {
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+            flex-wrap: wrap;
+        }
+
+        .tier-badge {
+            display: inline-flex;
+            align-items: center;
+            gap: 0.35rem;
+            padding: 0.25rem 0.65rem;
+            border-radius: 9999px;
+            font-size: 0.75rem;
+            font-weight: 700;
+            text-transform: uppercase;
+            letter-spacing: 0.05em;
+            border: 1px solid var(--line);
+        }
+
+        .tier-free { background: var(--paper); color: var(--muted); }
+        .tier-creator { background: rgba(29, 78, 216, 0.08); color: #1D4ED8; border-color: rgba(29, 78, 216, 0.25); }
+        .tier-pro { background: var(--soft); color: var(--lime-ink); border-color: var(--lime); }
+        .tier-max { background: rgba(220, 38, 38, 0.08); color: var(--danger); border-color: rgba(220, 38, 38, 0.25); }
+        .tier-enterprise { background: var(--dark); color: #F6F5F0; border-color: var(--dark); }
+
+        .role-badge {
+            background: var(--paper);
+            color: var(--muted);
+            border: 1px solid var(--line);
+            padding: 0.25rem 0.65rem;
+            border-radius: 9999px;
+            font-size: 0.75rem;
+            font-weight: 600;
+        }
+
+        .role-admin {
+            background: rgba(220, 38, 38, 0.08);
+            color: var(--danger);
+            border-color: rgba(220, 38, 38, 0.3);
+            font-weight: 700;
+        }
+
+        /* -------------------------------------------------------------
+           HERO CREDIT GAUGE DISPLAY (CREDIT THEO DẠNG %)
+           ------------------------------------------------------------- */
+        .credit-hero-card {
+            background: var(--card);
+            border: 1px solid var(--line);
+            border-radius: 26px;
+            padding: 2.5rem;
+            margin-bottom: 2rem;
+            box-shadow: 0 2px 12px rgba(20, 22, 15, 0.06);
+            display: grid;
+            grid-template-columns: 240px 1fr;
+            gap: 2.5rem;
+            align-items: center;
+            position: relative;
+            overflow: hidden;
+        }
+
+        .credit-hero-card::before {
+            content: '';
+            position: absolute;
+            top: 0;
+            left: 0;
+            right: 0;
+            height: 3px;
+            background: linear-gradient(90deg, var(--lime), var(--lime-deep));
+        }
+
+        /* Gauge Ring SVG */
+        .gauge-wrapper {
+            position: relative;
+            width: 200px;
+            height: 200px;
+            margin: 0 auto;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+
+        .gauge-svg {
+            width: 100%;
+            height: 100%;
+            transform: rotate(-90deg);
+        }
+
+        .gauge-bg {
+            fill: none;
+            stroke: var(--line);
+            stroke-width: 14;
+        }
+
+        .gauge-progress {
+            fill: none;
+            stroke: var(--lime-deep);
+            stroke-width: 14;
+            stroke-linecap: round;
+            stroke-dasharray: 565.48; /* 2 * PI * 90 */
+            stroke-dashoffset: 565.48;
+            transition: stroke-dashoffset 1.2s cubic-bezier(0.16, 1, 0.3, 1), stroke 0.4s ease;
+        }
+
+        .gauge-content {
+            position: absolute;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            text-align: center;
+        }
+
+        .gauge-percent {
+            font-family: 'JetBrains Mono', monospace;
+            font-size: 2.75rem;
+            font-weight: 800;
+            line-height: 1;
+            letter-spacing: -0.04em;
+            color: var(--ink);
+        }
+
+        .gauge-unit {
+            font-size: 1.5rem;
+            color: var(--lime-deep);
+            margin-left: 2px;
+        }
+
+        .gauge-caption {
+            font-size: 0.75rem;
+            font-weight: 600;
+            text-transform: uppercase;
+            letter-spacing: 0.08em;
+            color: var(--muted);
+            margin-top: 0.35rem;
+        }
+
+        .credit-info-pane h3 {
+            margin: 0 0 0.5rem 0;
+            font-size: 1.5rem;
+            font-weight: 700;
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+            color: var(--ink);
+        }
+
+        .credit-status-pill {
+            display: inline-flex;
+            align-items: center;
+            gap: 0.4rem;
+            padding: 0.35rem 0.85rem;
+            border-radius: 9999px;
+            font-size: 0.85rem;
+            font-weight: 700;
+            margin-bottom: 1rem;
+            border: 1px solid var(--line);
+        }
+
+        .status-healthy { background: rgba(101, 163, 13, 0.12); color: #4C7A0B; border-color: rgba(101, 163, 13, 0.35); }
+        .status-warning { background: rgba(180, 83, 9, 0.12); color: var(--warning); border-color: rgba(180, 83, 9, 0.35); }
+        .status-danger { background: rgba(220, 38, 38, 0.10); color: var(--danger); border-color: rgba(220, 38, 38, 0.3); }
+
+        .credit-bar-track {
+            width: 100%;
+            height: 10px;
+            background: var(--paper);
+            border: 1px solid var(--line);
+            border-radius: 9999px;
+            overflow: hidden;
+            margin: 1rem 0;
+            position: relative;
+        }
+
+        .credit-bar-fill {
+            height: 100%;
+            width: 0%;
+            background: var(--lime-deep);
+            border-radius: 9999px;
+            transition: width 1s cubic-bezier(0.16, 1, 0.3, 1);
+        }
+
+        .credit-desc {
+            font-size: 0.925rem;
+            color: var(--muted);
+            line-height: 1.6;
+            margin-bottom: 1.5rem;
+        }
+
+        .credit-action-btns {
+            display: flex;
+            align-items: center;
+            gap: 0.875rem;
+            flex-wrap: wrap;
+        }
+
+        .btn-upgrade {
+            background: var(--lime);
+            color: var(--lime-ink);
+            font-weight: 700;
+            padding: 0.75rem 1.4rem;
+            border-radius: 9999px;
+            border: none;
+            cursor: pointer;
+            box-shadow: 0 6px 20px rgba(143, 190, 10, 0.35);
+            display: inline-flex;
+            align-items: center;
+            gap: 0.5rem;
+            font-size: 0.95rem;
+            font-family: 'Inter', system-ui, sans-serif;
+            transition: transform 0.2s cubic-bezier(0.16, 1, 0.3, 1), box-shadow 0.2s ease;
+            text-decoration: none;
+        }
+
+        .btn-upgrade:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 8px 24px rgba(143, 190, 10, 0.45);
+        }
+
+        /* 3-Column Stats Grid */
+        .stats-grid {
+            display: grid;
+            grid-template-columns: repeat(3, 1fr);
+            gap: 1.25rem;
+            margin-bottom: 2rem;
+        }
+
+        .stat-card {
+            background: var(--card);
+            border: 1px solid var(--line);
+            border-radius: 20px;
+            padding: 1.5rem;
+            box-shadow: 0 2px 12px rgba(20, 22, 15, 0.06);
+            transition: border-color 0.2s ease, transform 0.2s cubic-bezier(0.16, 1, 0.3, 1);
+        }
+
+        .stat-card:hover {
+            border-color: var(--lime);
+            transform: translateY(-2px);
+        }
+
+        .stat-title {
+            font-size: 0.8rem;
+            font-weight: 600;
+            text-transform: uppercase;
+            letter-spacing: 0.05em;
+            color: var(--muted);
+            margin-bottom: 0.5rem;
+        }
+
+        .stat-value {
+            font-size: 1.75rem;
+            font-weight: 700;
+            font-family: 'JetBrains Mono', monospace;
+            color: var(--ink);
+        }
+
+        .stat-subtext {
+            font-size: 0.8rem;
+            color: var(--muted);
+            margin-top: 0.35rem;
+        }
+
+        /* Navigation shortcuts cards */
+        .shortcuts-grid {
+            display: grid;
+            grid-template-columns: repeat(2, 1fr);
+            gap: 1.25rem;
+            margin-bottom: 2rem;
+        }
+
+        .shortcut-card {
+            background: var(--card);
+            border: 1px solid var(--line);
+            border-radius: 20px;
+            padding: 1.5rem;
+            text-decoration: none;
+            color: var(--ink);
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            gap: 1rem;
+            box-shadow: 0 2px 12px rgba(20, 22, 15, 0.06);
+            transition: border-color 0.2s ease, transform 0.2s cubic-bezier(0.16, 1, 0.3, 1);
+        }
+
+        .shortcut-card:hover {
+            border-color: var(--lime);
+            transform: translateY(-2px);
+        }
+
+        .shortcut-info h4 {
+            margin: 0 0 0.3rem 0;
+            font-size: 1.1rem;
+            font-weight: 700;
+            color: var(--ink);
+        }
+
+        .shortcut-info p {
+            margin: 0;
+            font-size: 0.85rem;
+            color: var(--muted);
+        }
+
+        .shortcut-arrow {
+            font-size: 1.25rem;
+            color: var(--lime-deep);
+        }
+
+        @media (max-width: 768px) {
+            .profile-nav { padding: 0 1rem; }
+            .user-hero-card {
+                flex-direction: column;
+                text-align: center;
+                gap: 1.25rem;
+            }
+            .user-info-group {
+                flex-direction: column;
+            }
+            .credit-hero-card {
+                grid-template-columns: 1fr;
+                text-align: center;
+                gap: 1.75rem;
+                padding: 1.75rem;
+            }
+            .credit-action-btns {
+                justify-content: center;
+            }
+            .stats-grid {
+                grid-template-columns: 1fr;
+            }
+            .shortcuts-grid {
+                grid-template-columns: 1fr;
+            }
+        }
+    </style>
+</head>
+<body>
+    <!-- Top Navbar -->
+    <header class="profile-nav">
+        <a href="/" class="nav-brand">
+            <img src="/logo.png" alt="LIME Logo">
+            <span>LIME Studio</span>
+        </a>
+
+        <div class="nav-actions">
+            <a href="/ui" class="btn-nav btn-nav-ghost">
+                <span>Studio</span>
+            </a>
+            <a href="/setting" class="btn-nav btn-nav-ghost">
+                <span>Cài đặt</span>
+            </a>
+            <a href="/admin" id="nav-admin-link" class="btn-nav btn-nav-ghost" style="display: none; color: #f87171;">
+                <span>Quản trị</span>
+            </a>
+            <button id="btn-logout" class="btn-nav btn-nav-ghost" style="background: transparent; border: none; cursor: pointer;">
+                <span>Đăng xuất</span>
+            </button>
+        </div>
+    </header>
+
+    <div class="profile-container">
+        <!-- User Hero Card -->
+        <div class="user-hero-card">
+            <div class="user-info-group">
+                <div class="user-avatar-large" id="avatar-initial">U</div>
+                <div class="user-details">
+                    <h2 id="user-display-name">Đang tải thông tin...</h2>
+                    <div class="user-meta-badges">
+                        <span id="user-email-text" style="color: var(--text-muted); font-size: 0.9rem; margin-right: 0.5rem;">user@example.com</span>
+                        <span id="badge-tier" class="tier-badge tier-free">Gói Miễn phí</span>
+                        <span id="badge-role" class="role-badge">Thành viên</span>
+                    </div>
+                </div>
+            </div>
+
+            <div style="text-align: right;">
+                <div style="font-size: 0.75rem; color: var(--text-muted); text-transform: uppercase; font-weight: 600; letter-spacing: 0.05em;">Hạn gói dịch vụ</div>
+                <div id="plan-expiry-text" style="font-weight: 700; font-size: 1rem; color: #fff; margin-top: 0.2rem;">Không giới hạn thời gian</div>
+            </div>
+        </div>
+
+        <!-- HERO CREDIT SECTION: CREDIT HIỂN THỊ DẠNG % NỔI BẬT -->
+        <div class="credit-hero-card">
+            <div class="gauge-wrapper">
+                <svg class="gauge-svg" viewBox="0 0 200 200">
+                    <circle class="gauge-bg" cx="100" cy="100" r="90" />
+                    <circle class="gauge-progress" id="credit-gauge-circle" cx="100" cy="100" r="90" />
+                </svg>
+                <div class="gauge-content">
+                    <div style="display: flex; align-items: baseline;">
+                        <span class="gauge-percent" id="credit-percent-number">--</span>
+                        <span class="gauge-unit">%</span>
+                    </div>
+                    <span class="gauge-caption">Hạn mức khả dụng</span>
+                </div>
+            </div>
+
+            <div class="credit-info-pane">
+                <h3>
+                    <span>Tỷ lệ Lượt tạo Video</span>
+                    <span id="credit-status-badge" class="credit-status-pill status-healthy">Đang tính toán...</span>
+                </h3>
+
+                <div class="credit-bar-track">
+                    <div class="credit-bar-fill" id="credit-bar-fill"></div>
+                </div>
+
+                <p class="credit-desc">
+                    Hạn mức tài khoản của bạn đang khả dụng ở mức
+                    <strong id="credit-percent-inline" style="color: #fff;">--%</strong>.
+                    Mỗi lần tạo video AI thành công sẽ tiêu hao tỷ lệ tương ứng. Bạn có thể nạp thêm gói bất cứ lúc nào qua cổng quét mã VietQR tự động.
+                </p>
+
+                <div class="credit-action-btns">
+                    <button class="btn-upgrade" data-plan="pro">
+                        <span>Nạp thêm Credits / Nâng cấp</span>
+                    </button>
+                    <a href="/ui" class="btn-nav btn-nav-ghost" style="border: 1px solid var(--border-card); padding: 0.75rem 1.25rem;">
+                        <span>Vào Studio tạo video →</span>
+                    </a>
+                </div>
+            </div>
+        </div>
+
+        <!-- 3-Column Stats Grid -->
+        <div class="stats-grid">
+            <div class="stat-card">
+                <div class="stat-title">Số Video Đã Tạo</div>
+                <div class="stat-value" id="stat-jobs-count">0</div>
+                <div class="stat-subtext">Tổng số tác vụ video trong hàng đợi</div>
+            </div>
+
+            <div class="stat-card">
+                <div class="stat-title">Tỷ lệ Thành công</div>
+                <div class="stat-value" id="stat-success-rate">100%</div>
+                <div class="stat-subtext">Độ ổn định tiến trình render</div>
+            </div>
+
+            <div class="stat-card">
+                <div class="stat-title">Ngày gia nhập</div>
+                <div class="stat-value" id="stat-join-date" style="font-size: 1.25rem;">--/--/----</div>
+                <div class="stat-subtext">Thành viên chính thức LIME</div>
+            </div>
+        </div>
+
+        <!-- Shortcuts Section -->
+        <div class="shortcuts-grid">
+            <a href="/setting" class="shortcut-card">
+                <div class="shortcut-info">
+                    <h4>Cài đặt & Brand Kit</h4>
+                    <p>Đổi mô hình AI, chọn giọng đọc TTS, quản lý watermark logo</p>
+                </div>
+                <span class="shortcut-arrow">→</span>
+            </a>
+
+            <a href="/admin" id="shortcut-admin-card" class="shortcut-card" style="display: none; border-color: rgba(239, 68, 68, 0.3);">
+                <div class="shortcut-info">
+                    <h4 style="color: #f87171;">Super Admin Portal</h4>
+                    <p>Quản lý người dùng, video jobs, đơn hàng và cấu hình hệ thống</p>
+                </div>
+                <span class="shortcut-arrow" style="color: #f87171;">→</span>
+            </a>
+        </div>
+    </div>
+
+    <!-- VietQR Payment Modal Inclusion -->
+    <div id="vietqr-modal" class="vietqr-modal-backdrop" aria-hidden="true">
+        <div class="vietqr-modal-dialog">
+            <div class="vietqr-modal-header">
+                <div class="vietqr-header-title">
+                    <span class="vietqr-logo-badge">LIME PAY</span>
+                    <h3>Thanh toán đơn hàng VietQR</h3>
+                </div>
+                <button type="button" class="vietqr-close-btn" id="vietqr-close-btn" aria-label="Đóng">Đóng</button>
+            </div>
+
+            <div class="vietqr-body-grid">
+                <div class="vietqr-qr-col">
+                    <div class="vietqr-qr-frame">
+                        <img id="vietqr-img" src="" alt="Mã quét VietQR" class="vietqr-image">
+                    </div>
+                    <div class="vietqr-timer-pill" id="vietqr-timer-pill">
+                        <span>Hết hạn sau: </span>
+                        <strong id="vietqr-countdown">15:00</strong>
+                    </div>
+                    <button type="button" class="btn-vietqr-secondary" id="vietqr-download-btn">Tải ảnh QR về máy</button>
+                </div>
+
+                <div class="vietqr-info-col">
+                    <div class="vietqr-plan-toggle">
+                        <button type="button" class="vietqr-cycle-btn active" data-cycle="month">Gói 1 Tháng</button>
+                        <button type="button" class="vietqr-cycle-btn" data-cycle="year">Gói 1 Năm (-20%)</button>
+                    </div>
+
+                    <div class="vietqr-meta-list">
+                        <div class="vietqr-meta-row">
+                            <span class="meta-label">Gói cước:</span>
+                            <span class="meta-val" id="vietqr-plan-title">Gói Pro</span>
+                        </div>
+                        <div class="vietqr-meta-row">
+                            <span class="meta-label">Số tiền:</span>
+                            <span class="meta-val highlight" id="vietqr-val-amount">99.000 đ</span>
+                        </div>
+                        <div class="vietqr-meta-row">
+                            <span class="meta-label">Nội dung CK:</span>
+                            <div class="meta-copy-box">
+                                <span class="meta-val code" id="vietqr-val-memo">LIME ....</span>
+                                <button type="button" class="vietqr-copy-btn" data-target="vietqr-val-memo">Copy</button>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="vietqr-actions">
+                        <button type="button" class="btn-vietqr-primary" id="vietqr-submit-btn">Tôi đã chuyển khoản</button>
+                    </div>
+                </div>
+            </div>
+
+            <div class="vietqr-success-card" style="display: none; padding: 2rem; text-align: center;">
+                                <h3>Thanh toán thành công!</h3>
+                <p>Gói cước và số lượt tạo của bạn đã được cập nhật thành công.</p>
+                <button type="button" class="btn-vietqr-primary" id="vietqr-success-btn" style="margin-top: 1rem;">Đóng và tiếp tục</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Script logic -->
+    <script src="/vietqr-modal.js"></script>
+    <script type="module">
+        import { LIMEUI } from '/js/ui-kit.js';
+
+        async function initProfile() {
+            try {
+                const res = await fetch('/api/auth/me', { credentials: 'include' });
+                const data = await res.json();
+
+                if (!data.authenticated || !data.user) {
+                    window.location.replace('/?auth=open');
+                    return;
+                }
+
+                const user = data.user;
+                renderUserData(user);
+                fetchUserJobs();
+            } catch (err) {
+                console.error('[Profile] Lỗi tải dữ liệu người dùng:', err);
+            }
+        }
+
+        function renderUserData(user) {
+            // Name & Email
+            const displayName = user.name || user.username || user.email.split('@')[0];
+            document.getElementById('user-display-name').textContent = displayName;
+            document.getElementById('user-email-text').textContent = user.email;
+            document.getElementById('avatar-initial').textContent = displayName.charAt(0).toUpperCase();
+
+            // Role & Admin Access
+            const roleBadge = document.getElementById('badge-role');
+            if (user.role === 'admin') {
+                roleBadge.textContent = 'SUPER ADMIN';
+                roleBadge.className = 'role-badge role-admin';
+                document.getElementById('nav-admin-link').style.display = 'inline-flex';
+                document.getElementById('shortcut-admin-card').style.display = 'flex';
+            } else {
+                roleBadge.textContent = 'Thành viên';
+                roleBadge.className = 'role-badge';
+            }
+
+            // Tier Badge
+            const tierBadge = document.getElementById('badge-tier');
+            const tierNames = {
+                free: 'Gói Miễn phí',
+                creator: 'Gói Sáng tạo',
+                pro: 'Gói Pro',
+                max: 'Gói Max',
+                enterprise: 'Gói Doanh nghiệp'
+            };
+            tierBadge.textContent = tierNames[user.tier] || user.tier.toUpperCase();
+            tierBadge.className = `tier-badge tier-${user.tier || 'free'}`;
+
+            // Expiry
+            if (user.planExpiresAt) {
+                const expDate = new Date(user.planExpiresAt);
+                document.getElementById('plan-expiry-text').textContent = expDate.toLocaleDateString('vi-VN');
+            } else {
+                document.getElementById('plan-expiry-text').textContent = 'Vĩnh viễn (Không giới hạn)';
+            }
+
+            // Join Date
+            if (user.createdAt) {
+                const joinDate = new Date(user.createdAt);
+                document.getElementById('stat-join-date').textContent = joinDate.toLocaleDateString('vi-VN');
+            }
+
+            // -------------------------------------------------------------
+            // CREDIT THEO DẠNG PHẦN TRĂM (%)
+            // -------------------------------------------------------------
+            const percent = typeof user.creditPercent === 'number'
+                ? Math.min(100, Math.max(0, user.creditPercent))
+                : 100;
+
+            document.getElementById('credit-percent-number').textContent = percent;
+            document.getElementById('credit-percent-inline').textContent = `${percent}%`;
+
+            // SVG Gauge Circle calculation
+            // r = 90 => circumference = 2 * PI * 90 ≈ 565.487
+            const circle = document.getElementById('credit-gauge-circle');
+            const barFill = document.getElementById('credit-bar-fill');
+            const circumference = 565.487;
+            const offset = circumference - (percent / 100) * circumference;
+
+            // Status label & color scheme
+            const statusBadge = document.getElementById('credit-status-badge');
+
+            let strokeColor = '#8FBE0A'; // Lime green
+            if (percent > 50) {
+                statusBadge.textContent = 'Dồi dào';
+                statusBadge.className = 'credit-status-pill status-healthy';
+                strokeColor = '#8FBE0A';
+            } else if (percent >= 20) {
+                statusBadge.textContent = 'Mức trung bình';
+                statusBadge.className = 'credit-status-pill status-warning';
+                strokeColor = '#B45309'; // Amber
+            } else {
+                statusBadge.textContent = 'Sắp hết hạn mức';
+                statusBadge.className = 'credit-status-pill status-danger';
+                strokeColor = '#DC2626'; // Red
+            }
+
+            circle.style.stroke = strokeColor;
+            barFill.style.background = strokeColor;
+
+            // Animate after render
+            setTimeout(() => {
+                circle.style.strokeDashoffset = offset;
+                barFill.style.width = `${percent}%`;
+            }, 100);
+        }
+
+        async function fetchUserJobs() {
+            try {
+                const res = await fetch('/api/jobs');
+                if (res.ok) {
+                    const jobs = await res.json();
+                    if (Array.isArray(jobs)) {
+                        document.getElementById('stat-jobs-count').textContent = jobs.length;
+                        const completed = jobs.filter(j => j.status === 'completed').length;
+                        const rate = jobs.length > 0 ? Math.round((completed / jobs.length) * 100) : 100;
+                        document.getElementById('stat-success-rate').textContent = `${rate}%`;
+                    }
+                }
+            } catch (e) {
+                console.warn('[Profile] Failed to fetch job stats:', e);
+            }
+        }
+
+        // Logout action
+        document.getElementById('btn-logout').addEventListener('click', async () => {
+            const confirmed = await LIMEUI.confirm('Bạn có chắc muốn đăng xuất khỏi tài khoản?', 'Xác nhận đăng xuất');
+            if (confirmed) {
+                try {
+                    await fetch('/api/auth/logout', { method: 'POST', credentials: 'include' });
+                } catch {}
+                window.location.replace('/');
+            }
+        });
+
+        document.addEventListener('DOMContentLoaded', initProfile);
+    </script>
+</body>
+</html>
