@@ -814,10 +814,8 @@ export async function adminRoutes(app: FastifyInstance, opts?: { queue?: IVideoQ
         }
 
         const duplicates = await billingStorage.listDuplicatePayments();
-        const refunds = await billingStorage.listRefunds();
-        const refundedPaymentIds = new Set(
-            refunds.filter((r) => r.source_type === "duplicate").map((r) => r.source_id)
-        );
+        const duplicateIds = duplicates.map((p) => p.id);
+        const refundedPaymentIds = await billingStorage.getRefundedSourceIds("duplicate", duplicateIds);
 
         const items: any[] = [];
         for (const p of duplicates) {
@@ -872,8 +870,7 @@ export async function adminRoutes(app: FastifyInstance, opts?: { queue?: IVideoQ
                 }
             }
 
-            const all = await billingStorage.getUnmatchedPayments("all");
-            const existing = all.find((u) => u.id === id);
+            const existing = await billingStorage.findUnmatchedPaymentById(id);
             if (!existing) {
                 return reply.status(404).send({ error: "Không tìm thấy giao dịch." });
             }
@@ -919,9 +916,13 @@ export async function adminRoutes(app: FastifyInstance, opts?: { queue?: IVideoQ
                     error: "Vui lòng nhập số tài khoản và tên ngân hàng của khách hàng để hoàn tiền.",
                 });
             }
+            if (bankAccount.length > 50 || bankName.length > 100) {
+                return reply.status(400).send({
+                    error: "Số tài khoản hoặc tên ngân hàng vượt quá độ dài cho phép.",
+                });
+            }
 
-            const all = await billingStorage.getUnmatchedPayments("all");
-            const existing = all.find((u) => u.id === id);
+            const existing = await billingStorage.findUnmatchedPaymentById(id);
             if (!existing) {
                 return reply.status(404).send({ error: "Không tìm thấy giao dịch." });
             }
@@ -929,16 +930,30 @@ export async function adminRoutes(app: FastifyInstance, opts?: { queue?: IVideoQ
                 return reply.status(400).send({ error: "Giao dịch này đã được xử lý trước đó." });
             }
 
-            const refund = await billingStorage.recordRefund({
-                source_type: "unmatched",
-                source_id: existing.id,
-                sepay_ref: existing.sepay_ref,
-                amount_vnd: existing.amount_vnd,
-                bank_account: bankAccount,
-                bank_name: bankName,
-                admin_note: adminNote,
-                refunded_by: check.user?.email,
-            });
+            const existingRefund = await billingStorage.findRefundBySource("unmatched", existing.id);
+            if (existingRefund) {
+                return reply.status(400).send({ error: "Giao dịch này đã được hoàn tiền trước đó." });
+            }
+
+            let refund: any;
+            try {
+                refund = await billingStorage.recordRefund({
+                    source_type: "unmatched",
+                    source_id: existing.id,
+                    sepay_ref: existing.sepay_ref,
+                    amount_vnd: existing.amount_vnd,
+                    bank_account: bankAccount,
+                    bank_name: bankName,
+                    admin_note: adminNote,
+                    refunded_by: check.user?.email,
+                });
+            } catch (err: any) {
+                if (err?.code === "23505" || err?.message?.includes("Refund already exists")) {
+                    return reply.status(400).send({ error: "Giao dịch này đã được hoàn tiền trước đó." });
+                }
+                throw err;
+            }
+
             await billingStorage.resolveUnmatchedPayment(id, "refunded", adminNote, check.user?.email);
 
             auditLog.record({
@@ -978,6 +993,11 @@ export async function adminRoutes(app: FastifyInstance, opts?: { queue?: IVideoQ
                     error: "Vui lòng nhập số tài khoản và tên ngân hàng của khách hàng để hoàn tiền.",
                 });
             }
+            if (bankAccount.length > 50 || bankName.length > 100) {
+                return reply.status(400).send({
+                    error: "Số tài khoản hoặc tên ngân hàng vượt quá độ dài cho phép.",
+                });
+            }
 
             const payment = await billingStorage.findPaymentById(paymentId);
             if (!payment) {
@@ -986,21 +1006,30 @@ export async function adminRoutes(app: FastifyInstance, opts?: { queue?: IVideoQ
             if (payment.result !== "duplicate") {
                 return reply.status(400).send({ error: "Chỉ hoàn tiền cho giao dịch trùng lặp." });
             }
-            const refunds = await billingStorage.listRefunds();
-            if (refunds.some((r) => r.source_type === "duplicate" && r.source_id === payment.id)) {
+
+            const existingRefund = await billingStorage.findRefundBySource("duplicate", payment.id);
+            if (existingRefund) {
                 return reply.status(400).send({ error: "Giao dịch này đã được hoàn tiền trước đó." });
             }
 
-            const refund = await billingStorage.recordRefund({
-                source_type: "duplicate",
-                source_id: payment.id,
-                sepay_ref: payment.sepay_ref,
-                amount_vnd: payment.amount_vnd,
-                bank_account: bankAccount,
-                bank_name: bankName,
-                admin_note: adminNote,
-                refunded_by: check.user?.email,
-            });
+            let refund: any;
+            try {
+                refund = await billingStorage.recordRefund({
+                    source_type: "duplicate",
+                    source_id: payment.id,
+                    sepay_ref: payment.sepay_ref,
+                    amount_vnd: payment.amount_vnd,
+                    bank_account: bankAccount,
+                    bank_name: bankName,
+                    admin_note: adminNote,
+                    refunded_by: check.user?.email,
+                });
+            } catch (err: any) {
+                if (err?.code === "23505" || err?.message?.includes("Refund already exists")) {
+                    return reply.status(400).send({ error: "Giao dịch này đã được hoàn tiền trước đó." });
+                }
+                throw err;
+            }
 
             auditLog.record({
                 action: "admin.payment_refunded",
