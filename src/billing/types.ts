@@ -58,16 +58,26 @@ export interface SePayWebhookPayload {
     subAccount?: string;
     transferType?: string;
     transfer_type?: string;
-    transferAmount?: number;
-    transfer_amount?: number;
-    amount_in?: number;
-    accumulated?: number;
+    transferAmount?: number | string;
+    transfer_amount?: number | string;
+    amount_in?: number | string;
+    accumulated?: number | string;
     code?: string | null;
     content?: string;
-    referenceCode?: string;
-    reference_code?: string;
+    referenceCode?: string | null;
+    reference_code?: string | null;
     description?: string;
     [key: string]: any;
+}
+
+export interface SimulateWebhookRequest {
+    pay_code?: string;
+    order_id?: string;
+    amount_vnd?: number;
+    content?: string;
+    reference_code?: string;
+    id?: number | string;
+    auth_type?: 'hmac' | 'apikey' | 'none';
 }
 
 export interface CreateOrderRequest {

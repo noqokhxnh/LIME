@@ -162,40 +162,42 @@ export class VietQrBillingService {
 
     /**
      * Normalizes transaction memo and extracts the pay_code.
+     * Robust against null code, spaces, hyphens, and surrounding bank noise.
      */
     extractPayCode(payload: SePayWebhookPayload, prefix: string): string | null {
         const normalizedPrefix = prefix.toUpperCase();
 
-        // 1. Try payload.code first if present
+        // 1. Try payload.code first if present and matches prefix
         if (payload.code && typeof payload.code === 'string') {
-            const cleanCode = payload.code.trim().toUpperCase();
+            const cleanCode = payload.code.trim().toUpperCase().replace(/[\s\-_]+/g, '');
             if (cleanCode.startsWith(normalizedPrefix) && cleanCode.length >= normalizedPrefix.length + 6) {
-                return cleanCode.slice(0, normalizedPrefix.length + 6);
+                return normalizedPrefix + cleanCode.slice(normalizedPrefix.length, normalizedPrefix.length + 6);
             }
         }
 
-        // 2. Fallback to raw content / description
+        // 2. Fallback to raw content / description when code is null, missing, or mismatched
         const rawContent = (payload.content || payload.description || '').toString();
         if (!rawContent) return null;
 
-        // Strip Vietnamese accents, convert to uppercase, strip special chars to spaces
+        // Strip Vietnamese accents, convert to uppercase
         const normalized = rawContent
             .normalize('NFD')
             .replace(/[̀-ͯ]/g, '')
-            .toUpperCase()
-            .replace(/[^A-Z0-9]/g, ' ');
+            .toUpperCase();
 
-        const regex = new RegExp(`(?:^|\\s)(${normalizedPrefix}[A-Z0-9]{6})(?:\\s|$)`, 'i');
+        // Pattern: PREFIX optionally followed by whitespace, dash, or underscore and 6 alphanumeric characters
+        const regex = new RegExp(`(?:^|[^A-Z0-9])(${normalizedPrefix})[\\s\\-_]*([A-Z0-9]{6})(?:[^A-Z0-9]|$)`, 'i');
         const match = normalized.match(regex);
-        if (match && match[1]) {
-            return match[1].toUpperCase();
+        if (match && match[2]) {
+            return `${normalizedPrefix}${match[2].toUpperCase()}`;
         }
 
-        // Broad fallback: any occurrence of PREFIX + 6 alphanumeric chars without spaces
-        const broadRegex = new RegExp(`(${normalizedPrefix}[A-Z0-9]{6})`, 'i');
-        const broadMatch = normalized.replace(/\s+/g, '').match(broadRegex);
-        if (broadMatch && broadMatch[1]) {
-            return broadMatch[1].toUpperCase();
+        // Broad fallback: strip all non-alphanumeric chars and search for PREFIX + 6 chars
+        const cleaned = normalized.replace(/[^A-Z0-9]/g, '');
+        const broadRegex = new RegExp(`(${normalizedPrefix})([A-Z0-9]{6})`, 'i');
+        const broadMatch = cleaned.match(broadRegex);
+        if (broadMatch && broadMatch[2]) {
+            return `${normalizedPrefix}${broadMatch[2].toUpperCase()}`;
         }
 
         return null;
@@ -203,7 +205,7 @@ export class VietQrBillingService {
 
     /**
      * Processes SePay incoming webhook transaction.
-     * Guarantees 3-layer idempotency and exact reconciliation.
+     * Guarantees 3-layer idempotency (keyed on SePay transaction ID) and exact reconciliation.
      */
     async processWebhook(payload: SePayWebhookPayload): Promise<{ success: boolean; result?: string; reason?: string }> {
         const config = getConfig();
@@ -214,14 +216,19 @@ export class VietQrBillingService {
             return { success: true, result: 'ignored_transfer_out' };
         }
 
-        // 2. Extract reference_code (bank FT code - primary idempotency key)
-        const rawRef = payload.referenceCode || payload.reference_code || payload.id;
-        if (!rawRef) {
-            return { success: false, reason: 'MISSING_REFERENCE_CODE' };
-        }
-        const sepayRef = rawRef.toString().trim();
+        // 2. Primary idempotency key: MUST be payload.id (SePay transaction id).
+        // Official SePay docs note referenceCode may be empty with some banks, so using referenceCode
+        // would cause two different transactions to collide.
+        const rawId = (payload.id !== undefined && payload.id !== null && String(payload.id).trim() !== '')
+            ? String(payload.id).trim()
+            : (payload.referenceCode || payload.reference_code ? String(payload.referenceCode || payload.reference_code).trim() : null);
 
-        // 3. Layer 1 Idempotency Check: if reference_code already exists, do nothing
+        if (!rawId) {
+            return { success: false, reason: 'MISSING_TRANSACTION_ID' };
+        }
+        const sepayRef = rawId;
+
+        // 3. Layer 1 Idempotency Check: if SePay transaction ID already exists, do nothing
         const existingPayment = await billingStorage.findPaymentBySepayRef(sepayRef);
         if (existingPayment) {
             return { success: true, result: 'idempotent_duplicate_ref' };
