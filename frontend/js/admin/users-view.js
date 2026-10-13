@@ -90,7 +90,7 @@ export const UsersView = {
                         </div>
                     </div>
                     <div class="filter-actions">
-                        <button class="btn btn-secondary" id="btn-refresh-users" title="Làm mới">↻ Tải lại</button>
+                        <button class="btn btn-secondary" id="btn-refresh-users" title="Làm mới">Tải lại</button>
                     </div>
                 </div>
             </div>
