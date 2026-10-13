@@ -105,3 +105,19 @@ export interface OrderStatusResponse {
     paid_at?: string | null;
     plan_expires_at?: string | null;
 }
+
+export type RefundSourceType = 'unmatched' | 'duplicate';
+
+export interface Refund {
+    id: string;
+    source_type: RefundSourceType;
+    source_id: string;
+    sepay_ref: string;
+    amount_vnd: number;
+    bank_account: string;
+    bank_name: string;
+    admin_note?: string | null;
+    refunded_by?: string | null;
+    refunded_at: string;
+    created_at: string;
+}

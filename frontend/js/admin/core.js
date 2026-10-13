@@ -10,6 +10,7 @@ import { UsersView } from './users-view.js';
 import { ViewsView } from './views-view.js';
 import { JobsView } from './jobs-view.js';
 import { OrdersView } from './orders-view.js';
+import { FailedPaymentsView } from './failed-payments-view.js';
 import { SettingsView } from './settings-view.js';
 import { LogsView } from './logs-view.js';
 import { MaintenanceView } from './maintenance-view.js';
@@ -101,6 +102,16 @@ export const AdminCore = {
                 if (maintTag && s.maintenance?.total !== undefined) maintTag.textContent = s.maintenance.total;
                 if (jobsTag && s.jobs?.total !== undefined) jobsTag.textContent = s.jobs.total;
                 if (ordersTag && s.revenue !== undefined) ordersTag.textContent = s.revenue.paidOrders || '';
+
+                const failedTag = document.getElementById('nav-tag-failed');
+                if (failedTag) {
+                    try {
+                        const um = await AdminApi.getUnmatched('pending');
+                        failedTag.textContent = um.total ?? (um.unmatched || []).length;
+                    } catch {
+                        failedTag.textContent = '-';
+                    }
+                }
             }
         } catch (e) {
             console.warn('[Admin] Lỗi lấy số liệu sidebar:', e);
@@ -158,6 +169,11 @@ export const AdminCore = {
                 if (titleEl) titleEl.textContent = 'Quản lý đơn hàng & Doanh thu';
                 OrdersView.init(container);
                 this.currentView = OrdersView;
+                break;
+            case 'failed-payments':
+                if (titleEl) titleEl.textContent = 'Xử lý giao dịch lỗi';
+                FailedPaymentsView.init(container);
+                this.currentView = FailedPaymentsView;
                 break;
             case 'settings':
                 if (titleEl) titleEl.textContent = 'Cấu hình hệ thống';
