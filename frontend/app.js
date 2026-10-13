@@ -461,8 +461,16 @@ async function checkCurrentUser() {
         const res = await fetch(`${API_BASE}/api/auth/me`, { credentials: 'include' });
         isLoggedIn = res.ok;
         if (isLoggedIn && loginOpenBtn) {
-            const user = await res.json();
-            loginOpenBtn.textContent = user.username || 'Tài khoản';
+            const data = await res.json();
+            const user = data.user || data;
+            loginOpenBtn.textContent = user.username || 'Hồ sơ';
+
+            const profLink = document.getElementById('nav-profile-link');
+            const setLink = document.getElementById('nav-setting-link');
+            const adminLink = document.getElementById('nav-admin-link');
+            if (profLink) profLink.style.display = 'inline-block';
+            if (setLink) setLink.style.display = 'inline-block';
+            if (adminLink && user.role === 'admin') adminLink.style.display = 'inline-block';
         }
     } catch (err) { /* chưa đăng nhập */ }
 }
