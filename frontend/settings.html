@@ -378,7 +378,8 @@
 
                     <div class="form-group">
                         <label class="form-label" for="input-llm-model">Tên Model AI:</label>
-                        <input type="text" id="input-llm-model" class="form-control" placeholder="Mặc định theo hệ thống">
+                        <select id="input-llm-model" class="form-control"></select>
+                        <input type="text" id="input-llm-model-custom" class="form-control" style="display: none; margin-top: 0.5rem;" placeholder="Nhập tên model tùy chỉnh...">
                     </div>
                 </div>
             </div>
@@ -401,7 +402,8 @@
 
                     <div class="form-group">
                         <label class="form-label" for="input-tts-voice">Tên Giọng đọc (Voice):</label>
-                        <input type="text" id="input-tts-voice" class="form-control" placeholder="vi-VN-HoaiMyNeural">
+                        <select id="input-tts-voice" class="form-control"></select>
+                        <input type="text" id="input-tts-voice-custom" class="form-control" style="display: none; margin-top: 0.5rem;" placeholder="Nhập Voice ID hoặc tên giọng tùy chỉnh...">
                     </div>
                 </div>
 
@@ -519,25 +521,194 @@
 
         let currentLogoUrl = '/logo.png';
 
+        const LLM_MODELS = {
+            deepseek: [
+                { value: 'deepseek-chat', label: 'DeepSeek Chat (V3 - Khuyên dùng)' },
+                { value: 'deepseek-reasoner', label: 'DeepSeek Reasoner (R1)' },
+                { value: 'deepseek-4-flash', label: 'DeepSeek 4 Flash' },
+            ],
+            gemini: [
+                { value: 'gemini-2.5-flash', label: 'Gemini 2.5 Flash (Nhanh & Tối ưu)' },
+                { value: 'gemini-2.5-pro', label: 'Gemini 2.5 Pro (Thông minh)' },
+                { value: 'gemini-3.5-flash', label: 'Gemini 3.5 Flash' },
+                { value: 'gemini-1.5-pro', label: 'Gemini 1.5 Pro' },
+                { value: 'gemini-1.5-flash', label: 'Gemini 1.5 Flash' },
+            ],
+            claude: [
+                { value: 'claude-3-7-sonnet-latest', label: 'Claude 3.7 Sonnet (Mới nhất)' },
+                { value: 'claude sonnet 4.5', label: 'Claude Sonnet 4.5' },
+                { value: 'claude-3-5-sonnet-20241022', label: 'Claude 3.5 Sonnet' },
+                { value: 'claude-3-5-haiku-20241022', label: 'Claude 3.5 Haiku' },
+            ],
+            openai: [
+                { value: 'gpt-4o', label: 'GPT-4o (Đa năng, cao cấp)' },
+                { value: 'gpt-4o-mini', label: 'GPT-4o Mini (Tiết kiệm)' },
+                { value: 'gpt-4.5-preview', label: 'GPT-4.5 Preview' },
+                { value: 'gpt-5.3-codex', label: 'GPT-5.3 Codex' },
+                { value: 'o3-mini', label: 'o3-mini (Suy luận nhanh)' },
+            ],
+            '9router': [
+                { value: 'ag/gemini-3.8-flash-high', label: 'ag/gemini-3.8-flash-high (Mặc định)' },
+                { value: 'deepseek/deepseek-chat', label: 'deepseek/deepseek-chat' },
+                { value: 'openai/gpt-4o', label: 'openai/gpt-4o' },
+                { value: 'anthropic/claude-3.5-sonnet', label: 'anthropic/claude-3.5-sonnet' },
+            ],
+        };
+
+        const TTS_VOICES = {
+            edge: [
+                { value: 'vi-VN-HoaiMyNeural', label: 'Hoài My (Nữ · Bắc · Tự nhiên)' },
+                { value: 'vi-VN-NamMinhNeural', label: 'Nam Minh (Nam · Bắc · Tự nhiên)' },
+                { value: 'en-US-AriaNeural', label: 'Aria (Nữ · Mỹ · Tiếng Anh)' },
+                { value: 'en-US-GuyNeural', label: 'Guy (Nam · Mỹ · Tiếng Anh)' },
+                { value: 'ja-JP-NanamiNeural', label: 'Nanami (Nữ · Tiếng Nhật)' },
+                { value: 'ko-KR-SunHiNeural', label: 'Sun-Hi (Nữ · Tiếng Hàn)' },
+                { value: 'zh-CN-XiaoxiaoNeural', label: 'Xiaoxiao (Nữ · Tiếng Trung)' },
+            ],
+            vieneu: [
+                { value: 'Minh Quân', label: 'Minh Quân (Nam · Bắc · Tự nhiên)' },
+                { value: 'Mai Anh', label: 'Mai Anh (Nữ · Bắc · Tin tức)' },
+                { value: 'Adam', label: 'Adam (Nam · Nam · Tự nhiên)' },
+                { value: 'Ái Hân', label: 'Ái Hân (Nữ · Nam · Tin tức)' },
+                { value: 'Mỹ Duyên', label: 'Mỹ Duyên (Nữ · Bắc · Đọc truyện)' },
+                { value: 'Đức Trí', label: 'Đức Trí (Nam · Bắc · Đọc truyện)' },
+                { value: 'Hữu Quân', label: 'Hữu Quân (Nam · Bắc · Tin tức)' },
+                { value: 'Xuân Tiên', label: 'Xuân Tiên (Nữ · Bắc · Tin tức)' },
+                { value: 'Trúc Ly', label: 'Trúc Ly (Nữ · Bắc · Tự nhiên)' },
+                { value: 'Anh Khôi', label: 'Anh Khôi (Nam · Bắc · Kể chuyện)' },
+                { value: 'Mạnh Dũng', label: 'Mạnh Dũng (Nam · Bắc · Tự nhiên)' },
+            ],
+            openai: [
+                { value: 'alloy', label: 'Alloy (Cân bằng, phổ thông)' },
+                { value: 'echo', label: 'Echo (Nam, ấm áp)' },
+                { value: 'fable', label: 'Fable (Anh - biểu cảm)' },
+                { value: 'onyx', label: 'Onyx (Nam, trầm ấm)' },
+                { value: 'nova', label: 'Nova (Nữ, tươi sáng)' },
+                { value: 'shimmer', label: 'Shimmer (Nữ, trong trẻo)' },
+            ],
+            google: [
+                { value: 'vi-VN-Standard-A', label: 'vi-VN-Standard-A (Nữ chuẩn)' },
+                { value: 'vi-VN-Standard-B', label: 'vi-VN-Standard-B (Nam chuẩn)' },
+                { value: 'vi-VN-Standard-C', label: 'vi-VN-Standard-C (Nữ tự nhiên)' },
+                { value: 'vi-VN-Standard-D', label: 'vi-VN-Standard-D (Nam tự nhiên)' },
+                { value: 'vi-VN-Wavenet-A', label: 'vi-VN-Wavenet-A (Nữ cao cấp)' },
+                { value: 'vi-VN-Wavenet-B', label: 'vi-VN-Wavenet-B (Nam cao cấp)' },
+                { value: 'vi-VN-Wavenet-C', label: 'vi-VN-Wavenet-C (Nữ biểu cảm)' },
+                { value: 'vi-VN-Wavenet-D', label: 'vi-VN-Wavenet-D (Nam biểu cảm)' },
+                { value: 'en-US-Standard-C', label: 'en-US-Standard-C (Tiếng Anh)' },
+            ],
+            elevenlabs: [
+                { value: 'CQAD6iKxS73fEAGjSwt5', label: 'LIME Studio Voice (Mặc định)' },
+                { value: '21m00Tcm4TlvDq8ikWAM', label: 'Rachel (Nữ · Dịu dàng)' },
+                { value: 'AZnzlk1XvdvUeBnXmlld', label: 'Domi (Nữ · Mạnh mẽ)' },
+                { value: 'EXAVITQu4vr4xnSDxMaL', label: 'Bella (Nữ · Trẻ trung)' },
+                { value: 'ErXwobaYiN019PkySvjV', label: 'Antoni (Nam · Truyền cảm)' },
+                { value: 'MF3mGyEYCl7XYWbV9V6O', label: 'Elli (Nữ · Biểu cảm)' },
+                { value: 'TxGEqnHWrfWFTfGW9XjX', label: 'Josh (Nam · Tự nhiên)' },
+                { value: 'VR6AewLTigWG4xiSOuka', label: 'Arnold (Nam · Vang sáng)' },
+                { value: 'pNInz6obpgDQGcFmaJgB', label: 'Adam (Nam · Tự sự)' },
+            ],
+        };
+
         async function initSettings() {
             // Tab switching
             const tabs = document.querySelectorAll('.tab-btn');
+            function switchTab(tabKey) {
+                tabs.forEach(t => t.classList.toggle('active', t.dataset.tab === tabKey));
+                document.querySelectorAll('.tab-panel').forEach(p => p.classList.toggle('active', p.id === `tab-${tabKey}`));
+            }
             tabs.forEach(tab => {
                 tab.addEventListener('click', () => {
-                    tabs.forEach(t => t.classList.remove('active'));
-                    document.querySelectorAll('.tab-panel').forEach(p => p.classList.remove('active'));
-
-                    tab.classList.add('active');
-                    const targetId = `tab-${tab.dataset.tab}`;
-                    document.getElementById(targetId)?.classList.add('active');
+                    switchTab(tab.dataset.tab);
                 });
             });
+            const hash = window.location.hash.replace('#', '');
+            if (hash && ['ai-voice', 'brand-kit', 'security'].includes(hash)) {
+                switchTab(hash);
+            }
 
-            // TTS Provider toggle ElevenLabs API Key input
+            // Model & Voice Select population
+            const llmSelect = document.getElementById('select-llm-provider');
+            const modelSelect = document.getElementById('input-llm-model');
+            const modelCustomInput = document.getElementById('input-llm-model-custom');
             const ttsSelect = document.getElementById('select-tts-provider');
+            const voiceSelect = document.getElementById('input-tts-voice');
+            const voiceCustomInput = document.getElementById('input-tts-voice-custom');
+
+            function populateModels(provider, selectedValue) {
+                const list = LLM_MODELS[provider] || [];
+                modelSelect.innerHTML = '';
+                list.forEach(m => {
+                    const opt = document.createElement('option');
+                    opt.value = m.value;
+                    opt.textContent = m.label;
+                    modelSelect.appendChild(opt);
+                });
+                const customOpt = document.createElement('option');
+                customOpt.value = '__custom__';
+                customOpt.textContent = '➕ Tùy chỉnh model khác...';
+                modelSelect.appendChild(customOpt);
+
+                const isKnown = list.some(m => m.value === selectedValue);
+                if (isKnown) {
+                    modelSelect.value = selectedValue;
+                    modelCustomInput.style.display = 'none';
+                } else if (selectedValue) {
+                    modelSelect.value = '__custom__';
+                    modelCustomInput.value = selectedValue;
+                    modelCustomInput.style.display = 'block';
+                } else {
+                    modelSelect.value = list[0]?.value || '__custom__';
+                    modelCustomInput.style.display = modelSelect.value === '__custom__' ? 'block' : 'none';
+                }
+            }
+
+            function populateVoices(provider, selectedValue) {
+                const list = TTS_VOICES[provider] || [];
+                voiceSelect.innerHTML = '';
+                list.forEach(v => {
+                    const opt = document.createElement('option');
+                    opt.value = v.value;
+                    opt.textContent = v.label;
+                    voiceSelect.appendChild(opt);
+                });
+                const customOpt = document.createElement('option');
+                customOpt.value = '__custom__';
+                customOpt.textContent = '➕ Tùy chỉnh giọng / Voice ID khác...';
+                voiceSelect.appendChild(customOpt);
+
+                const isKnown = list.some(v => v.value === selectedValue);
+                if (isKnown) {
+                    voiceSelect.value = selectedValue;
+                    voiceCustomInput.style.display = 'none';
+                } else if (selectedValue) {
+                    voiceSelect.value = '__custom__';
+                    voiceCustomInput.value = selectedValue;
+                    voiceCustomInput.style.display = 'block';
+                } else {
+                    voiceSelect.value = list[0]?.value || '__custom__';
+                    voiceCustomInput.style.display = voiceSelect.value === '__custom__' ? 'block' : 'none';
+                }
+            }
+
+            llmSelect.addEventListener('change', () => {
+                populateModels(llmSelect.value);
+            });
+            modelSelect.addEventListener('change', () => {
+                const isCustom = modelSelect.value === '__custom__';
+                modelCustomInput.style.display = isCustom ? 'block' : 'none';
+                if (isCustom) modelCustomInput.focus();
+            });
+
             ttsSelect.addEventListener('change', () => {
                 const elKey = document.getElementById('elevenlabs-key-container');
                 elKey.style.display = ttsSelect.value === 'elevenlabs' ? 'block' : 'none';
+                populateVoices(ttsSelect.value);
+            });
+            voiceSelect.addEventListener('change', () => {
+                const isCustom = voiceSelect.value === '__custom__';
+                voiceCustomInput.style.display = isCustom ? 'block' : 'none';
+                if (isCustom) voiceCustomInput.focus();
             });
 
             // Brand Kit watermark position preview change
@@ -555,13 +726,18 @@
             // Load user data & current settings
             try {
                 const userRes = await fetch('/api/auth/me', { credentials: 'include' });
+                if (!userRes.ok) {
+                    window.location.replace('/?auth=open');
+                    return;
+                }
                 const userData = await userRes.json();
-                if (!userData.authenticated) {
+                const user = userData.user || userData;
+                if (!user || !user.id) {
                     window.location.replace('/?auth=open');
                     return;
                 }
 
-                if (userData.user?.role === 'admin') {
+                if (user.role === 'admin') {
                     document.getElementById('nav-admin-link').style.display = 'inline-flex';
                     document.getElementById('admin-security-panel').style.display = 'block';
                 }
@@ -571,16 +747,21 @@
                 if (setRes.ok) {
                     const setData = await setRes.json();
                     const s = setData.settings || {};
-                    if (s.llmProvider) document.getElementById('select-llm-provider').value = s.llmProvider;
-                    if (s.llmModel) document.getElementById('input-llm-model').value = s.llmModel;
+                    if (s.llmProvider) llmSelect.value = s.llmProvider;
+                    populateModels(llmSelect.value, s.llmModel);
+
                     if (s.ttsProvider) {
-                        document.getElementById('select-tts-provider').value = s.ttsProvider;
+                        ttsSelect.value = s.ttsProvider;
                         if (s.ttsProvider === 'elevenlabs') {
                             document.getElementById('elevenlabs-key-container').style.display = 'block';
                         }
                     }
-                    if (s.ttsVoice) document.getElementById('input-tts-voice').value = s.ttsVoice;
+                    populateVoices(ttsSelect.value, s.ttsVoice);
+
                     if (s.elevenlabsApiKey) document.getElementById('input-elevenlabs-key').value = s.elevenlabsApiKey;
+                } else {
+                    populateModels(llmSelect.value);
+                    populateVoices(ttsSelect.value);
                 }
 
                 // Load Brand Kit
@@ -600,15 +781,24 @@
                 }
             } catch (err) {
                 console.error('[Settings] Error loading settings:', err);
+                populateModels(llmSelect.value);
+                populateVoices(ttsSelect.value);
             }
 
             // Save AI Settings
             document.getElementById('btn-save-ai').addEventListener('click', async () => {
+                const finalModel = modelSelect.value === '__custom__'
+                    ? modelCustomInput.value.trim()
+                    : modelSelect.value;
+                const finalVoice = voiceSelect.value === '__custom__'
+                    ? voiceCustomInput.value.trim()
+                    : voiceSelect.value;
+
                 const payload = {
-                    llmProvider: document.getElementById('select-llm-provider').value,
-                    llmModel: document.getElementById('input-llm-model').value.trim(),
-                    ttsProvider: document.getElementById('select-tts-provider').value,
-                    ttsVoice: document.getElementById('input-tts-voice').value.trim(),
+                    llmProvider: llmSelect.value,
+                    llmModel: finalModel,
+                    ttsProvider: ttsSelect.value,
+                    ttsVoice: finalVoice,
                     elevenlabsApiKey: document.getElementById('input-elevenlabs-key').value.trim(),
                 };
 
@@ -701,7 +891,11 @@
             });
         }
 
-        document.addEventListener('DOMContentLoaded', initSettings);
+        if (document.readyState === 'loading') {
+            document.addEventListener('DOMContentLoaded', initSettings);
+        } else {
+            initSettings();
+        }
     </script>
 </body>
 </html>
