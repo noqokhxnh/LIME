@@ -1,0 +1,121 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>LIME — Super Admin Dashboard</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;600&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="/css/ui-kit.css">
+    <link rel="stylesheet" href="/css/admin.css">
+</head>
+<body>
+    <div class="admin-layout">
+        <!-- Sidebar Navigation -->
+        <aside class="admin-sidebar">
+            <div>
+                <div class="sidebar-brand">
+                    <img src="/public/logo.png" alt="LIME Logo" class="brand-logo-img">
+                    <div class="brand-text">
+                        <span class="brand-title">LIME Admin</span>
+                        <span class="brand-subtitle">Super Admin Portal</span>
+                    </div>
+                </div>
+
+                <nav class="sidebar-nav">
+                    <div class="nav-section-label">Quản lý nghiệp vụ</div>
+
+                    <a href="#users" class="nav-item active" data-tab="users">
+                        <div class="nav-item-content">
+                            <span>Người dùng</span>
+                        </div>
+                        <span class="nav-item-tag" id="nav-tag-users">-</span>
+                    </a>
+
+                    <a href="#views" class="nav-item" data-tab="views">
+                        <div class="nav-item-content">
+                            <span>Lượt truy cập</span>
+                        </div>
+                        <span class="nav-item-tag" id="nav-tag-views">-</span>
+                    </a>
+
+                    <a href="#maintenance" class="nav-item" data-tab="maintenance">
+                        <div class="nav-item-content">
+                            <span>Khách khi bảo trì</span>
+                        </div>
+                        <span class="nav-item-tag" id="nav-tag-maintenance">-</span>
+                    </a>
+
+                    <a href="#jobs" class="nav-item" data-tab="jobs">
+                        <div class="nav-item-content">
+                            <span>Video Jobs</span>
+                        </div>
+                        <span class="nav-item-tag" id="nav-tag-jobs">-</span>
+                    </a>
+
+                    <a href="#orders" class="nav-item" data-tab="orders">
+                        <div class="nav-item-content">
+                            <span>Đơn hàng</span>
+                        </div>
+                        <span class="nav-item-tag" id="nav-tag-orders">-</span>
+                    </a>
+
+                    <div class="nav-section-label">Hệ thống & An toàn</div>
+
+                    <a href="#settings" class="nav-item" data-tab="settings">
+                        <div class="nav-item-content">
+                            <span>Cấu hình AI & TTS</span>
+                        </div>
+                    </a>
+
+                    <a href="#logs" class="nav-item" data-tab="logs">
+                        <div class="nav-item-content">
+                            <span>Audit Logs</span>
+                        </div>
+                    </a>
+                </nav>
+            </div>
+
+            <div class="sidebar-footer">
+                <div class="admin-user-profile">
+                    <div class="user-avatar-sm" id="admin-sidebar-user-avatar">A</div>
+                    <div class="user-meta-sm">
+                        <div class="user-name-sm" id="admin-sidebar-user-name">Đang tải...</div>
+                        <div class="user-role-badge" id="admin-sidebar-user-role">SUPER ADMIN</div>
+                    </div>
+                </div>
+
+                <a href="/ui" class="btn-back-studio">
+                    <span>←</span>
+                    <span>Quay lại Studio</span>
+                </a>
+            </div>
+        </aside>
+
+        <!-- Main Workspace -->
+        <main class="admin-main">
+            <header class="admin-topbar">
+                <div class="topbar-left">
+                    <h1 class="topbar-title" id="topbar-page-title">Quản lý người dùng</h1>
+                    <span class="topbar-subtitle">Hệ thống quản trị tập trung</span>
+                </div>
+                <div class="topbar-right">
+                    <div class="badge badge-success" style="font-size: 11px;">
+                        <span class="badge-dot"></span>
+                        <span>API Online</span>
+                    </div>
+                    <a href="/ui" class="btn btn-secondary" style="font-size: 12px; text-decoration: none;">Vào Studio</a>
+                </div>
+            </header>
+
+            <div class="admin-body">
+                <div id="admin-view-container"></div>
+            </div>
+        </main>
+    </div>
+
+    <!-- Core Module Script -->
+    <script type="module" src="/js/admin/core.js"></script>
+</body>
+</html>
