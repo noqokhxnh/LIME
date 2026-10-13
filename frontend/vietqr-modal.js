@@ -35,12 +35,14 @@
     };
 
     let currentOrder = {
+        id: '',
         code: '',
         plan: 'pro',
         cycle: 'month',
         amount: 99000,
         expireAt: 0,
-        timerInterval: null
+        timerInterval: null,
+        pollInterval: null,
     };
 
     function getModal() {
@@ -175,7 +177,92 @@
         });
     }
 
-    function openModal(options = {}) {
+    async function requestBackendOrder(planId) {
+        try {
+            const res = await fetch('/api/billing/vietqr/order', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                credentials: 'include',
+                body: JSON.stringify({ plan_id: planId }),
+            });
+
+            if (res.status === 401) {
+                // Not authenticated
+                const loginModal = document.getElementById('login-modal');
+                if (loginModal) {
+                    closeModal();
+                    loginModal.classList.add('show');
+                } else {
+                    alert('Vui lòng đăng nhập để thực hiện thanh toán.');
+                }
+                return null;
+            }
+
+            if (!res.ok) {
+                const err = await res.json().catch(() => ({}));
+                console.warn('[VietQR] Could not create backend order:', err);
+                return null;
+            }
+
+            return await res.json();
+        } catch (e) {
+            console.warn('[VietQR] Error requesting backend order:', e);
+            return null;
+        }
+    }
+
+    function startPollingStatus(orderId) {
+        stopPollingStatus();
+        if (!orderId) return;
+
+        currentOrder.pollInterval = setInterval(async () => {
+            try {
+                const res = await fetch(`/api/billing/vietqr/order/${orderId}`, {
+                    credentials: 'include',
+                });
+                if (!res.ok) return;
+                const data = await res.json();
+                if (data.status === 'paid') {
+                    stopPollingStatus();
+                    showPaymentSuccess();
+                }
+            } catch (e) {
+                console.warn('[VietQR] Poll error:', e);
+            }
+        }, 3000);
+    }
+
+    function stopPollingStatus() {
+        if (currentOrder.pollInterval) {
+            clearInterval(currentOrder.pollInterval);
+            currentOrder.pollInterval = null;
+        }
+    }
+
+    function showPaymentSuccess() {
+        const modal = getModal();
+        if (!modal) return;
+
+        const grid = modal.querySelector('.vietqr-body-grid');
+        const success = modal.querySelector('.vietqr-success-card');
+        const successPlanName = document.getElementById('vietqr-success-plan-name');
+        const successCode = document.getElementById('vietqr-success-code');
+
+        if (grid) grid.style.display = 'none';
+        if (success) success.style.display = 'flex';
+
+        if (successPlanName) {
+            const plan = PLAN_PRICES[currentOrder.plan] || PLAN_PRICES.pro;
+            successPlanName.textContent = currentOrder.cycle === 'year' ? `${plan.name} (1 Năm)` : `${plan.name} (1 Tháng)`;
+        }
+        if (successCode) {
+            successCode.textContent = currentOrder.code;
+        }
+
+        clearInterval(currentOrder.timerInterval);
+    }
+
+    async function openModal(options = {}) {
         const modal = getModal();
         if (!modal) return;
 
@@ -189,6 +276,7 @@
         if (submitBtn) {
             submitBtn.classList.remove('loading');
             submitBtn.disabled = false;
+            submitBtn.textContent = 'Tôi đã chuyển khoản';
         }
 
         // Initialize state
@@ -197,11 +285,43 @@
         const initialCycle = options.cycle || (document.querySelector('.bill-toggle span.on')?.getAttribute('data-period') === 'year' ? 'year' : 'month');
 
         switchCycle(initialCycle);
-        startTimer(900); // 15 phút
+        startTimer(900); // Default 15 mins
 
         modal.classList.add('show');
         modal.setAttribute('aria-hidden', 'false');
         document.body.style.overflow = 'hidden';
+
+        // Connect with backend API
+        const backendOrder = await requestBackendOrder(currentOrder.plan);
+        if (backendOrder) {
+            currentOrder.id = backendOrder.order_id;
+            currentOrder.code = backendOrder.pay_code;
+            currentOrder.amount = backendOrder.amount_vnd;
+
+            if (backendOrder.bank_account) {
+                BANK_CONFIG.accountNo = backendOrder.bank_account;
+            }
+            if (backendOrder.bank_code) {
+                BANK_CONFIG.bankId = backendOrder.bank_code;
+            }
+
+            // Sync countdown timer with server expires_at
+            if (backendOrder.expires_at) {
+                const remainSec = Math.max(60, Math.floor((new Date(backendOrder.expires_at).getTime() - Date.now()) / 1000));
+                startTimer(remainSec);
+            }
+
+            updateQRDisplay();
+
+            // Override QR image if backend provides direct URL
+            const qrImg = document.getElementById('vietqr-img');
+            if (qrImg && backendOrder.qr_image) {
+                qrImg.src = backendOrder.qr_image;
+            }
+
+            // Start polling every 3s
+            startPollingStatus(backendOrder.order_id);
+        }
     }
 
     function closeModal() {
@@ -210,10 +330,11 @@
         modal.classList.remove('show');
         modal.setAttribute('aria-hidden', 'true');
         clearInterval(currentOrder.timerInterval);
+        stopPollingStatus();
         document.body.style.overflow = '';
     }
 
-    function handlePaymentConfirmation() {
+    async function handlePaymentConfirmation() {
         const submitBtn = document.getElementById('vietqr-submit-btn');
         const modal = getModal();
         if (!submitBtn || !modal) return;
@@ -221,26 +342,28 @@
         submitBtn.classList.add('loading');
         submitBtn.disabled = true;
 
-        // Simulate banking webhook verification
-        setTimeout(() => {
-            const grid = modal.querySelector('.vietqr-body-grid');
-            const success = modal.querySelector('.vietqr-success-card');
-            const successPlanName = document.getElementById('vietqr-success-plan-name');
-            const successCode = document.getElementById('vietqr-success-code');
-
-            if (grid) grid.style.display = 'none';
-            if (success) success.style.display = 'flex';
-
-            if (successPlanName) {
-                const plan = PLAN_PRICES[currentOrder.plan] || PLAN_PRICES.pro;
-                successPlanName.textContent = currentOrder.cycle === 'year' ? `${plan.name} (1 Năm)` : `${plan.name} (1 Tháng)`;
+        if (currentOrder.id) {
+            try {
+                const res = await fetch(`/api/billing/vietqr/order/${currentOrder.id}/claimed`, {
+                    method: 'POST',
+                    credentials: 'include',
+                });
+                const data = await res.json();
+                if (data.expires_at) {
+                    const remainSec = Math.max(60, Math.floor((new Date(data.expires_at).getTime() - Date.now()) / 1000));
+                    startTimer(remainSec);
+                }
+            } catch (e) {
+                console.warn('[VietQR] Claim error:', e);
             }
-            if (successCode) {
-                successCode.textContent = currentOrder.code;
-            }
-
-            clearInterval(currentOrder.timerInterval);
-        }, 1200);
+            submitBtn.classList.remove('loading');
+            submitBtn.textContent = '✓ Đang chờ ngân hàng xác nhận giao dịch...';
+        } else {
+            // Simulated fallback
+            setTimeout(() => {
+                showPaymentSuccess();
+            }, 1200);
+        }
     }
 
     function downloadQR() {
