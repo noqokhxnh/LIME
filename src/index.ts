@@ -12,6 +12,8 @@ import { generateScript } from "./pipeline/scriptGenerator.js";
 import { initDatabase } from "./database/index.js";
 import fastifyCookie from "@fastify/cookie";
 import { authRoutes } from "./auth/routes.js";
+import { billingRoutes } from "./billing/routes.js";
+import { startBillingCron, stopBillingCron } from "./billing/cron.js";
 import { getQueue } from "./queue/index.js";
 import { processVideoJob } from "./queue/handler.js";
 import { IVideoQueue } from "./queue/interfaces.js";
@@ -33,6 +35,7 @@ export async function buildApp(options: { logger?: boolean, queue?: IVideoQueue 
     await app.register(fastifyCors, { origin: true , credentials: true });
     await app.register(fastifyCookie);
     await app.register(authRoutes);
+    await app.register(billingRoutes);
 
     // Đăng ký plugin xử lý upload file (multipart/form-data).
     // Giới hạn kích thước mỗi file tối đa 5MB để tránh tấn công DoS bằng file lớn.
@@ -709,10 +712,12 @@ export async function startServer(): Promise<FastifyInstance> {
         }
     }
     try {
+        startBillingCron(app);
         await app.listen({ port: config.PORT, host: "0.0.0.0" });
         console.log(`Backend server listening at http://localhost:${config.PORT}`);
         return app;
     } catch (err) {
+        stopBillingCron();
         app.log.error(err);
         process.exit(1);
     }

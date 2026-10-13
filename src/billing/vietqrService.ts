@@ -1,0 +1,344 @@
+import { randomBytes } from 'node:crypto';
+import { getConfig } from '../config.js';
+import { billingStorage } from './storage.js';
+import { generateNapasQrString, generateQrImageUrl, getBankBin } from './napas.js';
+import type {
+    CreateOrderResponse,
+    OrderStatusResponse,
+    SePayWebhookPayload,
+    Order,
+} from './types.js';
+
+export class VietQrBillingService {
+    /**
+     * Generates a unique pay_code with format PREFIX + 6 alphanumeric characters.
+     * E.g. LIME8X2K9Q
+     */
+    async generateUniquePayCode(prefix: string): Promise<string> {
+        const chars = '23456789ABCDEFGHJKLMNPQRSTUVWXYZ'; // Exclude ambiguous 0, 1, I, O
+        for (let attempt = 0; attempt < 10; attempt++) {
+            const bytes = randomBytes(6);
+            let code = prefix.toUpperCase();
+            for (let i = 0; i < 6; i++) {
+                code += chars[bytes[i] % chars.length];
+            }
+            const existing = await billingStorage.findOrderByPayCode(code);
+            if (!existing) {
+                return code;
+            }
+        }
+        // Fallback with timestamp suffix if repeated collisions
+        return `${prefix.toUpperCase()}${Date.now().toString(36).slice(-6).toUpperCase()}`;
+    }
+
+    /**
+     * Creates a new VietQR billing order for a user.
+     * Enforces the 1 pending order per user rule.
+     */
+    async createOrder(userId: string, planId: string): Promise<CreateOrderResponse> {
+        const config = getConfig();
+        const plan = await billingStorage.getPlanById(planId);
+        if (!plan) {
+            throw new Error('PLAN_NOT_FOUND');
+        }
+        if (!plan.is_active) {
+            throw new Error('PLAN_INACTIVE');
+        }
+
+        // Cancel previous pending or claimed orders of this user
+        await billingStorage.cancelActiveOrdersForUser(userId);
+
+        const payCode = await this.generateUniquePayCode(config.PAY_CODE_PREFIX || 'LIME');
+        const ttlMinutes = config.ORDER_TTL_MINUTES || 15;
+        const expiresAt = new Date(Date.now() + ttlMinutes * 60 * 1000).toISOString();
+
+        const order = await billingStorage.createOrder({
+            user_id: userId,
+            plan_id: plan.id,
+            amount_vnd: plan.price_vnd,
+            pay_code: payCode,
+            status: 'pending',
+            expires_at: expiresAt,
+            claimed_at: null,
+            paid_at: null,
+        });
+
+        const bankBin = config.BANK_BIN || getBankBin(config.BANK_CODE || 'MB');
+        const qrContent = generateNapasQrString({
+            bankBin,
+            bankAccount: config.BANK_ACCOUNT || '0982618707',
+            amount: plan.price_vnd,
+            memo: payCode,
+        });
+
+        const qrImage = generateQrImageUrl({
+            bankCode: config.BANK_CODE || 'MB',
+            bankAccount: config.BANK_ACCOUNT || '0982618707',
+            amount: plan.price_vnd,
+            memo: payCode,
+            accountName: config.BANK_ACCOUNT_NAME,
+        });
+
+        return {
+            order_id: order.id,
+            pay_code: payCode,
+            amount_vnd: plan.price_vnd,
+            qr_content: qrContent,
+            qr_image: qrImage,
+            expires_at: expiresAt,
+            bank_account: config.BANK_ACCOUNT || '0982618707',
+            bank_code: config.BANK_CODE || 'MB',
+            bank_name: config.BANK_NAME || 'MBBank',
+        };
+    }
+
+    /**
+     * Gets order status for polling.
+     */
+    async getOrderStatus(orderId: string, userId: string, isAdmin = false): Promise<OrderStatusResponse> {
+        const order = await billingStorage.findOrderById(orderId);
+        if (!order) {
+            throw new Error('ORDER_NOT_FOUND');
+        }
+        if (!isAdmin && order.user_id !== userId) {
+            throw new Error('FORBIDDEN');
+        }
+
+        const planExpiresAt = await billingStorage.getUserPlanExpiry(order.user_id);
+
+        return {
+            status: order.status,
+            amount_vnd: order.amount_vnd,
+            pay_code: order.pay_code,
+            expires_at: order.expires_at,
+            claimed_at: order.claimed_at,
+            paid_at: order.paid_at,
+            plan_expires_at: planExpiresAt,
+        };
+    }
+
+    /**
+     * Handles "Tôi đã chuyển khoản" button.
+     * Transitions pending order to claimed and extends expiry by CLAIMED_EXTEND_MINUTES (30 mins).
+     * Maximum 1 extension per order.
+     */
+    async claimOrder(orderId: string, userId: string): Promise<{ success: boolean; status: string; expires_at: string }> {
+        const config = getConfig();
+        const order = await billingStorage.findOrderById(orderId);
+        if (!order) {
+            throw new Error('ORDER_NOT_FOUND');
+        }
+        if (order.user_id !== userId) {
+            throw new Error('FORBIDDEN');
+        }
+
+        if (order.status === 'claimed') {
+            return {
+                success: true,
+                status: 'claimed',
+                expires_at: order.expires_at,
+            };
+        }
+
+        if (order.status !== 'pending') {
+            throw new Error(`CANNOT_CLAIM_STATUS_${order.status.toUpperCase()}`);
+        }
+
+        const claimedAt = new Date().toISOString();
+        const extendMinutes = config.CLAIMED_EXTEND_MINUTES || 30;
+        const newExpiresAt = new Date(Date.now() + extendMinutes * 60 * 1000).toISOString();
+
+        const updated = await billingStorage.updateOrderClaimed(orderId, claimedAt, newExpiresAt);
+        if (!updated) {
+            throw new Error('ORDER_UPDATE_FAILED');
+        }
+
+        return {
+            success: true,
+            status: 'claimed',
+            expires_at: newExpiresAt,
+        };
+    }
+
+    /**
+     * Normalizes transaction memo and extracts the pay_code.
+     */
+    extractPayCode(payload: SePayWebhookPayload, prefix: string): string | null {
+        const normalizedPrefix = prefix.toUpperCase();
+
+        // 1. Try payload.code first if present
+        if (payload.code && typeof payload.code === 'string') {
+            const cleanCode = payload.code.trim().toUpperCase();
+            if (cleanCode.startsWith(normalizedPrefix) && cleanCode.length >= normalizedPrefix.length + 6) {
+                return cleanCode.slice(0, normalizedPrefix.length + 6);
+            }
+        }
+
+        // 2. Fallback to raw content / description
+        const rawContent = (payload.content || payload.description || '').toString();
+        if (!rawContent) return null;
+
+        // Strip Vietnamese accents, convert to uppercase, strip special chars to spaces
+        const normalized = rawContent
+            .normalize('NFD')
+            .replace(/[̀-ͯ]/g, '')
+            .toUpperCase()
+            .replace(/[^A-Z0-9]/g, ' ');
+
+        const regex = new RegExp(`(?:^|\\s)(${normalizedPrefix}[A-Z0-9]{6})(?:\\s|$)`, 'i');
+        const match = normalized.match(regex);
+        if (match && match[1]) {
+            return match[1].toUpperCase();
+        }
+
+        // Broad fallback: any occurrence of PREFIX + 6 alphanumeric chars without spaces
+        const broadRegex = new RegExp(`(${normalizedPrefix}[A-Z0-9]{6})`, 'i');
+        const broadMatch = normalized.replace(/\s+/g, '').match(broadRegex);
+        if (broadMatch && broadMatch[1]) {
+            return broadMatch[1].toUpperCase();
+        }
+
+        return null;
+    }
+
+    /**
+     * Processes SePay incoming webhook transaction.
+     * Guarantees 3-layer idempotency and exact reconciliation.
+     */
+    async processWebhook(payload: SePayWebhookPayload): Promise<{ success: boolean; result?: string; reason?: string }> {
+        const config = getConfig();
+
+        // 1. Filter transfer_type: only process money in ("in")
+        const transferType = (payload.transferType || payload.transfer_type || 'in').toString().toLowerCase();
+        if (transferType !== 'in') {
+            return { success: true, result: 'ignored_transfer_out' };
+        }
+
+        // 2. Extract reference_code (bank FT code - primary idempotency key)
+        const rawRef = payload.referenceCode || payload.reference_code || payload.id;
+        if (!rawRef) {
+            return { success: false, reason: 'MISSING_REFERENCE_CODE' };
+        }
+        const sepayRef = rawRef.toString().trim();
+
+        // 3. Layer 1 Idempotency Check: if reference_code already exists, do nothing
+        const existingPayment = await billingStorage.findPaymentBySepayRef(sepayRef);
+        if (existingPayment) {
+            return { success: true, result: 'idempotent_duplicate_ref' };
+        }
+        const existingUnmatched = await billingStorage.findUnmatchedPaymentBySepayRef(sepayRef);
+        if (existingUnmatched) {
+            return { success: true, result: 'idempotent_duplicate_unmatched_ref' };
+        }
+
+        // 4. Extract amount
+        const amount = Number(payload.transferAmount || payload.transfer_amount || payload.amount_in || 0);
+
+        // 5. Extract pay_code
+        const prefix = config.PAY_CODE_PREFIX || 'LIME';
+        const payCode = this.extractPayCode(payload, prefix);
+        const rawContent = (payload.content || payload.description || '').toString();
+
+        if (!payCode) {
+            // Unmatched case: missing or unparseable pay_code
+            await billingStorage.recordUnmatchedPayment({
+                sepay_ref: sepayRef,
+                amount_vnd: amount,
+                content: rawContent,
+                raw: payload,
+                status: 'pending',
+                admin_note: 'Không tìm thấy pay_code trong nội dung chuyển khoản',
+            });
+            return { success: true, result: 'unmatched_no_code' };
+        }
+
+        // 6. Look up order by pay_code
+        const order = await billingStorage.findOrderByPayCode(payCode);
+        if (!order) {
+            // Unmatched case: pay_code does not match any order
+            await billingStorage.recordUnmatchedPayment({
+                sepay_ref: sepayRef,
+                amount_vnd: amount,
+                content: rawContent,
+                raw: payload,
+                status: 'pending',
+                admin_note: `Không tìm thấy order cho mã ${payCode}`,
+            });
+            return { success: true, result: 'unmatched_order_not_found' };
+        }
+
+        // 7. Check order status
+        if (order.status === 'paid') {
+            // Case 8.1: Duplicate transfer on already paid order
+            await billingStorage.recordDuplicatePayment({
+                orderId: order.id,
+                sepayRef,
+                amount,
+                raw: payload,
+            });
+            return { success: true, result: 'duplicate_paid_order' };
+        }
+
+        if (order.status === 'expired' || order.status === 'cancelled') {
+            // Payment arrived after order expired or was cancelled
+            await billingStorage.recordUnmatchedPayment({
+                sepay_ref: sepayRef,
+                amount_vnd: amount,
+                content: rawContent,
+                raw: payload,
+                status: 'pending',
+                admin_note: `Thanh toán cho order đã ${order.status} (${order.id})`,
+            });
+            return { success: true, result: `unmatched_order_${order.status}` };
+        }
+
+        // Order is pending or claimed
+        if (amount < order.amount_vnd) {
+            // Case 8.2: Underpaid transfer
+            await billingStorage.recordUnderpaidPayment({
+                orderId: order.id,
+                sepayRef,
+                amount,
+                raw: payload,
+            });
+            return { success: true, result: 'underpaid' };
+        }
+
+        // Matched or Overpaid transfer (amount >= order.amount_vnd)
+        const plan = await billingStorage.getPlanById(order.plan_id);
+        const planDays = plan ? plan.days : 30;
+        const quotaVideo = plan ? plan.quota_video : 0;
+        const paymentResult = amount > order.amount_vnd ? 'overpaid' : 'matched';
+
+        const fulfillRes = await billingStorage.lockAndFulfillOrder({
+            orderId: order.id,
+            sepayRef,
+            receivedAmount: amount,
+            raw: payload,
+            planDays,
+            quotaVideo,
+            planId: order.plan_id,
+            result: paymentResult,
+        });
+
+        if (!fulfillRes.success) {
+            if (fulfillRes.reason === 'ALREADY_PAID') {
+                await billingStorage.recordDuplicatePayment({
+                    orderId: order.id,
+                    sepayRef,
+                    amount,
+                    raw: payload,
+                });
+                return { success: true, result: 'duplicate_concurrent' };
+            }
+            throw new Error(`FULFILL_FAILED_${fulfillRes.reason}`);
+        }
+
+        return {
+            success: true,
+            result: paymentResult,
+        };
+    }
+}
+
+export const vietQrBillingService = new VietQrBillingService();
