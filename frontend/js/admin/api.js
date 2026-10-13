@@ -150,6 +150,40 @@ export const AdminApi = {
         });
     },
 
+    // Failed Payments & Refunds
+    async getUnmatched(status = 'pending') {
+        return this.request(`/api/admin/unmatched?status=${encodeURIComponent(status)}`);
+    },
+
+    async getDuplicatePayments() {
+        return this.request('/api/admin/payments/duplicates');
+    },
+
+    async resolveUnmatched(id, data) {
+        return this.request(`/api/admin/unmatched/${encodeURIComponent(id)}/resolve`, {
+            method: 'POST',
+            body: JSON.stringify(data)
+        });
+    },
+
+    async refundUnmatched(id, data) {
+        return this.request(`/api/admin/unmatched/${encodeURIComponent(id)}/refund`, {
+            method: 'POST',
+            body: JSON.stringify(data)
+        });
+    },
+
+    async refundPayment(paymentId, data) {
+        return this.request(`/api/admin/payments/${encodeURIComponent(paymentId)}/refund`, {
+            method: 'POST',
+            body: JSON.stringify(data)
+        });
+    },
+
+    async getRefunds() {
+        return this.request('/api/admin/refunds');
+    },
+
     // System Settings
     async getSettings() {
         return this.request('/api/admin/settings');
