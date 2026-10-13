@@ -1,5 +1,5 @@
 import { randomUUID } from 'node:crypto';
-import { existsSync, readFileSync, writeFileSync, mkdirSync } from 'node:fs';
+import { existsSync, readFileSync, writeFileSync, mkdirSync, unlinkSync } from 'node:fs';
 import { join } from 'node:path';
 import { db } from '../database/index.js';
 import { getConfig } from '../config.js';
@@ -83,6 +83,7 @@ export interface IBillingStorage {
         resolvedBy?: string
     ): Promise<UnmatchedPayment | null>;
     listOrders(filters?: { status?: string; userId?: string }): Promise<Order[]>;
+    resetForTesting?(): Promise<void>;
 }
 
 class PostgresBillingStorage implements IBillingStorage {
@@ -184,7 +185,14 @@ class PostgresBillingStorage implements IBillingStorage {
     }
 
     async findPaymentBySepayRef(sepayRef: string): Promise<Payment | null> {
-        const res = await db.query('SELECT * FROM payments WHERE sepay_ref = $1 LIMIT 1', [sepayRef]);
+        const res = await db.query(
+            `SELECT * FROM payments
+             WHERE sepay_ref = $1
+                OR (raw->>'referenceCode' = $1 AND raw->>'referenceCode' IS NOT NULL AND raw->>'referenceCode' != '')
+                OR (raw->>'reference_code' = $1 AND raw->>'reference_code' IS NOT NULL AND raw->>'reference_code' != '')
+             LIMIT 1`,
+            [sepayRef]
+        );
         if (res.rows.length === 0) return null;
         const r = res.rows[0];
         return {
@@ -199,7 +207,14 @@ class PostgresBillingStorage implements IBillingStorage {
     }
 
     async findUnmatchedPaymentBySepayRef(sepayRef: string): Promise<UnmatchedPayment | null> {
-        const res = await db.query('SELECT * FROM unmatched_payments WHERE sepay_ref = $1 LIMIT 1', [sepayRef]);
+        const res = await db.query(
+            `SELECT * FROM unmatched_payments
+             WHERE sepay_ref = $1
+                OR (raw->>'referenceCode' = $1 AND raw->>'referenceCode' IS NOT NULL AND raw->>'referenceCode' != '')
+                OR (raw->>'reference_code' = $1 AND raw->>'reference_code' IS NOT NULL AND raw->>'reference_code' != '')
+             LIMIT 1`,
+            [sepayRef]
+        );
         if (res.rows.length === 0) return null;
         const r = res.rows[0];
         return {
@@ -454,6 +469,12 @@ class PostgresBillingStorage implements IBillingStorage {
             created_at: new Date(r.created_at).toISOString(),
         };
     }
+
+    async resetForTesting(): Promise<void> {
+        await db.query('DELETE FROM payments');
+        await db.query('DELETE FROM unmatched_payments');
+        await db.query('DELETE FROM orders');
+    }
 }
 
 class InMemoryBillingStorage implements IBillingStorage {
@@ -590,6 +611,7 @@ class InMemoryBillingStorage implements IBillingStorage {
     async findPaymentBySepayRef(sepayRef: string): Promise<Payment | null> {
         for (const p of this.payments.values()) {
             if (p.sepay_ref === sepayRef) return p;
+            if (sepayRef && (p.raw?.referenceCode === sepayRef || p.raw?.reference_code === sepayRef)) return p;
         }
         return null;
     }
@@ -597,6 +619,7 @@ class InMemoryBillingStorage implements IBillingStorage {
     async findUnmatchedPaymentBySepayRef(sepayRef: string): Promise<UnmatchedPayment | null> {
         for (const u of this.unmatched.values()) {
             if (u.sepay_ref === sepayRef) return u;
+            if (sepayRef && (u.raw?.referenceCode === sepayRef || u.raw?.reference_code === sepayRef)) return u;
         }
         return null;
     }
@@ -734,6 +757,19 @@ class InMemoryBillingStorage implements IBillingStorage {
         if (filters?.status) list = list.filter(o => o.status === filters.status);
         if (filters?.userId) list = list.filter(o => o.user_id === filters.userId);
         return list.sort((a, b) => (b.created_at > a.created_at ? 1 : -1));
+    }
+
+    async resetForTesting(): Promise<void> {
+        this.orders.clear();
+        this.payments.clear();
+        this.unmatched.clear();
+        this.userExpiries.clear();
+        this.userCredits.clear();
+        try {
+            if (existsSync(this.filePath)) {
+                unlinkSync(this.filePath);
+            }
+        } catch {}
     }
 }
 

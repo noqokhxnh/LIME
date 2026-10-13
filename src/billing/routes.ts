@@ -1,4 +1,4 @@
-import { timingSafeEqual } from 'node:crypto';
+import { timingSafeEqual, createHmac } from 'node:crypto';
 import type { FastifyInstance, FastifyRequest, FastifyReply } from 'fastify';
 import { z } from 'zod';
 import { getConfig } from '../config.js';
@@ -6,6 +6,8 @@ import { getCurrentUser } from '../auth/session.js';
 import { db } from '../database/index.js';
 import { billingStorage } from './storage.js';
 import { vietQrBillingService } from './vietqrService.js';
+import { getBillingWebhookQueue } from './queue.js';
+import { SEPAY_OFFICIAL_IPS } from './constants.js';
 import type { SePayWebhookPayload } from './types.js';
 
 const createOrderSchema = z.object({
@@ -34,6 +36,83 @@ export function verifyApiKey(authHeader?: string, expectedKey?: string): boolean
     }
 }
 
+/**
+ * Verifies SePay HMAC-SHA256 signature and checks for replay attacks.
+ * Headers:
+ * - X-SePay-Signature: sha256={hex_hash}
+ * - X-SePay-Timestamp: Unix timestamp in seconds
+ */
+export function verifyHmacSignature(
+    signatureHeader: string | undefined,
+    timestampHeader: string | undefined,
+    rawBody: string | Buffer | undefined,
+    secret: string | undefined
+): { valid: boolean; reason?: string } {
+    if (!secret) {
+        return { valid: true };
+    }
+    if (!signatureHeader || !timestampHeader || rawBody === undefined || rawBody === null) {
+        return { valid: false, reason: 'MISSING_SIGNATURE_HEADERS' };
+    }
+
+    const timestamp = Number(timestampHeader);
+    if (isNaN(timestamp) || timestamp <= 0) {
+        return { valid: false, reason: 'INVALID_TIMESTAMP' };
+    }
+
+    // Anti-replay: reject timestamps off by more than 300 seconds (5 minutes)
+    const nowSeconds = Math.floor(Date.now() / 1000);
+    if (Math.abs(nowSeconds - timestamp) > 300) {
+        return { valid: false, reason: 'TIMESTAMP_EXPIRED' };
+    }
+
+    const bodyStr = typeof rawBody === 'string' ? rawBody : rawBody.toString('utf8');
+    const computedHash = createHmac('sha256', secret)
+        .update(`${timestamp}.${bodyStr}`)
+        .digest('hex');
+    const expectedSignature = `sha256=${computedHash}`;
+
+    const sigBuf = Buffer.from(signatureHeader.trim());
+    const expBuf = Buffer.from(expectedSignature);
+
+    if (sigBuf.length !== expBuf.length) {
+        return { valid: false, reason: 'SIGNATURE_MISMATCH' };
+    }
+
+    try {
+        if (timingSafeEqual(sigBuf, expBuf)) {
+            return { valid: true };
+        }
+    } catch {
+        return { valid: false, reason: 'TIMING_SAFE_EQUAL_ERROR' };
+    }
+
+    return { valid: false, reason: 'SIGNATURE_MISMATCH' };
+}
+
+/**
+ * Checks whether client IP matches SePay's official IPs (7 IPv4 + 2 IPv6).
+ */
+export function verifyIpAllowlist(clientIp: string | undefined, customAllowlist?: string): boolean {
+    if (!clientIp) return false;
+    const normalizedClient = clientIp.replace(/^::ffff:/, '').trim().toLowerCase();
+
+    // In local development / tests, allow loopback
+    if (normalizedClient === '127.0.0.1' || normalizedClient === '::1' || normalizedClient === 'localhost') {
+        return true;
+    }
+
+    const allowedSet = new Set<string>(SEPAY_OFFICIAL_IPS.map(ip => ip.toLowerCase()));
+    if (customAllowlist) {
+        customAllowlist.split(',').forEach(ip => {
+            const clean = ip.trim().toLowerCase();
+            if (clean) allowedSet.add(clean);
+        });
+    }
+
+    return allowedSet.has(normalizedClient);
+}
+
 async function isUserAdmin(userId: string): Promise<boolean> {
     const config = getConfig();
     if (!config.DATABASE_URL) {
@@ -48,6 +127,30 @@ async function isUserAdmin(userId: string): Promise<boolean> {
 }
 
 export async function billingRoutes(app: FastifyInstance): Promise<void> {
+    // 0. Register content type parsers for billing routes
+    // Handles application/x-www-form-urlencoded and preserves rawBody for HMAC-SHA256
+    app.addContentTypeParser('application/x-www-form-urlencoded', { parseAs: 'buffer' }, (req, body, done) => {
+        try {
+            const str = (body as Buffer).toString('utf8');
+            (req as any).rawBody = str;
+            const parsed = Object.fromEntries(new URLSearchParams(str));
+            done(null, parsed);
+        } catch (err: any) {
+            done(err, undefined);
+        }
+    });
+
+    app.addContentTypeParser('application/json', { parseAs: 'buffer' }, (req, body, done) => {
+        try {
+            const str = (body as Buffer).toString('utf8');
+            (req as any).rawBody = str;
+            const parsed = str ? JSON.parse(str) : {};
+            done(null, parsed);
+        } catch (err: any) {
+            done(err, undefined);
+        }
+    });
+
     // 1. Get available plans
     app.get('/api/billing/plans', async () => {
         const plans = await billingStorage.getPlans();
@@ -163,45 +266,98 @@ export async function billingRoutes(app: FastifyInstance): Promise<void> {
         }
     });
 
-    // 5. SePay Webhook (POST /api/billing/vietqr/webhook)
-    app.post('/api/billing/vietqr/webhook', async (request: FastifyRequest, reply: FastifyReply) => {
+    // 5. SePay Webhook (POST /api/billing/vietqr/webhook & /api/billing/webhook)
+    const handleWebhookRequest = async (request: FastifyRequest, reply: FastifyReply) => {
         const config = getConfig();
-        const authHeader = (request.headers.authorization as string) || (request.headers['x-api-key'] as string) || '';
 
-        // Verify API Key
-        if (config.SEPAY_API_KEY && !verifyApiKey(authHeader, config.SEPAY_API_KEY)) {
-            console.warn('[SePay Webhook] Unauthorized attempt with invalid or missing API key.');
-            return reply.status(401).send({ error: 'UNAUTHORIZED' });
+        // 1. IP Allowlist Check (if enabled)
+        if (config.SEPAY_IP_ALLOWLIST_ENABLED) {
+            const clientIp = request.ip;
+            if (!verifyIpAllowlist(clientIp, config.SEPAY_IP_ALLOWLIST)) {
+                console.warn(`[SePay Webhook] Rejected IP not in allowlist: ${clientIp}`);
+                return reply.status(403).send({ error: 'FORBIDDEN_IP', message: 'IP address not allowed.' });
+            }
+        }
+
+        // 2. Authentication Check (HMAC-SHA256 preferred, API Key fallback)
+        const sigHeader = request.headers['x-sepay-signature'] as string | undefined;
+        const tsHeader = request.headers['x-sepay-timestamp'] as string | undefined;
+        const authHeader = (request.headers.authorization as string) || (request.headers['x-api-key'] as string) || '';
+        const rawBody = (request as any).rawBody !== undefined
+            ? (request as any).rawBody
+            : (typeof request.body === 'string' ? request.body : JSON.stringify(request.body));
+
+        if (config.SEPAY_WEBHOOK_SECRET) {
+            // Secret configured: enforce HMAC-SHA256 signature verification
+            const hmacResult = verifyHmacSignature(sigHeader, tsHeader, rawBody, config.SEPAY_WEBHOOK_SECRET);
+            if (!hmacResult.valid) {
+                console.warn(`[SePay Webhook] HMAC verification failed: ${hmacResult.reason}`);
+                return reply.status(401).send({ error: 'UNAUTHORIZED_SIGNATURE', reason: hmacResult.reason });
+            }
+        } else if (config.SEPAY_API_KEY) {
+            // Fallback to API Key if no webhook secret configured
+            if (!verifyApiKey(authHeader, config.SEPAY_API_KEY)) {
+                console.warn('[SePay Webhook] Unauthorized attempt with invalid or missing API key.');
+                return reply.status(401).send({ error: 'UNAUTHORIZED_API_KEY' });
+            }
         }
 
         const payload = (request.body as SePayWebhookPayload) || {};
 
+        // 3. Dispatch to BullMQ / async queue and return HTTP 200 immediately (SLA < 5s)
         try {
-            await vietQrBillingService.processWebhook(payload);
-            // Spec requires exact response within 30s: HTTP 200 {"success": true}
+            const queue = await getBillingWebhookQueue();
+            await queue.addJob(payload);
             return reply.status(200).send({ success: true });
-        } catch (err) {
-            console.error('[SePay Webhook] Error processing webhook:', err);
-            // Still return success to prevent infinite bad retry loops from SePay if internal error, or handle gracefully
+        } catch (err: any) {
+            console.error('[SePay Webhook] Queue error:', err);
+            // Fallback to background direct processing so SePay receives 200 without retrying
+            vietQrBillingService.processWebhook(payload).catch(e => {
+                console.error('[SePay Webhook] Direct execution fallback error:', e);
+            });
             return reply.status(200).send({ success: true });
         }
-    });
+    };
 
-    // Alias: POST /api/billing/webhook
-    app.post('/api/billing/webhook', async (request: FastifyRequest, reply: FastifyReply) => {
-        const config = getConfig();
-        const authHeader = (request.headers.authorization as string) || (request.headers['x-api-key'] as string) || '';
-
-        if (config.SEPAY_API_KEY && !verifyApiKey(authHeader, config.SEPAY_API_KEY)) {
-            return reply.status(401).send({ error: 'UNAUTHORIZED' });
-        }
-
-        const payload = (request.body as SePayWebhookPayload) || {};
-        await vietQrBillingService.processWebhook(payload);
-        return reply.status(200).send({ success: true });
-    });
+    app.post('/api/billing/vietqr/webhook', handleWebhookRequest);
+    app.post('/api/billing/webhook', handleWebhookRequest);
 
     // 6. Admin Endpoints
+    // 6.1 Simulate / Test Webhook ("Gửi thử" an toàn)
+    app.post('/api/billing/admin/simulate-test-webhook', async (request: FastifyRequest, reply: FastifyReply) => {
+        const user = await getCurrentUser(request);
+        const config = getConfig();
+
+        const isAdmin = user ? await isUserAdmin(user.id) : false;
+        if (!config.SEPAY_TEST_MODE && !isAdmin) {
+            return reply.status(403).send({ error: 'FORBIDDEN', message: 'Chỉ Admin mới có thể mô phỏng webhook.' });
+        }
+
+        const body = (request.body as any) || {};
+        const payCode = body.pay_code;
+        const amount = Number(body.amount_vnd || 149000);
+        const testId = body.id || Math.floor(100000 + Math.random() * 900000);
+        const refCode = body.reference_code || `SIM_${Date.now()}`;
+        const content = body.content || (payCode ? `CHUYEN TIEN ${payCode}` : 'SIMULATION TEST WITHOUT CODE');
+
+        const testPayload: SePayWebhookPayload = {
+            id: testId,
+            reference_code: refCode,
+            transfer_type: 'in',
+            transfer_amount: amount,
+            content,
+            code: payCode || null,
+            gateway: 'MBBank',
+            transactionDate: new Date().toISOString(),
+        };
+
+        const result = await vietQrBillingService.processWebhook(testPayload);
+        return reply.status(200).send({
+            success: true,
+            simulated_payload: testPayload,
+            result,
+        });
+    });
     app.get('/api/billing/admin/unmatched', async (request: FastifyRequest, reply: FastifyReply) => {
         const user = await getCurrentUser(request);
         if (!user || !(await isUserAdmin(user.id))) {

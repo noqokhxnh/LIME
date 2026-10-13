@@ -222,6 +222,18 @@ Toàn bộ dự án được phối hợp phát triển chặt chẽ giữa 5 th
   * Local: Postgres cần database `vidtml`; `QUEUE_TYPE=memory` chạy được chỉ với `npm run dev`.
   * Generate video thật cần LLM key hợp lệ (Gemini dạng `AIza...`; DeepSeek cần còn credit).
 
+### 4.5. Thành viên: Mai Ngọc Tuấn (`tunasisme` / `Tuấn Ngọc` — 2 tài khoản GitHub)
+* **Vai trò:** Feature Brand Kit & Watermark — hệ thống logo/thương hiệu đóng dấu lên video.
+* **Các mảng phụ trách chính:**
+  * Định nghĩa schema cấu hình watermark (`watermarkConfigSchema` trong `src/llm/schema.ts`): vị trí 4 góc + custom, scale 5–50%, opacity 0.1–1.0.
+  * Xây dựng module `src/pipeline/watermarkFilter.ts` tính toán bộ lọc FFmpeg overlay logo (scale giữ tỉ lệ, `colorchannelmixer` chỉnh opacity) kèm kiểm thử tự động.
+  * Tích hợp watermark vào `src/pipeline/renderer.ts` (thêm input logo, `-filter_complex`, map nhãn luồng theo có/không audio) và truyền cấu hình qua `src/pipeline/orchestrator.ts`.
+  * Xây dựng API upload logo `POST /api/brand-kit/upload` với 3 tầng bảo vệ trong `src/security/uploadGuard.ts`: kiểm tra MIME, magic bytes, sanitize SVG chống XSS/XXE; tên file UUID chống path traversal.
+  * Lưu trữ cài đặt brand kit vào PostgreSQL: bảng `brand_kits` (1-1 với `users`), module `src/database/brandKit.ts`, API `GET`/`PUT /api/user/brand-kit`.
+  * Giao diện tùy chỉnh logo + xem trước trực tiếp trên web (`frontend/index.html`, `app.js`, `style.css`).
+  * Kiểm thử toàn trình xuất video có logo (integration test) và cập nhật tài liệu `docs/api.md`.
+  * Vá lỗi bảo mật theo review PR #55: giới hạn `logoPath` trong thư mục uploads qua `resolveLogoPath`, frontend dùng `logoUrl` thay vì đường dẫn tuyệt đối, bổ sung test cho `resolveLogoPath`/`sanitizeSvg`.
+
 ---
 
 ## 5. Các Video đã tạo ra từ dự án
