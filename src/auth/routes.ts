@@ -1,5 +1,5 @@
 import { randomBytes, randomUUID, timingSafeEqual } from 'node:crypto';
-import type { FastifyInstance } from 'fastify';
+import type { FastifyInstance, FastifyRequest } from 'fastify';
 import bcrypt from 'bcryptjs';
 import { z } from 'zod';
 import { db } from '../database/index.js';
@@ -180,7 +180,25 @@ export async function authRoutes(app: FastifyInstance): Promise<void> {
         };
     });
 
-    app.get('/api/auth/google', async (_request, reply) => {
+    function isLocalhostRequest(request: FastifyRequest): boolean {
+        const forwardedHost = request.headers['x-forwarded-host'];
+        const hostHeader = (typeof forwardedHost === 'string' ? forwardedHost : Array.isArray(forwardedHost) ? forwardedHost[0] : '') || request.headers.host || request.hostname || '';
+        const hostNameOnly = hostHeader.split(':')[0].toLowerCase();
+        return hostNameOnly === 'localhost' || hostNameOnly === '127.0.0.1' || hostNameOnly === '[::1]' || hostNameOnly === '::1';
+    }
+
+    function resolveGoogleRedirectUri(request: FastifyRequest, defaultUri: string): string {
+        const forwardedHost = request.headers['x-forwarded-host'];
+        const hostHeader = (typeof forwardedHost === 'string' ? forwardedHost : Array.isArray(forwardedHost) ? forwardedHost[0] : '') || request.headers.host || request.hostname || '';
+        if (isLocalhostRequest(request)) {
+            const forwardedProto = request.headers['x-forwarded-proto'];
+            const proto = (typeof forwardedProto === 'string' ? forwardedProto : Array.isArray(forwardedProto) ? forwardedProto[0] : '') || request.protocol || 'http';
+            return `${proto}://${hostHeader}/api/auth/google/callback`;
+        }
+        return defaultUri;
+    }
+
+    app.get('/api/auth/google', async (request, reply) => {
         const config = getConfig();
         if (!config.GOOGLE_CLIENT_ID || !config.GOOGLE_CLIENT_SECRET) {
             return reply.status(503).send({
@@ -188,16 +206,18 @@ export async function authRoutes(app: FastifyInstance): Promise<void> {
             });
         }
         const state = randomBytes(32).toString('hex');
+        const isLocalhost = isLocalhostRequest(request);
         reply.setCookie('google_oauth_state', state, {
             httpOnly: true,
             sameSite: 'lax',
-            secure: config.NODE_ENV === 'production',
+            secure: config.NODE_ENV === 'production' && !isLocalhost,
             path: '/',
             maxAge: 10 * 60,
         });
+        const redirectUri = resolveGoogleRedirectUri(request, config.GOOGLE_REDIRECT_URI);
         const params = new URLSearchParams({
             client_id: config.GOOGLE_CLIENT_ID,
-            redirect_uri: config.GOOGLE_REDIRECT_URI,
+            redirect_uri: redirectUri,
             response_type: 'code',
             scope: 'openid email profile',
             state,
@@ -249,6 +269,7 @@ export async function authRoutes(app: FastifyInstance): Promise<void> {
             return redirectAuthError('Invalid OAuth state');
         }
 
+        const redirectUri = resolveGoogleRedirectUri(request, config.GOOGLE_REDIRECT_URI);
         try {
             const tokenResponse = await fetch('https://oauth2.googleapis.com/token', {
                 method: 'POST',
@@ -259,7 +280,7 @@ export async function authRoutes(app: FastifyInstance): Promise<void> {
                     code: parsed.data.code,
                     client_id: config.GOOGLE_CLIENT_ID,
                     client_secret: config.GOOGLE_CLIENT_SECRET,
-                    redirect_uri: config.GOOGLE_REDIRECT_URI,
+                    redirect_uri: redirectUri,
                     grant_type: 'authorization_code',
                 }),
             });
