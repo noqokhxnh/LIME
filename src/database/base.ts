@@ -181,4 +181,23 @@ CREATE INDEX IF NOT EXISTS idx_unmatched_payments_status ON unmatched_payments(s
 
 ALTER TABLE users ADD COLUMN IF NOT EXISTS plan_id VARCHAR(50) REFERENCES plans(id);
 ALTER TABLE users ADD COLUMN IF NOT EXISTS plan_expires_at TIMESTAMPTZ;
+
+-- Lịch sử hoàn tiền thủ công cho giao dịch lỗi (unmatched / duplicate).
+-- SePay webhook không trả về STK + ngân hàng của người chuyển, nên admin
+-- phải nhập tay thông tin này khi thực hiện hoàn tiền.
+CREATE TABLE IF NOT EXISTS refunds (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    source_type VARCHAR(20) NOT NULL,
+    source_id VARCHAR(100) NOT NULL,
+    sepay_ref VARCHAR(100) NOT NULL,
+    amount_vnd INTEGER NOT NULL,
+    bank_account VARCHAR(50) NOT NULL,
+    bank_name VARCHAR(100) NOT NULL,
+    admin_note TEXT,
+    refunded_by VARCHAR(100),
+    refunded_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+
+CREATE UNIQUE INDEX IF NOT EXISTS uq_refunds_source ON refunds(source_type, source_id);
 `;
