@@ -753,3 +753,36 @@ curl -s -X POST localhost:3000/api/generate -H 'Content-Type: application/json' 
   -d '{"prompt":"Giới thiệu về Hà Nội","aspectRatio":"16:9","targetDurationSec":30}' \
   -b cookies.txt
 ```
+
+---
+
+## Billing & VietQR / SePay Endpoints
+
+### `GET /api/billing/plans`
+Returns available subscription plans (`creator`, `pro`, `max`).
+
+### `POST /api/billing/vietqr/order` 🔒
+Creates a VietQR order for the authenticated user (enforcing 1 active pending order per user).
+- **Body**: `{ "plan_id": "creator" }`
+- **Response**: `{ order_id, pay_code, amount_vnd, qr_content, qr_image, expires_at, bank_account, bank_code, bank_name }`
+
+### `GET /api/billing/vietqr/order/:id` 🔒
+Polls the order status (`pending` | `claimed` | `paid` | `expired` | `cancelled`).
+
+### `POST /api/billing/vietqr/order/:id/claimed` 🔒
+User signals "Tôi đã chuyển khoản", transitioning status from `pending` to `claimed` and extending expiry by 30 minutes.
+
+### `POST /api/billing/vietqr/webhook` (and `/api/billing/webhook`)
+SePay incoming payment webhook endpoint with strict financial safety guarantees:
+- **Idempotency Key**: Keyed on `payload.id` (SePay unique transaction ID), **not** bank `reference_code` (which can be empty/null across banks).
+- **Sub-50ms HTTP 200 SLA**: Responds with HTTP 200 immediately, dispatching reconciliation work to BullMQ (`sepay-webhooks` queue) to prevent SePay 5s timeout & double-charging.
+- **Content-Type Support**: Handles both `application/json` and `application/x-www-form-urlencoded`.
+- **HMAC-SHA256 & Anti-Replay**: Verifies `X-SePay-Signature` (`sha256={hash}`) and `X-SePay-Timestamp` (rejects timestamps drift > 300s). Falls back to API Key if configured.
+- **IP Allowlist**: Validates client IP against official SePay IPs (7 IPv4 + 2 IPv6) when `SEPAY_IP_ALLOWLIST_ENABLED=true`.
+- **`code: null` Fallback**: Robust regex parsing of `content`/`description` (supporting spaces, hyphens, and bank noise).
+- ⚠️ **Operational Requirement**: Administrators **must turn OFF** the option *"Bỏ qua nếu nội dung không có mã thanh toán"* on the SePay dashboard, ensuring all balance incoming events trigger webhooks.
+
+### `POST /api/billing/admin/simulate-test-webhook` 🔒 (Admin / Test Mode)
+Simulates SePay webhooks safely for end-to-end testing without real money transfer:
+- **Body**: `{ "pay_code": "LIME8X2K9Q", "amount_vnd": 149000, "content": "CHUYEN TIEN LIME8X2K9Q" }`
+- Available when `SEPAY_TEST_MODE=true` or user has `admin` role.
