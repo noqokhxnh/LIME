@@ -1,0 +1,779 @@
+import { randomUUID } from 'node:crypto';
+import { existsSync, readFileSync, writeFileSync, mkdirSync, unlinkSync } from 'node:fs';
+import { join } from 'node:path';
+import { db } from '../database/index.js';
+import { getConfig } from '../config.js';
+import type {
+    Plan,
+    Order,
+    Payment,
+    UnmatchedPayment,
+    PaymentResult,
+    UnmatchedPaymentStatus,
+} from './types.js';
+
+export const DEFAULT_PLANS: Plan[] = [
+    {
+        id: 'creator',
+        name: 'Gói Sáng Tạo',
+        price_vnd: 149000,
+        quota_video: 50,
+        days: 30,
+        is_active: true,
+    },
+    {
+        id: 'pro',
+        name: 'Gói Pro',
+        price_vnd: 249000,
+        quota_video: 150,
+        days: 30,
+        is_active: true,
+    },
+    {
+        id: 'max',
+        name: 'Gói Max',
+        price_vnd: 499000,
+        quota_video: 500,
+        days: 30,
+        is_active: true,
+    },
+];
+
+export interface IBillingStorage {
+    getPlans(): Promise<Plan[]>;
+    getPlanById(id: string): Promise<Plan | null>;
+    createOrder(order: Omit<Order, 'id' | 'created_at'>): Promise<Order>;
+    findOrderById(id: string): Promise<Order | null>;
+    findOrderByPayCode(payCode: string): Promise<Order | null>;
+    findPendingOrderByUserId(userId: string): Promise<Order | null>;
+    cancelActiveOrdersForUser(userId: string): Promise<void>;
+    updateOrderClaimed(orderId: string, claimedAt: string, expiresAt: string): Promise<Order | null>;
+    expireStaleOrders(nowIso?: string): Promise<number>;
+    findPaymentBySepayRef(sepayRef: string): Promise<Payment | null>;
+    findUnmatchedPaymentBySepayRef(sepayRef: string): Promise<UnmatchedPayment | null>;
+    recordUnmatchedPayment(item: Omit<UnmatchedPayment, 'id' | 'created_at'>): Promise<UnmatchedPayment>;
+    lockAndFulfillOrder(params: {
+        orderId: string;
+        sepayRef: string;
+        receivedAmount: number;
+        raw: any;
+        planDays: number;
+        quotaVideo: number;
+        planId: string;
+        result: PaymentResult;
+    }): Promise<{ success: boolean; order?: Order; payment?: Payment; reason?: string }>;
+    recordDuplicatePayment(params: {
+        orderId: string;
+        sepayRef: string;
+        amount: number;
+        raw: any;
+    }): Promise<Payment>;
+    recordUnderpaidPayment(params: {
+        orderId: string;
+        sepayRef: string;
+        amount: number;
+        raw: any;
+    }): Promise<Payment>;
+    getUserPlanExpiry(userId: string): Promise<string | null>;
+    getUnmatchedPayments(): Promise<UnmatchedPayment[]>;
+    resolveUnmatchedPayment(
+        id: string,
+        status: UnmatchedPaymentStatus,
+        adminNote?: string,
+        resolvedBy?: string
+    ): Promise<UnmatchedPayment | null>;
+    listOrders(filters?: { status?: string; userId?: string }): Promise<Order[]>;
+    resetForTesting?(): Promise<void>;
+}
+
+class PostgresBillingStorage implements IBillingStorage {
+    async getPlans(): Promise<Plan[]> {
+        const res = await db.query('SELECT * FROM plans WHERE is_active = true ORDER BY price_vnd ASC');
+        if (res.rows.length === 0) {
+            return DEFAULT_PLANS;
+        }
+        return res.rows.map(r => ({
+            id: r.id,
+            name: r.name,
+            price_vnd: r.price_vnd,
+            quota_video: r.quota_video,
+            days: r.days,
+            is_active: r.is_active,
+            created_at: r.created_at ? new Date(r.created_at).toISOString() : undefined,
+        }));
+    }
+
+    async getPlanById(id: string): Promise<Plan | null> {
+        const res = await db.query('SELECT * FROM plans WHERE id = $1 LIMIT 1', [id]);
+        if (res.rows.length === 0) {
+            const found = DEFAULT_PLANS.find(p => p.id === id);
+            return found || null;
+        }
+        const r = res.rows[0];
+        return {
+            id: r.id,
+            name: r.name,
+            price_vnd: r.price_vnd,
+            quota_video: r.quota_video,
+            days: r.days,
+            is_active: r.is_active,
+            created_at: r.created_at ? new Date(r.created_at).toISOString() : undefined,
+        };
+    }
+
+    async createOrder(order: Omit<Order, 'id' | 'created_at'>): Promise<Order> {
+        const id = randomUUID();
+        const res = await db.query(
+            `INSERT INTO orders (id, user_id, plan_id, amount_vnd, pay_code, status, expires_at)
+             VALUES ($1, $2, $3, $4, $5, $6, $7)
+             RETURNING *`,
+            [id, order.user_id, order.plan_id, order.amount_vnd, order.pay_code, order.status, order.expires_at]
+        );
+        const r = res.rows[0];
+        return this.mapOrder(r);
+    }
+
+    async findOrderById(id: string): Promise<Order | null> {
+        const res = await db.query('SELECT * FROM orders WHERE id = $1 LIMIT 1', [id]);
+        if (res.rows.length === 0) return null;
+        return this.mapOrder(res.rows[0]);
+    }
+
+    async findOrderByPayCode(payCode: string): Promise<Order | null> {
+        const res = await db.query('SELECT * FROM orders WHERE pay_code = $1 LIMIT 1', [payCode]);
+        if (res.rows.length === 0) return null;
+        return this.mapOrder(res.rows[0]);
+    }
+
+    async findPendingOrderByUserId(userId: string): Promise<Order | null> {
+        const res = await db.query(
+            `SELECT * FROM orders WHERE user_id = $1 AND status IN ('pending', 'claimed') ORDER BY created_at DESC LIMIT 1`,
+            [userId]
+        );
+        if (res.rows.length === 0) return null;
+        return this.mapOrder(res.rows[0]);
+    }
+
+    async cancelActiveOrdersForUser(userId: string): Promise<void> {
+        await db.query(
+            `UPDATE orders SET status = 'cancelled' WHERE user_id = $1 AND status IN ('pending', 'claimed')`,
+            [userId]
+        );
+    }
+
+    async updateOrderClaimed(orderId: string, claimedAt: string, expiresAt: string): Promise<Order | null> {
+        const res = await db.query(
+            `UPDATE orders
+             SET status = 'claimed', claimed_at = $1, expires_at = $2
+             WHERE id = $3 AND status = 'pending'
+             RETURNING *`,
+            [claimedAt, expiresAt, orderId]
+        );
+        if (res.rows.length === 0) return null;
+        return this.mapOrder(res.rows[0]);
+    }
+
+    async expireStaleOrders(nowIso?: string): Promise<number> {
+        const now = nowIso ? new Date(nowIso) : new Date();
+        const res = await db.query(
+            `UPDATE orders
+             SET status = 'expired'
+             WHERE status IN ('pending', 'claimed') AND expires_at < $1`,
+            [now]
+        );
+        return res.rowCount || 0;
+    }
+
+    async findPaymentBySepayRef(sepayRef: string): Promise<Payment | null> {
+        const res = await db.query(
+            `SELECT * FROM payments
+             WHERE sepay_ref = $1
+                OR (raw->>'referenceCode' = $1 AND raw->>'referenceCode' IS NOT NULL AND raw->>'referenceCode' != '')
+                OR (raw->>'reference_code' = $1 AND raw->>'reference_code' IS NOT NULL AND raw->>'reference_code' != '')
+             LIMIT 1`,
+            [sepayRef]
+        );
+        if (res.rows.length === 0) return null;
+        const r = res.rows[0];
+        return {
+            id: r.id,
+            order_id: r.order_id,
+            sepay_ref: r.sepay_ref,
+            amount_vnd: r.amount_vnd,
+            raw: r.raw,
+            received_at: new Date(r.received_at).toISOString(),
+            result: r.result,
+        };
+    }
+
+    async findUnmatchedPaymentBySepayRef(sepayRef: string): Promise<UnmatchedPayment | null> {
+        const res = await db.query(
+            `SELECT * FROM unmatched_payments
+             WHERE sepay_ref = $1
+                OR (raw->>'referenceCode' = $1 AND raw->>'referenceCode' IS NOT NULL AND raw->>'referenceCode' != '')
+                OR (raw->>'reference_code' = $1 AND raw->>'reference_code' IS NOT NULL AND raw->>'reference_code' != '')
+             LIMIT 1`,
+            [sepayRef]
+        );
+        if (res.rows.length === 0) return null;
+        const r = res.rows[0];
+        return {
+            id: r.id,
+            sepay_ref: r.sepay_ref,
+            amount_vnd: r.amount_vnd,
+            content: r.content,
+            raw: r.raw,
+            status: r.status,
+            admin_note: r.admin_note,
+            resolved_by: r.resolved_by,
+            resolved_at: r.resolved_at ? new Date(r.resolved_at).toISOString() : null,
+            created_at: new Date(r.created_at).toISOString(),
+        };
+    }
+
+    async recordUnmatchedPayment(item: Omit<UnmatchedPayment, 'id' | 'created_at'>): Promise<UnmatchedPayment> {
+        const id = randomUUID();
+        const res = await db.query(
+            `INSERT INTO unmatched_payments (id, sepay_ref, amount_vnd, content, raw, status, admin_note)
+             VALUES ($1, $2, $3, $4, $5, $6, $7)
+             RETURNING *`,
+            [id, item.sepay_ref, item.amount_vnd, item.content, JSON.stringify(item.raw), item.status, item.admin_note || null]
+        );
+        const r = res.rows[0];
+        return {
+            id: r.id,
+            sepay_ref: r.sepay_ref,
+            amount_vnd: r.amount_vnd,
+            content: r.content,
+            raw: r.raw,
+            status: r.status,
+            admin_note: r.admin_note,
+            resolved_by: r.resolved_by,
+            resolved_at: r.resolved_at ? new Date(r.resolved_at).toISOString() : null,
+            created_at: new Date(r.created_at).toISOString(),
+        };
+    }
+
+    async lockAndFulfillOrder(params: {
+        orderId: string;
+        sepayRef: string;
+        receivedAmount: number;
+        raw: any;
+        planDays: number;
+        quotaVideo: number;
+        planId: string;
+        result: PaymentResult;
+    }): Promise<{ success: boolean; order?: Order; payment?: Payment; reason?: string }> {
+        const client = await db.connect();
+        try {
+            await client.query('BEGIN');
+
+            // Lock order row
+            const orderRes = await client.query('SELECT * FROM orders WHERE id = $1 FOR UPDATE', [params.orderId]);
+            if (orderRes.rows.length === 0) {
+                await client.query('ROLLBACK');
+                return { success: false, reason: 'ORDER_NOT_FOUND' };
+            }
+            const order = orderRes.rows[0];
+            if (order.status === 'paid') {
+                await client.query('ROLLBACK');
+                return { success: false, reason: 'ALREADY_PAID' };
+            }
+
+            // Mark order as paid
+            const updatedOrderRes = await client.query(
+                `UPDATE orders SET status = 'paid', paid_at = NOW() WHERE id = $1 RETURNING *`,
+                [params.orderId]
+            );
+
+            // Record payment ledger
+            const paymentId = randomUUID();
+            const paymentRes = await client.query(
+                `INSERT INTO payments (id, order_id, sepay_ref, amount_vnd, raw, result)
+                 VALUES ($1, $2, $3, $4, $5, $6)
+                 RETURNING *`,
+                [paymentId, params.orderId, params.sepayRef, params.receivedAmount, JSON.stringify(params.raw), params.result]
+            );
+
+            // Extend user plan and credits cumulatively:
+            // plan_expires_at = max(now, plan_expires_at) + plan.days
+            await client.query(
+                `UPDATE users
+                 SET plan_id = $1,
+                     tier = $1,
+                     plan_expires_at = GREATEST(NOW(), COALESCE(plan_expires_at, NOW())) + ($2 || ' days')::INTERVAL,
+                     credits = COALESCE(credits, 0) + $3
+                 WHERE id = $4`,
+                [params.planId, params.planDays, params.quotaVideo, order.user_id]
+            );
+
+            // Cancel any other pending/claimed orders of this user
+            await client.query(
+                `UPDATE orders
+                 SET status = 'cancelled'
+                 WHERE user_id = $1 AND id != $2 AND status IN ('pending', 'claimed')`,
+                [order.user_id, params.orderId]
+            );
+
+            await client.query('COMMIT');
+
+            return {
+                success: true,
+                order: this.mapOrder(updatedOrderRes.rows[0]),
+                payment: {
+                    id: paymentRes.rows[0].id,
+                    order_id: paymentRes.rows[0].order_id,
+                    sepay_ref: paymentRes.rows[0].sepay_ref,
+                    amount_vnd: paymentRes.rows[0].amount_vnd,
+                    raw: paymentRes.rows[0].raw,
+                    received_at: new Date(paymentRes.rows[0].received_at).toISOString(),
+                    result: paymentRes.rows[0].result,
+                },
+            };
+        } catch (err) {
+            await client.query('ROLLBACK');
+            throw err;
+        } finally {
+            client.release();
+        }
+    }
+
+    async recordDuplicatePayment(params: {
+        orderId: string;
+        sepayRef: string;
+        amount: number;
+        raw: any;
+    }): Promise<Payment> {
+        const id = randomUUID();
+        const res = await db.query(
+            `INSERT INTO payments (id, order_id, sepay_ref, amount_vnd, raw, result)
+             VALUES ($1, $2, $3, $4, $5, 'duplicate')
+             RETURNING *`,
+            [id, params.orderId, params.sepayRef, params.amount, JSON.stringify(params.raw)]
+        );
+        const r = res.rows[0];
+        return {
+            id: r.id,
+            order_id: r.order_id,
+            sepay_ref: r.sepay_ref,
+            amount_vnd: r.amount_vnd,
+            raw: r.raw,
+            received_at: new Date(r.received_at).toISOString(),
+            result: 'duplicate',
+        };
+    }
+
+    async recordUnderpaidPayment(params: {
+        orderId: string;
+        sepayRef: string;
+        amount: number;
+        raw: any;
+    }): Promise<Payment> {
+        const id = randomUUID();
+        const res = await db.query(
+            `INSERT INTO payments (id, order_id, sepay_ref, amount_vnd, raw, result)
+             VALUES ($1, $2, $3, $4, $5, 'underpaid')
+             RETURNING *`,
+            [id, params.orderId, params.sepayRef, params.amount, JSON.stringify(params.raw)]
+        );
+        const r = res.rows[0];
+        return {
+            id: r.id,
+            order_id: r.order_id,
+            sepay_ref: r.sepay_ref,
+            amount_vnd: r.amount_vnd,
+            raw: r.raw,
+            received_at: new Date(r.received_at).toISOString(),
+            result: 'underpaid',
+        };
+    }
+
+    async getUserPlanExpiry(userId: string): Promise<string | null> {
+        const res = await db.query('SELECT plan_expires_at FROM users WHERE id = $1 LIMIT 1', [userId]);
+        if (res.rows.length === 0 || !res.rows[0].plan_expires_at) return null;
+        return new Date(res.rows[0].plan_expires_at).toISOString();
+    }
+
+    async getUnmatchedPayments(): Promise<UnmatchedPayment[]> {
+        const res = await db.query('SELECT * FROM unmatched_payments ORDER BY created_at DESC LIMIT 100');
+        return res.rows.map(r => ({
+            id: r.id,
+            sepay_ref: r.sepay_ref,
+            amount_vnd: r.amount_vnd,
+            content: r.content,
+            raw: r.raw,
+            status: r.status,
+            admin_note: r.admin_note,
+            resolved_by: r.resolved_by,
+            resolved_at: r.resolved_at ? new Date(r.resolved_at).toISOString() : null,
+            created_at: new Date(r.created_at).toISOString(),
+        }));
+    }
+
+    async resolveUnmatchedPayment(
+        id: string,
+        status: UnmatchedPaymentStatus,
+        adminNote?: string,
+        resolvedBy?: string
+    ): Promise<UnmatchedPayment | null> {
+        const res = await db.query(
+            `UPDATE unmatched_payments
+             SET status = $1, admin_note = COALESCE($2, admin_note), resolved_by = $3, resolved_at = NOW()
+             WHERE id = $4
+             RETURNING *`,
+            [status, adminNote || null, resolvedBy || 'admin', id]
+        );
+        if (res.rows.length === 0) return null;
+        const r = res.rows[0];
+        return {
+            id: r.id,
+            sepay_ref: r.sepay_ref,
+            amount_vnd: r.amount_vnd,
+            content: r.content,
+            raw: r.raw,
+            status: r.status,
+            admin_note: r.admin_note,
+            resolved_by: r.resolved_by,
+            resolved_at: r.resolved_at ? new Date(r.resolved_at).toISOString() : null,
+            created_at: new Date(r.created_at).toISOString(),
+        };
+    }
+
+    async listOrders(filters?: { status?: string; userId?: string }): Promise<Order[]> {
+        const conditions: string[] = [];
+        const params: any[] = [];
+        if (filters?.status) {
+            params.push(filters.status);
+            conditions.push(`status = $${params.length}`);
+        }
+        if (filters?.userId) {
+            params.push(filters.userId);
+            conditions.push(`user_id = $${params.length}`);
+        }
+        const whereClause = conditions.length > 0 ? `WHERE ${conditions.join(' AND ')}` : '';
+        const res = await db.query(`SELECT * FROM orders ${whereClause} ORDER BY created_at DESC LIMIT 100`, params);
+        return res.rows.map(r => this.mapOrder(r));
+    }
+
+    private mapOrder(r: any): Order {
+        return {
+            id: r.id,
+            user_id: r.user_id,
+            plan_id: r.plan_id,
+            amount_vnd: r.amount_vnd,
+            pay_code: r.pay_code,
+            status: r.status,
+            expires_at: new Date(r.expires_at).toISOString(),
+            claimed_at: r.claimed_at ? new Date(r.claimed_at).toISOString() : null,
+            paid_at: r.paid_at ? new Date(r.paid_at).toISOString() : null,
+            created_at: new Date(r.created_at).toISOString(),
+        };
+    }
+
+    async resetForTesting(): Promise<void> {
+        await db.query('DELETE FROM payments');
+        await db.query('DELETE FROM unmatched_payments');
+        await db.query('DELETE FROM orders');
+    }
+}
+
+class InMemoryBillingStorage implements IBillingStorage {
+    private orders = new Map<string, Order>();
+    private payments = new Map<string, Payment>();
+    private unmatched = new Map<string, UnmatchedPayment>();
+    private userExpiries = new Map<string, string>();
+    private userCredits = new Map<string, number>();
+    private filePath: string;
+
+    constructor() {
+        this.filePath = join(process.cwd(), 'data', 'billing.json');
+        this.loadFromDisk();
+    }
+
+    private loadFromDisk() {
+        try {
+            if (existsSync(this.filePath)) {
+                const data = JSON.parse(readFileSync(this.filePath, 'utf-8'));
+                if (data.orders) {
+                    for (const o of data.orders) this.orders.set(o.id, o);
+                }
+                if (data.payments) {
+                    for (const p of data.payments) this.payments.set(p.id, p);
+                }
+                if (data.unmatched) {
+                    for (const u of data.unmatched) this.unmatched.set(u.id, u);
+                }
+                if (data.userExpiries) {
+                    for (const [k, v] of Object.entries(data.userExpiries)) this.userExpiries.set(k, v as string);
+                }
+                if (data.userCredits) {
+                    for (const [k, v] of Object.entries(data.userCredits)) this.userCredits.set(k, v as number);
+                }
+            }
+        } catch (e) {
+            console.error('[InMemoryBillingStorage] Error loading billing file:', e);
+        }
+    }
+
+    private saveToDisk() {
+        try {
+            const dir = join(process.cwd(), 'data');
+            if (!existsSync(dir)) {
+                mkdirSync(dir, { recursive: true });
+            }
+            const data = {
+                orders: Array.from(this.orders.values()),
+                payments: Array.from(this.payments.values()),
+                unmatched: Array.from(this.unmatched.values()),
+                userExpiries: Object.fromEntries(this.userExpiries.entries()),
+                userCredits: Object.fromEntries(this.userCredits.entries()),
+            };
+            writeFileSync(this.filePath, JSON.stringify(data, null, 2), 'utf-8');
+        } catch (e) {
+            console.error('[InMemoryBillingStorage] Error saving billing file:', e);
+        }
+    }
+
+    async getPlans(): Promise<Plan[]> {
+        return DEFAULT_PLANS;
+    }
+
+    async getPlanById(id: string): Promise<Plan | null> {
+        return DEFAULT_PLANS.find(p => p.id === id) || null;
+    }
+
+    async createOrder(order: Omit<Order, 'id' | 'created_at'>): Promise<Order> {
+        const id = randomUUID();
+        const created: Order = {
+            ...order,
+            id,
+            created_at: new Date().toISOString(),
+        };
+        this.orders.set(id, created);
+        this.saveToDisk();
+        return created;
+    }
+
+    async findOrderById(id: string): Promise<Order | null> {
+        return this.orders.get(id) || null;
+    }
+
+    async findOrderByPayCode(payCode: string): Promise<Order | null> {
+        for (const order of this.orders.values()) {
+            if (order.pay_code.toUpperCase() === payCode.toUpperCase()) {
+                return order;
+            }
+        }
+        return null;
+    }
+
+    async findPendingOrderByUserId(userId: string): Promise<Order | null> {
+        for (const order of this.orders.values()) {
+            if (order.user_id === userId && (order.status === 'pending' || order.status === 'claimed')) {
+                return order;
+            }
+        }
+        return null;
+    }
+
+    async cancelActiveOrdersForUser(userId: string): Promise<void> {
+        for (const order of this.orders.values()) {
+            if (order.user_id === userId && (order.status === 'pending' || order.status === 'claimed')) {
+                order.status = 'cancelled';
+            }
+        }
+        this.saveToDisk();
+    }
+
+    async updateOrderClaimed(orderId: string, claimedAt: string, expiresAt: string): Promise<Order | null> {
+        const order = this.orders.get(orderId);
+        if (!order || order.status !== 'pending') return null;
+        order.status = 'claimed';
+        order.claimed_at = claimedAt;
+        order.expires_at = expiresAt;
+        this.saveToDisk();
+        return order;
+    }
+
+    async expireStaleOrders(nowIso?: string): Promise<number> {
+        const now = nowIso ? new Date(nowIso).getTime() : Date.now();
+        let count = 0;
+        for (const order of this.orders.values()) {
+            if ((order.status === 'pending' || order.status === 'claimed') && new Date(order.expires_at).getTime() < now) {
+                order.status = 'expired';
+                count++;
+            }
+        }
+        if (count > 0) this.saveToDisk();
+        return count;
+    }
+
+    async findPaymentBySepayRef(sepayRef: string): Promise<Payment | null> {
+        for (const p of this.payments.values()) {
+            if (p.sepay_ref === sepayRef) return p;
+            if (sepayRef && (p.raw?.referenceCode === sepayRef || p.raw?.reference_code === sepayRef)) return p;
+        }
+        return null;
+    }
+
+    async findUnmatchedPaymentBySepayRef(sepayRef: string): Promise<UnmatchedPayment | null> {
+        for (const u of this.unmatched.values()) {
+            if (u.sepay_ref === sepayRef) return u;
+            if (sepayRef && (u.raw?.referenceCode === sepayRef || u.raw?.reference_code === sepayRef)) return u;
+        }
+        return null;
+    }
+
+    async recordUnmatchedPayment(item: Omit<UnmatchedPayment, 'id' | 'created_at'>): Promise<UnmatchedPayment> {
+        const id = randomUUID();
+        const unmatched: UnmatchedPayment = {
+            ...item,
+            id,
+            created_at: new Date().toISOString(),
+        };
+        this.unmatched.set(id, unmatched);
+        this.saveToDisk();
+        return unmatched;
+    }
+
+    async lockAndFulfillOrder(params: {
+        orderId: string;
+        sepayRef: string;
+        receivedAmount: number;
+        raw: any;
+        planDays: number;
+        quotaVideo: number;
+        planId: string;
+        result: PaymentResult;
+    }): Promise<{ success: boolean; order?: Order; payment?: Payment; reason?: string }> {
+        const order = this.orders.get(params.orderId);
+        if (!order) return { success: false, reason: 'ORDER_NOT_FOUND' };
+        if (order.status === 'paid') return { success: false, reason: 'ALREADY_PAID' };
+
+        order.status = 'paid';
+        order.paid_at = new Date().toISOString();
+
+        const paymentId = randomUUID();
+        const payment: Payment = {
+            id: paymentId,
+            order_id: params.orderId,
+            sepay_ref: params.sepayRef,
+            amount_vnd: params.receivedAmount,
+            raw: params.raw,
+            received_at: new Date().toISOString(),
+            result: params.result,
+        };
+        this.payments.set(paymentId, payment);
+
+        // Cumulative renewal
+        const now = Date.now();
+        const currentExpiry = this.userExpiries.get(order.user_id);
+        const baseTime = currentExpiry ? Math.max(now, new Date(currentExpiry).getTime()) : now;
+        const newExpiryTime = baseTime + params.planDays * 24 * 60 * 60 * 1000;
+        this.userExpiries.set(order.user_id, new Date(newExpiryTime).toISOString());
+
+        const currentCredits = this.userCredits.get(order.user_id) || 0;
+        this.userCredits.set(order.user_id, currentCredits + params.quotaVideo);
+
+        // Cancel other pending orders
+        for (const o of this.orders.values()) {
+            if (o.user_id === order.user_id && o.id !== order.id && (o.status === 'pending' || o.status === 'claimed')) {
+                o.status = 'cancelled';
+            }
+        }
+
+        this.saveToDisk();
+        return { success: true, order, payment };
+    }
+
+    async recordDuplicatePayment(params: {
+        orderId: string;
+        sepayRef: string;
+        amount: number;
+        raw: any;
+    }): Promise<Payment> {
+        const id = randomUUID();
+        const payment: Payment = {
+            id,
+            order_id: params.orderId,
+            sepay_ref: params.sepayRef,
+            amount_vnd: params.amount,
+            raw: params.raw,
+            received_at: new Date().toISOString(),
+            result: 'duplicate',
+        };
+        this.payments.set(id, payment);
+        this.saveToDisk();
+        return payment;
+    }
+
+    async recordUnderpaidPayment(params: {
+        orderId: string;
+        sepayRef: string;
+        amount: number;
+        raw: any;
+    }): Promise<Payment> {
+        const id = randomUUID();
+        const payment: Payment = {
+            id,
+            order_id: params.orderId,
+            sepay_ref: params.sepayRef,
+            amount_vnd: params.amount,
+            raw: params.raw,
+            received_at: new Date().toISOString(),
+            result: 'underpaid',
+        };
+        this.payments.set(id, payment);
+        this.saveToDisk();
+        return payment;
+    }
+
+    async getUserPlanExpiry(userId: string): Promise<string | null> {
+        return this.userExpiries.get(userId) || null;
+    }
+
+    async getUnmatchedPayments(): Promise<UnmatchedPayment[]> {
+        return Array.from(this.unmatched.values()).sort((a, b) => (b.created_at > a.created_at ? 1 : -1));
+    }
+
+    async resolveUnmatchedPayment(
+        id: string,
+        status: UnmatchedPaymentStatus,
+        adminNote?: string,
+        resolvedBy?: string
+    ): Promise<UnmatchedPayment | null> {
+        const item = this.unmatched.get(id);
+        if (!item) return null;
+        item.status = status;
+        if (adminNote) item.admin_note = adminNote;
+        item.resolved_by = resolvedBy || 'admin';
+        item.resolved_at = new Date().toISOString();
+        this.saveToDisk();
+        return item;
+    }
+
+    async listOrders(filters?: { status?: string; userId?: string }): Promise<Order[]> {
+        let list = Array.from(this.orders.values());
+        if (filters?.status) list = list.filter(o => o.status === filters.status);
+        if (filters?.userId) list = list.filter(o => o.user_id === filters.userId);
+        return list.sort((a, b) => (b.created_at > a.created_at ? 1 : -1));
+    }
+
+    async resetForTesting(): Promise<void> {
+        this.orders.clear();
+        this.payments.clear();
+        this.unmatched.clear();
+        this.userExpiries.clear();
+        this.userCredits.clear();
+        try {
+            if (existsSync(this.filePath)) {
+                unlinkSync(this.filePath);
+            }
+        } catch {}
+    }
+}
+
+const config = getConfig();
+export const billingStorage: IBillingStorage = config.DATABASE_URL
+    ? new PostgresBillingStorage()
+    : new InMemoryBillingStorage();
