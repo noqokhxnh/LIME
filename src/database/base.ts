@@ -35,6 +35,48 @@ ON sessions(user_id);
 
 CREATE INDEX IF NOT EXISTS sessions_expires_at_idx
 ON sessions(expires_at);
+
+-- User columns for role, tier, credits, total_credits, status, deleted_at, preferences
+ALTER TABLE users ADD COLUMN IF NOT EXISTS role VARCHAR(20) NOT NULL DEFAULT 'user';
+ALTER TABLE users ADD COLUMN IF NOT EXISTS tier VARCHAR(20) NOT NULL DEFAULT 'free';
+ALTER TABLE users ADD COLUMN IF NOT EXISTS credits INTEGER NOT NULL DEFAULT 20;
+ALTER TABLE users ADD COLUMN IF NOT EXISTS total_credits INTEGER NOT NULL DEFAULT 20;
+ALTER TABLE users ADD COLUMN IF NOT EXISTS status VARCHAR(20) NOT NULL DEFAULT 'active';
+ALTER TABLE users ADD COLUMN IF NOT EXISTS deleted_at TIMESTAMPTZ;
+ALTER TABLE users ADD COLUMN IF NOT EXISTS preferences JSONB DEFAULT '{}'::jsonb;
+
+-- Super Admin promotion for khanh2k5xxx@gmail.com
+UPDATE users
+SET role = 'admin',
+    tier = 'enterprise',
+    credits = GREATEST(credits, 10000),
+    total_credits = GREATEST(total_credits, 10000),
+    status = 'active',
+    updated_at = NOW()
+WHERE LOWER(email) = 'khanh2k5xxx@gmail.com';
+
+-- System Settings
+CREATE TABLE IF NOT EXISTS system_settings (
+    key VARCHAR(50) PRIMARY KEY,
+    value JSONB NOT NULL,
+    updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    updated_by VARCHAR(255)
+);
+
+-- Audit Logs
+CREATE TABLE IF NOT EXISTS audit_logs (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    action VARCHAR(100) NOT NULL,
+    user_id UUID,
+    user_email VARCHAR(255),
+    ip_address VARCHAR(45),
+    status VARCHAR(20) NOT NULL DEFAULT 'success',
+    details JSONB,
+    created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+
+CREATE INDEX IF NOT EXISTS idx_audit_logs_created_at ON audit_logs(created_at DESC);
+CREATE INDEX IF NOT EXISTS idx_audit_logs_action ON audit_logs(action);
 `;
 
 /**
