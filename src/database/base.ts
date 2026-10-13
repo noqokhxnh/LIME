@@ -199,5 +199,5 @@ CREATE TABLE IF NOT EXISTS refunds (
     created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
 
-CREATE INDEX IF NOT EXISTS idx_refunds_source ON refunds(source_type, source_id);
+CREATE UNIQUE INDEX IF NOT EXISTS uq_refunds_source ON refunds(source_type, source_id);
 `;
