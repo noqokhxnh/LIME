@@ -22,7 +22,7 @@ export const AdminApi = {
             headers['Content-Type'] = 'application/json';
         }
         try {
-            const res = await fetch(url, { credentials: 'include', ...options, headers });
+            const res = await fetch(url, { ...options, credentials: 'include', headers });
             const data = await res.json().catch(() => ({}));
             if (!res.ok) {
                 const message = data.message && data.message !== data.error
