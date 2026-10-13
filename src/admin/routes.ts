@@ -776,6 +776,296 @@ export async function adminRoutes(app: FastifyInstance, opts?: { queue?: IVideoQ
     });
 
     // -------------------------------------------------------------
+    // 4b. FAILED PAYMENTS & REFUNDS MANAGEMENT
+    // Xử lý giao dịch thanh toán lỗi: unmatched (tiền vào nhưng không khớp
+    // đơn), duplicate (2 giao dịch trùng 1 đơn), và hoàn tiền thủ công.
+    // Lưu ý: SePay webhook KHÔNG trả về STK/ngân hàng của người chuyển nên
+    // admin phải nhập tay thông tin này khi thực hiện hoàn tiền.
+    // -------------------------------------------------------------
+    const maskAccount = (acc: string): string => {
+        const digits = String(acc || "").replace(/\D/g, "");
+        if (digits.length <= 4) return "***" + digits;
+        return "***" + digits.slice(-4);
+    };
+
+    app.get("/api/admin/unmatched", async (request: FastifyRequest, reply: FastifyReply) => {
+        const check = await verifyAdminUser(request);
+        if (!check.isAdmin) {
+            reply.status(403);
+            return { error: check.error };
+        }
+
+        const query = (request.query as any) || {};
+        const status = query.status || "pending";
+        const validStatuses = ["pending", "resolved", "refunded", "all"];
+        if (!validStatuses.includes(status)) {
+            return reply.status(400).send({ error: "Trạng thái lọc không hợp lệ." });
+        }
+
+        const unmatched = await billingStorage.getUnmatchedPayments(status);
+        return { unmatched, total: unmatched.length };
+    });
+
+    app.get("/api/admin/payments/duplicates", async (request: FastifyRequest, reply: FastifyReply) => {
+        const check = await verifyAdminUser(request);
+        if (!check.isAdmin) {
+            reply.status(403);
+            return { error: check.error };
+        }
+
+        const duplicates = await billingStorage.listDuplicatePayments();
+        const refunds = await billingStorage.listRefunds();
+        const refundedPaymentIds = new Set(
+            refunds.filter((r) => r.source_type === "duplicate").map((r) => r.source_id)
+        );
+
+        const items: any[] = [];
+        for (const p of duplicates) {
+            let order: any = null;
+            let userEmail: string | null = null;
+            if (p.order_id) {
+                try {
+                    order = await billingStorage.findOrderById(p.order_id);
+                } catch {
+                    order = null;
+                }
+                if (order) {
+                    try {
+                        const u: any = await userStore.findById(order.user_id);
+                        userEmail = u?.email || null;
+                    } catch {
+                        userEmail = null;
+                    }
+                }
+            }
+            items.push({
+                ...p,
+                alreadyRefunded: refundedPaymentIds.has(p.id),
+                order: order
+                    ? { id: order.id, pay_code: order.pay_code, amount_vnd: order.amount_vnd, status: order.status }
+                    : null,
+                userEmail,
+            });
+        }
+
+        return { duplicates: items, total: items.length };
+    });
+
+    app.post(
+        "/api/admin/unmatched/:id/resolve",
+        async (request: FastifyRequest<{ Params: { id: string } }>, reply: FastifyReply) => {
+            const check = await verifyAdminUser(request);
+            if (!check.isAdmin) {
+                reply.status(403);
+                return { error: check.error };
+            }
+
+            const { id } = request.params;
+            const body = (request.body as any) || {};
+            const orderId = body.orderId ? String(body.orderId).trim() : "";
+            const adminNote = body.adminNote ? String(body.adminNote).trim() : undefined;
+
+            if (orderId) {
+                const order = await billingStorage.findOrderById(orderId);
+                if (!order) {
+                    return reply.status(404).send({ error: "Không tìm thấy đơn hàng để đối soát." });
+                }
+            }
+
+            const all = await billingStorage.getUnmatchedPayments("all");
+            const existing = all.find((u) => u.id === id);
+            if (!existing) {
+                return reply.status(404).send({ error: "Không tìm thấy giao dịch." });
+            }
+            if (existing.status !== "pending") {
+                return reply.status(400).send({ error: "Giao dịch này đã được xử lý trước đó." });
+            }
+
+            const item = await billingStorage.resolveUnmatchedPayment(id, "resolved", adminNote, check.user?.email);
+
+            auditLog.record({
+                action: "admin.unmatched_resolved",
+                status: "success",
+                details: {
+                    resolvedBy: check.user?.email,
+                    unmatchedId: id,
+                    sepayRef: item?.sepay_ref,
+                    amount: item?.amount_vnd,
+                    orderId: orderId || null,
+                },
+            });
+
+            return { success: true, unmatched: item };
+        }
+    );
+
+    app.post(
+        "/api/admin/unmatched/:id/refund",
+        async (request: FastifyRequest<{ Params: { id: string } }>, reply: FastifyReply) => {
+            const check = await verifyAdminUser(request);
+            if (!check.isAdmin) {
+                reply.status(403);
+                return { error: check.error };
+            }
+
+            const { id } = request.params;
+            const body = (request.body as any) || {};
+            const bankAccount = body.bankAccount ? String(body.bankAccount).trim() : "";
+            const bankName = body.bankName ? String(body.bankName).trim() : "";
+            const adminNote = body.adminNote ? String(body.adminNote).trim() : undefined;
+
+            if (!bankAccount || !bankName) {
+                return reply.status(400).send({
+                    error: "Vui lòng nhập số tài khoản và tên ngân hàng của khách hàng để hoàn tiền.",
+                });
+            }
+
+            const all = await billingStorage.getUnmatchedPayments("all");
+            const existing = all.find((u) => u.id === id);
+            if (!existing) {
+                return reply.status(404).send({ error: "Không tìm thấy giao dịch." });
+            }
+            if (existing.status !== "pending") {
+                return reply.status(400).send({ error: "Giao dịch này đã được xử lý trước đó." });
+            }
+
+            const refund = await billingStorage.recordRefund({
+                source_type: "unmatched",
+                source_id: existing.id,
+                sepay_ref: existing.sepay_ref,
+                amount_vnd: existing.amount_vnd,
+                bank_account: bankAccount,
+                bank_name: bankName,
+                admin_note: adminNote,
+                refunded_by: check.user?.email,
+            });
+            await billingStorage.resolveUnmatchedPayment(id, "refunded", adminNote, check.user?.email);
+
+            auditLog.record({
+                action: "admin.unmatched_refunded",
+                status: "success",
+                details: {
+                    refundedBy: check.user?.email,
+                    unmatchedId: id,
+                    sepayRef: existing.sepay_ref,
+                    amount: existing.amount_vnd,
+                    bankName,
+                    bankAccountMasked: maskAccount(bankAccount),
+                },
+            });
+
+            return { success: true, refund };
+        }
+    );
+
+    app.post(
+        "/api/admin/payments/:paymentId/refund",
+        async (request: FastifyRequest<{ Params: { paymentId: string } }>, reply: FastifyReply) => {
+            const check = await verifyAdminUser(request);
+            if (!check.isAdmin) {
+                reply.status(403);
+                return { error: check.error };
+            }
+
+            const { paymentId } = request.params;
+            const body = (request.body as any) || {};
+            const bankAccount = body.bankAccount ? String(body.bankAccount).trim() : "";
+            const bankName = body.bankName ? String(body.bankName).trim() : "";
+            const adminNote = body.adminNote ? String(body.adminNote).trim() : undefined;
+
+            if (!bankAccount || !bankName) {
+                return reply.status(400).send({
+                    error: "Vui lòng nhập số tài khoản và tên ngân hàng của khách hàng để hoàn tiền.",
+                });
+            }
+
+            const payment = await billingStorage.findPaymentById(paymentId);
+            if (!payment) {
+                return reply.status(404).send({ error: "Không tìm thấy giao dịch." });
+            }
+            if (payment.result !== "duplicate") {
+                return reply.status(400).send({ error: "Chỉ hoàn tiền cho giao dịch trùng lặp." });
+            }
+            const refunds = await billingStorage.listRefunds();
+            if (refunds.some((r) => r.source_type === "duplicate" && r.source_id === payment.id)) {
+                return reply.status(400).send({ error: "Giao dịch này đã được hoàn tiền trước đó." });
+            }
+
+            const refund = await billingStorage.recordRefund({
+                source_type: "duplicate",
+                source_id: payment.id,
+                sepay_ref: payment.sepay_ref,
+                amount_vnd: payment.amount_vnd,
+                bank_account: bankAccount,
+                bank_name: bankName,
+                admin_note: adminNote,
+                refunded_by: check.user?.email,
+            });
+
+            auditLog.record({
+                action: "admin.payment_refunded",
+                status: "success",
+                details: {
+                    refundedBy: check.user?.email,
+                    paymentId: payment.id,
+                    sepayRef: payment.sepay_ref,
+                    amount: payment.amount_vnd,
+                    bankName,
+                    bankAccountMasked: maskAccount(bankAccount),
+                },
+            });
+
+            return { success: true, refund };
+        }
+    );
+
+    app.post(
+        "/api/admin/orders/:orderId/cancel",
+        async (request: FastifyRequest<{ Params: { orderId: string } }>, reply: FastifyReply) => {
+            const check = await verifyAdminUser(request);
+            if (!check.isAdmin) {
+                reply.status(403);
+                return { error: check.error };
+            }
+
+            const { orderId } = request.params;
+            const order = await billingStorage.findOrderById(orderId);
+            if (!order) {
+                return reply.status(404).send({ error: "Không tìm thấy đơn hàng." });
+            }
+
+            const cancelled = await billingStorage.cancelOrder(orderId);
+            if (!cancelled) {
+                return reply.status(400).send({ error: "Chỉ hủy được đơn hàng đang chờ thanh toán." });
+            }
+
+            auditLog.record({
+                action: "admin.order_cancelled",
+                status: "success",
+                details: {
+                    cancelledBy: check.user?.email,
+                    orderId: order.id,
+                    payCode: order.pay_code,
+                    amount: order.amount_vnd,
+                },
+            });
+
+            return { success: true, order: cancelled };
+        }
+    );
+
+    app.get("/api/admin/refunds", async (request: FastifyRequest, reply: FastifyReply) => {
+        const check = await verifyAdminUser(request);
+        if (!check.isAdmin) {
+            reply.status(403);
+            return { error: check.error };
+        }
+
+        const refunds = await billingStorage.listRefunds();
+        return { refunds, total: refunds.length };
+    });
+
+    // -------------------------------------------------------------
     // 5. SYSTEM SETTINGS & PROVIDER CONNECTIVITY
     // -------------------------------------------------------------
     app.get("/api/admin/settings", async (request: FastifyRequest, reply: FastifyReply) => {
