@@ -11,7 +11,13 @@ import type {
     PaymentResult,
     UnmatchedPaymentStatus,
     Refund,
+    RefundSourceType,
 } from './types.js';
+
+const UUID_REGEX = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+export function isUuid(id: string): boolean {
+    return typeof id === 'string' && UUID_REGEX.test(id);
+}
 
 export const DEFAULT_PLANS: Plan[] = [
     {
@@ -77,8 +83,11 @@ export interface IBillingStorage {
     }): Promise<Payment>;
     getUserPlanExpiry(userId: string): Promise<string | null>;
     findPaymentById(id: string): Promise<Payment | null>;
+    findUnmatchedPaymentById(id: string): Promise<UnmatchedPayment | null>;
     listDuplicatePayments(): Promise<Payment[]>;
     getUnmatchedPayments(status?: string): Promise<UnmatchedPayment[]>;
+    findRefundBySource(sourceType: RefundSourceType, sourceId: string): Promise<Refund | null>;
+    getRefundedSourceIds(sourceType: RefundSourceType, sourceIds: string[]): Promise<Set<string>>;
     recordRefund(item: Omit<Refund, 'id' | 'created_at' | 'refunded_at'>): Promise<Refund>;
     listRefunds(): Promise<Refund[]>;
     cancelOrder(orderId: string): Promise<Order | null>;
@@ -140,6 +149,7 @@ export class PostgresBillingStorage implements IBillingStorage {
     }
 
     async findOrderById(id: string): Promise<Order | null> {
+        if (!isUuid(id)) return null;
         const res = await db.query('SELECT * FROM orders WHERE id = $1 LIMIT 1', [id]);
         if (res.rows.length === 0) return null;
         return this.mapOrder(res.rows[0]);
@@ -152,6 +162,7 @@ export class PostgresBillingStorage implements IBillingStorage {
     }
 
     async findPendingOrderByUserId(userId: string): Promise<Order | null> {
+        if (!isUuid(userId)) return null;
         const res = await db.query(
             `SELECT * FROM orders WHERE user_id = $1 AND status IN ('pending', 'claimed') ORDER BY created_at DESC LIMIT 1`,
             [userId]
@@ -161,6 +172,7 @@ export class PostgresBillingStorage implements IBillingStorage {
     }
 
     async cancelActiveOrdersForUser(userId: string): Promise<void> {
+        if (!isUuid(userId)) return;
         await db.query(
             `UPDATE orders SET status = 'cancelled' WHERE user_id = $1 AND status IN ('pending', 'claimed')`,
             [userId]
@@ -168,6 +180,7 @@ export class PostgresBillingStorage implements IBillingStorage {
     }
 
     async updateOrderClaimed(orderId: string, claimedAt: string, expiresAt: string): Promise<Order | null> {
+        if (!isUuid(orderId)) return null;
         const res = await db.query(
             `UPDATE orders
              SET status = 'claimed', claimed_at = $1, expires_at = $2
@@ -395,6 +408,7 @@ export class PostgresBillingStorage implements IBillingStorage {
     }
 
     async getUserPlanExpiry(userId: string): Promise<string | null> {
+        if (!isUuid(userId)) return null;
         const res = await db.query('SELECT plan_expires_at FROM users WHERE id = $1 LIMIT 1', [userId]);
         if (res.rows.length === 0 || !res.rows[0].plan_expires_at) return null;
         return new Date(res.rows[0].plan_expires_at).toISOString();
@@ -419,7 +433,27 @@ export class PostgresBillingStorage implements IBillingStorage {
         }));
     }
 
+    async findUnmatchedPaymentById(id: string): Promise<UnmatchedPayment | null> {
+        if (!isUuid(id)) return null;
+        const res = await db.query('SELECT * FROM unmatched_payments WHERE id = $1 LIMIT 1', [id]);
+        if (res.rows.length === 0) return null;
+        const r = res.rows[0];
+        return {
+            id: r.id,
+            sepay_ref: r.sepay_ref,
+            amount_vnd: r.amount_vnd,
+            content: r.content,
+            raw: r.raw,
+            status: r.status,
+            admin_note: r.admin_note,
+            resolved_by: r.resolved_by,
+            resolved_at: r.resolved_at ? new Date(r.resolved_at).toISOString() : null,
+            created_at: new Date(r.created_at).toISOString(),
+        };
+    }
+
     async findPaymentById(id: string): Promise<Payment | null> {
+        if (!isUuid(id)) return null;
         const res = await db.query('SELECT * FROM payments WHERE id = $1 LIMIT 1', [id]);
         if (res.rows.length === 0) return null;
         const r = res.rows[0];
@@ -447,6 +481,37 @@ export class PostgresBillingStorage implements IBillingStorage {
             received_at: new Date(r.received_at).toISOString(),
             result: r.result,
         }));
+    }
+
+    async findRefundBySource(sourceType: RefundSourceType, sourceId: string): Promise<Refund | null> {
+        const res = await db.query(
+            'SELECT * FROM refunds WHERE source_type = $1 AND source_id = $2 LIMIT 1',
+            [sourceType, sourceId]
+        );
+        if (res.rows.length === 0) return null;
+        const r = res.rows[0];
+        return {
+            id: r.id,
+            source_type: r.source_type,
+            source_id: r.source_id,
+            sepay_ref: r.sepay_ref,
+            amount_vnd: r.amount_vnd,
+            bank_account: r.bank_account,
+            bank_name: r.bank_name,
+            admin_note: r.admin_note,
+            refunded_by: r.refunded_by,
+            refunded_at: new Date(r.refunded_at).toISOString(),
+            created_at: new Date(r.created_at).toISOString(),
+        };
+    }
+
+    async getRefundedSourceIds(sourceType: RefundSourceType, sourceIds: string[]): Promise<Set<string>> {
+        if (sourceIds.length === 0) return new Set();
+        const res = await db.query(
+            'SELECT source_id FROM refunds WHERE source_type = $1 AND source_id = ANY($2)',
+            [sourceType, sourceIds]
+        );
+        return new Set(res.rows.map(r => r.source_id));
     }
 
     async recordRefund(item: Omit<Refund, 'id' | 'created_at' | 'refunded_at'>): Promise<Refund> {
@@ -491,6 +556,7 @@ export class PostgresBillingStorage implements IBillingStorage {
     }
 
     async cancelOrder(orderId: string): Promise<Order | null> {
+        if (!isUuid(orderId)) return null;
         const res = await db.query(
             `UPDATE orders
              SET status = 'cancelled'
@@ -508,12 +574,21 @@ export class PostgresBillingStorage implements IBillingStorage {
         adminNote?: string,
         resolvedBy?: string
     ): Promise<UnmatchedPayment | null> {
+        if (!isUuid(id)) return null;
+        const trimmedNote = adminNote?.trim() || null;
         const res = await db.query(
             `UPDATE unmatched_payments
-             SET status = $1, admin_note = COALESCE($2, admin_note), resolved_by = $3, resolved_at = NOW()
+             SET status = $1,
+                 admin_note = CASE
+                     WHEN $2::text IS NULL OR $2::text = '' THEN admin_note
+                     WHEN admin_note IS NULL OR admin_note = '' THEN $2::text
+                     ELSE admin_note || ' | ' || $2::text
+                 END,
+                 resolved_by = $3,
+                 resolved_at = NOW()
              WHERE id = $4
              RETURNING *`,
-            [status, adminNote || null, resolvedBy || 'admin', id]
+            [status, trimmedNote, resolvedBy || 'admin', id]
         );
         if (res.rows.length === 0) return null;
         const r = res.rows[0];
@@ -835,7 +910,11 @@ export class InMemoryBillingStorage implements IBillingStorage {
         if (status && status !== 'all') {
             list = list.filter(u => u.status === status);
         }
-        return list.sort((a, b) => (b.created_at > a.created_at ? 1 : -1));
+        return list.sort((a, b) => b.created_at.localeCompare(a.created_at));
+    }
+
+    async findUnmatchedPaymentById(id: string): Promise<UnmatchedPayment | null> {
+        return this.unmatched.get(id) || null;
     }
 
     async findPaymentById(id: string): Promise<Payment | null> {
@@ -845,10 +924,36 @@ export class InMemoryBillingStorage implements IBillingStorage {
     async listDuplicatePayments(): Promise<Payment[]> {
         return Array.from(this.payments.values())
             .filter(p => p.result === 'duplicate')
-            .sort((a, b) => (b.received_at > a.received_at ? 1 : -1));
+            .sort((a, b) => b.received_at.localeCompare(a.received_at));
+    }
+
+    async findRefundBySource(sourceType: RefundSourceType, sourceId: string): Promise<Refund | null> {
+        for (const r of this.refunds.values()) {
+            if (r.source_type === sourceType && r.source_id === sourceId) {
+                return r;
+            }
+        }
+        return null;
+    }
+
+    async getRefundedSourceIds(sourceType: RefundSourceType, sourceIds: string[]): Promise<Set<string>> {
+        const idSet = new Set(sourceIds);
+        const res = new Set<string>();
+        for (const r of this.refunds.values()) {
+            if (r.source_type === sourceType && idSet.has(r.source_id)) {
+                res.add(r.source_id);
+            }
+        }
+        return res;
     }
 
     async recordRefund(item: Omit<Refund, 'id' | 'created_at' | 'refunded_at'>): Promise<Refund> {
+        const existing = await this.findRefundBySource(item.source_type, item.source_id);
+        if (existing) {
+            const err: any = new Error(`Refund already exists for source ${item.source_type}:${item.source_id}`);
+            err.code = '23505';
+            throw err;
+        }
         const id = randomUUID();
         const now = new Date().toISOString();
         const refund: Refund = {
@@ -863,7 +968,7 @@ export class InMemoryBillingStorage implements IBillingStorage {
     }
 
     async listRefunds(): Promise<Refund[]> {
-        return Array.from(this.refunds.values()).sort((a, b) => (b.created_at > a.created_at ? 1 : -1));
+        return Array.from(this.refunds.values()).sort((a, b) => b.created_at.localeCompare(a.created_at));
     }
 
     async cancelOrder(orderId: string): Promise<Order | null> {
@@ -884,7 +989,10 @@ export class InMemoryBillingStorage implements IBillingStorage {
         const item = this.unmatched.get(id);
         if (!item) return null;
         item.status = status;
-        if (adminNote) item.admin_note = adminNote;
+        const trimmedNote = adminNote?.trim();
+        if (trimmedNote) {
+            item.admin_note = item.admin_note ? `${item.admin_note} | ${trimmedNote}` : trimmedNote;
+        }
         item.resolved_by = resolvedBy || 'admin';
         item.resolved_at = new Date().toISOString();
         this.saveToDisk();
@@ -895,7 +1003,7 @@ export class InMemoryBillingStorage implements IBillingStorage {
         let list = Array.from(this.orders.values());
         if (filters?.status) list = list.filter(o => o.status === filters.status);
         if (filters?.userId) list = list.filter(o => o.user_id === filters.userId);
-        return list.sort((a, b) => (b.created_at > a.created_at ? 1 : -1));
+        return list.sort((a, b) => b.created_at.localeCompare(a.created_at));
     }
 
     async resetForTesting(): Promise<void> {
