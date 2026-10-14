@@ -18,9 +18,9 @@ const loginSchema = z.object({
     password: z.string().min(1).max(128),
 });
 
-const resetPasswordSchema = z.object({
-    username: z.string().trim().min(1).max(255),
-    password: z.string().min(6).max(128),
+const changePasswordSchema = z.object({
+    currentPassword: z.string().min(1).max(128),
+    newPassword: z.string().min(6).max(128),
     confirmPassword: z.string().min(6).max(128).optional(),
 });
 
@@ -121,32 +121,47 @@ export async function authRoutes(app: FastifyInstance): Promise<void> {
         };
     });
 
+    // Đổi mật khẩu khi đã đăng nhập. Yêu cầu session hợp lệ + mật khẩu hiện tại,
+    // chỉ tác động đúng tài khoản của người gọi. Không dùng làm "quên mật khẩu"
+    // cho người chưa đăng nhập (chưa có hạ tầng gửi email xác thực).
     app.post('/api/auth/reset-password', async (request, reply) => {
-        const parsed = resetPasswordSchema.safeParse(request.body);
-        if (!parsed.success) {
-            return reply.status(400).send({
-                error: 'Dữ liệu không hợp lệ. Mật khẩu phải có từ 6 đến 128 ký tự.',
+        const sessionUser = await getCurrentUser(request);
+        if (!sessionUser) {
+            return reply.status(401).send({
+                error: 'Vui lòng đăng nhập để đổi mật khẩu.',
             });
         }
-        const { username, password, confirmPassword } = parsed.data;
-        if (confirmPassword && password !== confirmPassword) {
+        const parsed = changePasswordSchema.safeParse(request.body);
+        if (!parsed.success) {
+            return reply.status(400).send({
+                error: 'Dữ liệu không hợp lệ. Mật khẩu mới phải có từ 6 đến 128 ký tự.',
+            });
+        }
+        const { currentPassword, newPassword, confirmPassword } = parsed.data;
+        if (confirmPassword && newPassword !== confirmPassword) {
             return reply.status(400).send({
                 error: 'Mật khẩu xác nhận không khớp',
             });
         }
 
         const result = await db.query(
-            'SELECT id, username, email FROM users WHERE LOWER(username) = LOWER($1) OR LOWER(email) = LOWER($1) LIMIT 1',
-            [username]
+            'SELECT id, password_hash FROM users WHERE id = $1 LIMIT 1',
+            [sessionUser.id]
         );
         const user = result.rows[0];
-        if (!user) {
-            return reply.status(404).send({
-                error: 'Không tìm thấy tài khoản với tên đăng nhập hoặc email này',
+        if (!user || !user.password_hash) {
+            return reply.status(400).send({
+                error: 'Tài khoản đăng nhập bằng Google không đặt mật khẩu tại đây.',
+            });
+        }
+        const validCurrent = await bcrypt.compare(currentPassword, user.password_hash);
+        if (!validCurrent) {
+            return reply.status(403).send({
+                error: 'Mật khẩu hiện tại không đúng.',
             });
         }
 
-        const passwordHash = await bcrypt.hash(password, 12);
+        const passwordHash = await bcrypt.hash(newPassword, 12);
         await db.query(
             'UPDATE users SET password_hash = $1 WHERE id = $2',
             [passwordHash, user.id]
@@ -154,8 +169,7 @@ export async function authRoutes(app: FastifyInstance): Promise<void> {
 
         return {
             ok: true,
-            message: 'Đặt lại mật khẩu thành công! Vui lòng đăng nhập lại.',
-            username: user.username,
+            message: 'Đổi mật khẩu thành công!',
         };
     });
 
