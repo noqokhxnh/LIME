@@ -124,14 +124,21 @@ export function checkRhythm(
             } else if (typeof item.visualDescription === 'string') {
                 const text = item.visualDescription.toLowerCase();
                 const match = text.match(/near[-_]?still[^\d]*(\d+(?:\.\d+)?)/);
-                if (match && parseFloat(match[1]) >= 1.5) {
-                    hasNearStill = true;
+                if (match) {
+                    if (parseFloat(match[1]) >= 1.5) {
+                        hasNearStill = true;
+                    }
+                    // Nếu ghi rõ số lượng giây nhưng < 1.5s thì không đạt điều kiện
                 } else if (
                     text.includes('nearstill') ||
                     text.includes('near-still') ||
                     text.includes('near still')
                 ) {
-                    hasNearStill = true;
+                    // Không có số giây cụ thể: chỉ chấp nhận khi scene có duration >= 1.5s (hoặc chưa đo duration)
+                    const dur = typeof item.duration === 'number' ? item.duration : undefined;
+                    if (dur === undefined || dur >= 1.5) {
+                        hasNearStill = true;
+                    }
                 }
             } else if (Array.isArray(item.moves)) {
                 for (const m of item.moves) {
@@ -205,7 +212,7 @@ export const videoScriptSchema = z
         globalStyles: z.string(),
         globalSetupJs: z.string(),
         scenes: z.array(sceneSchema),
-        boundaries: z.array(boundarySchema),
+        boundaries: z.array(boundarySchema).default([]),
         colorPalette: z.object({
             primary: z.string(),
             secondary: z.string(),

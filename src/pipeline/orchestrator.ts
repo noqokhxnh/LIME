@@ -2,7 +2,7 @@ import { existsSync, mkdirSync, rmSync } from "node:fs";
 import { join } from "node:path";
 import { v4 } from "uuid";
 import { videoPreset } from "@/config";
-import { videoRequest, pipelineResult, pipelineProgess, progressCallback, pipelinePhase, videoScript, AudioResult } from "@/llm/schema";
+import { videoRequest, pipelineResult, pipelineProgess, progressCallback, pipelinePhase, videoScript, AudioResult, checkRhythm } from "@/llm/schema";
 import { generateScript } from "./scriptGenerator";
 import { estimateDuration } from "./estimateDuration";
 import { assembleHTML } from "./assembleHtml.js";
@@ -137,6 +137,20 @@ export async function runFullPipeline(option: orchestratorOptions): Promise<full
             },
         });
         timing["audio_synthesis"] = Date.now() - phaseStart;
+
+        // Post-TTS Rhythm Check (Spec A): đánh giá nhịp điệu với duration thực tế từ audio ở mức warn
+        if (script.scenes.length >= 2 && audio?.scencesDuration) {
+            const scenesWithRealDurations = script.scenes.map((s) => ({
+                ...s,
+                duration: audio.scencesDuration[s.id] ?? s.duration ?? 0,
+            }));
+            const rhythmCheck = checkRhythm(scenesWithRealDurations);
+            if (!rhythmCheck.valid) {
+                const warnMsg = `[Rhythm Warn] Kịch bản sau TTS có nhịp chưa tối ưu: ${rhythmCheck.errors.join("; ")} (CV: ${rhythmCheck.cv.toFixed(2)}, ratio: ${rhythmCheck.ratio.toFixed(1)})`;
+                console.warn(`[Orchestrator] ${warnMsg}`);
+                logProgress("audio_synthesis", 68, warnMsg);
+            }
+        }
 
         // phase 6: re-assemble HTML với duration thực từ audio 
         phaseStart = Date.now();
