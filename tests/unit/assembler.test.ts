@@ -52,6 +52,17 @@ describe('Module 6: HTML & GSAP Packaging (src/pipeline/assembleHtml.ts)', () =>
                 backgroundColor: '#654321',
             },
         ],
+        boundaries: [
+            {
+                id: 'b1',
+                fromScene: 'scene-1',
+                toScene: 'scene-2',
+                carry: {
+                    element: '.title',
+                    mechanism: 'morph',
+                },
+            },
+        ],
         colorPalette: {
             primary: '#3b82f6',
             secondary: '#1d4ed8',

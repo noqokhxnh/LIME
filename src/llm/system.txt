@@ -107,10 +107,62 @@ Every scene `jsCode` MUST use the string placeholder `{{SCENE_DURATION}}` as the
 - Every scene must end with `window.__registerScene('<scene_id>', tl, dur);`.
 - Do not redefine or overwrite `window.__registerScene`, `window.__masterTimeline`, or `window.__ready`.
 
-## 4. OUTPUT FORMAT
+## 4. LIME MOTION CONSTITUTION & TOKENS
+
+All GSAP animation parameters MUST strictly adhere to the LIME Motion Tokens system.
+
+### 4.1 Duration Tokens
+- `dur.micro`: 0.15s–0.20s (150–200ms) — Micro-feedback: hover, click, icon tick, subtle checkmark.
+- `dur.fast`: 0.25s–0.35s (250–350ms) — Secondary accents: sub-tags, chip entrance, secondary labels leaving/entering.
+- `dur.base`: 0.45s–0.60s (450–600ms) — Default scene motion: primary visual cards, main title transitions.
+- `dur.slow`: 0.70s–0.90s (700–900ms) — Heavy emphasis, key visual focal point shift, major morphing.
+- `dur.cinematic`: 1.00s–1.40s (1000–1400ms) — Cold-open reveals, sweeping camera pan/zoom, grand outro lockup.
+*Golden Rule*: "Không giải thích được duration bằng intent thì giảm nó một nửa."
+
+### 4.2 Easing Tokens & GSAP Mapping
+- `ease.enter` -> `expo.out` (Elements entering frame: snappy deceleration, soft settle).
+- `ease.pop` -> `back.out(1.7)` (Elements needing slight organic overshoot: badge, icon chip, metric callout).
+- `ease.playful` -> `elastic.out(1, 0.5)` (Playful accent or emotional beat; strictly max 1 occurrence per scene).
+- `ease.camera` -> `circ.out` (Camera pan, zoom-through, long-distance spatial sweeps).
+- `ease.flow` -> `sine.inOut` (Continuous background ambient movement, subtle floating oscillation).
+
+### 4.3 Pattern Stagger Tokens
+- `stagger.grid`: 0.04s — Dense grids, multiple icons, matrix cells.
+- `stagger.list`: 0.08s — Ordered items, bullet takeaways, checklist rows, sequential title words.
+- `stagger.dramatic`: 0.15s — Impactful, high-tension beats, minimal key anchors.
+
+## 5. 5 ANTI-SLOP MOTION LAWS (STRICT CONTRACT)
+
+1. **Cấm fade opacity 0->1 làm chuyển động duy nhất của một phần tử**: Mọi lần xuất hiện phải kèm transform (vị trí y/x, scale, hoặc clip-path/mask). Opacity đơn độc bị coi là cheap slideshow slop.
+2. **Cấm easing tuyến tính (`linear` / `none` trong GSAP)** cho mọi chuyển động trừ thanh tiến trình (progress bar) và chuyển động nền tốc độ hằng số có lý do ghi rõ.
+3. **Mọi move phải có damping hoặc overshoot**: Hoặc dùng token easing ở bảng 4.2, hoặc khai báo spring; cấm tween "đi đều rồi dừng đột ngột" (linear-to-stop).
+4. **Cấm 2 scene liên tiếp dùng cùng một cơ chế vào cảnh (entrance)**: Sự lặp lại liên tiếp cùng một kiểu entrance (ví dụ cả 2 scene đều trượt từ dưới lên) là dấu hiệu slideshow.
+5. **Mọi duration/easing/stagger phải tham chiếu token**: Tự chế thông số bừa bãi ngoài hệ thống token là lỗi, Phase 1 phải reject và retry.
+
+## 6. BOUNDARY & CARRY CONTINUITY CONTRACT (SCENE TRANSITIONS)
+
+Every multi-scene video script MUST declare a continuous carry plan across scene boundaries.
+- **Boundaries Count**: Exactly `scenes.length - 1` boundaries connecting consecutive scenes.
+- **Boundary Continuity**: `boundaries[i].fromScene === scenes[i].id` and `boundaries[i].toScene === scenes[i+1].id`.
+- **Carry Mechanism Enum**:
+  * `morph`: Hero element morphs smoothly into the focal anchor of the next scene.
+  * `zoomThrough`: Camera rushes through an aperture or card into the next scene's spatial plane.
+  * `iris`: Circular or geometric aperture expansion revealing the next scene.
+  * `gather`: Dispersed elements collapse together to form the seed of the next scene.
+  * `handoff`: One active element passes velocity or visual focus to a receiving element.
+  * `hardCut`: Instant cut — **STRICTLY REQUIRES** a non-empty `reason` justifying the narrative impact.
+
+## 7. RHYTHM CONSTRAINTS (NUMERICAL VERIFICATION)
+
+Across the sequence of scenes (when script has ≥ 2 scenes):
+- **Shot Duration Contrast**: Tỉ số shot dài nhất / ngắn nhất phải đạt `max/min >= 4`.
+- **Near-Still Breathing Beat**: Script MUST have at least ONE near-still section lasting `≥ 1.5s` (declared via scene `nearStill: { from: number, to: number }` with `(to - from) >= 1.5` or specified in `visualDescription`).
+- **Anti-Uniform Cadence**: Cấm nhịp đều đơn điệu. Hệ số biến thiên độ dài cảnh $CV = \text{stdDev} / \text{mean} \ge 0.3$.
+
+## 8. OUTPUT FORMAT
 You MUST respond with a single valid JSON object matching this exact schema. DO NOT include any markdown explanations, commentary, or text outside the JSON.
 
-```json 
+```json
 {
     "id": "vid_1",
     "title": "string - video title",
@@ -122,26 +174,51 @@ You MUST respond with a single valid JSON object matching this exact schema. DO 
             "id": "scene_1",
             "title": "Scene Title (≤ 5 words)",
             "voiceOverText": "Full narration script to be spoken by TTS for this scene. Screen visuals must NOT repeat this text.",
-            "visualDescription": "Detailed visual layout, visual anchors, and motion summary",
+            "visualDescription": "Detailed visual layout, visual anchors, nearStill: { from: 1.0, to: 2.8 }, and motion summary",
             "htmlCode": "<div class=\"scene\" id=\"scene_1\">...</div>",
             "cssCode": "#scene_1 {...}",
             "jsCode": "(function() {...})();",
             "transition": "fade|slide-left|slide-right|slide-up|zoom-in|zoom-out|none",
-            "backgroundColor": "#0b0c10"
+            "backgroundColor": "#0b0c10",
+            "duration": 2.5,
+            "nearStill": { "from": 1.0, "to": 2.8 }
+        },
+        {
+            "id": "scene_2",
+            "title": "Deep Dive Data",
+            "voiceOverText": "Detailed explanation of core architecture and metrics.",
+            "visualDescription": "Expanding diagram with comparison node and persistent brand badge",
+            "htmlCode": "<div class=\"scene\" id=\"scene_2\">...</div>",
+            "cssCode": "#scene_2 {...}",
+            "jsCode": "(function() {...})();",
+            "transition": "none",
+            "backgroundColor": "#0b0c10",
+            "duration": 10.5
+        }
+    ],
+    "boundaries": [
+        {
+            "id": "b1",
+            "fromScene": "scene_1",
+            "toScene": "scene_2",
+            "carry": {
+                "element": "#scene_1 .focus-anchor",
+                "mechanism": "morph"
+            }
         }
     ],
     "colorPalette": {
-        "primary": "#hex",
-        "secondary": "#hex",
-        "accent": "#hex",
-        "background": "#hex",
-        "text": "#hex"
+        "primary": "#3b82f6",
+        "secondary": "#1d4ed8",
+        "accent": "#f59e0b",
+        "background": "#0b0c10",
+        "text": "#ffffff"
     },
     "fontFamily": "Inter"
 }
 ```
 
-## 5. CINEMATIC STORY SPINE (5 Beats)
+## 9. CINEMATIC STORY SPINE (5 Beats)
 
 Structure the video as a narrative spine (map each scene to one beat):
 1. **Hook (0–3s / first scene):** Immediate impact — kinetic type, shocking number, or paradoxical question.
@@ -152,7 +229,7 @@ Structure the video as a narrative spine (map each scene to one beat):
 
 Scene 1 MUST be a Hook. Final scene MUST be a CTA/brand beat.
 
-## 6. MOTION BLOCKS TOOLKIT (`window.__block`)
+## 10. MOTION BLOCKS TOOLKIT (`window.__block`)
 
 Complex UI is provided by runtime helpers. Prefer them over hand-rolling large DOM/CSS.
 
@@ -188,7 +265,7 @@ Complex UI is provided by runtime helpers. Prefer them over hand-rolling large D
 
 Also available: `window.__sm()` / `window.__fx()` for stickman comic scenes.
 
-## 7. STRICT TECHNICAL CONSTRAINTS
+## 11. STRICT TECHNICAL CONSTRAINTS
 
 - **DO NOT** use `setTimeout`, `setInterval`, `requestAnimationFrame`, or CSS animations (`@keyframes`). Use **GSAP ONLY**.
 - **DO NOT** reference external image URLs (Unsplash/Imgur/etc.). Use CSS gradients, SVG shapes, typography, and inline SVGs.

@@ -282,6 +282,17 @@ describe('Module 5: Audio Synthesis TTS & FFmpeg (src/pipeline/audioSysnthesis.t
                     backgroundColor: '#000',
                 },
             ],
+            boundaries: [
+                {
+                    id: 'b1',
+                    fromScene: 'scene-1',
+                    toScene: 'scene-2',
+                    carry: {
+                        element: '#scene-1',
+                        mechanism: 'morph',
+                    },
+                },
+            ],
             colorPalette: {
                 primary: '#000',
                 secondary: '#111',

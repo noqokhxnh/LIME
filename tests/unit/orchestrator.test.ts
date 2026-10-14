@@ -68,6 +68,17 @@ describe('Module 8: Pipeline Orchestrator (src/pipeline/orchestrator.ts)', () =>
                 backgroundColor: '#111111',
             },
         ],
+        boundaries: [
+            {
+                id: 'b1',
+                fromScene: 'scene-1',
+                toScene: 'scene-2',
+                carry: {
+                    element: '#scene-1',
+                    mechanism: 'morph',
+                },
+            },
+        ],
         colorPalette: {
             primary: '#3b82f6',
             secondary: '#1d4ed8',
