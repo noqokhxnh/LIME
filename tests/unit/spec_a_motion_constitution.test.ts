@@ -1,5 +1,8 @@
 import { describe, it } from 'node:test';
 import assert from 'node:assert/strict';
+import { readFileSync } from 'node:fs';
+import { join, dirname } from 'node:path';
+import { fileURLToPath } from 'node:url';
 import {
     videoScriptSchema,
     boundarySchema,
@@ -14,6 +17,9 @@ import {
     MOTION_STAGGER_TOKENS,
     ANTI_SLOP_LAWS,
 } from '../../src/constants/motionTokens.js';
+
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = dirname(__filename);
 
 describe('Spec A: Motion Constitution & Carry Plan (Workstream WS-A)', () => {
     const valid3SceneScript: videoScript = {
@@ -126,6 +132,25 @@ describe('Spec A: Motion Constitution & Carry Plan (Workstream WS-A)', () => {
                     },
                 });
                 assert.strictEqual(b.success, true, `Mechanism ${mech} phải hợp lệ`);
+            }
+        });
+
+        it('tương thích ngược: script 1 scene từ DB cũ không có boundaries vẫn parse thành công nhờ default([])', () => {
+            const legacy1SceneScript = {
+                id: 'legacy-1',
+                title: 'Video đơn cảnh',
+                description: 'Kịch bản cũ không có trường boundaries',
+                globalStyles: 'body { margin: 0; }',
+                globalSetupJs: 'console.log("Ready");',
+                scenes: [valid3SceneScript.scenes[0]],
+                colorPalette: valid3SceneScript.colorPalette,
+                fontFamily: 'Inter',
+            };
+
+            const parseResult = videoScriptSchema.safeParse(legacy1SceneScript);
+            assert.strictEqual(parseResult.success, true);
+            if (parseResult.success) {
+                assert.deepStrictEqual(parseResult.data.boundaries, []);
             }
         });
     });
@@ -454,6 +479,27 @@ describe('Spec A: Motion Constitution & Carry Plan (Workstream WS-A)', () => {
             assert.ok(ANTI_SLOP_LAWS[2].includes('Mọi move phải có damping hoặc overshoot'));
             assert.ok(ANTI_SLOP_LAWS[3].includes('Cấm 2 scene liên tiếp dùng cùng một cơ chế vào cảnh'));
             assert.ok(ANTI_SLOP_LAWS[4].includes('Mọi duration/easing/stagger phải tham chiếu token'));
+        });
+
+        it('đảm bảo đồng bộ và không drift token giữa motionTokens.ts và system.txt prompt', () => {
+            const systemPromptPath = join(__dirname, '../../src/llm/system.txt');
+            const promptText = readFileSync(systemPromptPath, 'utf-8');
+
+            // All duration tokens must be present in prompt
+            for (const key of Object.keys(MOTION_DURATION_TOKENS)) {
+                assert.ok(promptText.includes(key), `Token ${key} phải có mặt trong system.txt`);
+            }
+
+            // All easing tokens and their gsap mappings must be present in prompt
+            for (const [key, val] of Object.entries(MOTION_EASING_TOKENS)) {
+                assert.ok(promptText.includes(key), `Token ${key} phải có mặt trong system.txt`);
+                assert.ok(promptText.includes(val.gsap), `GSAP easing ${val.gsap} cho ${key} phải có trong system.txt`);
+            }
+
+            // All stagger tokens must be present in prompt
+            for (const key of Object.keys(MOTION_STAGGER_TOKENS)) {
+                assert.ok(promptText.includes(key), `Token ${key} phải có mặt trong system.txt`);
+            }
         });
     });
 });
