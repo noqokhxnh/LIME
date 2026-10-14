@@ -74,13 +74,17 @@ const LINT_RULES: LintRule[] = [
 ];
 
 /**
- * Mask comments in JS code with whitespace so comments do not trigger false positives
- * while preserving exact line numbers and column offsets.
+ * Mask comments and string literals (single, double, and template strings) in JS code
+ * with whitespace so string contents (e.g. console.log("setTimeout") or messages mentioning
+ * "Math.random()") do not trigger false positives while preserving exact line numbers and column offsets.
+ *
+ * NOTE: This is a static lexical check (best-effort) designed to catch common non-deterministic APIs
+ * directly invoked on the render path (e.g. Math.random(), Date.now(), setTimeout()). It does not execute
+ * code or resolve dynamic indirection such as eval() or window['Math']['random']().
  */
-function maskComments(code: string): string {
-  return code
-    .replace(/\/\*[\s\S]*?\*\//g, (m) => m.replace(/[^\r\n]/g, " "))
-    .replace(/\/\/[^\r\n]*/g, (m) => " ".repeat(m.length));
+export function maskCommentsAndStrings(code: string): string {
+  const pattern = /\/\*[\s\S]*?\*\/|\/\/[^\r\n]*|`(?:\\.|[\s\S])*?`|"(?:\\.|[^"\r\n\\])*"|'(?:\\.|[^'\r\n\\])*'/g;
+  return code.replace(pattern, (m) => m.replace(/[^\r\n]/g, " "));
 }
 
 /**
@@ -110,7 +114,7 @@ export function lintCompCode(
     return { valid: true, violations: [], errors: [] };
   }
 
-  const masked = maskComments(code);
+  const masked = maskCommentsAndStrings(code);
   const violations: LintViolation[] = [];
 
   for (const rule of LINT_RULES) {

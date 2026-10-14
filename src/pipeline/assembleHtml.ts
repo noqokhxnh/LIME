@@ -182,10 +182,11 @@ export async function assembleHTML(
             (s) => {
                 const safeId = s.id.replace(/[^a-zA-Z0-9_]/g, "_");
                 const sceneSeed = getSceneSeed(options?.jobId || String(seed), s.id);
+                const sceneIdLiteral = JSON.stringify(s.id);
                 return `
 // --- Scene: ${s.id} (Duration: ${s.duration}s, Seed: ${sceneSeed}) ---
 try {
-    window.__sceneSeeds['${s.id}'] = ${sceneSeed};
+    window.__sceneSeeds[${sceneIdLiteral}] = ${sceneSeed};
     let __capturedSceneTl_${safeId} = null;
     const __origTimeline_${safeId} = gsap.timeline;
     gsap.timeline = function(...args) {
@@ -199,21 +200,21 @@ try {
 ${s.js}
 
     gsap.timeline = __origTimeline_${safeId};
-    if (!window.__sceneTimelines['${s.id}']) {
+    if (!window.__sceneTimelines[${sceneIdLiteral}]) {
         if (__capturedSceneTl_${safeId}) {
-            window.__registerScene('${s.id}', __capturedSceneTl_${safeId}, ${s.duration});
+            window.__registerScene(${sceneIdLiteral}, __capturedSceneTl_${safeId}, ${s.duration});
         } else {
             const fallbackTl = gsap.timeline();
-            fallbackTl.to('#${s.id}', { opacity: 1, duration: 0.4 }, 0);
-            window.__registerScene('${s.id}', fallbackTl, ${s.duration});
+            fallbackTl.to(document.getElementById(${sceneIdLiteral}) || '#${safeId}', { opacity: 1, duration: 0.4 }, 0);
+            window.__registerScene(${sceneIdLiteral}, fallbackTl, ${s.duration});
         }
     }
 } catch (err) {
-    console.error("[Scene Error] ${s.id}:", err);
-    if (!window.__sceneTimelines['${s.id}']) {
+    console.error("[Scene Error] " + ${sceneIdLiteral} + ":", err);
+    if (!window.__sceneTimelines[${sceneIdLiteral}]) {
         const fallbackTl = gsap.timeline();
-        fallbackTl.to('#${s.id}', { opacity: 1, duration: 0.4 }, 0);
-        window.__registerScene('${s.id}', fallbackTl, ${s.duration});
+        fallbackTl.to(document.getElementById(${sceneIdLiteral}) || '#${safeId}', { opacity: 1, duration: 0.4 }, 0);
+        window.__registerScene(${sceneIdLiteral}, fallbackTl, ${s.duration});
     }
 }
 `;
@@ -266,6 +267,7 @@ ${s.js}
             overflow: hidden;
         }
 
+        /* Isolated blending stack for scenes */
         .scene {
             position: absolute;
             inset: 0;
@@ -276,8 +278,12 @@ ${s.js}
             isolation: isolate;
         }
 
-        /* Order-independent commutative blending (multiply-style) for cross-fading layers */
-        .scene.crossfade,
+        /* Neutral crossfade keeping native RGB values without darkening */
+        .scene.crossfade {
+            isolation: isolate;
+        }
+
+        /* Specialized multiply blend mode for intentional stencil/multiply crossfades */
         .scene-crossfade-multiply,
         .crossfade-multiply,
         .blend-multiply {
@@ -350,17 +356,17 @@ ${allScenesHtml}
             return window.__totalDuration || window.__masterTimeline.duration();
         };
 
-        // Commutative multiply-style cross-fade helper for order-independent layer blending
+        // Cross-fade helper between scenes with customizable blend mode
         window.__crossFade = function(sceneAId, sceneBId, duration, opts) {
             opts = opts || {};
-            var mode = opts.blendMode || 'multiply';
+            var mode = opts.blendMode || 'normal';
             var elA = document.getElementById(sceneAId);
             var elB = document.getElementById(sceneBId);
-            if (elA) elA.style.mixBlendMode = mode;
-            if (elB) elB.style.mixBlendMode = mode;
+            if (elA && opts.blendMode) elA.style.mixBlendMode = mode;
+            if (elB && opts.blendMode) elB.style.mixBlendMode = mode;
             var tl = gsap.timeline();
-            tl.to('#' + sceneAId, { opacity: 0, duration: duration, ease: 'none' }, 0);
-            tl.to('#' + sceneBId, { opacity: 1, duration: duration, ease: 'none' }, 0);
+            tl.to(elA || '#' + sceneAId, { opacity: 0, duration: duration, ease: 'none' }, 0);
+            tl.to(elB || '#' + sceneBId, { opacity: 1, duration: duration, ease: 'none' }, 0);
             return tl;
         };
 

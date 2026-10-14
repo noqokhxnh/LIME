@@ -26,7 +26,7 @@ import { adminRoutes } from "./admin/routes.js";
 import { systemSettings } from "./admin/systemSettings.js";
 import { pageViewTracker } from "./security/pageViewTracker.js";
 import { db } from "./database/index.js";
-import { hashString32 } from "./pipeline/rng.js";
+import { hashString32, parseSeedSafe } from "./pipeline/rng.js";
 
 export const jobIpMap = new Map<string, string>();
 
@@ -432,9 +432,8 @@ export async function buildApp(options: { logger?: boolean, queue?: IVideoQueue 
         const bgmPath = body.bgmPath as string | undefined;
         const skipPreview = Boolean(body.skipPreview);
         const jobId = body.jobId || v4();
-        const seed = reqData.seed !== undefined
-            ? (reqData.seed >>> 0)
-            : (body.seed !== undefined ? (Number(body.seed) >>> 0) : hashString32(jobId));
+        const defaultSeed = hashString32(jobId);
+        const seed = parseSeedSafe(reqData.seed ?? body.seed, defaultSeed);
 
         const outputDir = join(process.cwd(), "tmp", `job-${jobId}`);
 
