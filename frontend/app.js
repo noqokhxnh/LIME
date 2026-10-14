@@ -206,26 +206,9 @@ if (showLoginBtn) {
     });
 }
 
-if (forgotPasswordLink && forgotForm) {
-    forgotPasswordLink.addEventListener('click', (e) => {
-        e.preventDefault();
-        if (loginForm) loginForm.style.display = 'none';
-        if (registerForm) registerForm.style.display = 'none';
-        forgotForm.style.display = 'flex';
-        if (authSocialRow) authSocialRow.style.display = 'none';
-        if (authDivider) authDivider.style.display = 'none';
-        if (authTitle) authTitle.textContent = 'Đặt lại mật khẩu';
-        if (authSubtitle) authSubtitle.textContent = 'Nhập tên đăng nhập hoặc email cùng mật khẩu mới';
-        if (loginMessage) loginMessage.textContent = '';
-        if (forgotMessage) {
-            forgotMessage.textContent = '';
-            forgotMessage.className = 'auth-status-msg';
-        }
-        if (loginUsername && forgotUsername && loginUsername.value.trim()) {
-            forgotUsername.value = loginUsername.value.trim();
-        }
-    });
-}
+// Form 'quên mật khẩu' cho người chưa đăng nhập đã gỡ: chưa có hạ tầng
+// gửi email xác thực nên flow này không thể an toàn. Link 'quên mật khẩu'
+// hiện chỉ hiển thị thông báo liên hệ hỗ trợ (listener phía trên).
 
 if (showLoginFromForgotBtn && forgotForm) {
     showLoginFromForgotBtn.addEventListener('click', () => {
@@ -233,89 +216,7 @@ if (showLoginFromForgotBtn && forgotForm) {
     });
 }
 
-async function handleResetPassword() {
-    if (!forgotUsername || !forgotPassword || !forgotConfirmPassword) return;
-    const username = forgotUsername.value.trim();
-    const password = forgotPassword.value;
-    const confirmPassword = forgotConfirmPassword.value;
 
-    if (forgotMessage) {
-        forgotMessage.textContent = '';
-        forgotMessage.className = 'auth-status-msg';
-    }
-
-    if (!username) {
-        if (forgotMessage) forgotMessage.textContent = 'Vui lòng nhập tên đăng nhập hoặc email';
-        return;
-    }
-    if (!password) {
-        if (forgotMessage) forgotMessage.textContent = 'Vui lòng nhập mật khẩu mới';
-        return;
-    }
-    if (password.length < 6) {
-        if (forgotMessage) forgotMessage.textContent = 'Mật khẩu phải có tối thiểu 6 ký tự';
-        return;
-    }
-    if (password !== confirmPassword) {
-        if (forgotMessage) forgotMessage.textContent = 'Mật khẩu xác nhận không khớp';
-        return;
-    }
-
-    try {
-        if (forgotSubmitBtn) {
-            forgotSubmitBtn.disabled = true;
-            forgotSubmitBtn.textContent = 'Đang xử lý...';
-        }
-
-        const res = await fetch(`${API_BASE}/api/auth/reset-password`, {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ username, password, confirmPassword })
-        });
-
-        const data = await res.json();
-        if (!res.ok) {
-            throw new Error(data.error || 'Đặt lại mật khẩu thất bại');
-        }
-
-        if (forgotMessage) {
-            forgotMessage.textContent = data.message || 'Đặt lại mật khẩu thành công! Đang chuyển về đăng nhập...';
-            forgotMessage.className = 'auth-status-msg success';
-        }
-
-        if (loginUsername && data.username) {
-            loginUsername.value = data.username;
-        }
-
-        setTimeout(() => {
-            if (showLoginBtn) showLoginBtn.click();
-            if (loginMessage) {
-                loginMessage.textContent = 'Đặt lại mật khẩu thành công! Vui lòng đăng nhập với mật khẩu mới.';
-                loginMessage.className = 'auth-status-msg success';
-            }
-        }, 1200);
-    } catch (err) {
-        if (forgotMessage) {
-            forgotMessage.textContent = err.message;
-            forgotMessage.className = 'auth-status-msg error';
-        }
-    } finally {
-        if (forgotSubmitBtn) {
-            forgotSubmitBtn.disabled = false;
-            forgotSubmitBtn.textContent = 'Đặt lại mật khẩu';
-        }
-    }
-}
-
-if (forgotSubmitBtn) forgotSubmitBtn.addEventListener('click', handleResetPassword);
-[forgotUsername, forgotPassword, forgotConfirmPassword].forEach(inp => {
-    inp?.addEventListener('keydown', (e) => {
-        if (e.key === 'Enter') {
-            e.preventDefault();
-            handleResetPassword();
-        }
-    });
-});
 
 if (registerTerms && registerSubmitBtn) {
     registerTerms.addEventListener('change', () => {
