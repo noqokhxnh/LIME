@@ -14,6 +14,7 @@ export interface JobData {
     bgmPath?: string;
     skipPreview?: boolean;
     outputDir: string;
+    seed?: number;
 }
 
 export interface IVideoQueue {
@@ -49,4 +50,5 @@ export interface JobRecord {
     progress?: JobProgress;
     result?: fullPipelineResult;
     error?: string;
+    seed?: number;
 }
