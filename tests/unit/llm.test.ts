@@ -63,6 +63,7 @@ describe('Module 3: LLM Client & Script Generation (src/llm/client.ts, src/pipel
                 backgroundColor: '#000000',
             },
         ],
+        boundaries: [],
         colorPalette: {
             primary: '#3b82f6',
             secondary: '#1d4ed8',
