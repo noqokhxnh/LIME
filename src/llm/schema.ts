@@ -108,6 +108,8 @@ export const videoRequestSchema = z.object({
     motionBlockIds: z.array(z.string().max(120)).max(8).optional(),
     /** Cấu hình đóng dấu logo / hình mờ (Watermark) */
     watermark: watermarkConfigSchema.optional(),
+    /** Deterministic seed for PRNG and reproducible rendering (Spec B) */
+    seed: z.number().int().optional(),
 })
 export type videoRequest = z.infer<typeof videoRequestSchema>
 

@@ -8,6 +8,8 @@ export async function processVideoJob(data: JobData, updateProgress: (p: JobProg
         bgmPath: data.bgmPath,
         skipPreview: data.skipPreview,
         outputDir: data.outputDir,
+        jobId: data.jobId,
+        seed: data.seed,
         onProgress: (p) => {
             updateProgress(p).catch(err => console.error("Failed to update progress", err));
         }
