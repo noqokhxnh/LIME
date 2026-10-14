@@ -3,7 +3,7 @@ import Redis from 'ioredis';
 import { IVideoQueue, JobData, JobRecord, JobProgress } from './interfaces.js';
 import { type fullPipelineResult } from '../pipeline/orchestrator.js';
 import { EventEmitter } from 'node:events';
-import { hashString32 } from '../pipeline/rng.js';
+import { hashString32, parseSeedSafe } from '../pipeline/rng.js';
 
 export class BullMQQueue implements IVideoQueue {
     private queue: Queue<JobData, fullPipelineResult, string>;
@@ -28,7 +28,7 @@ export class BullMQQueue implements IVideoQueue {
 
     async addJob(jobId: string, data: JobData): Promise<void> {
         if (data.seed === undefined) {
-            data.seed = data.request.seed !== undefined ? (data.request.seed >>> 0) : hashString32(jobId);
+            data.seed = parseSeedSafe(data.request?.seed, hashString32(jobId));
         }
         await this.queue.add('render', data, { jobId });
     }

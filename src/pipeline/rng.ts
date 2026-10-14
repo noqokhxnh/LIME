@@ -36,6 +36,19 @@ export function hashString32(str: string): number {
 }
 
 /**
+ * Safely parse a seed value to a 32-bit unsigned integer, falling back to a default value
+ * if the input is null, undefined, empty string, or non-numeric (preventing NaN >>> 0 = 0).
+ */
+export function parseSeedSafe(val: unknown, fallback: number): number {
+  if (val === undefined || val === null || val === "") return fallback >>> 0;
+  const num = Number(val);
+  if (Number.isFinite(num)) {
+    return num >>> 0;
+  }
+  return fallback >>> 0;
+}
+
+/**
  * Derive deterministic seed for a specific scene from jobId and sceneId.
  * sceneSeed = hashString32(jobId + ":" + sceneId)
  */

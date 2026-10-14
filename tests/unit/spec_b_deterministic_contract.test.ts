@@ -10,6 +10,7 @@ import {
   getSceneSeed,
   getElementSeed,
   createRandHelper,
+  parseSeedSafe,
   DETERMINISTIC_RUNTIME_JS,
 } from "../../src/pipeline/rng.js";
 import {
@@ -199,6 +200,17 @@ describe("Workstream WS-B (Spec B): Deterministic Rendering Contract", () => {
       const expectedElementSeed = hashString32(`${sceneSeed}:${elementId}`);
       assert.strictEqual(elementSeed, expectedElementSeed);
     });
+
+    it("parseSeedSafe parse đúng và fallback an toàn khi gặp giá trị không phải số", () => {
+      const fallback = 12345;
+      assert.strictEqual(parseSeedSafe(42, fallback), 42);
+      assert.strictEqual(parseSeedSafe("999", fallback), 999);
+      assert.strictEqual(parseSeedSafe("invalid_seed", fallback), fallback);
+      assert.strictEqual(parseSeedSafe(NaN, fallback), fallback);
+      assert.strictEqual(parseSeedSafe(null, fallback), fallback);
+      assert.strictEqual(parseSeedSafe(undefined, fallback), fallback);
+      assert.strictEqual(parseSeedSafe("", fallback), fallback);
+    });
   });
 
   // -------------------------------------------------------------------------
@@ -286,6 +298,18 @@ describe("Workstream WS-B (Spec B): Deterministic Rendering Contract", () => {
       assert.strictEqual(res.violations.length, 0);
     });
 
+    it("bỏ qua string literals chứa từ khóa (không tạo false positive khi console.log)", () => {
+      const code = `
+        console.log("Calling setTimeout or Math.random() is forbidden");
+        const msg = 'Date.now() note';
+        const tpl = \`we logged performance.now() string\`;
+        const x = window.__rand(0, 10);
+      `;
+      const res = lintCompCode(code);
+      assert.strictEqual(res.valid, true);
+      assert.strictEqual(res.violations.length, 0);
+    });
+
     it("assertDeterministicScript ném lỗi DeterministicContractError khi script chứa vi phạm", () => {
       const badScript: videoScript = {
         ...validMockScript,
@@ -350,6 +374,33 @@ describe("Workstream WS-B (Spec B): Deterministic Rendering Contract", () => {
 
       // Trạng thái sẵn sàng
       assert.ok(html.includes("window.__ready = true;"), "Phải có tín hiệu window.__ready = true");
+    });
+
+    it("scene id chứa dấu quote hoặc ký tự đặc biệt được escape an toàn bằng JSON.stringify", async () => {
+      const trickyScript: videoScript = {
+        ...validMockScript,
+        scenes: [
+          {
+            ...validMockScene,
+            id: `scene'quote"special`,
+            jsCode: "const tl = gsap.timeline(); tl.to('.box', { opacity: 1 });",
+          },
+        ],
+      };
+      const trickyDir = join(testTempDir, "tricky-id");
+      const res = await assembleHTML(
+        trickyScript,
+        { [`scene'quote"special`]: 3.0 },
+        1920,
+        1080,
+        trickyDir
+      );
+      assert.ok(
+        res.htmlContent.includes(
+          `window.__sceneSeeds[${JSON.stringify(`scene'quote"special`)}]`
+        ),
+        "Key scene id trong __sceneSeeds phải được JSON.stringify an toàn"
+      );
     });
   });
 

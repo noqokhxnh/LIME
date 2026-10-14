@@ -9,7 +9,7 @@ import { assembleHTML } from "./assembleHtml.js";
 import { generatePreviews, PreviewResult } from "./preview";
 import { synthesizeAudio } from "./audioSysnthesis.js";
 import { renderVideo } from "./renderer.js";
-import { hashString32 } from "./rng.js";
+import { hashString32, parseSeedSafe } from "./rng.js";
 
 export interface orchestratorOptions {
     request: videoRequest;
@@ -37,9 +37,8 @@ export async function runFullPipeline(option: orchestratorOptions): Promise<full
     const { request, script: inputScript, bgmPath, skipPreview, onProgress, outputDir } = option;
 
     const jobId = option.jobId ?? v4();
-    const seed = option.seed !== undefined
-        ? (option.seed >>> 0)
-        : (request.seed !== undefined ? (request.seed >>> 0) : hashString32(jobId));
+    const defaultSeed = hashString32(jobId);
+    const seed = parseSeedSafe(option.seed ?? request.seed, defaultSeed);
     const workDir = outputDir ?? join(process.cwd(), "tmp", `job-${jobId}`);
 
     if (existsSync(workDir)) {
