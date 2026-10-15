@@ -49,6 +49,7 @@ export const sceneSchema = z.object({
             to: z.number(),
         })
         .optional(),
+    subject: z.string().optional(),
 });
 
 export type scene = z.infer<typeof sceneSchema>;
@@ -401,6 +402,7 @@ export type pipelinePhase =
     | 'code_assembly'
     | 'html_assembly'
     | 'preview'
+    | 'oracle_qa'
     | 'render'
     | 'mux';
 

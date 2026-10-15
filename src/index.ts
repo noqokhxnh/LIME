@@ -512,6 +512,7 @@ export async function buildApp(options: { logger?: boolean, queue?: IVideoQueue 
             updatedAt: j.updatedAt,
             topic: j.request.prompt,
             durationSec: j.result?.durationSec,
+            qaStatus: j.qaStatus ?? j.result?.qaStatus,
             error: j.error,
         }));
     });
@@ -530,6 +531,8 @@ export async function buildApp(options: { logger?: boolean, queue?: IVideoQueue 
             updatedAt: job.updatedAt,
             progress: job.progress,
             error: job.error,
+            qaStatus: job.qaStatus ?? job.result?.qaStatus,
+            qaReport: job.qaReport ?? job.result?.qaReport,
             result: job.result ? {
                 durationSec: job.result.durationSec,
                 resolution: job.result.resolution,
