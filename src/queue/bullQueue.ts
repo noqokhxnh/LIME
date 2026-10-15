@@ -42,7 +42,9 @@ export class BullMQQueue implements IVideoQueue {
         // Map bullmq state to JobRecord status
         let status: JobRecord['status'] = 'queued';
         if (state === 'active') status = 'running';
-        else if (state === 'completed') status = 'completed';
+        else if (state === 'completed') {
+            status = job.returnvalue?.qaStatus === 'fail' ? 'qa_failed' : 'completed';
+        }
         else if (state === 'failed') status = 'failed';
 
         return {
@@ -54,6 +56,8 @@ export class BullMQQueue implements IVideoQueue {
             updatedAt: job.finishedOn ? new Date(job.finishedOn).toISOString() : new Date().toISOString(),
             progress: typeof job.progress === 'object' && job.progress !== null ? (job.progress as JobProgress) : undefined,
             result: job.returnvalue || undefined,
+            qaStatus: job.returnvalue?.qaStatus,
+            qaReport: job.returnvalue?.qaReport,
             error: job.failedReason || undefined,
         };
     }

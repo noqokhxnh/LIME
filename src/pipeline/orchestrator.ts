@@ -1,4 +1,4 @@
-import { existsSync, mkdirSync, rmSync } from "node:fs";
+import { existsSync, mkdirSync, rmSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { v4 } from "uuid";
 import { videoPreset } from "@/config";
@@ -10,6 +10,7 @@ import { generatePreviews, PreviewResult } from "./preview";
 import { synthesizeAudio } from "./audioSysnthesis.js";
 import { renderVideo } from "./renderer.js";
 import { hashString32, parseSeedSafe } from "./rng.js";
+import { runOracleQa, type QAReport } from "./oracleQa.js";
 
 export interface orchestratorOptions {
     request: videoRequest;
@@ -17,6 +18,10 @@ export interface orchestratorOptions {
     bgmPath?: string;
     skipPreview?: boolean;
     skipRender?: boolean;
+    skipQa?: boolean;
+    forceRender?: boolean;
+    requireApprovalOnWarn?: boolean;
+    maxQaAttempts?: number;
     onProgress?: progressCallback;
     outputDir?: string;
     jobId?: string;
@@ -31,6 +36,8 @@ export interface fullPipelineResult extends pipelineResult {
     audio: AudioResult;
     finalHtmlPath: string;
     timing: Record<string, number>;
+    qaStatus?: 'pass' | 'warn' | 'fail' | 'qa_failed';
+    qaReport?: QAReport;
 }
 
 export async function runFullPipeline(option: orchestratorOptions): Promise<fullPipelineResult> {
@@ -56,143 +63,248 @@ export async function runFullPipeline(option: orchestratorOptions): Promise<full
     };
     mkdirSync(workDir, { recursive: true });
 
-    let script: videoScript;
-    // phase 1: gen script 
-    // phase 2: estimate duration 
+    const maxQaAttempts = inputScript ? 1 : (option.maxQaAttempts ?? 3);
+    let attempt = 1;
+    let qaFeedback: string | undefined = undefined;
+    let qaReport: QAReport | undefined;
+    let qaStatus: 'pass' | 'warn' | 'fail' | undefined;
+    let currentSeed = seed;
+
+    let script: videoScript = inputScript!;
+    let previews: PreviewResult | undefined;
+    let audio: AudioResult | undefined;
+
+    // phase 1: gen script
+    // phase 2: estimate duration
     // phase 3: assemble html tam thoi de preview
-    // phase 4: show screen shot 
-    // if user comfirm 
-    // phase 5: audio sysnthesis
+    // phase 4: show screen shot
+    // phase 5: audio synthesis
     // phase 6: re-assemble html with actual duration
+    // phase 4.5: oracle QA (validate before expensive rendering)
     // phase 7: render video
     // phase 8: mux final mp4
     try {
-        let phaseStart = Date.now();
-        if (inputScript) {
-            logProgress("script_generation", 10, "Sử dụng kịch bản đã có sẵn");
-            script = inputScript;
-            timing["script_generation"] = 0;
-        } else {
-            logProgress("script_generation", 0, "Generating script");
-            script = await generateScript(request, (msg: string) => {
-                logProgress("script_generation", 10, msg);
-            });
-            timing["script_generation"] = Date.now() - phaseStart;
-        }
+        while (attempt <= maxQaAttempts) {
+            currentSeed = attempt === 1 ? seed : parseSeedSafe(seed + attempt - 1, seed + attempt - 1);
 
-        phaseStart = Date.now();
-        logProgress("estimate_duration", 15, "Estimating duration");
-        const estimated = estimateDuration(script, { language: request.language });
-        if (estimated.totalDurationSec > request.targetDurationSec * 1.5) {
-            throw new Error(
-                `Estimated duration (${estimated.totalDurationSec}s) exceeds target (${request.targetDurationSec}s) by more than 50%`
-            );
-        }
-        timing["estimate_duration"] = Date.now() - phaseStart;
+            let phaseStart = Date.now();
+            if (inputScript) {
+                logProgress("script_generation", 10, "Sử dụng kịch bản đã có sẵn");
+                script = inputScript;
+                timing["script_generation"] = 0;
+            } else {
+                logProgress("script_generation", 0, attempt === 1 ? "Generating script" : `Đang tạo lại kịch bản (Lần thử ${attempt}/${maxQaAttempts})`);
+                script = await generateScript(
+                    request,
+                    (msg: string) => {
+                        logProgress("script_generation", 10, msg);
+                    },
+                    qaFeedback
+                );
+                timing["script_generation"] = Date.now() - phaseStart;
+            }
 
-        // phase 3: assemble html tam thoi de preview
-        phaseStart = Date.now();
-        logProgress("html_assembly", 20, "Assembling temporary HTML bundle");
-        const tempAssembly = await assembleHTML(
-            script,
-            estimated.sceneDurations,
-            preset.width,
-            preset.height,
-            workDir,
-            (msg) => logProgress("html_assembly", 25, msg),
-            { seed, jobId }
-        );
-        timing["html_assembly"] = Date.now() - phaseStart;
-
-        // phase 4: generate preview thumbnails
-        let previews: PreviewResult | undefined;
-        if (!skipPreview) {
             phaseStart = Date.now();
-            logProgress("preview", 30, "Generating scene preview screenshots");
-            try {
-                previews = await generatePreviews({
-                    htmlPath: tempAssembly.htmlPath,
+            logProgress("estimate_duration", 15, "Estimating duration");
+            const estimated = estimateDuration(script, { language: request.language });
+            if (estimated.totalDurationSec > request.targetDurationSec * 1.5) {
+                throw new Error(
+                    `Estimated duration (${estimated.totalDurationSec}s) exceeds target (${request.targetDurationSec}s) by more than 50%`
+                );
+            }
+            timing["estimate_duration"] = Date.now() - phaseStart;
+
+            // phase 3: assemble html tam thoi de preview
+            phaseStart = Date.now();
+            logProgress("html_assembly", 20, "Assembling temporary HTML bundle");
+            const tempAssembly = await assembleHTML(
+                script,
+                estimated.sceneDurations,
+                preset.width,
+                preset.height,
+                workDir,
+                (msg) => logProgress("html_assembly", 25, msg),
+                { seed: currentSeed, jobId }
+            );
+            timing["html_assembly"] = Date.now() - phaseStart;
+
+            // phase 4: generate preview thumbnails
+            if (!skipPreview) {
+                phaseStart = Date.now();
+                logProgress("preview", 30, "Generating scene preview screenshots");
+                try {
+                    previews = await generatePreviews({
+                        htmlPath: tempAssembly.htmlPath,
+                        script,
+                        durations: estimated.sceneDurations,
+                        width: preset.width,
+                        height: preset.height,
+                        outputDir: join(workDir, "previews"),
+                        onProgress: (msg, prog) => {
+                            const scaledProg = prog !== undefined ? Math.round(30 + (prog * 0.15)) : 35;
+                            logProgress("preview", scaledProg, msg);
+                        },
+                    });
+                } catch (previewErr: any) {
+                    logProgress("preview", 35, `Warning: Scene preview generation skipped: ${previewErr?.message || previewErr}`);
+                }
+                timing["preview"] = Date.now() - phaseStart;
+            }
+
+            // phase 5: audio synthesis — TTS từng scene, duration đo bằng ffprobe là nguồn sự thật
+            phaseStart = Date.now();
+            logProgress("audio_synthesis", 45, "Synthesizing voice-over audio");
+            audio = await synthesizeAudio({
+                script,
+                outputDir: workDir,
+                bgmPath,
+                voice: request.voice,
+                ttsProvider: request.ttsProvider,
+                language: request.language,
+                onProgress: (msg, prog) => {
+                    const scaledProg = prog !== undefined ? Math.round(45 + prog * 0.2) : 50;
+                    logProgress("audio_synthesis", scaledProg, msg);
+                },
+            });
+            timing["audio_synthesis"] = Date.now() - phaseStart;
+
+            // Post-TTS Rhythm Check (Spec A): đánh giá nhịp điệu với duration thực tế từ audio ở mức warn
+            if (script.scenes.length >= 2 && audio?.scencesDuration) {
+                const scenesWithRealDurations = script.scenes.map((s) => ({
+                    ...s,
+                    duration: audio!.scencesDuration[s.id] ?? s.duration ?? 0,
+                }));
+                const rhythmCheck = checkRhythm(scenesWithRealDurations);
+                if (!rhythmCheck.valid) {
+                    const warnMsg = `[Rhythm Warn] Kịch bản sau TTS có nhịp chưa tối ưu: ${rhythmCheck.errors.join("; ")} (CV: ${rhythmCheck.cv.toFixed(2)}, ratio: ${rhythmCheck.ratio.toFixed(1)})`;
+                    console.warn(`[Orchestrator] ${warnMsg}`);
+                    logProgress("audio_synthesis", 68, warnMsg);
+                }
+            }
+
+            // phase 6: re-assemble HTML với duration thực từ audio
+            phaseStart = Date.now();
+            logProgress("html_assembly", 70, "Re-assembling HTML with actual durations");
+            await assembleHTML(
+                script,
+                audio.scencesDuration,
+                preset.width,
+                preset.height,
+                workDir,
+                (msg) => logProgress("html_assembly", 75, msg),
+                { seed: currentSeed, jobId }
+            );
+            timing["html_assembly"] = Date.now() - phaseStart;
+
+            // Phase 4.5: Oracle QA (Kiểm định chất lượng tự động trước render)
+            if (!option.skipQa) {
+                phaseStart = Date.now();
+                logProgress("oracle_qa", 77, `Đang chạy kiểm định chất lượng Oracle QA (Lần thử ${attempt}/${maxQaAttempts})`);
+
+                qaReport = await runOracleQa({
                     script,
-                    durations: estimated.sceneDurations,
+                    htmlPath: join(workDir, "index.html"),
+                    audioResult: audio,
                     width: preset.width,
                     height: preset.height,
-                    outputDir: join(workDir, "previews"),
-                    onProgress: (msg, prog) => {
-                        const scaledProg = prog !== undefined ? Math.round(30 + (prog * 0.15)) : 35;
-                        logProgress("preview", scaledProg, msg);
-                    },
+                    fps,
+                    seed: currentSeed,
+                    jobId,
+                    attempt,
                 });
-            } catch (previewErr: any) {
-                logProgress("preview", 35, `Warning: Scene preview generation skipped: ${previewErr?.message || previewErr}`);
+                timing["oracle_qa"] = Date.now() - phaseStart;
+                qaStatus = qaReport.qaStatus;
+
+                try {
+                    writeFileSync(
+                        join(workDir, "qa_report.json"),
+                        JSON.stringify(qaReport, null, 2),
+                        "utf-8"
+                    );
+                } catch (reportErr: any) {
+                    console.warn(`[Orchestrator] Không thể ghi file qa_report.json: ${reportErr.message}`);
+                }
+
+                if (qaStatus === 'fail') {
+                    if (attempt < maxQaAttempts && !inputScript) {
+                        qaFeedback = qaReport.errors.join("; ");
+                        const retryMsg = `[Oracle QA Thất bại] Lần thử ${attempt}/${maxQaAttempts} không đạt: ${qaFeedback}. Đang tự động tạo lại kịch bản với seed mới ${currentSeed + 1}...`;
+                        console.warn(`[Orchestrator] ${retryMsg}`);
+                        logProgress("oracle_qa", 78, retryMsg);
+                        attempt++;
+                        continue;
+                    } else {
+                        const failMsg = `[Oracle QA Thất bại] Kịch bản không đạt tiêu chuẩn sau ${attempt} lần thử: ${qaReport.errors.join("; ")}. Dừng pipeline trước khâu kết xuất.`;
+                        console.error(`[Orchestrator] ${failMsg}`);
+                        logProgress("oracle_qa", 79, failMsg);
+
+                        return {
+                            jobId,
+                            seed: currentSeed,
+                            workDir,
+                            videoPath: join(workDir, "final_video.mp4"),
+                            durationSec: audio.totalDurationSec,
+                            scences: script.scenes,
+                            resolution: `${preset.width}x${preset.height}`,
+                            timing,
+                            preview: previews,
+                            audio,
+                            finalHtmlPath: join(workDir, "index.html"),
+                            qaStatus: 'fail',
+                            qaReport,
+                        };
+                    }
+                } else if (qaStatus === 'warn') {
+                    const warnMsg = `[Oracle QA Cảnh báo] Kịch bản đạt nhưng có lưu ý: ${qaReport.warnings.join("; ")}`;
+                    console.warn(`[Orchestrator] ${warnMsg}`);
+                    logProgress("oracle_qa", 78, warnMsg);
+
+                    if (option.requireApprovalOnWarn && !option.forceRender) {
+                        logProgress("oracle_qa", 79, "Kịch bản có cảnh báo: Chờ người dùng phê duyệt trước khi render video");
+                        return {
+                            jobId,
+                            seed: currentSeed,
+                            workDir,
+                            videoPath: join(workDir, "final_video.mp4"),
+                            durationSec: audio.totalDurationSec,
+                            scences: script.scenes,
+                            resolution: `${preset.width}x${preset.height}`,
+                            timing,
+                            preview: previews,
+                            audio,
+                            finalHtmlPath: join(workDir, "index.html"),
+                            qaStatus: 'warn',
+                            qaReport,
+                        };
+                    } else {
+                        logProgress("oracle_qa", 78, `Hoàn tất Oracle QA: ĐẠT CÓ LƯU Ý (Carry score: ${Math.round(qaReport.carryScore * 100)}%)`);
+                    }
+                } else {
+                    logProgress("oracle_qa", 78, `Hoàn tất Oracle QA: ĐẠT CHUẨN (Carry score: ${Math.round(qaReport.carryScore * 100)}%)`);
+                }
             }
-            timing["preview"] = Date.now() - phaseStart;
+
+            // Kịch bản đạt yêu cầu hoặc đã vượt qua kiểm định QA, thoát vòng lặp retry
+            break;
         }
-
-        // phase 5: audio synthesis — TTS từng scene, duration đo bằng ffprobe là nguồn sự thật
-        phaseStart = Date.now();
-        logProgress("audio_synthesis", 45, "Synthesizing voice-over audio");
-        const audio = await synthesizeAudio({
-            script,
-            outputDir: workDir,
-            bgmPath,
-            voice: request.voice,
-            ttsProvider: request.ttsProvider,
-            language: request.language,
-            onProgress: (msg, prog) => {
-                const scaledProg = prog !== undefined ? Math.round(45 + prog * 0.2) : 50;
-                logProgress("audio_synthesis", scaledProg, msg);
-            },
-        });
-        timing["audio_synthesis"] = Date.now() - phaseStart;
-
-        // Post-TTS Rhythm Check (Spec A): đánh giá nhịp điệu với duration thực tế từ audio ở mức warn
-        if (script.scenes.length >= 2 && audio?.scencesDuration) {
-            const scenesWithRealDurations = script.scenes.map((s) => ({
-                ...s,
-                duration: audio.scencesDuration[s.id] ?? s.duration ?? 0,
-            }));
-            const rhythmCheck = checkRhythm(scenesWithRealDurations);
-            if (!rhythmCheck.valid) {
-                const warnMsg = `[Rhythm Warn] Kịch bản sau TTS có nhịp chưa tối ưu: ${rhythmCheck.errors.join("; ")} (CV: ${rhythmCheck.cv.toFixed(2)}, ratio: ${rhythmCheck.ratio.toFixed(1)})`;
-                console.warn(`[Orchestrator] ${warnMsg}`);
-                logProgress("audio_synthesis", 68, warnMsg);
-            }
-        }
-
-        // phase 6: re-assemble HTML với duration thực từ audio 
-        phaseStart = Date.now();
-        logProgress("html_assembly", 70, "Re-assembling HTML with actual durations");
-        await assembleHTML(
-            script,
-            audio.scencesDuration,
-            preset.width,
-            preset.height,
-            workDir,
-            (msg) => logProgress("html_assembly", 75, msg),
-            { seed, jobId }
-        );
-        timing["html_assembly"] = Date.now() - phaseStart;
 
         // phase 7: render video frames & mux final MP4
         const videoPath = join(workDir, "final_video.mp4");
         if (!option.skipRender) {
-            phaseStart = Date.now();
+            let phaseStart = Date.now();
             logProgress("render", 80, "Rendering video frames and muxing MP4");
             await renderVideo({
                 htmlPath: join(workDir, "index.html"),
-                audioPath: audio.mixAudioPath,
+                audioPath: audio!.mixAudioPath,
                 outputPath: videoPath,
                 width: preset.width,
                 height: preset.height,
                 fps,
-                durationSec: audio.totalDurationSec,
+                durationSec: audio!.totalDurationSec,
                 onProgress: (msg, pct) => {
                     const scaled = pct !== undefined ? Math.round(80 + pct * 0.19) : 85;
                     logProgress("render", scaled, msg);
                 },
-                // Truyền cấu hình logo từ yêu cầu người dùng xuống renderer.
-                // Nếu người dùng không gửi logo thì giá trị này là undefined
-                // và renderer sẽ tự bỏ qua bước ghép logo.
                 watermark: request.watermark,
             });
             timing["render"] = Date.now() - phaseStart;
@@ -200,16 +312,18 @@ export async function runFullPipeline(option: orchestratorOptions): Promise<full
 
         return {
             jobId,
-            seed,
+            seed: currentSeed,
             workDir,
             videoPath,
-            durationSec: audio.totalDurationSec,
+            durationSec: audio!.totalDurationSec,
             scences: script.scenes,
             resolution: `${preset.width}x${preset.height}`,
             timing,
             preview: previews,
-            audio,
+            audio: audio!,
             finalHtmlPath: join(workDir, "index.html"),
+            qaStatus: qaStatus ?? 'pass',
+            qaReport,
         };
     } catch (err: any) {
         logProgress("script_generation", 100, `Pipeline failed: ${err.message}`);
