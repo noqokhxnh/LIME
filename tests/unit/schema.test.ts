@@ -180,6 +180,7 @@ describe('Module 2: Schemas & Validation Contracts (src/llm/schema.ts)', () => {
             globalStyles: 'body { margin: 0; background: #0f172a; }',
             globalSetupJs: 'console.log("Global setup initialized");',
             scenes: [mockScene],
+            boundaries: [],
             colorPalette: {
                 primary: '#3b82f6',
                 secondary: '#1d4ed8',

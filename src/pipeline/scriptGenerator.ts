@@ -2,6 +2,7 @@ import { Config } from "@/config";
 import { getLLMClient } from "@/llm/client";
 import { videoRequest, videoScript, videoScriptSchema } from "@/llm/schema";
 import { estimateDuration, wordsPerMinute } from "./estimateDuration";
+import { validateScript } from "./scriptValidator.js";
 import { formatStylePrompt } from "../constants/style.js";
 import {
     formatBlocksToolkitPrompt,
@@ -130,15 +131,25 @@ export async function generateScript(
                 if (!parsedData.scenes && Array.isArray(parsedData.scene)) {
                     parsedData.scenes = parsedData.scene;
                 }
+                if (!parsedData.boundaries && Array.isArray(parsedData.boundary)) {
+                    parsedData.boundaries = parsedData.boundary;
+                }
                 if (Array.isArray(parsedData.scenes)) {
                     for (const s of parsedData.scenes) {
                         if (s && typeof s === "object" && !s.voiceOverText && s.voiceoverText) {
                             s.voiceOverText = s.voiceoverText;
                         }
                     }
+                    if (!parsedData.boundaries && parsedData.scenes.length <= 1) {
+                        parsedData.boundaries = [];
+                    }
                 }
             }
-            const script = videoScriptSchema.parse(parsedData);
+            const validation = validateScript(parsedData);
+            if (!validation.valid || !validation.data) {
+                throw new Error(validation.formattedErrorMessage || validation.errors.join('\n'));
+            }
+            const script = validation.data;
 
             // Guard ngay trong vòng retry: kịch bản vượt quá 150% target thì coi như
             // attempt thất bại để LLM tự rút gọn narration ở lần thử sau,

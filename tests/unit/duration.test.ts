@@ -195,6 +195,26 @@ describe('Module 4: Duration Estimation Algorithm (src/pipeline/estimateDuration
             globalStyles: '',
             globalSetupJs: '',
             scenes: mockScenes,
+            boundaries: [
+                {
+                    id: 'b1',
+                    fromScene: 'sc-1',
+                    toScene: 'sc-2',
+                    carry: {
+                        element: '#sc-1',
+                        mechanism: 'morph',
+                    },
+                },
+                {
+                    id: 'b2',
+                    fromScene: 'sc-2',
+                    toScene: 'sc-3',
+                    carry: {
+                        element: '#sc-2',
+                        mechanism: 'morph',
+                    },
+                },
+            ],
             colorPalette: {
                 primary: '#fff',
                 secondary: '#eee',
