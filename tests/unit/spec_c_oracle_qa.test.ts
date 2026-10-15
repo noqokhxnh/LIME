@@ -645,7 +645,7 @@ describe('Workstream WS-C (Spec C): Oracle QA Pipeline & Auto Validation', () =>
                 {
                     id: 's2',
                     title: 'Cảnh 2',
-                    duration: 8.0,
+                    duration: 10.0,
                     nearStill: { from: 2.0, to: 4.0 },
                     voiceOverText: 'Một đoạn hội thoại dài và chi tiết có điểm nhấn với khoảng dừng hợp lý.',
                     visualDescription: '',
@@ -666,8 +666,8 @@ describe('Workstream WS-C (Spec C): Oracle QA Pipeline & Auto Validation', () =>
         class DynamicTTS implements TTSClient {
             readonly provider = 'dynamic-tts';
             async synthesize(text: string, outputPath: string): Promise<void> {
-                // Nếu text ngắn thì 2s, nếu dài thì 8s
-                const dur = text.includes('dài và chi tiết') ? 8.0 : 2.0;
+                // Nếu text ngắn thì 2s, nếu dài thì 10s (đảm bảo ratio >= 4.0 kể cả khi ffprobe có sai số nhẹ)
+                const dur = text.includes('dài và chi tiết') ? 10.0 : 2.0;
                 await generateSilence(outputPath, dur);
             }
         }

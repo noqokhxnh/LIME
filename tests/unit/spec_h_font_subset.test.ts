@@ -208,7 +208,11 @@ describe("Workstream WS-H (Spec H): Font Subsetting & Self-Contained Typography 
     // Test 2: Cắt font thành woff2 với pyftsubset, dung lượng giảm đáng kể (< 300KB)
     // =========================================================================
     describe("Test 2: Cắt font thành woff2 với pyftsubset, dung lượng giảm đáng kể (< 300KB)", () => {
-        it("cắt font Inter: woff2 kết quả phải có dung lượng < 300KB và tỷ lệ nén > 75%", async () => {
+        it("cắt font Inter: woff2 kết quả phải có dung lượng < 300KB và tỷ lệ nén > 75%", async (t) => {
+            if (!findPyftsubsetBinary()) {
+                t.skip("Môi trường thiếu công cụ pyftsubset (fonttools)");
+                return;
+            }
             const html = `
                 <!DOCTYPE html>
                 <html>
@@ -242,7 +246,11 @@ describe("Workstream WS-H (Spec H): Font Subsetting & Self-Contained Typography 
             );
         });
 
-        it("cắt font Space Grotesk: woff2 kết quả phải có dung lượng < 300KB và giữ đúng brand font", async () => {
+        it("cắt font Space Grotesk: woff2 kết quả phải có dung lượng < 300KB và giữ đúng brand font", async (t) => {
+            if (!findPyftsubsetBinary()) {
+                t.skip("Môi trường thiếu công cụ pyftsubset (fonttools)");
+                return;
+            }
             const html = `
                 <!DOCTYPE html>
                 <html>
@@ -271,7 +279,11 @@ describe("Workstream WS-H (Spec H): Font Subsetting & Self-Contained Typography 
     // Test 3: Inline base64 thành công vào HTML, loại bỏ hoàn toàn external links
     // =========================================================================
     describe("Test 3: Inline base64 thành công vào HTML, loại bỏ hoàn toàn các external link fonts.googleapis.com", () => {
-        it("phải chèn thẻ style id='lime-embedded-fonts' chứa @font-face dạng data:font/woff2;base64", async () => {
+        it("phải chèn thẻ style id='lime-embedded-fonts' chứa @font-face dạng data:font/woff2;base64", async (t) => {
+            if (!findPyftsubsetBinary()) {
+                t.skip("Môi trường thiếu công cụ pyftsubset (fonttools)");
+                return;
+            }
             const html = `
                 <!DOCTYPE html>
                 <html>
@@ -302,7 +314,11 @@ describe("Workstream WS-H (Spec H): Font Subsetting & Self-Contained Typography 
             assert.ok(outputHtml.includes("format('woff2')"), "Phải khai báo format woff2");
         });
 
-        it("phải loại bỏ 100% các external link font và vượt qua kiểm tra tĩnh assertNoExternalFontUrls", async () => {
+        it("phải loại bỏ 100% các external link font và vượt qua kiểm tra tĩnh assertNoExternalFontUrls", async (t) => {
+            if (!findPyftsubsetBinary()) {
+                t.skip("Môi trường thiếu công cụ pyftsubset (fonttools)");
+                return;
+            }
             const htmlWithExternalLinks = `
                 <!DOCTYPE html>
                 <html>
@@ -340,7 +356,11 @@ describe("Workstream WS-H (Spec H): Font Subsetting & Self-Contained Typography 
     // Test 4: Tiếng Việt pangram test ("Trần đời có một không hai, ăn quả nhớ kẻ trồng cây...")
     // =========================================================================
     describe("Test 4: Tiếng Việt pangram test ('Trần đời có một không hai, ăn quả nhớ kẻ trồng cây...')", () => {
-        it("đảm bảo toàn bộ ký tự trong pangram tiếng Việt phức tạp đều được bao hàm và decode cmap woff2 đầy đủ", async () => {
+        it("đảm bảo toàn bộ ký tự trong pangram tiếng Việt phức tạp đều được bao hàm và decode cmap woff2 đầy đủ", async (t) => {
+            if (!findPyftsubsetBinary()) {
+                t.skip("Môi trường thiếu công cụ pyftsubset (fonttools)");
+                return;
+            }
             const pangramText = "Trần đời có một không hai, ăn quả nhớ kẻ trồng cây, uống nước nhớ nguồn, ngàn năm bia miệng vẫn còn trơ trơ. Khát khao vươn tới đỉnh cao: 123.456₫!";
 
             const html = `
@@ -475,7 +495,11 @@ with open(r'${tempWoff2Path}', 'rb') as f:
     // Test 6: Offline render test (Playwright)
     // =========================================================================
     describe("Test 6: Offline render test (Playwright)", () => {
-        it("chặn 100% request HTTP/HTTPS: comp HTML tự chứa nạp font Inter offline thành công mà không gọi ra ngoài", async () => {
+        it("chặn 100% request HTTP/HTTPS: comp HTML tự chứa nạp font Inter offline thành công mà không gọi ra ngoài", async (t) => {
+            if (!findPyftsubsetBinary()) {
+                t.skip("Môi trường thiếu công cụ pyftsubset (fonttools)");
+                return;
+            }
             if (!browser) {
                 console.warn("[Test 6] Bỏ qua test Playwright do không khởi động được browser");
                 return;
