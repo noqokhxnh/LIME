@@ -4,6 +4,7 @@ import { videoScript, scene, durationMap } from "../llm/schema.js";
 import { BLOCK_HELPERS_JS } from "../templates/runtime/blockHelpers.js";
 import { DETERMINISTIC_RUNTIME_JS, hashString32, RNG, getSceneSeed } from "./rng.js";
 import { assertDeterministicScript } from "./compLinter.js";
+import { subsetFontsForHtml } from "./fontSubset.js";
 
 export { BLOCK_HELPERS_JS };
 
@@ -17,6 +18,7 @@ export interface assembleOptions {
     seed?: number;
     jobId?: string;
     skipLint?: boolean;
+    skipFontSubset?: boolean;
 }
 
 export interface assembleResult {
@@ -431,18 +433,33 @@ ${allScenesHtml}
 </body>
 </html>`;
 
+    let finalHtml = fullHtml;
+    if (!options?.skipFontSubset) {
+        try {
+            const subsetResult = await subsetFontsForHtml(fullHtml, {
+                fontFamily,
+            });
+            finalHtml = subsetResult.html;
+            if (!subsetResult.subsetStats.skipped) {
+                onProgress?.(`Đã nhúng font subset nội bộ (${subsetResult.subsetStats.fontFamily}, ${Math.round((subsetResult.subsetStats.subsetSize || 0) / 1024)}KB)`);
+            }
+        } catch (err: any) {
+            console.warn("[FontSubset] Lỗi khi cắt font, giữ nguyên HTML gốc:", err?.message || err);
+        }
+    }
+
     if (!existsSync(workDir)) {
         mkdirSync(workDir, { recursive: true });
     }
 
     const htmlPath = join(workDir, "index.html");
-    writeFileSync(htmlPath, fullHtml, "utf-8");
+    writeFileSync(htmlPath, finalHtml, "utf-8");
 
     onProgress?.(`Đã tạo file HTML tại: ${htmlPath}`);
 
     return {
         htmlPath,
-        htmlContent: fullHtml,
+        htmlContent: finalHtml,
     };
 }
 
