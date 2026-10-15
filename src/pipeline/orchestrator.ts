@@ -10,7 +10,7 @@ import { generatePreviews, PreviewResult } from "./preview";
 import { synthesizeAudio } from "./audioSysnthesis.js";
 import { renderVideo } from "./renderer.js";
 import { hashString32, parseSeedSafe } from "./rng.js";
-import { runOracleQa, type QAReport } from "./oracleQa.js";
+import { runOracleQa, type QAReport, type DOMSampler, type BatchDOMSampler, type AudioStats } from "./oracleQa.js";
 
 export interface orchestratorOptions {
     request: videoRequest;
@@ -26,6 +26,9 @@ export interface orchestratorOptions {
     outputDir?: string;
     jobId?: string;
     seed?: number;
+    domSampler?: DOMSampler;
+    batchDomSampler?: BatchDOMSampler;
+    audioAnalyzer?: (audioPath: string) => Promise<AudioStats>;
 }
 
 export interface fullPipelineResult extends pipelineResult {
@@ -36,7 +39,7 @@ export interface fullPipelineResult extends pipelineResult {
     audio: AudioResult;
     finalHtmlPath: string;
     timing: Record<string, number>;
-    qaStatus?: 'pass' | 'warn' | 'fail' | 'qa_failed';
+    qaStatus?: 'pass' | 'warn' | 'fail' | 'skipped' | 'qa_failed';
     qaReport?: QAReport;
 }
 
@@ -67,7 +70,7 @@ export async function runFullPipeline(option: orchestratorOptions): Promise<full
     let attempt = 1;
     let qaFeedback: string | undefined = undefined;
     let qaReport: QAReport | undefined;
-    let qaStatus: 'pass' | 'warn' | 'fail' | undefined;
+    let qaStatus: 'pass' | 'warn' | 'fail' | 'skipped' | undefined;
     let currentSeed = seed;
 
     let script: videoScript = inputScript!;
@@ -168,20 +171,6 @@ export async function runFullPipeline(option: orchestratorOptions): Promise<full
             });
             timing["audio_synthesis"] = Date.now() - phaseStart;
 
-            // Post-TTS Rhythm Check (Spec A): đánh giá nhịp điệu với duration thực tế từ audio ở mức warn
-            if (script.scenes.length >= 2 && audio?.scencesDuration) {
-                const scenesWithRealDurations = script.scenes.map((s) => ({
-                    ...s,
-                    duration: audio!.scencesDuration[s.id] ?? s.duration ?? 0,
-                }));
-                const rhythmCheck = checkRhythm(scenesWithRealDurations);
-                if (!rhythmCheck.valid) {
-                    const warnMsg = `[Rhythm Warn] Kịch bản sau TTS có nhịp chưa tối ưu: ${rhythmCheck.errors.join("; ")} (CV: ${rhythmCheck.cv.toFixed(2)}, ratio: ${rhythmCheck.ratio.toFixed(1)})`;
-                    console.warn(`[Orchestrator] ${warnMsg}`);
-                    logProgress("audio_synthesis", 68, warnMsg);
-                }
-            }
-
             // phase 6: re-assemble HTML với duration thực từ audio
             phaseStart = Date.now();
             logProgress("html_assembly", 70, "Re-assembling HTML with actual durations");
@@ -197,7 +186,10 @@ export async function runFullPipeline(option: orchestratorOptions): Promise<full
             timing["html_assembly"] = Date.now() - phaseStart;
 
             // Phase 4.5: Oracle QA (Kiểm định chất lượng tự động trước render)
-            if (!option.skipQa) {
+            if (option.skipQa) {
+                qaStatus = 'skipped';
+                logProgress("oracle_qa", 78, "Bỏ qua kiểm định chất lượng Oracle QA theo cấu hình skipQa");
+            } else {
                 phaseStart = Date.now();
                 logProgress("oracle_qa", 77, `Đang chạy kiểm định chất lượng Oracle QA (Lần thử ${attempt}/${maxQaAttempts})`);
 
@@ -211,6 +203,9 @@ export async function runFullPipeline(option: orchestratorOptions): Promise<full
                     seed: currentSeed,
                     jobId,
                     attempt,
+                    domSampler: option.domSampler,
+                    batchDomSampler: option.batchDomSampler,
+                    audioAnalyzer: option.audioAnalyzer,
                 });
                 timing["oracle_qa"] = Date.now() - phaseStart;
                 qaStatus = qaReport.qaStatus;
@@ -242,7 +237,7 @@ export async function runFullPipeline(option: orchestratorOptions): Promise<full
                             jobId,
                             seed: currentSeed,
                             workDir,
-                            videoPath: join(workDir, "final_video.mp4"),
+                            videoPath: "",
                             durationSec: audio.totalDurationSec,
                             scences: script.scenes,
                             resolution: `${preset.width}x${preset.height}`,
@@ -265,7 +260,7 @@ export async function runFullPipeline(option: orchestratorOptions): Promise<full
                             jobId,
                             seed: currentSeed,
                             workDir,
-                            videoPath: join(workDir, "final_video.mp4"),
+                            videoPath: "",
                             durationSec: audio.totalDurationSec,
                             scences: script.scenes,
                             resolution: `${preset.width}x${preset.height}`,
@@ -322,7 +317,7 @@ export async function runFullPipeline(option: orchestratorOptions): Promise<full
             preview: previews,
             audio: audio!,
             finalHtmlPath: join(workDir, "index.html"),
-            qaStatus: qaStatus ?? 'pass',
+            qaStatus: qaStatus ?? (option.skipQa ? 'skipped' : 'pass'),
             qaReport,
         };
     } catch (err: any) {

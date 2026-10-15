@@ -20,6 +20,7 @@ import {
     checkAudioLeg,
     type DOMBox,
     type DOMSampler,
+    type BatchDOMSampler,
     type QAReport,
 } from '../../src/pipeline/oracleQa.js';
 import { runFullPipeline } from '../../src/pipeline/orchestrator.js';
@@ -282,6 +283,28 @@ describe('Workstream WS-C (Spec C): Oracle QA Pipeline & Auto Validation', () =>
             assert.strictEqual(result.status, 'pass');
             assert.ok(result.maxPxPerFrame > 80);
         });
+
+        it('hoạt động chính xác và hiệu quả khi sử dụng batchDomSampler', async () => {
+            const scenes: scene[] = [
+                { id: 's1', title: 'S1', duration: 2.0, voiceOverText: '', visualDescription: '', htmlCode: '', cssCode: '', jsCode: '', transition: 'none', backgroundColor: '#000' },
+            ];
+            const durations = { s1: 2.0 };
+            const boundaries: Boundary[] = [];
+            let batchCallCount = 0;
+            const batchDomSampler: BatchDOMSampler = async (t, selectors) => {
+                batchCallCount++;
+                const out: Record<string, DOMBox | null> = {};
+                for (const sel of selectors) {
+                    out[sel] = { left: 100 + t * 200, top: 100, right: 150, bottom: 150, width: 50, height: 50 };
+                }
+                return out;
+            };
+            const domSampler: DOMSampler = async () => null;
+
+            const result = await checkCurvesLeg(scenes, durations, boundaries, domSampler, 30, false, batchDomSampler);
+            assert.strictEqual(result.status, 'pass');
+            assert.ok(batchCallCount > 0, 'batchDomSampler phải được gọi thay vì domSampler tuần tự');
+        });
     });
 
     // =========================================================================
@@ -354,6 +377,23 @@ describe('Workstream WS-C (Spec C): Oracle QA Pipeline & Auto Validation', () =>
             const result = await checkFramingLeg(scenes, { s1: 2.0 }, domSampler, width, height);
             assert.strictEqual(result.status, 'pass');
             assert.strictEqual(result.outOfBoundsSamples, 0);
+        });
+
+        it('hỗ trợ batchDomSampler khi kiểm tra framing', async () => {
+            const scenes: scene[] = [
+                { id: 's1', title: 'S1', duration: 2.0, subject: '#hero-img', voiceOverText: '', visualDescription: '', htmlCode: '', cssCode: '', jsCode: '', transition: 'none', backgroundColor: '#000' },
+            ];
+            let batchCalled = false;
+            const batchDomSampler: BatchDOMSampler = async (_t, selectors) => {
+                batchCalled = true;
+                return {
+                    [selectors[0]]: { left: 100, top: 100, right: 300, bottom: 300, width: 200, height: 200 },
+                };
+            };
+            const domSampler: DOMSampler = async () => null;
+            const result = await checkFramingLeg(scenes, { s1: 2.0 }, domSampler, width, height, batchDomSampler);
+            assert.strictEqual(result.status, 'pass');
+            assert.ok(batchCalled);
         });
     });
 
@@ -663,11 +703,26 @@ describe('Workstream WS-C (Spec C): Oracle QA Pipeline & Auto Validation', () =>
 
             const jobDir = join(testTempDir, 'job-qa-reroll');
 
+            const mockSampler: DOMSampler = async () => ({
+                left: 100,
+                top: 100,
+                right: 300,
+                bottom: 300,
+                width: 200,
+                height: 200,
+            });
+            const mockAudioAnalyzer = async () => ({
+                peakDbfs: -12,
+                quietSec: 1.5,
+            });
+
             const result = await runFullPipeline({
                 request,
                 outputDir: jobDir,
                 skipPreview: true,
                 skipRender: true, // Tiết kiệm thời gian render full video
+                domSampler: mockSampler,
+                audioAnalyzer: mockAudioAnalyzer,
             });
 
             // 1. LLM phải được gọi ít nhất 2 lần
@@ -719,18 +774,70 @@ describe('Workstream WS-C (Spec C): Oracle QA Pipeline & Auto Validation', () =>
 
             const jobDir = join(testTempDir, 'job-qa-exhausted');
 
+            const mockSampler: DOMSampler = async () => ({
+                left: 100,
+                top: 100,
+                right: 300,
+                bottom: 300,
+                width: 200,
+                height: 200,
+            });
+            const mockAudioAnalyzer = async () => ({
+                peakDbfs: -12,
+                quietSec: 1.5,
+            });
+
             const result = await runFullPipeline({
                 request,
                 outputDir: jobDir,
                 skipPreview: true,
                 maxQaAttempts: 2, // Thử tối đa 2 lần
+                domSampler: mockSampler,
+                audioAnalyzer: mockAudioAnalyzer,
             });
 
             assert.strictEqual(failLLM.callCount, 2);
             assert.strictEqual(result.qaStatus, 'fail');
+            assert.strictEqual(result.videoPath, '', 'Khi QA fail, videoPath phải rỗng để tránh client tải nhầm');
             assert.strictEqual(result.qaReport?.valid, false);
             assert.ok(result.qaReport?.errors.length > 0);
             assert.ok(existsSync(join(jobDir, 'qa_report.json')));
+        });
+
+        it('trả về qaStatus: skipped khi skipQa = true mà không chạy oracle QA', async () => {
+            class GoodLLM implements LLMClient {
+                readonly provider = 'good-llm';
+                async generate(): Promise<string> {
+                    return JSON.stringify(goodScript);
+                }
+            }
+            class FlatTTS implements TTSClient {
+                readonly provider = 'flat-tts';
+                async synthesize(_text: string, outputPath: string): Promise<void> {
+                    await generateSilence(outputPath, 2.0);
+                }
+            }
+            setLLMClient(new GoodLLM());
+            setTTSClient(new FlatTTS());
+
+            const request: videoRequest = {
+                prompt: 'Kiểm thử skipQa = true',
+                aspectRatio: '16:9',
+                targetDurationSec: 30,
+                language: 'vi',
+                style: 'modern',
+            };
+            const jobDir = join(testTempDir, 'job-qa-skipped');
+            const result = await runFullPipeline({
+                request,
+                outputDir: jobDir,
+                skipPreview: true,
+                skipRender: true,
+                skipQa: true,
+            });
+
+            assert.strictEqual(result.qaStatus, 'skipped');
+            assert.strictEqual(result.qaReport, undefined);
         });
 
         it('tích hợp MemoryQueue cập nhật đúng status qa_failed và qaStatus/qaReport', async () => {

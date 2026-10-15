@@ -52,6 +52,6 @@ export interface JobRecord {
     result?: fullPipelineResult;
     error?: string;
     seed?: number;
-    qaStatus?: 'pass' | 'warn' | 'fail' | 'qa_failed';
+    qaStatus?: 'pass' | 'warn' | 'fail' | 'skipped' | 'qa_failed';
     qaReport?: QAReport;
 }
