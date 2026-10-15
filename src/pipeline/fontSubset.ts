@@ -125,10 +125,6 @@ export function findPyftsubsetBinary(customPath?: string): string | null {
         }
         return null;
     }
-    const standardLocalPath = "/home/khxnh/.local/bin/pyftsubset";
-    if (existsSync(standardLocalPath)) {
-        return standardLocalPath;
-    }
     try {
         const whichOut = execSync("which pyftsubset 2>/dev/null", { encoding: "utf-8" }).trim();
         if (whichOut && existsSync(whichOut)) {
@@ -136,6 +132,18 @@ export function findPyftsubsetBinary(customPath?: string): string | null {
         }
     } catch {
         // ignore
+    }
+
+    const standardCandidates = [
+        process.env.HOME ? join(process.env.HOME, ".local/bin/pyftsubset") : null,
+        "/usr/local/bin/pyftsubset",
+        "/usr/bin/pyftsubset",
+    ].filter(Boolean) as string[];
+
+    for (const cand of standardCandidates) {
+        if (existsSync(cand)) {
+            return cand;
+        }
     }
     return null;
 }
@@ -149,9 +157,10 @@ export function resolveFontSourcePath(
 ): { fontPath: string; resolvedFamily: string } | null {
     const candidates = [
         customDir,
-        resolve(__dirname, "../../assets/fonts"),
         resolve(process.cwd(), "assets/fonts"),
-        "/home/khxnh/workspace/lime-ws-spec-h/assets/fonts",
+        resolve(__dirname, "../../assets/fonts"),
+        resolve(__dirname, "../assets/fonts"),
+        resolve(__dirname, "./assets/fonts"),
     ].filter(Boolean) as string[];
 
     let fontsDir = "";
@@ -175,9 +184,20 @@ export function resolveFontSourcePath(
         }
     }
 
-    const interPath = join(fontsDir, "Inter-Variable.ttf");
-    if (existsSync(interPath)) {
-        return { fontPath: interPath, resolvedFamily: "Inter" };
+    if (normalized.includes("inter")) {
+        const interPath = join(fontsDir, "Inter-Variable.ttf");
+        if (existsSync(interPath)) {
+            return { fontPath: interPath, resolvedFamily: "Inter" };
+        }
+    }
+
+    // Nếu comp yêu cầu font khác không có trong assets/fonts, log cảnh báo rõ ràng và fallback sang Inter
+    const fallbackPath = join(fontsDir, "Inter-Variable.ttf");
+    if (existsSync(fallbackPath)) {
+        console.warn(
+            `[FontSubset] Cảnh báo: Font "${fontFamily}" không có sẵn file nguồn cục bộ trong assets/fonts/. Tự động fallback sang font chuẩn thương hiệu "Inter".`
+        );
+        return { fontPath: fallbackPath, resolvedFamily: "Inter" };
     }
 
     return null;
@@ -217,6 +237,8 @@ export function assertNoExternalFontUrls(html: string): void {
         "fonts.gstatic.com",
         "cdnfonts.com",
         "use.typekit.net",
+        "fonts.cdnfonts.com",
+        "cdnjs.cloudflare.com/ajax/libs/font-awesome",
     ];
 
     for (const domain of forbiddenDomains) {
@@ -224,16 +246,50 @@ export function assertNoExternalFontUrls(html: string): void {
             throw new Error(`[FontSubset] HTML vẫn còn chứa URL font ngoài: ${domain}`);
         }
     }
+
+    // Kiểm tra các thẻ <link> nạp font từ bên ngoài
+    const linkFontMatch = html.match(/<link\s+[^>]*href=["']https?:\/\/[^"']*(?:font|typekit)[^"']*["'][^>]*>/i);
+    if (linkFontMatch) {
+        throw new Error(`[FontSubset] HTML vẫn còn chứa thẻ <link> trỏ tới font ngoài: ${linkFontMatch[0]}`);
+    }
+
+    // Kiểm tra @import trỏ tới font ngoài
+    const importFontMatch = html.match(/@import\s+(?:url\(['"]?)?https?:\/\/[^'")]+(?:font|typekit)[^'")]+['"]?\)?;?/i);
+    if (importFontMatch) {
+        throw new Error(`[FontSubset] HTML vẫn còn chứa @import font ngoài: ${importFontMatch[0]}`);
+    }
+
+    // Kiểm tra @font-face chứa url(http...)
+    const urlFontMatch = html.match(/src:\s*url\(["']?https?:\/\/[^"')]*\.(?:woff2?|ttf|otf|eot)/i);
+    if (urlFontMatch) {
+        throw new Error(`[FontSubset] HTML vẫn còn chứa @font-face url ngoài: ${urlFontMatch[0]}`);
+    }
 }
 
 /**
- * Cắt 1 file font sang woff2 với pyftsubset
+ * In-memory cache cho kết quả pyftsubset theo key sourceFontPath + unicodesArg
+ * Tránh chạy lặp lại pyftsubset 2 lần khi assembleHTML gọi ở preview và render
+ */
+const subsetCache = new Map<string, { base64Woff2: string; originalSize: number; subsetSize: number }>();
+
+export function clearFontSubsetCache(): void {
+    subsetCache.clear();
+}
+
+/**
+ * Cắt 1 file font sang woff2 với pyftsubset (kèm caching)
  */
 export async function subsetFontFile(
     pyftsubsetBin: string,
     sourceFontPath: string,
     unicodesArg: string
 ): Promise<{ base64Woff2: string; originalSize: number; subsetSize: number }> {
+    const cacheKey = `${sourceFontPath}::${unicodesArg}`;
+    const cached = subsetCache.get(cacheKey);
+    if (cached) {
+        return cached;
+    }
+
     const tempOutput = join(
         tmpdir(),
         `lime-font-${Date.now()}-${Math.random().toString(36).slice(2, 8)}.woff2`
@@ -254,11 +310,13 @@ export async function subsetFontFile(
         }
 
         const buf = readFileSync(tempOutput);
-        return {
+        const result = {
             base64Woff2: buf.toString("base64"),
             originalSize: origSize,
             subsetSize: buf.length,
         };
+        subsetCache.set(cacheKey, result);
+        return result;
     } finally {
         try {
             if (existsSync(tempOutput)) {
@@ -371,14 +429,14 @@ export async function subsetFontsForHtml(
     } else {
         const detected = detectFontFamilyFromHtml(htmlContent);
         targetFamilies.push(detected);
+    }
 
-        // Kiểm tra xem comp có sử dụng thêm font LIME thứ hai không
-        if (/space\s*grotesk/i.test(htmlContent) && !targetFamilies.some((f) => /space/i.test(f))) {
-            targetFamilies.push("Space Grotesk");
-        }
-        if (/\binter\b/i.test(htmlContent) && !targetFamilies.some((f) => /inter/i.test(f))) {
-            targetFamilies.push("Inter");
-        }
+    // Bổ sung thêm font thương hiệu LIME khác nếu comp có sử dụng (ví dụ: heading dùng Space Grotesk, body dùng Inter)
+    if (/space\s*grotesk/i.test(htmlContent) && !targetFamilies.some((f) => /space/i.test(f))) {
+        targetFamilies.push("Space Grotesk");
+    }
+    if (/\binter\b/i.test(htmlContent) && !targetFamilies.some((f) => /inter/i.test(f))) {
+        targetFamilies.push("Inter");
     }
 
     // 3. Bước 1: Quét glyphs từ comp HTML
