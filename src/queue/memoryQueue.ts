@@ -95,7 +95,9 @@ export class MemoryQueue implements IVideoQueue {
 
             const finalRecord = this.store.get(data.jobId);
             if (finalRecord) {
-                finalRecord.status = 'completed';
+                finalRecord.status = result.qaStatus === 'fail' ? 'qa_failed' : 'completed';
+                finalRecord.qaStatus = result.qaStatus;
+                finalRecord.qaReport = result.qaReport;
                 finalRecord.result = result;
                 finalRecord.updatedAt = new Date().toISOString();
                 this.store.set(data.jobId, finalRecord);
