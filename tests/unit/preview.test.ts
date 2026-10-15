@@ -51,6 +51,17 @@ describe('Module 7: Playwright Thumbnail Preview (src/pipeline/preview.ts)', () 
         globalStyles: 'body { margin: 0; }',
         globalSetupJs: '',
         scenes: mockScenes,
+        boundaries: [
+            {
+                id: 'b1',
+                fromScene: 'scene-1',
+                toScene: 'scene-2',
+                carry: {
+                    element: '#scene-1',
+                    mechanism: 'morph',
+                },
+            },
+        ],
         colorPalette: {
             primary: '#ff0000',
             secondary: '#00ff00',
