@@ -159,7 +159,7 @@ export async function runFullPipeline(option: orchestratorOptions): Promise<full
             }
         }
 
-        // phase 6: re-assemble HTML với duration thực từ audio
+        // phase 6: re-assemble HTML với duration thực từ audio 
         phaseStart = Date.now();
         logProgress("html_assembly", 70, "Re-assembling HTML with actual durations");
         await assembleHTML(
