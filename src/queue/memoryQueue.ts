@@ -1,6 +1,7 @@
 import { EventEmitter } from 'node:events';
 import { IVideoQueue, JobData, JobRecord, JobProgress } from './interfaces.js';
 import { type fullPipelineResult } from '../pipeline/orchestrator.js';
+import { hashString32, parseSeedSafe } from '../pipeline/rng.js';
 
 export const memoryQueueEvents = new EventEmitter();
 
@@ -18,10 +19,13 @@ export class MemoryQueue implements IVideoQueue {
     constructor() {}
 
     async addJob(jobId: string, data: JobData): Promise<void> {
+        const seed = parseSeedSafe(data.seed ?? data.request?.seed, hashString32(jobId));
+        data.seed = seed;
         const record: JobRecord = {
             jobId,
             status: 'queued',
             request: data.request,
+            seed,
             createdAt: new Date().toISOString(),
             updatedAt: new Date().toISOString(),
         };

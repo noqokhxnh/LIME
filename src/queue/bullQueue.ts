@@ -3,6 +3,7 @@ import Redis from 'ioredis';
 import { IVideoQueue, JobData, JobRecord, JobProgress } from './interfaces.js';
 import { type fullPipelineResult } from '../pipeline/orchestrator.js';
 import { EventEmitter } from 'node:events';
+import { hashString32, parseSeedSafe } from '../pipeline/rng.js';
 
 export class BullMQQueue implements IVideoQueue {
     private queue: Queue<JobData, fullPipelineResult, string>;
@@ -26,6 +27,9 @@ export class BullMQQueue implements IVideoQueue {
     }
 
     async addJob(jobId: string, data: JobData): Promise<void> {
+        if (data.seed === undefined) {
+            data.seed = parseSeedSafe(data.request?.seed, hashString32(jobId));
+        }
         await this.queue.add('render', data, { jobId });
     }
 
@@ -34,7 +38,7 @@ export class BullMQQueue implements IVideoQueue {
         if (!job) return null;
 
         const state = await job.getState();
-        
+
         // Map bullmq state to JobRecord status
         let status: JobRecord['status'] = 'queued';
         if (state === 'active') status = 'running';
@@ -45,6 +49,7 @@ export class BullMQQueue implements IVideoQueue {
             jobId: job.id!,
             status,
             request: job.data.request,
+            seed: job.data.seed ?? (job.data.request.seed !== undefined ? job.data.request.seed : hashString32(job.id!)),
             createdAt: new Date(job.timestamp).toISOString(),
             updatedAt: job.finishedOn ? new Date(job.finishedOn).toISOString() : new Date().toISOString(),
             progress: typeof job.progress === 'object' && job.progress !== null ? (job.progress as JobProgress) : undefined,
@@ -66,6 +71,7 @@ export class BullMQQueue implements IVideoQueue {
                 jobId: job.id!,
                 status,
                 request: job.data.request,
+                seed: job.data.seed ?? (job.data.request.seed !== undefined ? job.data.request.seed : hashString32(job.id!)),
                 createdAt: new Date(job.timestamp).toISOString(),
                 updatedAt: job.finishedOn ? new Date(job.finishedOn).toISOString() : new Date().toISOString(),
             });

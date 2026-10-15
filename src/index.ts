@@ -26,6 +26,7 @@ import { adminRoutes } from "./admin/routes.js";
 import { systemSettings } from "./admin/systemSettings.js";
 import { pageViewTracker } from "./security/pageViewTracker.js";
 import { db } from "./database/index.js";
+import { hashString32, parseSeedSafe } from "./pipeline/rng.js";
 
 export const jobIpMap = new Map<string, string>();
 
@@ -431,6 +432,8 @@ export async function buildApp(options: { logger?: boolean, queue?: IVideoQueue 
         const bgmPath = body.bgmPath as string | undefined;
         const skipPreview = Boolean(body.skipPreview);
         const jobId = body.jobId || v4();
+        const defaultSeed = hashString32(jobId);
+        const seed = parseSeedSafe(reqData.seed ?? body.seed, defaultSeed);
 
         const outputDir = join(process.cwd(), "tmp", `job-${jobId}`);
 
@@ -442,13 +445,15 @@ export async function buildApp(options: { logger?: boolean, queue?: IVideoQueue 
                 script: inputScript,
                 bgmPath,
                 skipPreview,
-                outputDir
+                outputDir,
+                seed
             });
 
             reply.status(202);
             return {
                 message: "Video generation queued",
                 jobId,
+                seed,
                 checkStatusUrl: `/api/jobs/${jobId}`,
                 htmlUrl: `/api/jobs/${jobId}/html`,
                 audioUrl: `/api/jobs/${jobId}/audio`,
@@ -462,12 +467,14 @@ export async function buildApp(options: { logger?: boolean, queue?: IVideoQueue 
                     script: inputScript,
                     bgmPath,
                     skipPreview,
-                    outputDir
+                    outputDir,
+                    seed
                 }, async () => {});
 
                 return {
                     success: true,
                     jobId: result.jobId,
+                    seed: result.seed,
                     status: 'completed',
                     durationSec: result.durationSec,
                     resolution: result.resolution,
