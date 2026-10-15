@@ -24,6 +24,7 @@ export interface DOMBox {
 }
 
 export type DOMSampler = (timeSec: number, selector: string) => Promise<DOMBox | null>;
+export type BatchDOMSampler = (timeSec: number, selectors: string[]) => Promise<Record<string, DOMBox | null>>;
 
 export interface AudioStats {
     peakDbfs: number;
@@ -66,7 +67,7 @@ export interface AudioLegResult {
 
 export interface QAReport {
     jobId: string;
-    qaStatus: 'pass' | 'warn' | 'fail';
+    qaStatus: 'pass' | 'warn' | 'fail' | 'skipped';
     attempt: number;
     valid: boolean;
     carryScore: number;
@@ -94,6 +95,7 @@ export interface OracleQaOptions {
     jobId?: string;
     attempt?: number;
     domSampler?: DOMSampler;
+    batchDomSampler?: BatchDOMSampler;
     audioAnalyzer?: (audioPath: string) => Promise<AudioStats>;
     page?: Page;
 }
@@ -282,7 +284,8 @@ export async function checkCurvesLeg(
     boundaries: Boundary[],
     domSampler: DOMSampler,
     fps: number,
-    hasShutterBlur: boolean = false
+    hasShutterBlur: boolean = false,
+    batchDomSampler?: BatchDOMSampler
 ): Promise<CurvesLegResult> {
     const elementsToTrack = new Set<string>();
     for (const s of scenes) {
@@ -292,6 +295,7 @@ export async function checkCurvesLeg(
     for (const b of boundaries) {
         if (b.carry?.element) elementsToTrack.add(b.carry.element);
     }
+    const elemList = Array.from(elementsToTrack);
 
     let maxPxPerFrame = 0;
     let runningTime = 0;
@@ -311,17 +315,28 @@ export async function checkCurvesLeg(
             sampleTimes.push(startTime, startTime + dur / 2, startTime + dur);
         }
 
-        for (const elem of elementsToTrack) {
-            let prevBox: DOMBox | null = null;
-            let prevTime = 0;
+        const prevBoxes = new Map<string, DOMBox | null>();
+        let prevTime = startTime;
 
-            for (const t of sampleTimes) {
-                const box = await domSampler(t, elem);
-                if (box && prevBox) {
-                    const deltaSec = t - prevTime;
-                    if (deltaSec > 0.001) {
+        for (const t of sampleTimes) {
+            let boxesAtT: Record<string, DOMBox | null>;
+            if (batchDomSampler) {
+                boxesAtT = await batchDomSampler(t, elemList);
+            } else {
+                boxesAtT = {};
+                for (const elem of elemList) {
+                    boxesAtT[elem] = await domSampler(t, elem);
+                }
+            }
+
+            const deltaSec = t - prevTime;
+            if (deltaSec > 0.001) {
+                for (const elem of elemList) {
+                    const prevBox = prevBoxes.get(elem);
+                    const currentBox = boxesAtT[elem];
+                    if (prevBox && currentBox) {
                         const c1 = { x: prevBox.left + prevBox.width / 2, y: prevBox.top + prevBox.height / 2 };
-                        const c2 = { x: box.left + box.width / 2, y: box.top + box.height / 2 };
+                        const c2 = { x: currentBox.left + currentBox.width / 2, y: currentBox.top + currentBox.height / 2 };
                         const distance = Math.hypot(c2.x - c1.x, c2.y - c1.y);
                         const pxPerFrame = (distance / deltaSec) / fps;
                         if (pxPerFrame > maxPxPerFrame) {
@@ -329,9 +344,12 @@ export async function checkCurvesLeg(
                         }
                     }
                 }
-                prevBox = box;
-                prevTime = t;
             }
+
+            for (const elem of elemList) {
+                prevBoxes.set(elem, boxesAtT[elem]);
+            }
+            prevTime = t;
         }
     }
 
@@ -360,7 +378,8 @@ export async function checkFramingLeg(
     durations: Record<string, number>,
     domSampler: DOMSampler,
     width: number,
-    height: number
+    height: number,
+    batchDomSampler?: BatchDOMSampler
 ): Promise<FramingLegResult> {
     let outOfBoundsSamples = 0;
     let runningTime = 0;
@@ -390,7 +409,13 @@ export async function checkFramingLeg(
         }
 
         for (const t of sampleTimes) {
-            const box = await domSampler(t, s.subject);
+            let box: DOMBox | null;
+            if (batchDomSampler) {
+                const res = await batchDomSampler(t, [s.subject]);
+                box = res[s.subject] ?? null;
+            } else {
+                box = await domSampler(t, s.subject);
+            }
             if (!box) {
                 outOfBoundsSamples++;
                 violations.push(`Scene '${s.id}': subject '${s.subject}' không hiển thị tại t=${t.toFixed(2)}s`);
@@ -434,6 +459,7 @@ export async function checkFramingLeg(
 export async function analyzeAudioFile(audioPath: string): Promise<AudioStats> {
     return new Promise((resolve) => {
         if (!audioPath || !existsSync(audioPath)) {
+            console.warn(`[Oracle QA] File âm thanh không tồn tại tại "${audioPath || '(trống)'}".`);
             return resolve({ peakDbfs: -12, quietSec: 1.5 });
         }
 
@@ -472,7 +498,8 @@ export async function analyzeAudioFile(audioPath: string): Promise<AudioStats> {
             });
         });
 
-        ffmpegProc.on('error', () => {
+        ffmpegProc.on('error', (err) => {
+            console.warn(`[Oracle QA] Lỗi khi thực thi ffmpeg để phân tích âm thanh: ${err.message}. Bỏ qua kiểm tra clipping & loudness.`);
             resolve({ peakDbfs: -12, quietSec: 1.5 });
         });
     });
@@ -494,10 +521,14 @@ export async function checkAudioLeg(
         stats = await customAnalyzer(audioPath || '');
     } else {
         if (!audioPath || !existsSync(audioPath)) {
+            console.warn(
+                `[Oracle QA] Cảnh báo: File âm thanh không tồn tại tại "${audioPath || '(rỗng)'}". Bỏ qua kiểm tra clipping & loudness.`
+            );
             return {
                 status: 'pass',
                 peakDbfs: -12,
                 quietSec: 1.5,
+                reason: 'Bỏ qua kiểm tra do không tìm thấy file âm thanh để phân tích volumedetect/silencedetect',
             };
         }
         stats = await analyzeAudioFile(audioPath);
@@ -538,7 +569,12 @@ export async function createBrowserDOMSampler(
     width: number,
     height: number,
     existingPage?: Page
-): Promise<{ domSampler: DOMSampler; cleanup: () => Promise<void>; hasShutterBlur: boolean }> {
+): Promise<{
+    domSampler: DOMSampler;
+    batchDomSampler: BatchDOMSampler;
+    cleanup: () => Promise<void>;
+    hasShutterBlur: boolean;
+}> {
     let browser: Browser | null = null;
     let page: Page;
 
@@ -557,32 +593,55 @@ export async function createBrowserDOMSampler(
     const htmlContent = existsSync(htmlPath) ? readFileSync(htmlPath, 'utf-8') : '';
     const hasShutterBlur = /shutter[-_]?blur|motion[-_]?blur|feGaussianBlur|filter:\s*blur/i.test(htmlContent);
 
-    const domSampler: DOMSampler = async (timeSec: number, selector: string) => {
-        await seekToTimestamp(page, timeSec);
-        const box = await page.evaluate((sel: string) => {
-            const el =
-                document.querySelector(sel) ||
-                document.getElementById(sel.replace(/^#/, ''));
-            if (!el) return null;
-            const rect = el.getBoundingClientRect();
-            const style = window.getComputedStyle(el);
-            if (
-                style.display === 'none' ||
-                style.visibility === 'hidden' ||
-                parseFloat(style.opacity || '1') <= 0.01
-            ) {
-                return null;
+    let currentSeekTime: number | null = null;
+
+    const seekOnce = async (timeSec: number) => {
+        if (currentSeekTime === null || Math.abs(currentSeekTime - timeSec) > 0.001) {
+            await seekToTimestamp(page, timeSec);
+            currentSeekTime = timeSec;
+        }
+    };
+
+    const batchDomSampler: BatchDOMSampler = async (timeSec: number, selectors: string[]) => {
+        if (selectors.length === 0) return {};
+        await seekOnce(timeSec);
+        const results = await page.evaluate((sels: string[]) => {
+            const out: Record<string, { left: number; top: number; right: number; bottom: number; width: number; height: number } | null> = {};
+            for (const sel of sels) {
+                const el =
+                    document.querySelector(sel) ||
+                    document.getElementById(sel.replace(/^#/, ''));
+                if (!el) {
+                    out[sel] = null;
+                    continue;
+                }
+                const rect = el.getBoundingClientRect();
+                const style = window.getComputedStyle(el);
+                if (
+                    style.display === 'none' ||
+                    style.visibility === 'hidden' ||
+                    parseFloat(style.opacity || '1') <= 0.01
+                ) {
+                    out[sel] = null;
+                    continue;
+                }
+                out[sel] = {
+                    left: rect.left,
+                    top: rect.top,
+                    right: rect.right,
+                    bottom: rect.bottom,
+                    width: rect.width,
+                    height: rect.height,
+                };
             }
-            return {
-                left: rect.left,
-                top: rect.top,
-                right: rect.right,
-                bottom: rect.bottom,
-                width: rect.width,
-                height: rect.height,
-            };
-        }, selector);
-        return box;
+            return out;
+        }, selectors);
+        return results;
+    };
+
+    const domSampler: DOMSampler = async (timeSec: number, selector: string) => {
+        const res = await batchDomSampler(timeSec, [selector]);
+        return res[selector] ?? null;
     };
 
     const cleanup = async () => {
@@ -591,7 +650,7 @@ export async function createBrowserDOMSampler(
         }
     };
 
-    return { domSampler, cleanup, hasShutterBlur };
+    return { domSampler, batchDomSampler, cleanup, hasShutterBlur };
 }
 
 /**
@@ -619,23 +678,35 @@ export async function runOracleQa(options: OracleQaOptions): Promise<QAReport> {
 
     // Chuẩn bị DOM sampler
     let domSampler = options.domSampler;
+    let batchDomSampler = options.batchDomSampler;
     let cleanupBrowser: (() => Promise<void>) | null = null;
     let hasShutterBlur = false;
 
-    if (!domSampler) {
+    if (!domSampler && !batchDomSampler) {
         if (existsSync(htmlPath)) {
-            const browserSetup = await createBrowserDOMSampler(
-                htmlPath,
-                width,
-                height,
-                options.page
-            );
-            domSampler = browserSetup.domSampler;
-            cleanupBrowser = browserSetup.cleanup;
-            hasShutterBlur = browserSetup.hasShutterBlur;
+            try {
+                const browserSetup = await createBrowserDOMSampler(
+                    htmlPath,
+                    width,
+                    height,
+                    options.page
+                );
+                domSampler = browserSetup.domSampler;
+                batchDomSampler = browserSetup.batchDomSampler;
+                cleanupBrowser = browserSetup.cleanup;
+                hasShutterBlur = browserSetup.hasShutterBlur;
+            } catch (err: any) {
+                console.warn(`[Oracle QA] Không thể khởi động browser để lấy mẫu DOM (${err?.message || err}).`);
+                domSampler = async () => null;
+            }
         } else {
             domSampler = async () => null;
         }
+    } else if (!domSampler && batchDomSampler) {
+        domSampler = async (t, s) => {
+            const res = await batchDomSampler!(t, [s]);
+            return res[s] ?? null;
+        };
     }
 
     let continuityLeg: ContinuityLegResult;
@@ -648,7 +719,7 @@ export async function runOracleQa(options: OracleQaOptions): Promise<QAReport> {
             boundaries,
             scenes,
             durations,
-            domSampler,
+            domSampler!,
             width,
             height
         );
@@ -658,18 +729,20 @@ export async function runOracleQa(options: OracleQaOptions): Promise<QAReport> {
             scenes,
             durations,
             boundaries,
-            domSampler,
+            domSampler!,
             fps,
-            hasShutterBlur
+            hasShutterBlur,
+            batchDomSampler
         );
 
         // 4. Leg 4: Framing
         framingLeg = await checkFramingLeg(
             scenes,
             durations,
-            domSampler,
+            domSampler!,
             width,
-            height
+            height,
+            batchDomSampler
         );
     } finally {
         if (cleanupBrowser) {
