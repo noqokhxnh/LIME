@@ -15,7 +15,7 @@
   <img src="public/logo-motion.webp" alt="LIME / LIME Motion" width="560">
 </p>
 <p align="center">
-  <a href="LICENSE"><img src="https://img.shields.io/badge/License-AGPL_v3-blue.svg" alt="License: AGPL-3.0"></a>
+  <a href="LICENSE"><img src="https://img.shields.io/badge/License-PolyForm_Noncommercial_1.0.0-blue.svg" alt="License: PolyForm Noncommercial 1.0.0"></a>
   <img src="https://img.shields.io/badge/Node.js-%3E%3D20-green.svg" alt="Node.js Version">
   <img src="https://img.shields.io/badge/TypeScript-5.x-3178c6.svg" alt="TypeScript">
   <img src="https://img.shields.io/badge/Renderer-Playwright%20Chromium-45ba4b.svg" alt="Playwright">
@@ -90,8 +90,8 @@ User Prompt (Web UI / REST API / CLI)
 Run everything (Fastify API Server, Worker, Redis, PostgreSQL, VieNeu-TTS) in one command:
 
 ```bash
-git clone https://github.com/noqokhxnh/html-to-vid.git
-cd html-to-vid
+git clone https://github.com/noqokhxnh/LIME.git
+cd LIME
 
 cp .env.example .env
 
@@ -106,6 +106,7 @@ Access the Web Studio at: **`http://localhost:3000`**
 
 #### Prerequisites
 - **Node.js**: v20.x or higher
+- **PostgreSQL**: v13 or higher (or `DATABASE_URL` pointing to an existing instance)
 - **Redis**: v7.x or higher (for job queue & SSE pub/sub)
 - **ffmpeg & ffprobe**: Installed on your system `PATH`
 - **Chromium**: Installed via Playwright
@@ -168,18 +169,20 @@ npm run cli -- \
 Key settings configurable in `.env` (validated by Zod in `src/config.ts`):
 
 ```ini
-# Server
+# Server & Database
 PORT=3000
 NODE_ENV=development
+DATABASE_URL="postgresql://lime:lime_secret_password@127.0.0.1:5432/lime_db"
 
 # LLM Providers (Select one, or switch dynamically in the Web UI)
 LLM_PROVIDER=deepseek
 DEEPSEEK_API_KEY="sk-..."
 DEEPSEEK_MODEL="deepseek-chat"
 
-# TTS Providers (Edge TTS is free without any API key)
+# TTS Providers (Edge TTS is free; VieNeu-TTS provides local Vietnamese neural voice)
 TTS_PROVIDER=edge
 TTS_VOICE=vi-VN-HoaiMyNeural
+VIENEU_TTS_URL="http://127.0.0.1:7860"
 
 # Redis Queue & Concurrency
 REDIS_URL=redis://127.0.0.1:6379
@@ -243,7 +246,6 @@ Test coverage includes:
 
 ## License
 
-This project is licensed under the **GNU Affero General Public License v3.0 (AGPL-3.0)**.
+This project is licensed under the **PolyForm Noncommercial License 1.0.0**.
 
-
-See the [LICENSE](LICENSE) file for the full license text. If you run a modified version of LIME as a network service, you must make the corresponding source code available to your users.
+See the [LICENSE](LICENSE) file for the full license text. You may use, modify, and distribute this software for any noncommercial purpose.
