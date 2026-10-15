@@ -36,6 +36,7 @@ jobs:
       - name: Setup fonttools (pyftsubset)
         run: |
           pipx install "fonttools[woff,unicode]" || (sudo apt-get update -qq && sudo apt-get install -y --no-install-recommends fonttools python3-brotli python3-zopfli)
+          sudo apt-get install -y --no-install-recommends python3-fonttools python3-brotli || true
           echo "$HOME/.local/bin" >> $GITHUB_PATH
           which pyftsubset || echo "pyftsubset not in PATH"
 

@@ -409,6 +409,7 @@ with open(r'${tempWoff2Path}', 'rb') as f:
             const pythonCandidates = [
                 "python3",
                 "python",
+                process.env.HOME ? join(process.env.HOME, ".local/pipx/venvs/fonttools/bin/python") : null,
                 process.env.HOME ? join(process.env.HOME, ".local/share/pipx/venvs/fonttools/bin/python") : null,
                 "/usr/bin/python3",
             ].filter(Boolean) as string[];
@@ -431,7 +432,7 @@ with open(r'${tempWoff2Path}', 'rb') as f:
                 assert.strictEqual(checkResult, "ALL_PRESENT", "100% các ký tự trong pangram phải có mặt trong cmap woff2");
             } else {
                 // Fallback khi môi trường CI không có fontTools python: kiểm tra tĩnh dải unicode
-                const glyphs = extractGlyphsFromHtml(sampleHtml);
+                const glyphs = extractGlyphsFromHtml(html);
                 for (const char of pangramText) {
                     assert.ok(isCoveredByDefaultRanges(char.charCodeAt(0)) || glyphs.extraChars.includes(char));
                 }
