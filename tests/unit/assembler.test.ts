@@ -172,14 +172,24 @@ describe('Module 6: HTML & GSAP Packaging (src/pipeline/assembleHtml.ts)', () =>
     });
 
     describe('TC-ASM-004: Kiểm tra việc nhúng đầy đủ thư viện CDN và Font', () => {
-        it('phải chứa thẻ liên kết Google Fonts và 3 thư viện GSAP CDN mặc định', async () => {
+        it('phải chứa font Inter nhúng tự chứa (Spec H) hoặc liên kết Google Fonts và 3 thư viện GSAP CDN mặc định', async () => {
             const result = await assembleHTML(mockScript, sampleDurations, 1920, 1080, testTempDir);
             const content = result.htmlContent;
 
-            assert.match(content, /fonts\.googleapis\.com\/css2\?family=Inter/);
+            assert.ok(
+                content.includes('lime-embedded-fonts') || /fonts\.googleapis\.com\/css2\?family=Inter/.test(content),
+                'Phải có thẻ font subset nội bộ lime-embedded-fonts hoặc Google Fonts fallback'
+            );
             assert.ok(content.includes(GSAP_CDN), 'Phải có GSAP Core CDN');
             assert.ok(content.includes(GSAP_TEXT_PLUGIN_CDN), 'Phải có GSAP TextPlugin CDN');
             assert.ok(content.includes(GSAP_MOTION_PATH_PLUGIN_CDN), 'Phải có GSAP MotionPathPlugin CDN');
+        });
+
+        it('phải giữ nguyên link Google Fonts khi bật skipFontSubset', async () => {
+            const result = await assembleHTML(mockScript, sampleDurations, 1920, 1080, testTempDir, undefined, {
+                skipFontSubset: true,
+            });
+            assert.match(result.htmlContent, /fonts\.googleapis\.com\/css2\?family=Inter/);
         });
 
         it('phải tôn trọng các đường dẫn CDN tùy chỉnh khi được truyền vào options', async () => {
