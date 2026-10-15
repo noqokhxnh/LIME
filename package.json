@@ -21,6 +21,7 @@
         "ai",
         "tts"
     ],
+    "license": "PolyForm-Noncommercial-1.0.0",
     "type": "module",
     "dependencies": {
         "@fastify/cookie": "^11.1.2",
