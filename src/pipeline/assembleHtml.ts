@@ -2,6 +2,8 @@ import { existsSync, mkdirSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { videoScript, scene, durationMap } from "../llm/schema.js";
 import { BLOCK_HELPERS_JS } from "../templates/runtime/blockHelpers.js";
+import { DETERMINISTIC_RUNTIME_JS, hashString32, RNG, getSceneSeed } from "./rng.js";
+import { assertDeterministicScript } from "./compLinter.js";
 
 export { BLOCK_HELPERS_JS };
 
@@ -12,6 +14,9 @@ export interface assembleOptions {
         textPlugin?: string;
         motionPathPlugin?: string;
     };
+    seed?: number;
+    jobId?: string;
+    skipLint?: boolean;
 }
 
 export interface assembleResult {
@@ -144,6 +149,14 @@ export async function assembleHTML(
 ): Promise<assembleResult> {
     onProgress?.("Bắt đầu đóng gói mã nguồn HTML/GSAP");
 
+    if (!options?.skipLint) {
+        assertDeterministicScript(script);
+    }
+
+    const seed = options?.seed !== undefined
+        ? (options.seed >>> 0)
+        : (options?.jobId ? hashString32(options.jobId) : (hashString32(script.id || script.title || "vidtml-seed") >>> 0));
+
     const imageMap = options?.imageMap || {};
     const processedScenes: { id: string; html: string; css: string; js: string; duration: number }[] = [];
 
@@ -168,9 +181,12 @@ export async function assembleHTML(
         .map(
             (s) => {
                 const safeId = s.id.replace(/[^a-zA-Z0-9_]/g, "_");
+                const sceneSeed = getSceneSeed(options?.jobId || String(seed), s.id);
+                const sceneIdLiteral = JSON.stringify(s.id);
                 return `
-// --- Scene: ${s.id} (Duration: ${s.duration}s) ---
+// --- Scene: ${s.id} (Duration: ${s.duration}s, Seed: ${sceneSeed}) ---
 try {
+    window.__sceneSeeds[${sceneIdLiteral}] = ${sceneSeed};
     let __capturedSceneTl_${safeId} = null;
     const __origTimeline_${safeId} = gsap.timeline;
     gsap.timeline = function(...args) {
@@ -184,21 +200,21 @@ try {
 ${s.js}
 
     gsap.timeline = __origTimeline_${safeId};
-    if (!window.__sceneTimelines['${s.id}']) {
+    if (!window.__sceneTimelines[${sceneIdLiteral}]) {
         if (__capturedSceneTl_${safeId}) {
-            window.__registerScene('${s.id}', __capturedSceneTl_${safeId}, ${s.duration});
+            window.__registerScene(${sceneIdLiteral}, __capturedSceneTl_${safeId}, ${s.duration});
         } else {
             const fallbackTl = gsap.timeline();
-            fallbackTl.to('#${s.id}', { opacity: 1, duration: 0.4 }, 0);
-            window.__registerScene('${s.id}', fallbackTl, ${s.duration});
+            fallbackTl.to(document.getElementById(${sceneIdLiteral}) || '#${safeId}', { opacity: 1, duration: 0.4 }, 0);
+            window.__registerScene(${sceneIdLiteral}, fallbackTl, ${s.duration});
         }
     }
 } catch (err) {
-    console.error("[Scene Error] ${s.id}:", err);
-    if (!window.__sceneTimelines['${s.id}']) {
+    console.error("[Scene Error] " + ${sceneIdLiteral} + ":", err);
+    if (!window.__sceneTimelines[${sceneIdLiteral}]) {
         const fallbackTl = gsap.timeline();
-        fallbackTl.to('#${s.id}', { opacity: 1, duration: 0.4 }, 0);
-        window.__registerScene('${s.id}', fallbackTl, ${s.duration});
+        fallbackTl.to(document.getElementById(${sceneIdLiteral}) || '#${safeId}', { opacity: 1, duration: 0.4 }, 0);
+        window.__registerScene(${sceneIdLiteral}, fallbackTl, ${s.duration});
     }
 }
 `;
@@ -251,6 +267,7 @@ ${s.js}
             overflow: hidden;
         }
 
+        /* Isolated blending stack for scenes */
         .scene {
             position: absolute;
             inset: 0;
@@ -258,6 +275,19 @@ ${s.js}
             height: 100%;
             opacity: 0;
             overflow: hidden;
+            isolation: isolate;
+        }
+
+        /* Neutral crossfade keeping native RGB values without darkening */
+        .scene.crossfade {
+            isolation: isolate;
+        }
+
+        /* Specialized multiply blend mode for intentional stencil/multiply crossfades */
+        .scene-crossfade-multiply,
+        .crossfade-multiply,
+        .blend-multiply {
+            mix-blend-mode: multiply;
         }
 
         /* Global Styles from LLM Script */
@@ -279,12 +309,26 @@ ${allScenesHtml}
             if (typeof MotionPathPlugin !== 'undefined') gsap.registerPlugin(MotionPathPlugin);
         }
 
+        // Spec B Deterministic PRNG & Hash Runtime
+        ${DETERMINISTIC_RUNTIME_JS}
+
         // Master Timeline & Renderer Contract Plumbing
         window.__ready = false;
         window.__masterTimeline = gsap.timeline({ paused: true });
         window.__sceneTimelines = {};
         window.__sceneDurations = {};
+        window.__sceneSeeds = {};
         window.__totalDuration = 0;
+
+        // Deterministic Seed & PRNG Contract (Spec B)
+        window.__renderSeed = ${seed};
+        window.__rng = RNG(window.__renderSeed);
+        window.__rand = function(min, max) {
+            var val = window.__rng();
+            if (min === undefined && max === undefined) return val;
+            if (max === undefined) return val * min;
+            return min + val * (max - min);
+        };
 
         window.__registerScene = function(sceneId, tl, duration) {
             if (!tl) return;
@@ -312,12 +356,38 @@ ${allScenesHtml}
             return window.__totalDuration || window.__masterTimeline.duration();
         };
 
+        // Cross-fade helper between scenes with customizable blend mode
+        window.__crossFade = function(sceneAId, sceneBId, duration, opts) {
+            opts = opts || {};
+            var mode = opts.blendMode || 'normal';
+            var elA = document.getElementById(sceneAId);
+            var elB = document.getElementById(sceneBId);
+            if (elA && opts.blendMode) elA.style.mixBlendMode = mode;
+            if (elB && opts.blendMode) elB.style.mixBlendMode = mode;
+            var tl = gsap.timeline();
+            tl.to(elA || '#' + sceneAId, { opacity: 0, duration: duration, ease: 'none' }, 0);
+            tl.to(elB || '#' + sceneBId, { opacity: 1, duration: duration, ease: 'none' }, 0);
+            return tl;
+        };
+
+        window.__applyMultiplyBlend = function(selectorOrElement) {
+            var elements = typeof selectorOrElement === 'string'
+                ? document.querySelectorAll(selectorOrElement)
+                : [selectorOrElement];
+            elements.forEach(function(el) {
+                if (el && el.style) {
+                    el.style.mixBlendMode = 'multiply';
+                }
+            });
+        };
+
         // Prevent accidental overwrite by script.globalSetupJs
         try {
             Object.defineProperty(window, '__registerScene', { writable: false, configurable: false });
             Object.defineProperty(window, '__masterTimeline', { writable: false, configurable: false });
             Object.defineProperty(window, '__seekTo', { writable: false, configurable: false });
             Object.defineProperty(window, '__getTotalDuration', { writable: false, configurable: false });
+            Object.defineProperty(window, '__renderSeed', { writable: false, configurable: false });
         } catch (e) {}
 
         // Kinetic text and utility helpers
@@ -339,10 +409,6 @@ ${allScenesHtml}
                     return '<span class="word" style="display:inline-block; margin-right:0.25em;">' + w + '</span>';
                 }).join("");
             });
-        };
-
-        window.__rand = function(min, max) {
-            return Math.random() * (max - min) + min;
         };
 
         // Stickman & FX Helpers Injection

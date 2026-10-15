@@ -9,6 +9,7 @@ import { assembleHTML } from "./assembleHtml.js";
 import { generatePreviews, PreviewResult } from "./preview";
 import { synthesizeAudio } from "./audioSysnthesis.js";
 import { renderVideo } from "./renderer.js";
+import { hashString32, parseSeedSafe } from "./rng.js";
 
 export interface orchestratorOptions {
     request: videoRequest;
@@ -18,10 +19,13 @@ export interface orchestratorOptions {
     skipRender?: boolean;
     onProgress?: progressCallback;
     outputDir?: string;
+    jobId?: string;
+    seed?: number;
 }
 
 export interface fullPipelineResult extends pipelineResult {
     jobId: string;
+    seed: number;
     workDir: string;
     preview?: PreviewResult;
     audio: AudioResult;
@@ -32,7 +36,9 @@ export interface fullPipelineResult extends pipelineResult {
 export async function runFullPipeline(option: orchestratorOptions): Promise<fullPipelineResult> {
     const { request, script: inputScript, bgmPath, skipPreview, onProgress, outputDir } = option;
 
-    const jobId = v4();
+    const jobId = option.jobId ?? v4();
+    const defaultSeed = hashString32(jobId);
+    const seed = parseSeedSafe(option.seed ?? request.seed, defaultSeed);
     const workDir = outputDir ?? join(process.cwd(), "tmp", `job-${jobId}`);
 
     if (existsSync(workDir)) {
@@ -93,7 +99,8 @@ export async function runFullPipeline(option: orchestratorOptions): Promise<full
             preset.width,
             preset.height,
             workDir,
-            (msg) => logProgress("html_assembly", 25, msg)
+            (msg) => logProgress("html_assembly", 25, msg),
+            { seed, jobId }
         );
         timing["html_assembly"] = Date.now() - phaseStart;
 
@@ -161,7 +168,8 @@ export async function runFullPipeline(option: orchestratorOptions): Promise<full
             preset.width,
             preset.height,
             workDir,
-            (msg) => logProgress("html_assembly", 75, msg)
+            (msg) => logProgress("html_assembly", 75, msg),
+            { seed, jobId }
         );
         timing["html_assembly"] = Date.now() - phaseStart;
 
@@ -192,6 +200,7 @@ export async function runFullPipeline(option: orchestratorOptions): Promise<full
 
         return {
             jobId,
+            seed,
             workDir,
             videoPath,
             durationSec: audio.totalDurationSec,
