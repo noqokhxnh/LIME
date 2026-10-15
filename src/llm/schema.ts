@@ -1,5 +1,37 @@
 import { z } from 'zod';
 
+export const mechanismSchema = z.enum([
+    'morph',
+    'zoomThrough',
+    'iris',
+    'gather',
+    'handoff',
+    'hardCut',
+]);
+export type Mechanism = z.infer<typeof mechanismSchema>;
+
+export const boundarySchema = z
+    .object({
+        id: z.string().min(1, 'Boundary id không được để trống'), // vd "b1"
+        fromScene: z.string().min(1, 'fromScene không được để trống'), // sceneId
+        toScene: z.string().min(1, 'toScene không được để trống'), // sceneId
+        carry: z.object({
+            element: z.string().min(1, 'carry.element không được để trống'), // id của phần tử trong comp
+            mechanism: mechanismSchema,
+            reason: z.string().optional(), // bắt buộc nếu mechanism === 'hardCut'
+        }),
+    })
+    .refine(
+        (b) =>
+            b.carry.mechanism !== 'hardCut' ||
+            (!!b.carry.reason && b.carry.reason.trim().length > 0),
+        {
+            message: "mechanism hardCut bắt buộc phải có reason",
+            path: ['carry', 'reason'],
+        }
+    );
+export type Boundary = z.infer<typeof boundarySchema>;
+
 export const sceneSchema = z.object({
     id: z.string(),
     title: z.string(),
@@ -9,28 +41,249 @@ export const sceneSchema = z.object({
     cssCode: z.string(),
     jsCode: z.string(),
     transition: z.enum(['fade', 'slide-left', 'slide-right', 'slide-up', 'zoom-in', 'zoom-out', 'none']),
-    backgroundColor: z.string().default('#000000')
-})
+    backgroundColor: z.string().default('#000000'),
+    duration: z.number().optional(),
+    nearStill: z
+        .object({
+            from: z.number(),
+            to: z.number(),
+        })
+        .optional(),
+});
 
 export type scene = z.infer<typeof sceneSchema>;
 
+export interface RhythmResult {
+    valid: boolean;
+    errors: string[];
+    min: number;
+    max: number;
+    ratio: number;
+    mean: number;
+    stdDev: number;
+    cv: number;
+    hasNearStill: boolean;
+}
 
-export const videoScriptSchema = z.object({
-    id: z.string(),
-    title: z.string(),
-    description: z.string(),
-    globalStyles: z.string(),
-    globalSetupJs: z.string(),
-    scenes: z.array(sceneSchema),
-    colorPalette: z.object({
-        primary: z.string(),
-        secondary: z.string(),
-        accent: z.string(),
-        background: z.string(),
-        text: z.string()
-    }),
-    fontFamily: z.string().default('Inter')
-})
+/**
+ * Kiểm tra các ràng buộc nhịp điệu (rhythm) trên danh sách scenes:
+ * 1. Tỉ số shot dài nhất / ngắn nhất >= 4 (max/min >= 4 khi scenes >= 2)
+ * 2. Ít nhất 1 đoạn near-still >= 1.5s
+ * 3. Cấm uniform cadence: Hệ số biến thiên độ dài cảnh CV = stdDev / mean >= 0.3
+ */
+export function checkRhythm(
+    scenes: Array<
+        | {
+              duration?: number;
+              nearStill?: { from: number; to: number };
+              visualDescription?: string;
+              moves?: Array<{ nearStill?: boolean; duration?: number }>;
+          }
+        | number
+    >
+): RhythmResult {
+    if (!Array.isArray(scenes) || scenes.length <= 1) {
+        const singleDur =
+            scenes && scenes.length === 1
+                ? typeof scenes[0] === 'number'
+                    ? scenes[0]
+                    : (scenes[0]?.duration ?? 0)
+                : 0;
+        return {
+            valid: true,
+            errors: [],
+            min: singleDur,
+            max: singleDur,
+            ratio: 1,
+            mean: singleDur,
+            stdDev: 0,
+            cv: 0,
+            hasNearStill: false,
+        };
+    }
+
+    const errors: string[] = [];
+    const durations: number[] = [];
+    let hasNearStill = false;
+
+    for (const item of scenes) {
+        if (typeof item === 'number') {
+            durations.push(item);
+        } else if (item && typeof item === 'object') {
+            if (typeof item.duration === 'number') {
+                durations.push(item.duration);
+            }
+            if (
+                item.nearStill &&
+                typeof item.nearStill.from === 'number' &&
+                typeof item.nearStill.to === 'number'
+            ) {
+                if (item.nearStill.to - item.nearStill.from >= 1.5) {
+                    hasNearStill = true;
+                }
+            } else if (typeof item.visualDescription === 'string') {
+                const text = item.visualDescription.toLowerCase();
+                const match = text.match(/near[-_]?still[^\d]*(\d+(?:\.\d+)?)/);
+                if (match) {
+                    if (parseFloat(match[1]) >= 1.5) {
+                        hasNearStill = true;
+                    }
+                    // Nếu ghi rõ số lượng giây nhưng < 1.5s thì không đạt điều kiện
+                } else if (
+                    text.includes('nearstill') ||
+                    text.includes('near-still') ||
+                    text.includes('near still')
+                ) {
+                    // Không có số giây cụ thể: chỉ chấp nhận khi scene có duration >= 1.5s (hoặc chưa đo duration)
+                    const dur = typeof item.duration === 'number' ? item.duration : undefined;
+                    if (dur === undefined || dur >= 1.5) {
+                        hasNearStill = true;
+                    }
+                }
+            } else if (Array.isArray(item.moves)) {
+                for (const m of item.moves) {
+                    if (m && (m.nearStill || (typeof m.duration === 'number' && m.duration >= 1.5))) {
+                        hasNearStill = true;
+                    }
+                }
+            }
+        }
+    }
+
+    if (durations.length === 0) {
+        return {
+            valid: true,
+            errors: [],
+            min: 0,
+            max: 0,
+            ratio: 0,
+            mean: 0,
+            stdDev: 0,
+            cv: 0,
+            hasNearStill,
+        };
+    }
+
+    const min = Math.min(...durations);
+    const max = Math.max(...durations);
+    const ratio = min > 0 ? max / min : (max > 0 ? Infinity : 0);
+
+    const n = durations.length;
+    const mean = durations.reduce((sum, d) => sum + d, 0) / n;
+    const variance = durations.reduce((sum, d) => sum + Math.pow(d - mean, 2), 0) / n;
+    const stdDev = Math.sqrt(variance);
+    const cv = mean > 0 ? stdDev / mean : 0;
+
+    // Constraint 1: ratio >= 4
+    if (ratio < 4) {
+        errors.push(`Tỉ số shot dài nhất / ngắn nhất phải >= 4 (hiện tại: ${ratio.toFixed(2)})`);
+    }
+
+    // Constraint 2: nearStill >= 1.5s
+    if (!hasNearStill) {
+        errors.push('Kịch bản phải có ít nhất 1 đoạn near-still >= 1.5s');
+    }
+
+    // Constraint 3: cv >= 0.3
+    if (cv < 0.3) {
+        errors.push(
+            `Hệ số biến thiên độ dài cảnh (CV) phải >= 0.3 để tránh uniform cadence (hiện tại: ${cv.toFixed(2)})`
+        );
+    }
+
+    return {
+        valid: errors.length === 0,
+        errors,
+        min,
+        max,
+        ratio,
+        mean,
+        stdDev,
+        cv,
+        hasNearStill,
+    };
+}
+
+export const videoScriptSchema = z
+    .object({
+        id: z.string(),
+        title: z.string(),
+        description: z.string(),
+        globalStyles: z.string(),
+        globalSetupJs: z.string(),
+        scenes: z.array(sceneSchema),
+        boundaries: z.array(boundarySchema).default([]),
+        colorPalette: z.object({
+            primary: z.string(),
+            secondary: z.string(),
+            accent: z.string(),
+            background: z.string(),
+            text: z.string(),
+        }),
+        fontFamily: z.string().default('Inter'),
+    })
+    .superRefine((data, ctx) => {
+        const scenes = data.scenes || [];
+        const boundaries = data.boundaries || [];
+
+        // 1. Boundary count & continuity checks
+        if (scenes.length >= 1) {
+            const expectedBoundaryCount = scenes.length - 1;
+            if (boundaries.length !== expectedBoundaryCount) {
+                ctx.addIssue({
+                    code: z.ZodIssueCode.custom,
+                    path: ['boundaries'],
+                    message: `Số lượng boundaries (${boundaries.length}) phải bằng scenes.length - 1 (${expectedBoundaryCount})`,
+                });
+            } else {
+                for (let i = 0; i < boundaries.length; i++) {
+                    const b = boundaries[i];
+                    const fromExpected = scenes[i].id;
+                    const toExpected = scenes[i + 1].id;
+                    if (b.fromScene !== fromExpected || b.toScene !== toExpected) {
+                        ctx.addIssue({
+                            code: z.ZodIssueCode.custom,
+                            path: ['boundaries', i],
+                            message: `Boundary ${b.id || i} không liên tục: phải nối từ scene '${fromExpected}' sang '${toExpected}', nhưng nhận được '${b.fromScene}' -> '${b.toScene}'`,
+                        });
+                    }
+                }
+            }
+        }
+
+        // 2. HardCut reason check
+        for (let i = 0; i < boundaries.length; i++) {
+            const b = boundaries[i];
+            if (b.carry?.mechanism === 'hardCut') {
+                if (!b.carry.reason || b.carry.reason.trim().length === 0) {
+                    ctx.addIssue({
+                        code: z.ZodIssueCode.custom,
+                        path: ['boundaries', i, 'carry', 'reason'],
+                        message: `Boundary ${b.id || i}: mechanism 'hardCut' bắt buộc phải có reason giải thích`,
+                    });
+                }
+            }
+        }
+
+        // 3. Rhythm checks (when scenes >= 2 and durations/nearStill are provided)
+        if (scenes.length >= 2) {
+            const hasDurations = scenes.some(
+                (s) => typeof s.duration === 'number' || s.nearStill !== undefined
+            );
+            if (hasDurations) {
+                const rhythm = checkRhythm(scenes);
+                if (!rhythm.valid) {
+                    for (const err of rhythm.errors) {
+                        ctx.addIssue({
+                            code: z.ZodIssueCode.custom,
+                            path: ['scenes'],
+                            message: err,
+                        });
+                    }
+                }
+            }
+        }
+    });
 
 export type videoScript = z.infer<typeof videoScriptSchema>;
 

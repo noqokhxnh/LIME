@@ -65,6 +65,17 @@ describe("Workstream WS-B (Spec B): Deterministic Rendering Contract", () => {
         backgroundColor: "#1a1a1a",
       },
     ],
+    boundaries: [
+      {
+        id: "b1",
+        fromScene: "scene-1",
+        toScene: "scene-2",
+        carry: {
+          element: "#scene-1 .banner",
+          mechanism: "morph",
+        },
+      },
+    ],
     colorPalette: {
       primary: "#e11d48",
       secondary: "#be123c",
