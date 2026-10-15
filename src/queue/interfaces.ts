@@ -1,5 +1,6 @@
 import { type videoRequest, type videoScript } from "../llm/schema.js";
 import { type fullPipelineResult } from "../pipeline/orchestrator.js";
+import { type QAReport } from "../pipeline/oracleQa.js";
 
 export interface JobProgress {
     phase: string;
@@ -29,7 +30,7 @@ export interface IVideoQueue {
 
     /** Register the worker processing handler */
     process(handler: (data: JobData, updateProgress: (p: JobProgress) => Promise<void>) => Promise<fullPipelineResult>): void;
-    
+
     /** Start listening for global events (completed, failed, progress) on the API side */
     startListeners(): void;
 
@@ -43,7 +44,7 @@ export interface IVideoQueue {
 // Emitting exactly what index.ts expects for /api/jobs
 export interface JobRecord {
     jobId: string;
-    status: 'queued' | 'running' | 'completed' | 'failed';
+    status: 'queued' | 'running' | 'completed' | 'failed' | 'qa_failed';
     request: videoRequest;
     createdAt: string;
     updatedAt: string;
@@ -51,4 +52,6 @@ export interface JobRecord {
     result?: fullPipelineResult;
     error?: string;
     seed?: number;
+    qaStatus?: 'pass' | 'warn' | 'fail' | 'qa_failed';
+    qaReport?: QAReport;
 }

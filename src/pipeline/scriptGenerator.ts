@@ -102,13 +102,17 @@ export function stripMarkdownJson(responseText: string): string {
 
 export async function generateScript(
     request: videoRequest,
-    onProgress?: (msg: string) => void
+    onProgress?: (msg: string) => void,
+    qaFeedback?: string
 ): Promise<videoScript> {
     const llm = getLLMClient();
     const systemPrompt = readFileSync(SYSTEM_prompt_PATH, 'utf-8');
 
     const preset = VIDEO_PRESETS[request.aspectRatio];
-    const userPrompt = buildUserPrompt(request, preset);
+    let basePrompt = buildUserPrompt(request, preset);
+    if (qaFeedback) {
+        basePrompt += `\n\n--- LƯU Ý ĐẶC BIỆT TỪ ORACLE QA (Lần thử trước bị từ chối, hãy sửa triệt để các lỗi sau) ---\n${qaFeedback}\n`;
+    }
     let lastError: Error | null = null;
 
     for (let attempt = 1; attempt <= 3; attempt++) { // 3 = max retry
@@ -116,8 +120,8 @@ export async function generateScript(
 
         try {
             const promptToSend = attempt === 1
-                ? userPrompt
-                : `${userPrompt}\n\nLần trước bị lỗi, hãy sửa lỗi sau:\n${lastError?.message}`;
+                ? basePrompt
+                : `${basePrompt}\n\nLần trước bị lỗi, hãy sửa lỗi sau:\n${lastError?.message}`;
 
             const responseText = await llm.generate(systemPrompt, promptToSend);
 
