@@ -5,6 +5,7 @@ import {
     timelineEventSchema,
 } from "../llm/schema.js";
 import { launchPreviewBrowser, loadAndPreparePage } from "./preview.js";
+import { RNG } from "./rng.js";
 
 export {
     type TimelineEvent,
@@ -13,6 +14,116 @@ export {
 };
 
 export const DEFAULT_SFX_SAMPLE_RATE = 44100;
+
+export interface SynthesizedAudio {
+    left: Float32Array;
+    right: Float32Array;
+    sampleRate: number;
+    duration: number;
+}
+
+/**
+ * Phân bổ âm lượng kênh trái/phải theo giá trị pan [-1, 1] sử dụng thuật toán Constant Power Panning.
+ */
+export function applyPan(
+    mono: Float32Array,
+    pan: number = 0
+): { left: Float32Array; right: Float32Array } {
+    const clampedPan = Math.max(-1, Math.min(1, pan));
+    const angle = ((clampedPan + 1) * Math.PI) / 4;
+    const gainL = Math.cos(angle);
+    const gainR = Math.sin(angle);
+
+    const left = new Float32Array(mono.length);
+    const right = new Float32Array(mono.length);
+    for (let i = 0; i < mono.length; i++) {
+        left[i] = mono[i] * gainL;
+        right[i] = mono[i] * gainR;
+    }
+    return { left, right };
+}
+
+/**
+ * Vật liệu "air" (whoosh): Tiếng gió lướt nhanh tạo bởi tiếng ồn hồng qua bộ lọc dải thông
+ * quét tần số (swept bandpass filter) và envelope cong mượt mà.
+ */
+export function synthesizeAir(
+    intensity: number,
+    options?: {
+        seed?: number;
+        sampleRate?: number;
+        pan?: number;
+    }
+): SynthesizedAudio {
+    const sampleRate = options?.sampleRate ?? DEFAULT_SFX_SAMPLE_RATE;
+    const clampedIntensity = Math.max(0, Math.min(1, intensity));
+    const seed = options?.seed ?? 0x414952; // 'AIR'
+    const rng = RNG(seed);
+
+    // Thời lượng và độ lợi tỉ lệ thuận với intensity (0.2s - 0.65s)
+    const duration = 0.2 + clampedIntensity * 0.45;
+    const numSamples = Math.max(1, Math.floor(duration * sampleRate));
+    const gain = 0.2 + clampedIntensity * 0.75;
+
+    const mono = new Float32Array(numSamples);
+
+    // Trạng thái bộ lọc Paul Kellet pink noise
+    let b0 = 0;
+    let b1 = 0;
+    let b2 = 0;
+
+    // Trạng thái bộ lọc Biquad bandpass
+    let x1 = 0;
+    let x2 = 0;
+    let y1 = 0;
+    let y2 = 0;
+
+    const Q = 1.8;
+    for (let i = 0; i < numSamples; i++) {
+        const progress = i / numSamples;
+        const env = Math.sin(Math.PI * progress) ** 1.8;
+
+        // Sinh tiếng ồn trắng từ seeded PRNG thuần túy (không dùng Math.random)
+        const white = rng() * 2 - 1;
+
+        // Tiếng ồn hồng (pink noise)
+        b0 = 0.99886 * b0 + white * 0.0555179;
+        b1 = 0.99332 * b1 + white * 0.0750759;
+        b2 = 0.96900 * b2 + white * 0.153852;
+        const pink = b0 + b1 + b2 + white * 0.5362;
+
+        // Quét tần số trung tâm từ 900Hz lên 3200Hz rồi hạ dần
+        const fc = 900 + 2300 * env;
+        const w0 = (2 * Math.PI * fc) / sampleRate;
+        const alpha = Math.sin(w0) / (2 * Q);
+
+        const a0 = 1 + alpha;
+        const a1 = -2 * Math.cos(w0);
+        const a2 = 1 - alpha;
+        const coefB0 = alpha / a0;
+        const coefB2 = -alpha / a0;
+        const coefA1 = a1 / a0;
+        const coefA2 = a2 / a0;
+
+        const input = pink * 0.4 + white * 0.6;
+        const filtered = coefB0 * input + coefB2 * x2 - coefA1 * y1 - coefA2 * y2;
+
+        x2 = x1;
+        x1 = input;
+        y2 = y1;
+        y1 = filtered;
+
+        mono[i] = filtered * gain * env;
+    }
+
+    const { left, right } = applyPan(mono, options?.pan ?? 0);
+    return {
+        left,
+        right,
+        sampleRate,
+        duration,
+    };
+}
 
 /**
  * Trích xuất danh sách timeline events từ một Playwright Page đã chuẩn bị xong.
