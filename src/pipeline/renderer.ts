@@ -284,7 +284,7 @@ export async function renderVideo(options: RenderVideoOptions): Promise<string> 
                         } else {
                             // Có chuyển động: lấy mẫu K sub-frames và pha trộn trong Linear Light
                             accumulator!.reset();
-                            const subTimes = calculateSubFrameTimestamps(i, fps, shutterSamples, seed);
+                            const subTimes = calculateSubFrameTimestamps(i, fps, shutterSamples);
 
                             for (const subT of subTimes) {
                                 let subFrameData: Uint8Array;

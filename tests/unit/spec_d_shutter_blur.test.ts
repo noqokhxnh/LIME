@@ -305,7 +305,7 @@ describe("Workstream WS-D (Spec D): Shutter Motion Blur", () => {
             const frameIndex = 2; // t0 = 2 / 30 = 0.06666...
             const frameDuration = 1 / fps; // 0.03333...
 
-            const timestamps = calculateSubFrameTimestamps(frameIndex, fps, K, 12345);
+            const timestamps = calculateSubFrameTimestamps(frameIndex, fps, K);
             assert.strictEqual(timestamps.length, K);
 
             for (let s = 0; s < K; s++) {

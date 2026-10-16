@@ -5,13 +5,12 @@ import { seekToTimestamp } from "./preview.js";
 /**
  * Tính toán danh sách mốc thời gian của K sub-frames cho frame thứ frameIndex (Spec D).
  * Mỗi sub-frame được lấy mẫu tại t0 + (s + 0.5) / K * frameDuration.
- * Đảm bảo tính xác định (Spec B): chỉ phụ thuộc vào (seed, frameIndex, fps, K).
+ * Đảm bảo tính xác định (Spec B): chỉ phụ thuộc vào (frameIndex, fps, K).
  */
 export function calculateSubFrameTimestamps(
     frameIndex: number,
     fps: number,
-    shutterSamples: number = 8,
-    seed: number = 0
+    shutterSamples: number = 8
 ): number[] {
     const K = Math.max(1, Math.floor(shutterSamples));
     const frameDuration = 1 / fps;
