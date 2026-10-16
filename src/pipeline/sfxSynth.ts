@@ -1,3 +1,4 @@
+import { writeFileSync } from "node:fs";
 import { type Browser, type Page } from "playwright";
 import {
     type TimelineEvent,
@@ -5,7 +6,7 @@ import {
     timelineEventSchema,
 } from "../llm/schema.js";
 import { launchPreviewBrowser, loadAndPreparePage } from "./preview.js";
-import { RNG } from "./rng.js";
+import { RNG, hashString32 } from "./rng.js";
 
 export {
     type TimelineEvent,
@@ -399,6 +400,99 @@ export function synthesizeMaterial(
             throw new Error(`[Spec E] Vật liệu không hỗ trợ: ${exhaustiveCheck}`);
         }
     }
+}
+
+export interface SfxTrackResult {
+    wavBuffer: Buffer;
+    left: Float32Array;
+    right: Float32Array;
+    durationSec: number;
+    sampleRate: number;
+    hasEvents: boolean;
+}
+
+/**
+ * Đặt các hiệu ứng âm thanh (SFX) vào các mốc thời gian chính xác trên timeline.
+ * Đảm bảo độ lệch thời gian onset không vượt quá ±50ms so với mốc t đã khai báo.
+ */
+export function generateSfxTrack(
+    events: TimelineEvent[],
+    totalDurationSec: number,
+    options?: {
+        sampleRate?: number;
+        seed?: number;
+        volume?: number;
+    }
+): SfxTrackResult {
+    const sampleRate = options?.sampleRate ?? DEFAULT_SFX_SAMPLE_RATE;
+    const baseSeed = options?.seed ?? 0x534658; // 'SFX'
+    const volume = Math.max(0, options?.volume ?? 1.0);
+    const validDuration = Math.max(0.1, totalDurationSec);
+    const totalSamples = Math.ceil(validDuration * sampleRate);
+
+    const trackL = new Float32Array(totalSamples);
+    const trackR = new Float32Array(totalSamples);
+
+    const validEvents = (events || []).filter(
+        (e) => typeof e.t === "number" && e.t >= 0 && e.t < validDuration
+    );
+
+    for (let i = 0; i < validEvents.length; i++) {
+        const evt = validEvents[i];
+        // Đặt chính xác tại mẫu ứng với thời điểm t
+        const startSample = Math.round(evt.t * sampleRate);
+        const eventSeed = (baseSeed + hashString32(`${evt.material}:${evt.t}:${i}`)) >>> 0;
+
+        const sfx = synthesizeMaterial(evt.material, evt.intensity, {
+            seed: eventSeed,
+            sampleRate,
+            pan: evt.pan,
+        });
+
+        const numSfxSamples = sfx.left.length;
+        for (let s = 0; s < numSfxSamples; s++) {
+            const targetIdx = startSample + s;
+            if (targetIdx < totalSamples) {
+                trackL[targetIdx] += sfx.left[s] * volume;
+                trackR[targetIdx] += sfx.right[s] * volume;
+            }
+        }
+    }
+
+    // Giới hạn mềm (soft clip) chống vỡ tiếng khi có nhiều event chồng lấn
+    for (let i = 0; i < totalSamples; i++) {
+        trackL[i] = Math.tanh(trackL[i]);
+        trackR[i] = Math.tanh(trackR[i]);
+    }
+
+    const wavBuffer = encodeWavBuffer([trackL, trackR], sampleRate);
+
+    return {
+        wavBuffer,
+        left: trackL,
+        right: trackR,
+        durationSec: validDuration,
+        sampleRate,
+        hasEvents: validEvents.length > 0,
+    };
+}
+
+/**
+ * Ghi track SFX hoàn chỉnh ra tệp WAV trên đĩa.
+ */
+export function saveSfxTrack(
+    events: TimelineEvent[],
+    totalDurationSec: number,
+    outputPath: string,
+    options?: {
+        sampleRate?: number;
+        seed?: number;
+        volume?: number;
+    }
+): SfxTrackResult {
+    const result = generateSfxTrack(events, totalDurationSec, options);
+    writeFileSync(outputPath, result.wavBuffer);
+    return result;
 }
 
 /**
