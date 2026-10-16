@@ -496,6 +496,85 @@ export function saveSfxTrack(
 }
 
 /**
+ * Tạo phản hồi xung lực nhân tạo (synthetic impulse response) mô phỏng không gian âm học chung.
+ * Sinh hoàn toàn tất định bằng seeded PRNG, gồm các phản xạ sớm (early reflections)
+ * và trường âm vang phân rã hàm mũ (diffuse exponential decay) với wet ~15%.
+ */
+export function generateSyntheticImpulseResponse(options?: {
+    durationSec?: number;
+    rt60?: number;
+    sampleRate?: number;
+    seed?: number;
+}): { wavBuffer: Buffer; durationSec: number; left: Float32Array; right: Float32Array } {
+    const durationSec = Math.max(0.2, options?.durationSec ?? 0.8);
+    const rt60 = Math.max(0.1, options?.rt60 ?? 0.6);
+    const sampleRate = options?.sampleRate ?? DEFAULT_SFX_SAMPLE_RATE;
+    const baseSeed = options?.seed ?? 0x52455642; // 'REVB'
+
+    const rngL = RNG(baseSeed);
+    const rngR = RNG((baseSeed ^ 0x9e3779b9) >>> 0);
+
+    const numSamples = Math.floor(durationSec * sampleRate);
+    const left = new Float32Array(numSamples);
+    const right = new Float32Array(numSamples);
+
+    // Tau suy giảm tương ứng với thời gian RT60 (-60dB <=> e^(-6.908))
+    const tau = rt60 / 6.908;
+
+    // Phản xạ sớm (early reflection delay taps tính bằng giây và hệ số khuếch đại)
+    const earlyTaps = [
+        { t: 0.012, ampL: 0.55, ampR: 0.25 },
+        { t: 0.021, ampL: 0.22, ampR: 0.48 },
+        { t: 0.035, ampL: 0.38, ampR: 0.18 },
+        { t: 0.048, ampL: 0.15, ampR: 0.32 },
+        { t: 0.063, ampL: 0.25, ampR: 0.22 },
+    ];
+
+    for (const tap of earlyTaps) {
+        const idx = Math.round(tap.t * sampleRate);
+        if (idx < numSamples) {
+            left[idx] += tap.ampL;
+            right[idx] += tap.ampR;
+        }
+    }
+
+    // Âm vang muộn khuếch tán với bộ lọc suy giảm tần số cao (air damping)
+    let filterL = 0;
+    let filterR = 0;
+    const damping = 0.25;
+
+    for (let i = 0; i < numSamples; i++) {
+        const t = i / sampleRate;
+        const decay = Math.exp(-t / tau);
+
+        const noiseL = (rngL() * 2 - 1) * decay;
+        const noiseR = (rngR() * 2 - 1) * decay;
+
+        // Bộ lọc lowpass đơn giản mô phỏng không khí hấp thụ tần số cao theo thời gian
+        filterL = filterL * damping + noiseL * (1 - damping);
+        filterR = filterR * damping + noiseR * (1 - damping);
+
+        left[i] += filterL * 0.45;
+        right[i] += filterR * 0.45;
+    }
+
+    // Chuẩn hóa đỉnh (normalize peak) để tránh clipping
+    let maxPeak = 0;
+    for (let i = 0; i < numSamples; i++) {
+        maxPeak = Math.max(maxPeak, Math.abs(left[i]), Math.abs(right[i]));
+    }
+    if (maxPeak > 0) {
+        for (let i = 0; i < numSamples; i++) {
+            left[i] /= maxPeak;
+            right[i] /= maxPeak;
+        }
+    }
+
+    const wavBuffer = encodeWavBuffer([left, right], sampleRate);
+    return { wavBuffer, durationSec, left, right };
+}
+
+/**
  * Trích xuất danh sách timeline events từ một Playwright Page đã chuẩn bị xong.
  * Gọi window.__events() từ comp. Nếu không khai báo hoặc rỗng, trả về mảng rỗng [].
  */

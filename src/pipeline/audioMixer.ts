@@ -1,6 +1,8 @@
 import { execFile as execFileCb } from "node:child_process";
-import { existsSync } from "node:fs";
+import { existsSync, rmSync, writeFileSync } from "node:fs";
+import { dirname, join } from "node:path";
 import { promisify } from "node:util";
+import { generateSyntheticImpulseResponse } from "./sfxSynth.js";
 
 const execFile = promisify(execFileCb);
 
@@ -106,4 +108,49 @@ export async function duckBgm(
         "-c:a", "pcm_s16le",
         outputPath,
     ]);
+}
+
+/**
+ * Đưa toàn bộ các layer âm thanh qua bộ tích chập vang dội chung (convolver reverb)
+ * sử dụng đáp ứng xung lực nhân tạo (synthetic impulse response) với wet ~15%, dry ~85%.
+ */
+export async function applySharedReverb(
+    inputAudioPath: string,
+    outputPath: string,
+    options?: {
+        irPath?: string;
+        wet?: number; // Mặc định 0.15 (15%)
+        dry?: number; // Mặc định 0.85 (85%)
+        seed?: number;
+    }
+): Promise<void> {
+    const wet = options?.wet ?? 0.15;
+    const dry = options?.dry ?? 0.85;
+
+    let tempIrPath = options?.irPath;
+    let cleanupTempIr = false;
+
+    if (!tempIrPath || !existsSync(tempIrPath)) {
+        // Tên file tạm tất định, không phụ thuộc Date.now()
+        tempIrPath = join(dirname(outputPath), "temp_shared_ir.wav");
+        const ir = generateSyntheticImpulseResponse({ seed: options?.seed });
+        writeFileSync(tempIrPath, ir.wavBuffer);
+        cleanupTempIr = true;
+    }
+
+    try {
+        await execFile("ffmpeg", [
+            "-y",
+            "-i", inputAudioPath,
+            "-i", tempIrPath,
+            "-filter_complex", `[0:a]aformat=sample_rates=44100:channel_layouts=stereo[dry];[dry][1:a]afir=dry=${dry}:wet=${wet}[out]`,
+            "-map", "[out]",
+            "-c:a", "pcm_s16le",
+            outputPath,
+        ]);
+    } finally {
+        if (cleanupTempIr && existsSync(tempIrPath)) {
+            rmSync(tempIrPath, { force: true });
+        }
+    }
 }
