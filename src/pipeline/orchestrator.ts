@@ -29,6 +29,14 @@ export interface orchestratorOptions {
     domSampler?: DOMSampler;
     batchDomSampler?: BatchDOMSampler;
     audioAnalyzer?: (audioPath: string) => Promise<AudioStats>;
+    /**
+     * Bỏ qua hiệu ứng shutter motion blur trong khâu render (Spec D)
+     */
+    skipShutterBlur?: boolean;
+    /**
+     * Số lượng mẫu sub-frame (K) cho shutter motion blur (Spec D, mặc định 8)
+     */
+    shutterSamples?: number;
 }
 
 export interface fullPipelineResult extends pipelineResult {
@@ -206,6 +214,7 @@ export async function runFullPipeline(option: orchestratorOptions): Promise<full
                     domSampler: option.domSampler,
                     batchDomSampler: option.batchDomSampler,
                     audioAnalyzer: option.audioAnalyzer,
+                    hasShutterBlur: option.skipShutterBlur ? false : undefined,
                 });
                 timing["oracle_qa"] = Date.now() - phaseStart;
                 qaStatus = qaReport.qaStatus;
@@ -301,6 +310,9 @@ export async function runFullPipeline(option: orchestratorOptions): Promise<full
                     logProgress("render", scaled, msg);
                 },
                 watermark: request.watermark,
+                skipShutterBlur: option.skipShutterBlur,
+                shutterSamples: option.shutterSamples,
+                seed: currentSeed,
             });
             timing["render"] = Date.now() - phaseStart;
         }

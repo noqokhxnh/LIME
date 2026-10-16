@@ -98,6 +98,7 @@ export interface OracleQaOptions {
     batchDomSampler?: BatchDOMSampler;
     audioAnalyzer?: (audioPath: string) => Promise<AudioStats>;
     page?: Page;
+    hasShutterBlur?: boolean;
 }
 
 /**
@@ -590,8 +591,11 @@ export async function createBrowserDOMSampler(
 
     await loadAndPreparePage(page, htmlPath, width, height);
 
+    // Kiểm tra marker window.__hasShutterBlur trước khi fallback sang regex HTML (Spec D)
+    const markerBlur = await page.evaluate(() => !!(window as any).__hasShutterBlur).catch(() => false);
     const htmlContent = existsSync(htmlPath) ? readFileSync(htmlPath, 'utf-8') : '';
-    const hasShutterBlur = /shutter[-_]?blur|motion[-_]?blur|feGaussianBlur|filter:\s*blur/i.test(htmlContent);
+    const regexBlur = /shutter[-_]?blur|motion[-_]?blur|feGaussianBlur|filter:\s*blur/i.test(htmlContent);
+    const hasShutterBlur = markerBlur || regexBlur;
 
     let currentSeekTime: number | null = null;
 
@@ -680,7 +684,7 @@ export async function runOracleQa(options: OracleQaOptions): Promise<QAReport> {
     let domSampler = options.domSampler;
     let batchDomSampler = options.batchDomSampler;
     let cleanupBrowser: (() => Promise<void>) | null = null;
-    let hasShutterBlur = false;
+    let hasShutterBlur = options.hasShutterBlur ?? false;
 
     if (!domSampler && !batchDomSampler) {
         if (existsSync(htmlPath)) {
@@ -694,7 +698,9 @@ export async function runOracleQa(options: OracleQaOptions): Promise<QAReport> {
                 domSampler = browserSetup.domSampler;
                 batchDomSampler = browserSetup.batchDomSampler;
                 cleanupBrowser = browserSetup.cleanup;
-                hasShutterBlur = browserSetup.hasShutterBlur;
+                if (options.hasShutterBlur === undefined) {
+                    hasShutterBlur = browserSetup.hasShutterBlur;
+                }
             } catch (err: any) {
                 console.warn(`[Oracle QA] Không thể khởi động browser để lấy mẫu DOM (${err?.message || err}).`);
                 domSampler = async () => null;
@@ -702,11 +708,23 @@ export async function runOracleQa(options: OracleQaOptions): Promise<QAReport> {
         } else {
             domSampler = async () => null;
         }
-    } else if (!domSampler && batchDomSampler) {
-        domSampler = async (t, s) => {
-            const res = await batchDomSampler!(t, [s]);
-            return res[s] ?? null;
-        };
+    } else {
+        if (options.hasShutterBlur === undefined) {
+            if (options.page) {
+                const markerBlur = await options.page.evaluate(() => !!(window as any).__hasShutterBlur).catch(() => false);
+                hasShutterBlur = markerBlur;
+            }
+            if (!hasShutterBlur && existsSync(htmlPath)) {
+                const htmlContent = readFileSync(htmlPath, 'utf-8');
+                hasShutterBlur = /shutter[-_]?blur|motion[-_]?blur|feGaussianBlur|filter:\s*blur/i.test(htmlContent);
+            }
+        }
+        if (!domSampler && batchDomSampler) {
+            domSampler = async (t, s) => {
+                const res = await batchDomSampler!(t, [s]);
+                return res[s] ?? null;
+            };
+        }
     }
 
     let continuityLeg: ContinuityLegResult;

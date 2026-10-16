@@ -332,6 +332,14 @@ ${allScenesHtml}
             return min + val * (max - min);
         };
 
+        // Spec D: Comp Motion API contract
+        if (typeof window.__motion === 'undefined') {
+            window.__motion = null;
+        }
+        if (typeof window.__hasShutterBlur === 'undefined') {
+            window.__hasShutterBlur = false;
+        }
+
         window.__registerScene = function(sceneId, tl, duration) {
             if (!tl) return;
             if (window.__sceneTimelines[sceneId]) return;
