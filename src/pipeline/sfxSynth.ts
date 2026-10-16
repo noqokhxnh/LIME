@@ -313,6 +313,95 @@ export function synthesizeSub(
 }
 
 /**
+ * Vật liệu "bubble" (pop): Âm thanh bọt nước hoặc nút bấm nảy (pitch-up blip),
+ * tạo bởi sóng sin quét vút nhanh tần số lên cao (frequency sweep upward) kết hợp envelope phân rã nhanh.
+ */
+export function synthesizeBubble(
+    intensity: number,
+    options?: {
+        seed?: number;
+        sampleRate?: number;
+        pan?: number;
+    }
+): SynthesizedAudio {
+    const sampleRate = options?.sampleRate ?? DEFAULT_SFX_SAMPLE_RATE;
+    const clampedIntensity = Math.max(0, Math.min(1, intensity));
+
+    // Thời lượng bọt nước nổ (0.05s - 0.15s)
+    const duration = 0.05 + clampedIntensity * 0.1;
+    const numSamples = Math.max(1, Math.floor(duration * sampleRate));
+    const gain = 0.25 + clampedIntensity * 0.75;
+
+    const mono = new Float32Array(numSamples);
+
+    // Tần số khởi đầu (350Hz - 550Hz) quét nhanh lên (1200Hz - 2200Hz)
+    const fStart = 380 + 150 * (1 - clampedIntensity);
+    const fEnd = 1300 + 800 * clampedIntensity;
+
+    const tauAmp = 0.02 + 0.035 * clampedIntensity;
+    let phase = 0;
+
+    for (let i = 0; i < numSamples; i++) {
+        const t = i / sampleRate;
+        const progress = Math.min(1, t / duration);
+
+        // Đường cong tần số quét vút lên trên (quét dạng luỹ thừa 2)
+        const freq = fStart + (fEnd - fStart) * Math.pow(progress, 1.8);
+
+        phase += (2 * Math.PI * freq) / sampleRate;
+
+        // Tấn công cực bén trong 2.5ms đầu
+        const attack = Math.min(1, t / 0.0025);
+        // Suy giảm nhanh của bọt khí
+        const decay = Math.exp(-t / tauAmp);
+
+        const fundamental = Math.sin(phase);
+        const secondHarmonic = Math.sin(phase * 2) * 0.15;
+
+        const sample = (fundamental + secondHarmonic) * attack * decay * gain;
+        mono[i] = Math.max(-1, Math.min(1, sample));
+    }
+
+    const { left, right } = applyPan(mono, options?.pan ?? 0);
+    return {
+        left,
+        right,
+        sampleRate,
+        duration,
+    };
+}
+
+/**
+ * Hàm điều phối tổng hợp âm thanh theo đúng vật liệu chỉ định.
+ */
+export function synthesizeMaterial(
+    material: TimelineMaterial,
+    intensity: number,
+    options?: {
+        seed?: number;
+        sampleRate?: number;
+        pan?: number;
+    }
+): SynthesizedAudio {
+    switch (material) {
+        case "air":
+            return synthesizeAir(intensity, options);
+        case "wood":
+            return synthesizeWood(intensity, options);
+        case "glass":
+            return synthesizeGlass(intensity, options);
+        case "sub":
+            return synthesizeSub(intensity, options);
+        case "bubble":
+            return synthesizeBubble(intensity, options);
+        default: {
+            const exhaustiveCheck: never = material;
+            throw new Error(`[Spec E] Vật liệu không hỗ trợ: ${exhaustiveCheck}`);
+        }
+    }
+}
+
+/**
  * Trích xuất danh sách timeline events từ một Playwright Page đã chuẩn bị xong.
  * Gọi window.__events() từ comp. Nếu không khai báo hoặc rỗng, trả về mảng rỗng [].
  */
