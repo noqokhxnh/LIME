@@ -126,6 +126,73 @@ export function synthesizeAir(
 }
 
 /**
+ * Vật liệu "wood" (knock): Tiếng gõ gỗ bao gồm xung kích âm thanh cực ngắn (noise click transient)
+ * kết hợp với dao động hình sin tắt dần rất nhanh (decaying sine burst fundamental).
+ */
+export function synthesizeWood(
+    intensity: number,
+    options?: {
+        seed?: number;
+        sampleRate?: number;
+        pan?: number;
+    }
+): SynthesizedAudio {
+    const sampleRate = options?.sampleRate ?? DEFAULT_SFX_SAMPLE_RATE;
+    const clampedIntensity = Math.max(0, Math.min(1, intensity));
+    const seed = options?.seed ?? 0x574f4f44; // 'WOOD'
+    const rng = RNG(seed);
+
+    // Thời lượng ngắn (0.04s - 0.12s) phản ánh đặc trưng tắt dần nhanh của chất liệu gỗ
+    const duration = 0.04 + clampedIntensity * 0.08;
+    const numSamples = Math.max(1, Math.floor(duration * sampleRate));
+    const gain = 0.25 + clampedIntensity * 0.75;
+
+    const mono = new Float32Array(numSamples);
+
+    // Tần số cơ bản của khối gỗ (450Hz - 580Hz)
+    const baseFreq = 480 + 100 * (1 - clampedIntensity);
+    const harmonicFreq = baseFreq * 2.35; // Họa âm phi điều hòa nhẹ đặc trưng của thanh gỗ
+
+    // Hằng số thời gian suy giảm rất nhanh: tau ~ 12ms - 28ms
+    const tau = 0.012 + 0.016 * clampedIntensity;
+
+    let phase0 = 0;
+    let phase1 = 0;
+
+    for (let i = 0; i < numSamples; i++) {
+        const t = i / sampleRate;
+
+        // Xung kích click ban đầu (transient noise click trong ~4ms đầu)
+        const clickNoise = (rng() * 2 - 1) * Math.exp(-t / 0.0035);
+
+        // Suy giảm hàm mũ cực nhanh của thân khối gỗ
+        const bodyDecay = Math.exp(-t / tau);
+
+        // Hạ tần số nhẹ trong 4ms đầu mô phỏng biến dạng khi bề mặt gỗ va chạm
+        const pitchBend = 1 + 0.4 * Math.exp(-t / 0.004);
+        const f0 = baseFreq * pitchBend;
+        const f1 = harmonicFreq * pitchBend;
+
+        phase0 += (2 * Math.PI * f0) / sampleRate;
+        phase1 += (2 * Math.PI * f1) / sampleRate;
+
+        const body = Math.sin(phase0) * 0.75 + Math.sin(phase1) * 0.25;
+
+        // Trộn giữa click transient và body dao động hình sin
+        const sample = (body * bodyDecay * 0.8 + clickNoise * 0.45) * gain;
+        mono[i] = Math.max(-1, Math.min(1, sample));
+    }
+
+    const { left, right } = applyPan(mono, options?.pan ?? 0);
+    return {
+        left,
+        right,
+        sampleRate,
+        duration,
+    };
+}
+
+/**
  * Trích xuất danh sách timeline events từ một Playwright Page đã chuẩn bị xong.
  * Gọi window.__events() từ comp. Nếu không khai báo hoặc rỗng, trả về mảng rỗng [].
  */
