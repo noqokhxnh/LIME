@@ -28,7 +28,8 @@ import {
     type DOMBox,
 } from "../../src/pipeline/motion.js";
 import { renderVideo } from "../../src/pipeline/renderer.js";
-import { checkCurvesLeg } from "../../src/pipeline/oracleQa.js";
+import { checkCurvesLeg, runOracleQa } from "../../src/pipeline/oracleQa.js";
+import { calculateWillApplyBlur } from "../../src/pipeline/orchestrator.js";
 
 describe("Workstream WS-D (Spec D): Shutter Motion Blur", () => {
     let testTempDir: string;
@@ -415,6 +416,84 @@ describe("Workstream WS-D (Spec D): Shutter Motion Blur", () => {
             const resPass = await checkCurvesLeg(scenes, durations, boundaries, fastDomSampler, 30, true);
             assert.strictEqual(resPass.status, "pass");
             assert.ok(resPass.maxPxPerFrame > 80);
+        });
+
+        it("TC-D13: calculateWillApplyBlur tính đúng cờ blur và runOracleQa nhận hasShutterBlur=true khi skipShutterBlur=false", async () => {
+            // 1. Kiểm tra ánh xạ thuần calculateWillApplyBlur (khớp shouldApplyBlur trong renderVideo)
+            assert.strictEqual(calculateWillApplyBlur(false), true, "skipShutterBlur=false với mẫu mặc định phải bật blur");
+            assert.strictEqual(calculateWillApplyBlur(undefined), true, "skipShutterBlur mặc định (undefined) phải bật blur");
+            assert.strictEqual(calculateWillApplyBlur(true), false, "skipShutterBlur=true phải tắt blur");
+            assert.strictEqual(calculateWillApplyBlur(false, 1), false, "shutterSamples=1 thì không áp dụng multi-sample blur");
+            assert.strictEqual(calculateWillApplyBlur(false, 8), true, "shutterSamples=8 với skipShutterBlur=false phải bật blur");
+
+            // 2. Kiểm tra runOracleQa với willApplyBlur:
+            // Cảnh dịch chuyển nhanh (150 px/frame > 80 px/frame)
+            const scriptSample: any = {
+                id: "qa-blur-test",
+                title: "QA Blur Test",
+                description: "",
+                globalStyles: "",
+                globalSetupJs: "",
+                scenes: [
+                    {
+                        id: "s1",
+                        duration: 1.0,
+                        title: "S1",
+                        subject: "#mover",
+                        voiceOverText: "",
+                        visualDescription: "Moving fast",
+                        htmlCode: "",
+                        cssCode: "",
+                        jsCode: "",
+                        transition: "none",
+                        backgroundColor: "#000",
+                    },
+                ],
+                boundaries: [],
+                colorPalette: { primary: "#fff", secondary: "#000", accent: "#f00", background: "#000", text: "#fff" },
+                fontFamily: "Inter",
+            };
+
+            const fastDomSampler = async (t: number) => ({
+                left: t * 4500, // 150 px/frame tại 30fps
+                top: 50,
+                right: t * 4500 + 50,
+                bottom: 100,
+                width: 50,
+                height: 50,
+            });
+
+            // Khi skipShutterBlur=false => willApplyBlur=true => runOracleQa nhận hasShutterBlur=true và curves pass
+            const willApplyBlurTrue = calculateWillApplyBlur(false, 8);
+            assert.strictEqual(willApplyBlurTrue, true);
+
+            const reportPass = await runOracleQa({
+                script: scriptSample,
+                htmlPath: join(testTempDir, "non_existent.html"),
+                audioResult: { scencesDuration: { s1: 1.0 }, audioFiles: {}, totalDurationSec: 1.0, mixAudioPath: "" },
+                width: 1920,
+                height: 1080,
+                fps: 30,
+                domSampler: fastDomSampler,
+                hasShutterBlur: willApplyBlurTrue,
+            });
+            assert.strictEqual(reportPass.legs.curves.status, "pass", "Curves leg phải pass vì hasShutterBlur=true");
+
+            // Khi skipShutterBlur=true => willApplyBlur=false => runOracleQa nhận hasShutterBlur=false và curves fail
+            const willApplyBlurFalse = calculateWillApplyBlur(true, 8);
+            assert.strictEqual(willApplyBlurFalse, false);
+
+            const reportFail = await runOracleQa({
+                script: scriptSample,
+                htmlPath: join(testTempDir, "non_existent.html"),
+                audioResult: { scencesDuration: { s1: 1.0 }, audioFiles: {}, totalDurationSec: 1.0, mixAudioPath: "" },
+                width: 1920,
+                height: 1080,
+                fps: 30,
+                domSampler: fastDomSampler,
+                hasShutterBlur: willApplyBlurFalse,
+            });
+            assert.strictEqual(reportFail.legs.curves.status, "fail", "Curves leg phải fail khi hasShutterBlur=false và tốc độ vượt ngưỡng");
         });
     });
 });

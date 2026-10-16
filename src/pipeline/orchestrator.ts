@@ -51,6 +51,10 @@ export interface fullPipelineResult extends pipelineResult {
     qaReport?: QAReport;
 }
 
+export function calculateWillApplyBlur(skipShutterBlur?: boolean, shutterSamples?: number): boolean {
+    return !skipShutterBlur && (Math.max(1, Math.floor(shutterSamples ?? 8)) > 1);
+}
+
 export async function runFullPipeline(option: orchestratorOptions): Promise<fullPipelineResult> {
     const { request, script: inputScript, bgmPath, skipPreview, onProgress, outputDir } = option;
 
@@ -201,6 +205,8 @@ export async function runFullPipeline(option: orchestratorOptions): Promise<full
                 phaseStart = Date.now();
                 logProgress("oracle_qa", 77, `Đang chạy kiểm định chất lượng Oracle QA (Lần thử ${attempt}/${maxQaAttempts})`);
 
+                const willApplyBlur = calculateWillApplyBlur(option.skipShutterBlur, option.shutterSamples);
+
                 qaReport = await runOracleQa({
                     script,
                     htmlPath: join(workDir, "index.html"),
@@ -214,7 +220,7 @@ export async function runFullPipeline(option: orchestratorOptions): Promise<full
                     domSampler: option.domSampler,
                     batchDomSampler: option.batchDomSampler,
                     audioAnalyzer: option.audioAnalyzer,
-                    hasShutterBlur: option.skipShutterBlur ? false : undefined,
+                    hasShutterBlur: willApplyBlur,
                 });
                 timing["oracle_qa"] = Date.now() - phaseStart;
                 qaStatus = qaReport.qaStatus;
