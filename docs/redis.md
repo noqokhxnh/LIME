@@ -1,12 +1,12 @@
-# Redis Architecture & Operations in VidTML
+# Redis Architecture & Operations in LIME
 
-Tài liệu này mô tả chi tiết kiến trúc, cấu hình, cách thức vận hành và chiến lược xử lý sự cố khi tích hợp **Redis** (cùng **BullMQ**) vào hệ sinh thái VidTML (`html-to-vid`).
+Tài liệu này mô tả chi tiết kiến trúc, cấu hình, cách thức vận hành và chiến lược xử lý sự cố khi tích hợp **Redis** (cùng **BullMQ**) vào hệ sinh thái **LIME**.
 
 ---
 
 ## 1. Tổng quan vai trò của Redis
 
-Trong VidTML, việc sinh video đòi hỏi tài nguyên CPU, RAM rất lớn (gọi LLM, chạy Chromium headless để chụp từng frame, chạy FFmpeg để mux âm thanh và hình ảnh). Redis đóng vai trò là **Distributed Backbone** (xương sống phân tán) với 4 nhiệm vụ cốt lõi:
+Trong LIME, việc sinh video đòi hỏi tài nguyên CPU, RAM rất lớn (gọi LLM, chạy Chromium headless để chụp từng frame, chạy FFmpeg để mux âm thanh và hình ảnh). Redis đóng vai trò là **Distributed Backbone** (xương sống phân tán) với 4 nhiệm vụ cốt lõi:
 
 ```
 ┌─────────────────┐       ┌───────────────────────────────────────┐
@@ -42,7 +42,7 @@ Hệ thống phân tách thành 2 hàng đợi độc lập để tối ưu hoá
 * **Đặc tính:** Nhẹ về CPU/RAM, chủ yếu chờ I/O mạng từ LLM API.
 * **Worker:** `draftWorker`
 * **Concurrency:** Cao (ví dụ: 5 - 10 jobs đồng thời).
-* **Kết quả:** Lưu kịch bản vào SQLite/Store, bắn event `draft_ready`.
+* **Kết quả:** Lưu kịch bản vào Store/Job Record, bắn event `draft_ready`.
 
 ### 2.2. Queue `video-generation`
 * **Mục đích:** Chạy full pipeline tạo video (TTS, tải hình ảnh, render Playwright Chromium, ghép nhạc nền, mux FFmpeg).
@@ -97,7 +97,7 @@ const defaultJobOptions = {
 
 | Kịch bản sự cố | Rủi ro tiềm ẩn | Chiến lược giải quyết |
 | :--- | :--- | :--- |
-| **1. Redis Crash / Restart** | Mất job đang xếp hàng; Job đang render bị mồ côi (orphaned). | • **AOF Persistence:** Dữ liệu hàng đợi được phục hồi lại ngay khi Redis khởi động.<br>• **Stalled Job Detection:** BullMQ tự động phát hiện job đang `active` bị mất kết nối và đẩy lại vào queue để retry.<br>• **SQLite as Single Source of Truth:** Mọi trạng thái job đều được ghi song song vào SQLite. Khi Redis mất sạch dữ liệu, có thể chạy migration script quét SQLite để nạp lại queue. |
+| **1. Redis Crash / Restart** | Mất job đang xếp hàng; Job đang render bị mồ côi (orphaned). | • **AOF Persistence:** Dữ liệu hàng đợi được phục hồi lại ngay khi Redis khởi động.<br>• **Stalled Job Detection:** BullMQ tự động phát hiện job đang `active` bị mất kết nối và đẩy lại vào queue để retry.<br>• **PostgreSQL & Database as Single Source of Truth:** Mọi trạng thái user, giao dịch và dữ liệu tài khoản đều được lưu trữ an toàn trong PostgreSQL. |
 | **2. Mất kết nối (Network Partition)** | API Server bị treo vô hạn; Render trùng lặp (Duplicate rendering). | • **Fast-Fail tại API:** Đặt `connectTimeout: 5000` và giới hạn retry. Nếu không kết nối được Redis, API lập tức trả về `HTTP 503 Service Unavailable`, không được treo request.<br>• **Worker Lock Timeout:** Mỗi job có lock timeout (`lockDuration: 30s`). Nếu worker mất kết nối quá thời gian lock, worker tự hủy tiến trình render để tránh chạy trùng với worker khác.<br>• **Fail-Open Fallback:** Với Rate Limiting, nếu Redis sập thì tự động fallback sang bộ đếm in-memory cục bộ để không chặn người dùng duyệt web. |
 | **3. Redis hết RAM (OOM)** | Lỗi ghi dữ liệu mới; Queue bị corrupt nếu dùng sai policy. | • **Cấu hình `noeviction`:** Từ chối job mới nhưng bảo toàn dữ liệu hiện tại.<br>• **Không lưu payload nặng:** Tuyệt đối KHÔNG lưu file MP4, WAV, HTML frame, hay Base64 vào Redis. Chỉ lưu metadata nhỏ và đường dẫn file cục bộ.<br>• **Đặt TTL:** Mọi key tạm (`job-cancelled:*`, lock keys) bắt buộc phải có TTL. |
 
