@@ -54,6 +54,27 @@ export const sceneSchema = z.object({
 
 export type scene = z.infer<typeof sceneSchema>;
 
+// ============================================================================
+// SPEC E: SOUND FROM TIMELINE EVENTS CONTRACT
+// ============================================================================
+
+export const timelineMaterialSchema = z.enum([
+    'air',
+    'wood',
+    'glass',
+    'sub',
+    'bubble',
+]);
+export type TimelineMaterial = z.infer<typeof timelineMaterialSchema>;
+
+export const timelineEventSchema = z.object({
+    t: z.number().min(0, 'Thời điểm t (giây) phải >= 0'),
+    material: timelineMaterialSchema,
+    intensity: z.number().min(0).max(1),
+    pan: z.number().min(-1).max(1).optional(),
+});
+export type TimelineEvent = z.infer<typeof timelineEventSchema>;
+
 export interface RhythmResult {
     valid: boolean;
     errors: string[];
@@ -382,7 +403,13 @@ export interface AudioResult {
     audioFiles: Record<string, string>,
     totalDurationSec: number,
     mixAudioPath: string,
-
+    sfxPath?: string,
+    hasSfx?: boolean,
+    loudness?: {
+        integratedLufs: number;
+        truePeakDbtp: number;
+        lra: number;
+    },
 }
 
 export interface renderOptions {

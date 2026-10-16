@@ -1,8 +1,8 @@
-# VidTML API Reference
+# LIME API Reference
 
 Base URL: `http://localhost:3000` (see `PORT` in [README](../README.md#server--storage))
 
-The API server is a Fastify app in `src/index.ts`. All endpoints are JSON unless noted. The web UI at `/` talks to this same API.
+The API server is a Fastify app in `src/index.ts`. All endpoints are JSON unless noted. The web UI at `/` and `/workspace` talks to this same API.
 
 ## Conventions
 
@@ -23,7 +23,7 @@ The API server is a Fastify app in `src/index.ts`. All endpoints are JSON unless
 | GET | `/api/auth/config` | — | Auth configuration (Google OAuth status) |
 | GET | `/api/auth/google` | — | Start Google OAuth sign-in flow (redirects to Google) |
 | GET | `/api/auth/google/callback` | — | Google OAuth callback handler |
-| GET | `/api/health` | — | Health + DB/Redis diagnostics |
+| GET | `/api/health` | — | Health + runtime diagnostics |
 | GET | `/api/settings` | 🔒 | Provider list + user's current selection |
 | PUT | `/api/settings` | 🔒 | Switch LLM/TTS provider at runtime (scoped to current user) |
 | POST | `/api/script/draft` | 🔒 | Generate or regenerate a video script draft (Phase 1) |
@@ -31,6 +31,12 @@ The API server is a Fastify app in `src/index.ts`. All endpoints are JSON unless
 | POST | `/api/brand-kit/upload` | 🔒 | Upload brand logo (PNG, JPEG, SVG, WebP with XSS/XXE sanitization) |
 | GET | `/api/user/brand-kit` | 🔒 | Get current user's brand kit & watermark settings |
 | PUT | `/api/user/brand-kit` | 🔒 | Save/upsert user's brand kit & watermark settings |
+| GET | `/api/billing/plans` | — | Available subscription plans (`creator`, `pro`, `max`) |
+| POST | `/api/billing/vietqr/order` | 🔒 | Create a VietQR payment order |
+| GET | `/api/billing/vietqr/order/:id` | 🔒 | Get VietQR order status |
+| POST | `/api/billing/vietqr/order/:id/claimed` | 🔒 | Confirm payment transfer ("Tôi đã chuyển khoản") |
+| POST | `/api/billing/vietqr/webhook` | — | SePay payment webhook receiver (and `/api/billing/webhook`) |
+| POST | `/api/billing/admin/simulate-test-webhook` | 🔒 | Simulate SePay webhook for sandbox testing |
 | GET | `/api/jobs` | 🔒 | List recent jobs (scoped to current user) |
 | GET | `/api/jobs/:jobId` | 🔒 | Job status + progress logs + result + script |
 | GET | `/api/jobs/:jobId/events` | 🔒 | Realtime SSE progress stream |
@@ -42,7 +48,7 @@ The API server is a Fastify app in `src/index.ts`. All endpoints are JSON unless
 
 ## Authentication
 
-Session-based auth using HttpOnly cookies. Tokens are 32 random bytes; only the SHA-256 hash is stored in SQLite. The raw token lives in the `vidtml_session` cookie.
+Session-based auth using HttpOnly cookies. Tokens are 32 random bytes; only the SHA-256 hash is stored in PostgreSQL (`sessions` table). The raw token lives in the `vidtml_session` cookie.
 
 - **Session TTL:** 7 days
 - **Cookie flags:** `HttpOnly`, `SameSite=Lax`, `Secure` in production
@@ -94,7 +100,7 @@ Responses:
 
 ### `POST /api/auth/logout`
 
-Clears the session cookie and deletes the session row from SQLite. Works even without a valid session (idempotent).
+Clears the session cookie and deletes the session row from PostgreSQL. Works even without a valid session (idempotent).
 
 - `200` → `{ "ok": true }`
 
@@ -164,38 +170,40 @@ Responses:
 ```json
 {
   "status": "ok",
-  "database": "sqlite_connected",
-  "redis": "connected",
-  "timestamp": "2026-08-21T10:00:00.000Z"
+  "llmProvider": "gemini",
+  "ttsProvider": "edge",
+  "timestamp": "2026-10-14T10:00:00.000Z"
 }
 ```
 
-`redis` is `connected` or `disconnected` — the server still serves the UI and answers status queries without Redis; only queueing/SSE degrade.
+Returns system health status and active default LLM/TTS provider configurations.
 
 ## Settings
 
-Provider selection is stored per user in the SQLite `settings` table (survives restarts) and takes precedence over env vars. API keys always come from `.env` — never sent over the wire.
+Provider selection is stored per user in PostgreSQL (`users.preferences` JSONB / `system_settings`) and takes precedence over env vars. API keys always come from `.env` — never sent over the wire.
 
 ### `GET /api/settings` 🔒
 
 ```json
 {
-  "llm": {
-    "provider": "deepseek",
-    "available": [
-      { "id": "openai", "label": "OpenAI (GPT)", "keyConfigured": true, "model": "gpt-4o" },
-      { "id": "gemini", "label": "Google Gemini", "keyConfigured": false, "model": "gemini-2.5-pro" },
-      { "id": "claude", "label": "Anthropic Claude", "keyConfigured": false, "model": "claude-sonnet-4-20250514" },
-      { "id": "deepseek", "label": "DeepSeek", "keyConfigured": true, "model": "deepseek-chat" }
-    ]
+  "settings": {
+    "llmProvider": "deepseek",
+    "llmModel": "deepseek-chat",
+    "ttsProvider": "vieneu",
+    "ttsVoice": "vi-VN-HoaiMyNeural",
+    "elevenlabsApiKey": "",
+    "maintenanceMode": false,
+    "systemNotice": "",
+    "maxConcurrentJobs": 3,
+    "allowSandboxPayments": true
   },
-  "tts": {
-    "provider": "edge",
-    "available": [
-      { "id": "edge", "label": "Edge TTS (miễn phí)", "keyConfigured": true, "model": null },
-      { "id": "openai", "label": "OpenAI", "keyConfigured": true, "model": null },
-      { "id": "google", "label": "Google", "keyConfigured": false, "model": null },
-      { "id": "elevenlabs", "label": "ElevenLabs", "keyConfigured": false, "model": null }
+  "userPreferences": {},
+  "providers": {
+    "llm": ["deepseek", "gemini", "claude", "openai", "9router"],
+    "tts": ["edge", "vieneu", "openai", "google", "elevenlabs"]
+  }
+}
+```
     ]
   }
 }
@@ -290,7 +298,7 @@ Response `202 Accepted`:
 #### Draft behavior & status codes:
 - **Rate limiting:** shares the `30 requests per minute per user` limit (`rl:generate`) with `/api/generate`. Returns `429` when exceeded.
 - **Quota:** draft creation does **not** reserve video generation quota slots/budget.
-- **Lifecycle:** `queued` → `running` → `draft` (or `failed`). Upon successful generation, the worker updates the status to `draft`, stores the script in SQLite, and emits the `draft_ready` SSE event.
+- **Lifecycle:** `queued` → `running` → `draft` (or `failed`). Upon successful generation, the worker updates the status to `draft`, stores the script in the job record, and emits the `draft_ready` SSE event.
 - `202` → Draft creation or regeneration queued.
 - `400` → Invalid request payload (e.g. prompt too short, or feedback < 3 chars).
 - `401` → Not authenticated.
@@ -596,7 +604,7 @@ Full job state: status, up to the last 15 progress logs, script (when present), 
 
 ### `GET /api/jobs/:jobId/events` 🔒
 
-Server-Sent Events stream. **Ownership check:** the handler verifies the job belongs to the authenticated user (returns `404` otherwise, no existence leak). On connect it replays the current state (one `status` event + up to 100 historical `progress` events from SQLite), then streams live events via Redis pub/sub. Heartbeat comments (`: heartbeat`) every 15 s. The stream closes 500 ms after `completed`/`failed`.
+Server-Sent Events stream. **Ownership check:** the handler verifies the job belongs to the authenticated user (returns `404` otherwise, no existence leak). On connect it replays the current state (one `status` event + up to 100 historical `progress` events from the job log), then streams live events via Redis pub/sub. Heartbeat comments (`: heartbeat`) every 15 s. The stream closes 500 ms after `completed`/`failed`.
 
 Event types:
 
@@ -621,7 +629,7 @@ data: {"error":"<failure message>"}
 - `draft_ready` — emitted by `draftWorker` when Phase 1 script generation finishes and the draft is ready for review.
 - `404` if the job doesn't exist or is not owned by the current user.
 - If the job is already `completed`/`failed` when the client connects, the stream sends the terminal event and closes immediately.
-- **Reconnection:** there is no `Last-Event-ID` support. On reconnect, the full history is replayed from SQLite (up to 100 events). If no heartbeat is received for >15 s, the client should reconnect.
+- **Reconnection:** there is no `Last-Event-ID` support. On reconnect, the full history is replayed from the job log (up to 100 events). If no heartbeat is received for >15 s, the client should reconnect.
 
 ---
 
@@ -724,7 +732,7 @@ DRAFT_ID=$(echo $DRAFT_RESP | jq -r .jobId)
 # 2. Follow draft generation in realtime (wait for "draft_ready" event)
 curl -N localhost:3000/api/jobs/$DRAFT_ID/events -b cookies.txt
 
-# 3. (Optional) Review draft script from SQLite
+# 3. (Optional) Review draft script from API
 curl -s localhost:3000/api/jobs/$DRAFT_ID -b cookies.txt | jq .script
 
 # 4. (Optional) Regenerate draft with AI feedback

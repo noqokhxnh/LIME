@@ -11,6 +11,8 @@ import { synthesizeAudio } from "./audioSysnthesis.js";
 import { renderVideo } from "./renderer.js";
 import { hashString32, parseSeedSafe } from "./rng.js";
 import { runOracleQa, type QAReport, type DOMSampler, type BatchDOMSampler, type AudioStats } from "./oracleQa.js";
+import { extractTimelineEventsFromHtml } from "./sfxSynth.js";
+import { mixAudioPipeline } from "./audioMixer.js";
 
 export interface orchestratorOptions {
     request: videoRequest;
@@ -37,6 +39,14 @@ export interface orchestratorOptions {
      * Số lượng mẫu sub-frame (K) cho shutter motion blur (Spec D, mặc định 8)
      */
     shutterSamples?: number;
+    /**
+     * Bỏ qua track SFX trong chuỗi hòa âm (Spec E)
+     */
+    skipSfx?: boolean;
+    /**
+     * Âm lượng track SFX (Spec E)
+     */
+    sfxVolume?: number;
 }
 
 export interface fullPipelineResult extends pipelineResult {
@@ -168,7 +178,7 @@ export async function runFullPipeline(option: orchestratorOptions): Promise<full
             audio = await synthesizeAudio({
                 script,
                 outputDir: workDir,
-                bgmPath,
+                bgmPath: undefined, // BGM được hòa âm ở bước mixAudioPipeline với Ducking & Reverb
                 voice: request.voice,
                 ttsProvider: request.ttsProvider,
                 language: request.language,
@@ -192,6 +202,44 @@ export async function runFullPipeline(option: orchestratorOptions): Promise<full
                 { seed: currentSeed, jobId }
             );
             timing["html_assembly"] = Date.now() - phaseStart;
+
+            // phase 6.5: Spec E - Chuỗi hòa âm 5 bước (Voice, SFX, BGM Ducking -6dB, Reverb, Master -16 LUFS)
+            phaseStart = Date.now();
+            logProgress("audio_synthesis", 76, "Đang hòa âm chuỗi Spec E (SFX, Ducking BGM, Shared Reverb, Master LUFS)");
+
+            let events: any[] = [];
+            if (!option.skipSfx) {
+                try {
+                    events = await extractTimelineEventsFromHtml(join(workDir, "index.html"));
+                } catch (evtErr: any) {
+                    console.warn(`[Orchestrator] Không thể trích xuất events từ HTML: ${evtErr?.message || evtErr}`);
+                    events = [];
+                }
+            }
+
+            const voicePath = existsSync(join(workDir, "full_voice.mp3"))
+                ? join(workDir, "full_voice.mp3")
+                : audio.mixAudioPath;
+
+            const mixerResult = await mixAudioPipeline({
+                voicePath,
+                events,
+                bgmPath,
+                outputDir: workDir,
+                durationSec: audio.totalDurationSec,
+                skipSfx: option.skipSfx,
+                sfxVolume: option.sfxVolume,
+                seed: currentSeed,
+                onProgress: (msg) => {
+                    logProgress("audio_synthesis", 76, msg);
+                },
+            });
+
+            audio.mixAudioPath = mixerResult.mixAudioPath;
+            audio.sfxPath = mixerResult.sfxPath;
+            audio.hasSfx = mixerResult.hasSfx;
+            audio.loudness = mixerResult.loudness;
+            timing["audio_mix"] = Date.now() - phaseStart;
 
             // Phase 4.5: Oracle QA (Kiểm định chất lượng tự động trước render)
             if (option.skipQa) {
