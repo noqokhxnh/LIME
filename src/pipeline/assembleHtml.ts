@@ -358,6 +358,18 @@ ${allScenesHtml}
             return window.__totalDuration || window.__masterTimeline.duration();
         };
 
+        // Spec E: Sound from Timeline Events API Contract
+        window.__timelineEvents = [];
+        window.__events = function() {
+            return window.__timelineEvents;
+        };
+        window.__addEvent = function(evt) {
+            if (!window.__timelineEvents) window.__timelineEvents = [];
+            if (evt && typeof evt.t === 'number' && evt.material) {
+                window.__timelineEvents.push(evt);
+            }
+        };
+
         // Cross-fade helper between scenes with customizable blend mode
         window.__crossFade = function(sceneAId, sceneBId, duration, opts) {
             opts = opts || {};
