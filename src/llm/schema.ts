@@ -403,7 +403,13 @@ export interface AudioResult {
     audioFiles: Record<string, string>,
     totalDurationSec: number,
     mixAudioPath: string,
-
+    sfxPath?: string,
+    hasSfx?: boolean,
+    loudness?: {
+        integratedLufs: number;
+        truePeakDbtp: number;
+        lra: number;
+    },
 }
 
 export interface renderOptions {
