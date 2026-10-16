@@ -7,6 +7,10 @@ import { withRetry, isAbortError } from "./retry.js";
 import { WatermarkConfig } from "../llm/schema.js";
 import { buildWatermarkFilter } from "./watermarkFilter.js";
 import { resolveLogoPath } from "../security/uploadGuard.js";
+import { decodePng } from "./pngDecoder.js";
+import { LinearLightAccumulator } from "./linearLight.js";
+import { calculateSubFrameTimestamps } from "./shutterRenderer.js";
+import { detectMotion, type DOMBox } from "./motion.js";
 
 export interface RenderVideoOptions {
     htmlPath: string;
@@ -22,6 +26,18 @@ export interface RenderVideoOptions {
      * Nếu không truyền vào (undefined), video xuất ra sẽ không có logo.
      */
     watermark?: WatermarkConfig;
+    /**
+     * Số lượng mẫu sub-frame (K) cho hiệu ứng shutter motion blur (Spec D, mặc định 8)
+     */
+    shutterSamples?: number;
+    /**
+     * Tắt tính năng shutter motion blur nếu true (Spec D)
+     */
+    skipShutterBlur?: boolean;
+    /**
+     * Seed xác định cho pipeline (Spec B)
+     */
+    seed?: number;
 }
 
 /**
@@ -39,8 +55,13 @@ export async function renderVideo(options: RenderVideoOptions): Promise<string> 
         durationSec,
         onProgress,
         watermark,
+        shutterSamples: rawShutterSamples,
+        skipShutterBlur = false,
+        seed = 0,
     } = options;
 
+    const shutterSamples = Math.max(1, Math.floor(rawShutterSamples ?? 8));
+    const shouldApplyBlur = !skipShutterBlur && shutterSamples > 1;
     const totalFrames = Math.max(1, Math.floor(durationSec * fps));
     onProgress?.(`Starting video render (${totalFrames} frames @ ${fps}fps)...`, 0);
 
@@ -105,11 +126,12 @@ export async function renderVideo(options: RenderVideoOptions): Promise<string> 
                 const hasWatermark = !!logoPath;
 
                 // ── Bước 1: Các input đầu vào ───────────────────────────────
-                // Input 0: luồng video từ Playwright (pipe stdin)
+                // Input 0: luồng raw video RGBA từ Playwright / Linear Light accumulator (pipe stdin)
                 const ffmpegArgs = [
                     "-y",
-                    "-f", "image2pipe",
-                    "-vcodec", "mjpeg",
+                    "-f", "rawvideo",
+                    "-pix_fmt", "rgba",
+                    "-s", `${width}x${height}`,
                     "-r", String(fps),
                     "-i", "-",
                 ];
@@ -189,37 +211,113 @@ export async function renderVideo(options: RenderVideoOptions): Promise<string> 
                     }
                 });
 
+                // Đánh dấu marker __hasShutterBlur trên page cho Oracle QA
+                if (shouldApplyBlur) {
+                    await page.evaluate(() => {
+                        (window as any).__hasShutterBlur = true;
+                    });
+                }
+
+                const accumulator = shouldApplyBlur ? new LinearLightAccumulator(width, height) : null;
                 const reportStep = Math.max(1, Math.floor(totalFrames / 10));
-                let lastBuf: Buffer | null = null;
+                let lastFrame: Uint8Array | null = null;
+                let cachedBoxes0: Record<string, DOMBox | null> | undefined = undefined;
 
                 for (let i = 0; i < totalFrames; i++) {
-                    const t = i / fps;
-                    try {
-                        await seekToTimestamp(page, t);
-                    } catch (err: any) {
-                        const diagInfo = await dumpDiagnosticSnapshot(page, htmlPath, `Renderer/Seek (${t}s)`);
-                        err.message = `${err.message}\n${diagInfo}`;
-                        throw err;
-                    }
-                    let buf: Buffer;
-                    try {
-                        buf = await page.screenshot({
-                            type: "jpeg",
-                            quality: 90,
-                            animations: "disabled",
-                            timeout: 8000,
-                        });
-                        lastBuf = buf;
-                    } catch (err) {
-                        if (lastBuf) {
-                            buf = lastBuf;
+                    const t0 = i / fps;
+                    const t1 = (i + 1) / fps;
+
+                    let frameToPipe: Uint8Array;
+
+                    if (!shouldApplyBlur) {
+                        // Khi tắt shutter blur: render 1 khung hình tại t0
+                        try {
+                            await seekToTimestamp(page, t0);
+                            const buf = await page.screenshot({
+                                type: "png",
+                                animations: "disabled",
+                                timeout: 8000,
+                            });
+                            const decoded = decodePng(buf);
+                            frameToPipe = decoded.data;
+                            lastFrame = frameToPipe;
+                        } catch (err: any) {
+                            if (lastFrame) {
+                                frameToPipe = lastFrame;
+                            } else {
+                                const diagInfo = await dumpDiagnosticSnapshot(page, htmlPath, `Renderer/Seek (${t0}s)`);
+                                err.message = `${err.message}\n${diagInfo}`;
+                                throw err;
+                            }
+                        }
+                    } else {
+                        // Khi bật shutter blur: phát hiện chuyển động trong [t0, t1]
+                        let motion;
+                        try {
+                            motion = await detectMotion(page, t0, t1, { cachedBoxes0 });
+                            cachedBoxes0 = motion.boxes1;
+                        } catch {
+                            motion = { hasMotion: true, maxDisplacement: 999, totalDisplacement: 999, vectors: [] };
+                        }
+
+                        if (!motion.hasMotion) {
+                            // Skip holds: tổng độ dịch chuyển < 1px -> render 1 frame tĩnh tiết kiệm compute
+                            try {
+                                await seekToTimestamp(page, t0);
+                                const buf = await page.screenshot({
+                                    type: "png",
+                                    animations: "disabled",
+                                    timeout: 8000,
+                                });
+                                const decoded = decodePng(buf);
+                                frameToPipe = decoded.data;
+                                lastFrame = frameToPipe;
+                            } catch (err: any) {
+                                if (lastFrame) {
+                                    frameToPipe = lastFrame;
+                                } else {
+                                    const diagInfo = await dumpDiagnosticSnapshot(page, htmlPath, `Renderer/Seek (${t0}s)`);
+                                    err.message = `${err.message}\n${diagInfo}`;
+                                    throw err;
+                                }
+                            }
                         } else {
-                            throw err;
+                            // Có chuyển động: lấy mẫu K sub-frames và pha trộn trong Linear Light
+                            accumulator!.reset();
+                            const subTimes = calculateSubFrameTimestamps(i, fps, shutterSamples, seed);
+
+                            for (const subT of subTimes) {
+                                let subFrameData: Uint8Array;
+                                try {
+                                    await seekToTimestamp(page, subT);
+                                    const buf = await page.screenshot({
+                                        type: "png",
+                                        animations: "disabled",
+                                        timeout: 8000,
+                                    });
+                                    const decoded = decodePng(buf);
+                                    subFrameData = decoded.data;
+                                    lastFrame = subFrameData;
+                                } catch (err: any) {
+                                    if (lastFrame) {
+                                        subFrameData = lastFrame;
+                                    } else {
+                                        const diagInfo = await dumpDiagnosticSnapshot(page, htmlPath, `Renderer/SubFrame (${subT}s)`);
+                                        err.message = `${err.message}\n${diagInfo}`;
+                                        throw err;
+                                    }
+                                }
+                                accumulator!.addFrame(subFrameData);
+                            }
+
+                            frameToPipe = accumulator!.toRgba();
                         }
                     }
 
                     if (ff.stdin.writable && !ff.stdin.destroyed) {
-                        const canWrite = ff.stdin.write(buf);
+                        const canWrite = ff.stdin.write(
+                            Buffer.from(frameToPipe.buffer, frameToPipe.byteOffset, frameToPipe.byteLength)
+                        );
                         if (!canWrite) {
                             await new Promise((r) => ff.stdin.once("drain", r));
                         }
