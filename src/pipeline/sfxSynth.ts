@@ -193,6 +193,69 @@ export function synthesizeWood(
 }
 
 /**
+ * Vật liệu "glass" (clink): Tiếng va chạm thủy tinh trong trẻo, ngân vang kim loại
+ * tạo bởi tổng hợp các họa âm phi điều hòa (inharmonic partials) với các mode dao động tắt dần theo hàm mũ.
+ */
+export function synthesizeGlass(
+    intensity: number,
+    options?: {
+        seed?: number;
+        sampleRate?: number;
+        pan?: number;
+    }
+): SynthesizedAudio {
+    const sampleRate = options?.sampleRate ?? DEFAULT_SFX_SAMPLE_RATE;
+    const clampedIntensity = Math.max(0, Math.min(1, intensity));
+    const seed = options?.seed ?? 0x474c4153; // 'GLAS'
+    const rng = RNG(seed);
+
+    // Thời lượng ngân vang tỉ lệ thuận với intensity (0.25s - 0.75s)
+    const duration = 0.25 + clampedIntensity * 0.5;
+    const numSamples = Math.max(1, Math.floor(duration * sampleRate));
+    const gain = 0.2 + clampedIntensity * 0.75;
+
+    const mono = new Float32Array(numSamples);
+
+    // Tần số cơ bản mode 1 của thủy tinh (~2100Hz - 2600Hz)
+    const f0 = 2100 + 500 * (1 - clampedIntensity);
+
+    // Các tỷ số mode phi điều hòa chuẩn theo mô hình rung đĩa/chuông thủy tinh (Chladni/Rayleigh modes)
+    const modeRatios = [1.0, 2.32, 4.15, 5.84, 8.21];
+    const modeAmps = [0.55, 0.28, 0.12, 0.06, 0.03];
+    // Hằng số thời gian suy giảm: tần số càng cao thì suy hao càng nhanh
+    const baseTau = 0.12 + 0.28 * clampedIntensity;
+    const taus = modeRatios.map((ratio) => baseTau / Math.pow(ratio, 0.55));
+
+    const phases = [0, 0, 0, 0, 0];
+
+    for (let i = 0; i < numSamples; i++) {
+        const t = i / sampleRate;
+
+        // Tiếng gõ chạm cực bén (strike transient noise < 3ms)
+        const strike = (rng() * 2 - 1) * Math.exp(-t / 0.0025);
+
+        let modalSum = 0;
+        for (let m = 0; m < modeRatios.length; m++) {
+            const freq = f0 * modeRatios[m];
+            phases[m] += (2 * Math.PI * freq) / sampleRate;
+            const decay = Math.exp(-t / taus[m]);
+            modalSum += Math.sin(phases[m]) * modeAmps[m] * decay;
+        }
+
+        const sample = (modalSum * 0.85 + strike * 0.3) * gain;
+        mono[i] = Math.max(-1, Math.min(1, sample));
+    }
+
+    const { left, right } = applyPan(mono, options?.pan ?? 0);
+    return {
+        left,
+        right,
+        sampleRate,
+        duration,
+    };
+}
+
+/**
  * Trích xuất danh sách timeline events từ một Playwright Page đã chuẩn bị xong.
  * Gọi window.__events() từ comp. Nếu không khai báo hoặc rỗng, trả về mảng rỗng [].
  */
