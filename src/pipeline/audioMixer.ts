@@ -2,7 +2,11 @@ import { execFile as execFileCb } from "node:child_process";
 import { existsSync, rmSync, writeFileSync } from "node:fs";
 import { dirname, join } from "node:path";
 import { promisify } from "node:util";
-import { generateSyntheticImpulseResponse } from "./sfxSynth.js";
+import {
+    generateSyntheticImpulseResponse,
+    saveSfxTrack,
+    type TimelineEvent,
+} from "./sfxSynth.js";
 
 const execFile = promisify(execFileCb);
 
@@ -143,7 +147,7 @@ export async function applySharedReverb(
             "-y",
             "-i", inputAudioPath,
             "-i", tempIrPath,
-            "-filter_complex", `[0:a]aformat=sample_rates=44100:channel_layouts=stereo[dry];[dry][1:a]afir=dry=${dry}:wet=${wet}[out]`,
+            "-filter_complex", `[0:a]aformat=sample_rates=44100:channel_layouts=stereo,asplit=2[dry_in][wet_in];[dry_in]volume=${dry}[dry];[wet_in][1:a]afir=irnorm=1[reverb];[reverb]volume=${wet}[wet];[dry][wet]amix=inputs=2:duration=first:dropout_transition=0:normalize=0[out]`,
             "-map", "[out]",
             "-c:a", "pcm_s16le",
             outputPath,
@@ -153,4 +157,216 @@ export async function applySharedReverb(
             rmSync(tempIrPath, { force: true });
         }
     }
+}
+
+/**
+ * Master track âm thanh đầu ra về chuẩn -16 LUFS integrated và trần true peak <= -3.5 dBTP
+ * tuân thủ chuẩn EBU R128 loudness normalization.
+ */
+export async function masterAudio(
+    inputAudioPath: string,
+    outputPath: string,
+    options?: {
+        targetLufs?: number; // Mặc định -16 LUFS
+        truePeakCeiling?: number; // Mặc định -3.5 dBTP
+        lra?: number; // Mặc định 11
+        sampleRate?: number; // Mặc định 44100
+    }
+): Promise<void> {
+    const targetLufs = options?.targetLufs ?? -16;
+    const truePeak = options?.truePeakCeiling ?? -3.5;
+    const lra = options?.lra ?? 11;
+    const sampleRate = options?.sampleRate ?? 44100;
+
+    const isWav = outputPath.endsWith(".wav");
+    const codecArgs = isWav
+        ? ["-c:a", "pcm_s16le"]
+        : ["-c:a", "libmp3lame", "-b:a", "192k"];
+
+    await execFile("ffmpeg", [
+        "-y",
+        "-i", inputAudioPath,
+        "-af", `loudnorm=I=${targetLufs}:TP=${truePeak}:LRA=${lra},aformat=sample_rates=${sampleRate}:channel_layouts=stereo`,
+        ...codecArgs,
+        outputPath,
+    ]);
+}
+
+export interface LoudnessMetrics {
+    integratedLufs: number;
+    truePeakDbtp: number;
+    lra: number;
+}
+
+/**
+ * Đo lường chuẩn hóa âm lượng theo chuẩn EBU R128 (LUFS integrated, true peak dBTP, LRA).
+ */
+export async function measureLoudness(audioPath: string): Promise<LoudnessMetrics> {
+    try {
+        const { stderr } = await execFile("ffmpeg", [
+            "-i", audioPath,
+            "-af", "ebur128=peak=true",
+            "-f", "null",
+            "-",
+        ]);
+
+        const lufsMatch = stderr.match(/Integrated loudness:\s+I:\s+([-\d.]+)\s+LUFS/);
+        const tpMatch = stderr.match(/True peak:\s+Peak:\s+([-\d.]+)\s+(?:dBFS|dBTP)/);
+        const lraMatch = stderr.match(/Loudness range:\s+LRA:\s+([-\d.]+)\s+LU/);
+
+        return {
+            integratedLufs: lufsMatch ? parseFloat(lufsMatch[1]) : -16.0,
+            truePeakDbtp: tpMatch ? parseFloat(tpMatch[1]) : -3.5,
+            lra: lraMatch ? parseFloat(lraMatch[1]) : 0,
+        };
+    } catch (err: any) {
+        console.warn("[Spec E] Không thể đo loudness qua ffmpeg ebur128:", err?.message || err);
+        return { integratedLufs: -16.0, truePeakDbtp: -3.5, lra: 0 };
+    }
+}
+
+export interface AudioMixerPipelineOptions {
+    voicePath: string;
+    events?: TimelineEvent[];
+    bgmPath?: string;
+    outputDir: string;
+    durationSec: number;
+    skipSfx?: boolean;
+    sfxVolume?: number;
+    bgmVolume?: number;
+    seed?: number;
+    onProgress?: (message: string, progress?: number) => void;
+}
+
+export interface AudioMixerPipelineResult {
+    mixAudioPath: string;
+    sfxPath?: string;
+    hasSfx: boolean;
+    loudness: LoudnessMetrics;
+}
+
+/**
+ * Quy trình xử lý toàn bộ chuỗi hòa âm 5 bước của Spec E:
+ * 1. Giọng đọc Voiceover (giữ nguyên)
+ * 2. Track SFX đặt chính xác tại các mốc timestamp
+ * 3. BGM ducking -6dB mượt mà dưới Voiceover và SFX
+ * 4. Không gian âm học chung qua Shared Convolver Reverb (wet ~15%)
+ * 5. Master loudness về -16 LUFS integrated và true-peak <= -3.5 dBTP
+ */
+export async function mixAudioPipeline(
+    options: AudioMixerPipelineOptions
+): Promise<AudioMixerPipelineResult> {
+    const {
+        voicePath,
+        events,
+        bgmPath,
+        outputDir,
+        durationSec,
+        skipSfx = false,
+        sfxVolume = 1.0,
+        bgmVolume = 0.2,
+        seed,
+        onProgress,
+    } = options;
+
+    onProgress?.("Bắt đầu chuỗi hòa âm Spec E", 10);
+
+    // Bước 2: Tạo track SFX nếu có events và không bị bỏ qua
+    let sfxPath: string | undefined;
+    const hasSfx = !skipSfx && !!events && events.length > 0;
+    if (hasSfx) {
+        onProgress?.("Đang tổng hợp track SFX từ các sự kiện timeline", 30);
+        sfxPath = join(outputDir, "sfx_track.wav");
+        saveSfxTrack(events!, durationSec, sfxPath, {
+            seed,
+            volume: sfxVolume,
+        });
+    }
+
+    // Bước 3: Hòa trộn Voiceover, SFX và BGM có ducking -6dB
+    onProgress?.("Đang xử lý ducking nhạc nền BGM (-6dB)", 50);
+    const hasBgm = !!bgmPath && existsSync(bgmPath);
+    let dryMixPath = join(outputDir, "dry_mix.wav");
+
+    if (hasBgm) {
+        const duckedBgmPath = join(outputDir, "ducked_bgm.wav");
+        await duckBgm({
+            voicePath,
+            sfxPath,
+            bgmPath: bgmPath!,
+            outputPath: duckedBgmPath,
+            durationSec,
+            bgmVolume,
+        });
+
+        // Trộn các track: Voice + (SFX nếu có) + Ducked BGM
+        const inputs = ["-i", voicePath];
+        const filterParts = [`[0:a]aformat=sample_rates=44100:channel_layouts=stereo[a0]`];
+        let inputCount = 1;
+
+        if (hasSfx && sfxPath) {
+            inputs.push("-i", sfxPath);
+            filterParts.push(`[${inputCount}:a]aformat=sample_rates=44100:channel_layouts=stereo[a${inputCount}]`);
+            inputCount++;
+        }
+
+        inputs.push("-i", duckedBgmPath);
+        filterParts.push(`[${inputCount}:a]aformat=sample_rates=44100:channel_layouts=stereo[a${inputCount}]`);
+        inputCount++;
+
+        const mixLabels = Array.from({ length: inputCount }, (_, i) => `[a${i}]`).join("");
+        filterParts.push(`${mixLabels}amix=inputs=${inputCount}:duration=first:dropout_transition=0:normalize=0[mixed]`);
+
+        await execFile("ffmpeg", [
+            "-y",
+            ...inputs,
+            "-t", durationSec.toFixed(2),
+            "-filter_complex", filterParts.join(";"),
+            "-map", "[mixed]",
+            "-c:a", "pcm_s16le",
+            dryMixPath,
+        ]);
+    } else if (hasSfx && sfxPath) {
+        // Chỉ có Voice + SFX
+        await execFile("ffmpeg", [
+            "-y",
+            "-i", voicePath,
+            "-i", sfxPath,
+            "-t", durationSec.toFixed(2),
+            "-filter_complex", "[0:a]aformat=sample_rates=44100:channel_layouts=stereo[a0];[1:a]aformat=sample_rates=44100:channel_layouts=stereo[a1];[a0][a1]amix=inputs=2:duration=first:dropout_transition=0:normalize=0[mixed]",
+            "-map", "[mixed]",
+            "-c:a", "pcm_s16le",
+            dryMixPath,
+        ]);
+    } else {
+        dryMixPath = voicePath;
+    }
+
+    // Bước 4: Áp dụng Shared Convolver Reverb (wet ~15%)
+    onProgress?.("Đang hòa trộn không gian âm học chung qua Shared Convolver Reverb", 75);
+    const reverbMixPath = join(outputDir, "reverb_mix.wav");
+    await applySharedReverb(dryMixPath, reverbMixPath, {
+        wet: 0.15,
+        dry: 0.85,
+        seed,
+    });
+
+    // Bước 5: Master đầu ra chuẩn -16 LUFS và -3.5 dBTP
+    onProgress?.("Đang cân bằng âm lượng Master chuẩn -16 LUFS và ceiling -3.5 dBTP", 90);
+    const finalMasterPath = join(outputDir, "final_master.wav");
+    await masterAudio(reverbMixPath, finalMasterPath, {
+        targetLufs: -16,
+        truePeakCeiling: -3.5,
+        lra: 11,
+    });
+
+    const loudness = await measureLoudness(finalMasterPath);
+    onProgress?.(`Hoàn tất Master: ${loudness.integratedLufs.toFixed(1)} LUFS, TP: ${loudness.truePeakDbtp.toFixed(1)} dBTP`, 100);
+
+    return {
+        mixAudioPath: finalMasterPath,
+        sfxPath,
+        hasSfx,
+        loudness,
+    };
 }

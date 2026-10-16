@@ -727,3 +727,5 @@ export async function synthesizeAudio(options: AudioSynthesisOptions): Promise<A
         mixAudioPath,
     };
 }
+
+export * from "./audioMixer.js";
