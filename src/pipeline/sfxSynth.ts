@@ -256,6 +256,63 @@ export function synthesizeGlass(
 }
 
 /**
+ * Vật liệu "sub" (thump): Âm trầm tần số thấp đặc trưng cho cú đập mạnh,
+ * tạo bởi sóng sin quét hạ tần số từ 60Hz xuống 30Hz với năng lượng tập trung hoàn toàn dưới 100Hz.
+ */
+export function synthesizeSub(
+    intensity: number,
+    options?: {
+        seed?: number;
+        sampleRate?: number;
+        pan?: number;
+    }
+): SynthesizedAudio {
+    const sampleRate = options?.sampleRate ?? DEFAULT_SFX_SAMPLE_RATE;
+    const clampedIntensity = Math.max(0, Math.min(1, intensity));
+
+    // Thời lượng âm trầm (0.15s - 0.50s)
+    const duration = 0.15 + clampedIntensity * 0.35;
+    const numSamples = Math.max(1, Math.floor(duration * sampleRate));
+    const gain = 0.3 + clampedIntensity * 0.7;
+
+    const mono = new Float32Array(numSamples);
+
+    // Hằng số phân rã biên độ âm trầm (80ms - 220ms)
+    const tauAmp = 0.08 + 0.14 * clampedIntensity;
+    // Tốc độ quét hạ tần số từ 60Hz xuống 30Hz
+    const tauPitch = 0.06 + 0.04 * clampedIntensity;
+
+    let phase = 0;
+
+    for (let i = 0; i < numSamples; i++) {
+        const t = i / sampleRate;
+
+        // Quét tần số hạ dần: 30Hz + 30Hz * e^(-t / tauPitch) => từ 60Hz trượt xuống 30Hz
+        const freq = 30 + 30 * Math.exp(-t / tauPitch);
+
+        phase += (2 * Math.PI * freq) / sampleRate;
+
+        // Tấn công nhanh (attack 6ms) để tránh tiếng click gián đoạn pha ban đầu
+        const attack = Math.min(1, t / 0.006);
+        // Phân rã mượt mà theo hàm mũ
+        const decay = Math.exp(-t / tauAmp);
+
+        const sineWave = Math.sin(phase);
+        // Giới hạn biên độ mềm nhẹ (soft saturation) giữ năng lượng tập trung sâu dưới 100Hz
+        const sample = Math.tanh(sineWave * 1.05) * attack * decay * gain;
+        mono[i] = Math.max(-1, Math.min(1, sample));
+    }
+
+    const { left, right } = applyPan(mono, options?.pan ?? 0);
+    return {
+        left,
+        right,
+        sampleRate,
+        duration,
+    };
+}
+
+/**
  * Trích xuất danh sách timeline events từ một Playwright Page đã chuẩn bị xong.
  * Gọi window.__events() từ comp. Nếu không khai báo hoặc rỗng, trả về mảng rỗng [].
  */
