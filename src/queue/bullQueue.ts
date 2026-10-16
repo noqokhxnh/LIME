@@ -51,7 +51,7 @@ export class BullMQQueue implements IVideoQueue {
             jobId: job.id!,
             status,
             request: job.data.request,
-            seed: job.data.seed ?? (job.data.request.seed !== undefined ? job.data.request.seed : hashString32(job.id!)),
+            seed: job.data.seed ?? (job.data.request?.seed !== undefined ? job.data.request?.seed : hashString32(job.id!)),
             createdAt: new Date(job.timestamp).toISOString(),
             updatedAt: job.finishedOn ? new Date(job.finishedOn).toISOString() : new Date().toISOString(),
             progress: typeof job.progress === 'object' && job.progress !== null ? (job.progress as JobProgress) : undefined,
@@ -75,7 +75,7 @@ export class BullMQQueue implements IVideoQueue {
                 jobId: job.id!,
                 status,
                 request: job.data.request,
-                seed: job.data.seed ?? (job.data.request.seed !== undefined ? job.data.request.seed : hashString32(job.id!)),
+                seed: job.data.seed ?? (job.data.request?.seed !== undefined ? job.data.request?.seed : hashString32(job.id!)),
                 createdAt: new Date(job.timestamp).toISOString(),
                 updatedAt: job.finishedOn ? new Date(job.finishedOn).toISOString() : new Date().toISOString(),
             });
