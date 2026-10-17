@@ -1,7 +1,8 @@
-import { spawn } from "node:child_process";
-import { existsSync, rmSync } from "node:fs";
-import { resolve } from "node:path";
+import { spawn, type ChildProcess } from "node:child_process";
+import { existsSync, rmSync, writeFileSync } from "node:fs";
+import { resolve, dirname } from "node:path";
 import { pathToFileURL } from "node:url";
+import type { Page } from "playwright";
 import { launchPreviewBrowser, seekToTimestamp, setupBrowserDiagnostics, dumpDiagnosticSnapshot } from "./preview.js";
 import { withRetry, isAbortError } from "./retry.js";
 import { WatermarkConfig } from "../llm/schema.js";
@@ -11,6 +12,7 @@ import { decodePng } from "./pngDecoder.js";
 import { LinearLightAccumulator } from "./linearLight.js";
 import { calculateSubFrameTimestamps } from "./shutterRenderer.js";
 import { detectMotion, type DOMBox } from "./motion.js";
+import { getConfig } from "../config.js";
 
 export interface RenderVideoOptions {
     htmlPath: string;
@@ -102,9 +104,115 @@ export function calculateRenderChunks(
     return chunks;
 }
 
+interface FrameRenderContext {
+    cachedBoxes0?: Record<string, DOMBox | null>;
+    lastFrame: Uint8Array | null;
+}
+
+async function renderFrameData(
+    page: Page,
+    i: number,
+    fps: number,
+    shutterSamples: number,
+    shouldApplyBlur: boolean,
+    seed: number,
+    accumulator: LinearLightAccumulator | null,
+    frameCtx: FrameRenderContext,
+    htmlPath: string,
+    diagnosticLabel: string
+): Promise<Uint8Array> {
+    const t0 = i / fps;
+    const t1 = (i + 1) / fps;
+
+    let frameToPipe: Uint8Array;
+
+    if (!shouldApplyBlur) {
+        try {
+            await seekToTimestamp(page, t0);
+            const buf = await page.screenshot({
+                type: "png",
+                animations: "disabled",
+                timeout: 8000,
+            });
+            const decoded = decodePng(buf);
+            frameToPipe = decoded.data;
+            frameCtx.lastFrame = frameToPipe;
+        } catch (err: any) {
+            if (frameCtx.lastFrame) {
+                frameToPipe = frameCtx.lastFrame;
+            } else {
+                const diagInfo = await dumpDiagnosticSnapshot(page, htmlPath, `Renderer/Seek${diagnosticLabel} (${t0}s)`);
+                err.message = `${err.message}\n${diagInfo}`;
+                throw err;
+            }
+        }
+    } else {
+        let motion;
+        try {
+            motion = await detectMotion(page, t0, t1, { cachedBoxes0: frameCtx.cachedBoxes0 });
+            frameCtx.cachedBoxes0 = motion.boxes1;
+        } catch {
+            motion = { hasMotion: true, maxDisplacement: 999, totalDisplacement: 999, vectors: [] };
+        }
+
+        if (!motion.hasMotion) {
+            try {
+                await seekToTimestamp(page, t0);
+                const buf = await page.screenshot({
+                    type: "png",
+                    animations: "disabled",
+                    timeout: 8000,
+                });
+                const decoded = decodePng(buf);
+                frameToPipe = decoded.data;
+                frameCtx.lastFrame = frameToPipe;
+            } catch (err: any) {
+                if (frameCtx.lastFrame) {
+                    frameToPipe = frameCtx.lastFrame;
+                } else {
+                    const diagInfo = await dumpDiagnosticSnapshot(page, htmlPath, `Renderer/Seek${diagnosticLabel} (${t0}s)`);
+                    err.message = `${err.message}\n${diagInfo}`;
+                    throw err;
+                }
+            }
+        } else {
+            accumulator!.reset();
+            const subTimes = calculateSubFrameTimestamps(i, fps, shutterSamples, seed);
+
+            for (const subT of subTimes) {
+                let subFrameData: Uint8Array;
+                try {
+                    await seekToTimestamp(page, subT);
+                    const buf = await page.screenshot({
+                        type: "png",
+                        animations: "disabled",
+                        timeout: 8000,
+                    });
+                    const decoded = decodePng(buf);
+                    subFrameData = decoded.data;
+                    frameCtx.lastFrame = subFrameData;
+                } catch (err: any) {
+                    if (frameCtx.lastFrame) {
+                        subFrameData = frameCtx.lastFrame;
+                    } else {
+                        const diagInfo = await dumpDiagnosticSnapshot(page, htmlPath, `Renderer/SubFrame${diagnosticLabel} (${subT}s)`);
+                        err.message = `${err.message}\n${diagInfo}`;
+                        throw err;
+                    }
+                }
+                accumulator!.addFrame(subFrameData);
+            }
+
+            frameToPipe = accumulator!.toRgba();
+        }
+    }
+
+    return frameToPipe;
+}
+
 /**
  * Render frames from GSAP animated HTML page using Playwright Chromium
- * and encode/mux into an MP4 video using ffmpeg image2pipe.
+ * and encode/mux into an MP4 video using ffmpeg image2pipe with parallel chunking.
  */
 export async function renderVideo(options: RenderVideoOptions): Promise<string> {
     const {
@@ -115,6 +223,7 @@ export async function renderVideo(options: RenderVideoOptions): Promise<string> 
         height,
         fps = 30,
         durationSec,
+        concurrency: inputConcurrency,
         signal,
         onProgress,
         watermark,
@@ -130,57 +239,49 @@ export async function renderVideo(options: RenderVideoOptions): Promise<string> 
     const shutterSamples = Math.max(1, Math.floor(rawShutterSamples ?? 8));
     const shouldApplyBlur = !skipShutterBlur && shutterSamples > 1;
     const totalFrames = Math.max(1, Math.floor(durationSec * fps));
-    onProgress?.(`Starting video render (${totalFrames} frames @ ${fps}fps)...`, 0);
+    const targetConcurrency = inputConcurrency ?? getConfig().RENDER_MAX_CONCURRENCY ?? 4;
+    const tempDir = dirname(resolve(outputPath));
+    const chunks = calculateRenderChunks(totalFrames, fps, targetConcurrency, tempDir);
+
+    onProgress?.(
+        `Starting video render (${totalFrames} frames @ ${fps}fps, ${chunks.length} ${chunks.length > 1 ? "parallel chunks" : "worker"})...`,
+        0
+    );
 
     return await withRetry(
         async (attempt) => {
+            if (signal?.aborted) {
+                throw new DOMException("Operation aborted", "AbortError");
+            }
+
             if (existsSync(outputPath)) {
                 rmSync(outputPath, { force: true });
             }
 
-            const browser = await launchPreviewBrowser();
-            try {
-                const context = await browser.newContext({
-                    viewport: { width, height },
-                    deviceScaleFactor: 1,
-                });
-                const page = await context.newPage();
+            const activeProcesses = new Set<ChildProcess>();
+            const abortController = new AbortController();
 
-                setupBrowserDiagnostics(page, "Renderer");
-
-                const fileUrl = pathToFileURL(resolve(htmlPath)).href;
-                process.env.PW_TEST_SCREENSHOT_NO_FONTS_READY = "1";
-                try {
-                    await page.goto(fileUrl, { waitUntil: "domcontentloaded" });
-                    await page.waitForFunction(
-                        () => (window as unknown as { __ready?: boolean }).__ready === true,
-                        undefined,
-                        { timeout: 15000 }
-                    );
-                } catch (err: any) {
-                    const diagInfo = await dumpDiagnosticSnapshot(page, htmlPath, "Renderer/Load");
-                    err.message = `${err.message}\n${diagInfo}`;
-                    throw err;
+            const onSignalAbort = () => {
+                abortController.abort();
+                for (const p of activeProcesses) {
+                    try {
+                        p.kill("SIGKILL");
+                    } catch {}
                 }
+            };
 
-                // Pre-wait web fonts once with a safe fallback
-                await page.evaluate(async () => {
-                    if (document.fonts && document.fonts.ready) {
-                        try {
-                            await Promise.race([
-                                document.fonts.ready,
-                                new Promise((r) => setTimeout(r, 4000)),
-                            ]);
-                        } catch (e) { }
-                    }
-                });
+            if (signal) {
+                signal.addEventListener("abort", onSignalAbort, { once: true });
+            }
 
-                const hasAudio = existsSync(audioPath);
+            const chunkFilesToCleanup: string[] = [];
+            const concatListPath = resolve(tempDir, `concat_${Date.now()}_${Math.random().toString(36).slice(2, 8)}.txt`);
 
-                // Chuẩn hoá đường dẫn logo: chỉ chấp nhận file nằm trong
-                // thư mục tmp/uploads/logos/ (chống LFI/Path Traversal —
-                // chặn đọc file tùy ý trên server và thiết bị đặc biệt
-                // như /dev/zero có thể treo worker render).
+            const browser = await launchPreviewBrowser();
+            const fileUrl = pathToFileURL(resolve(htmlPath)).href;
+            process.env.PW_TEST_SCREENSHOT_NO_FONTS_READY = "1";
+
+            try {
                 let logoPath: string | null = null;
                 if (watermark?.logoPath) {
                     logoPath = resolveLogoPath(watermark.logoPath);
@@ -192,236 +293,483 @@ export async function renderVideo(options: RenderVideoOptions): Promise<string> 
                 }
                 const hasWatermark = !!logoPath;
 
-                // ── Bước 1: Các input đầu vào ───────────────────────────────
-                // Input 0: luồng raw video RGBA từ Playwright / Linear Light accumulator (pipe stdin)
-                const ffmpegArgs = [
-                    "-y",
-                    "-f", "rawvideo",
-                    "-pix_fmt", "rgba",
-                    "-s", `${width}x${height}`,
-                    "-r", String(fps),
-                    "-i", "-",
-                ];
-
-                // Input 1 (tùy chọn): file audio nếu có
-                if (hasAudio) {
-                    ffmpegArgs.push("-i", audioPath);
-                }
-
-                // Input 2 (tùy chọn): file ảnh logo nếu có watermark
-                // Thứ tự thêm audio trước logo để nhãn luồng nhất quán:
-                //   0:v = video, 1:v = audio (nếu có), 2:v = logo (nếu có)
-                if (hasWatermark) {
-                    ffmpegArgs.push("-i", logoPath!);
-                }
-
-                // ── Bước 2: Bộ lọc ghép logo (-filter_complex) ──────────────
-                if (hasWatermark) {
-                    // Tính nhãn luồng video nền:
-                    //   - Nếu có audio: video ở input 0 → nhãn "0:v"
-                    //   - Logo luôn là input cuối cùng:
-                    //     Nếu có audio → logo ở input 2 → nhãn "2:v"
-                    //     Nếu không audio → logo ở input 1 → nhãn "1:v"
-                    const logoLabel = hasAudio ? "2:v" : "1:v";
-
-                    // Gọi hàm buildWatermarkFilter từ Bước 2 để tạo chuỗi filter
-                    const { filterComplex, outputLabel } = buildWatermarkFilter(
-                        watermark!,
-                        width,
-                        height,
-                        "0:v",      // nhãn luồng video nền (luôn là input đầu tiên)
-                        logoLabel,  // nhãn luồng logo (input cuối)
-                    );
-
-                    // Chèn bộ lọc ghép hình vào danh sách tham số FFmpeg
-                    ffmpegArgs.push("-filter_complex", filterComplex);
-
-                    // Chỉ định luồng hình ảnh đầu ra sau khi đã dán logo là [outv]
-                    ffmpegArgs.push("-map", outputLabel);
-
-                    // Nếu có audio thì map thêm luồng âm thanh
-                    if (hasAudio) {
-                        ffmpegArgs.push("-map", "1:a");
-                    }
-                }
-
-                // ── Bước 3: Codec & chất lượng đầu ra ──────────────────────
-                ffmpegArgs.push(
-                    "-c:v", "libx264",
-                    "-pix_fmt", "yuv420p",
-                    "-preset", "veryfast",
-                    "-crf", "22"
-                );
-
-                if (hasAudio) {
-                    ffmpegArgs.push("-c:a", "aac", "-b:a", "192k", "-shortest");
-                }
-
-                ffmpegArgs.push(
-                    "-t", String(durationSec),
-                    "-movflags", "+faststart",
-                    outputPath
-                );
-
-                const ff = spawn("ffmpeg", ffmpegArgs);
-                let errorOutput = "";
-                ff.stderr.on("data", (data) => {
-                    errorOutput += data.toString();
-                });
-
-                // Xử lý lỗi EPIPE trên stdin khi FFmpeg thoát sớm để chống crash tiến trình Node
-                let stdinError: any = null;
-                ff.stdin.on("error", (err: any) => {
-                    stdinError = err;
-                    if (err.code !== 'EPIPE' && err.code !== 'ERR_STREAM_DESTROYED') {
-                        console.warn("[Renderer] ff.stdin error:", err);
-                    }
-                });
-
-                // Đánh dấu marker __hasShutterBlur trên page cho Oracle QA
-                if (shouldApplyBlur) {
-                    await page.evaluate(() => {
-                        (window as any).__hasShutterBlur = true;
+                if (chunks.length === 1) {
+                    // Single chunk path
+                    const context = await browser.newContext({
+                        viewport: { width, height },
+                        deviceScaleFactor: 1,
                     });
-                }
 
-                const accumulator = shouldApplyBlur ? new LinearLightAccumulator(width, height) : null;
-                const reportStep = Math.max(1, Math.floor(totalFrames / 10));
-                let lastFrame: Uint8Array | null = null;
-                let cachedBoxes0: Record<string, DOMBox | null> | undefined = undefined;
+                    try {
+                        const page = await context.newPage();
+                        setupBrowserDiagnostics(page, "Renderer");
 
-                for (let i = 0; i < totalFrames; i++) {
-                    const t0 = i / fps;
-                    const t1 = (i + 1) / fps;
-
-                    let frameToPipe: Uint8Array;
-
-                    if (!shouldApplyBlur) {
-                        // Khi tắt shutter blur: render 1 khung hình tại t0
                         try {
-                            await seekToTimestamp(page, t0);
-                            const buf = await page.screenshot({
-                                type: "png",
-                                animations: "disabled",
-                                timeout: 8000,
-                            });
-                            const decoded = decodePng(buf);
-                            frameToPipe = decoded.data;
-                            lastFrame = frameToPipe;
+                            await page.goto(fileUrl, { waitUntil: "domcontentloaded" });
+                            await page.waitForFunction(
+                                () => (window as unknown as { __ready?: boolean }).__ready === true,
+                                undefined,
+                                { timeout: 15000 }
+                            );
                         } catch (err: any) {
-                            if (lastFrame) {
-                                frameToPipe = lastFrame;
+                            const diagInfo = await dumpDiagnosticSnapshot(page, htmlPath, "Renderer/Load");
+                            err.message = `${err.message}\n${diagInfo}`;
+                            throw err;
+                        }
+
+                        // Pre-wait web fonts once with a safe fallback
+                        await page.evaluate(async () => {
+                            if (document.fonts && document.fonts.ready) {
+                                try {
+                                    await Promise.race([
+                                        document.fonts.ready,
+                                        new Promise((r) => setTimeout(r, 4000)),
+                                    ]);
+                                } catch (e) {}
+                            }
+                        });
+
+                        if (abortController.signal.aborted || signal?.aborted) {
+                            throw new DOMException("Operation aborted", "AbortError");
+                        }
+
+                        const hasAudio = existsSync(audioPath);
+                        const ffmpegArgs = [
+                            "-y",
+                            "-f", "rawvideo",
+                            "-pix_fmt", "rgba",
+                            "-s", `${width}x${height}`,
+                            "-r", String(fps),
+                            "-i", "-",
+                        ];
+
+                        if (hasAudio) {
+                            ffmpegArgs.push("-i", audioPath);
+                        }
+
+                        if (hasWatermark) {
+                            ffmpegArgs.push("-i", logoPath!);
+                        }
+
+                        if (hasWatermark) {
+                            const logoLabel = hasAudio ? "2:v" : "1:v";
+                            const { filterComplex, outputLabel } = buildWatermarkFilter(
+                                watermark!,
+                                width,
+                                height,
+                                "0:v",
+                                logoLabel
+                            );
+                            ffmpegArgs.push("-filter_complex", filterComplex, "-map", outputLabel);
+                            if (hasAudio) {
+                                ffmpegArgs.push("-map", "1:a");
+                            }
+                        }
+
+                        ffmpegArgs.push(
+                            "-c:v", "libx264",
+                            "-pix_fmt", "yuv420p",
+                            "-preset", "veryfast",
+                            "-crf", "22"
+                        );
+
+                        if (hasAudio) {
+                            ffmpegArgs.push("-c:a", "aac", "-b:a", "192k", "-shortest");
+                        }
+
+                        ffmpegArgs.push(
+                            "-t", String(durationSec),
+                            "-movflags", "+faststart",
+                            outputPath
+                        );
+
+                        const ff = spawn("ffmpeg", ffmpegArgs);
+                        activeProcesses.add(ff);
+                        let errorOutput = "";
+                        let ffError: Error | null = null;
+                        let ffClosed = false;
+
+                        ff.stderr.on("data", (data) => {
+                            errorOutput += data.toString();
+                        });
+                        ff.on("error", (err) => {
+                            ffError = err;
+                        });
+                        ff.on("close", (code) => {
+                            ffClosed = true;
+                            if (code !== 0 && !ffError) {
+                                ffError = new Error(`ffmpeg render failed with code ${code}: ${errorOutput.slice(-500)}`);
+                            }
+                        });
+
+                        ff.stdin.on("error", (err: any) => {
+                            if (err.code !== "EPIPE" && err.code !== "ERR_STREAM_DESTROYED") {
+                                console.warn("[Renderer] ff.stdin error:", err);
+                            }
+                        });
+
+                        if (shouldApplyBlur) {
+                            await page.evaluate(() => {
+                                (window as any).__hasShutterBlur = true;
+                            });
+                        }
+
+                        const accumulator = shouldApplyBlur ? new LinearLightAccumulator(width, height) : null;
+                        const reportStep = Math.max(1, Math.floor(totalFrames / 10));
+                        const frameCtx: FrameRenderContext = { cachedBoxes0: undefined, lastFrame: null };
+
+                        for (let i = 0; i < totalFrames; i++) {
+                            if (abortController.signal.aborted || signal?.aborted) {
+                                if (ff.stdin.writable && !ff.stdin.destroyed) ff.stdin.end();
+                                throw new DOMException("Operation aborted", "AbortError");
+                            }
+                            if (ffError) throw ffError;
+                            if (ffClosed) throw new Error(`ffmpeg closed unexpectedly: ${errorOutput.slice(-500)}`);
+
+                            const frameToPipe = await renderFrameData(
+                                page,
+                                i,
+                                fps,
+                                shutterSamples,
+                                shouldApplyBlur,
+                                seed,
+                                accumulator,
+                                frameCtx,
+                                htmlPath,
+                                ""
+                            );
+
+                            if (ff.stdin.writable && !ff.stdin.destroyed) {
+                                const canWrite = ff.stdin.write(
+                                    Buffer.from(frameToPipe.buffer, frameToPipe.byteOffset, frameToPipe.byteLength)
+                                );
+                                if (!canWrite) {
+                                    await Promise.race([
+                                        new Promise((r) => ff.stdin.once("drain", r)),
+                                        new Promise((_, rej) =>
+                                            ff.once("close", () =>
+                                                rej(ffError || new Error(`ffmpeg closed before drain: ${errorOutput.slice(-500)}`))
+                                            )
+                                        ),
+                                        new Promise((_, rej) => ff.once("error", rej)),
+                                    ]);
+                                }
                             } else {
-                                const diagInfo = await dumpDiagnosticSnapshot(page, htmlPath, `Renderer/Seek (${t0}s)`);
+                                break;
+                            }
+
+                            if (i % reportStep === 0 || i === totalFrames - 1) {
+                                const pct = Math.round(((i + 1) / totalFrames) * 100);
+                                onProgress?.(`Rendering frames: ${i + 1}/${totalFrames} (${pct}%)`, pct);
+                            }
+                        }
+
+                        if (ff.stdin.writable && !ff.stdin.destroyed) {
+                            ff.stdin.end();
+                        }
+
+                        await new Promise<void>((res, rej) => {
+                            ff.on("close", (code) => {
+                                activeProcesses.delete(ff);
+                                if (code === 0) {
+                                    res();
+                                } else {
+                                    rej(new Error(`ffmpeg render failed with code ${code}: ${errorOutput.slice(-500)}`));
+                                }
+                            });
+                            ff.on("error", (err) => {
+                                activeProcesses.delete(ff);
+                                rej(err);
+                            });
+                        });
+                    } finally {
+                        await context.close().catch(() => {});
+                    }
+                } else {
+                    // Multi-chunk parallel rendering path
+                    let completedFrames = 0;
+                    const reportStep = Math.max(1, Math.floor(totalFrames / 20));
+
+                    const renderChunkWorker = async (chunk: RenderChunk) => {
+                        if (abortController.signal.aborted || signal?.aborted) {
+                            throw new DOMException("Operation aborted", "AbortError");
+                        }
+
+                        chunkFilesToCleanup.push(chunk.chunkOutputPath);
+                        if (existsSync(chunk.chunkOutputPath)) {
+                            rmSync(chunk.chunkOutputPath, { force: true });
+                        }
+
+                        const context = await browser.newContext({
+                            viewport: { width, height },
+                            deviceScaleFactor: 1,
+                        });
+
+                        try {
+                            const page = await context.newPage();
+                            setupBrowserDiagnostics(page, `Renderer-Chunk-${chunk.index}`);
+
+                            try {
+                                await page.goto(fileUrl, { waitUntil: "domcontentloaded" });
+                                await page.waitForFunction(
+                                    () => (window as unknown as { __ready?: boolean }).__ready === true,
+                                    undefined,
+                                    { timeout: 15000 }
+                                );
+                            } catch (err: any) {
+                                const diagInfo = await dumpDiagnosticSnapshot(page, htmlPath, `Renderer/Load/Chunk-${chunk.index}`);
                                 err.message = `${err.message}\n${diagInfo}`;
                                 throw err;
                             }
-                        }
-                    } else {
-                        // Khi bật shutter blur: phát hiện chuyển động trong [t0, t1]
-                        let motion;
-                        try {
-                            motion = await detectMotion(page, t0, t1, { cachedBoxes0 });
-                            cachedBoxes0 = motion.boxes1;
-                        } catch {
-                            motion = { hasMotion: true, maxDisplacement: 999, totalDisplacement: 999, vectors: [] };
-                        }
 
-                        if (!motion.hasMotion) {
-                            // Skip holds: tổng độ dịch chuyển < 1px -> render 1 frame tĩnh tiết kiệm compute
-                            try {
-                                await seekToTimestamp(page, t0);
-                                const buf = await page.screenshot({
-                                    type: "png",
-                                    animations: "disabled",
-                                    timeout: 8000,
+                            // Wait web fonts
+                            await page.evaluate(async () => {
+                                if (document.fonts && document.fonts.ready) {
+                                    try {
+                                        await Promise.race([
+                                            document.fonts.ready,
+                                            new Promise((r) => setTimeout(r, 4000)),
+                                        ]);
+                                    } catch (e) {}
+                                }
+                            });
+
+                            if (abortController.signal.aborted || signal?.aborted) {
+                                throw new DOMException("Operation aborted", "AbortError");
+                            }
+
+                            const ffmpegArgs = [
+                                "-y",
+                                "-f", "rawvideo",
+                                "-pix_fmt", "rgba",
+                                "-s", `${width}x${height}`,
+                                "-r", String(fps),
+                                "-i", "-",
+                            ];
+
+                            if (hasWatermark) {
+                                ffmpegArgs.push("-i", logoPath!);
+                                const { filterComplex, outputLabel } = buildWatermarkFilter(
+                                    watermark!,
+                                    width,
+                                    height,
+                                    "0:v",
+                                    "1:v"
+                                );
+                                ffmpegArgs.push("-filter_complex", filterComplex, "-map", outputLabel);
+                            }
+
+                            ffmpegArgs.push(
+                                "-c:v", "libx264",
+                                "-pix_fmt", "yuv420p",
+                                "-preset", "veryfast",
+                                "-crf", "22",
+                                "-an",
+                                chunk.chunkOutputPath
+                            );
+
+                            const ff = spawn("ffmpeg", ffmpegArgs);
+                            activeProcesses.add(ff);
+                            let errorOutput = "";
+                            let ffError: Error | null = null;
+                            let ffClosed = false;
+
+                            ff.stderr.on("data", (data) => {
+                                errorOutput += data.toString();
+                            });
+                            ff.on("error", (err) => {
+                                ffError = err;
+                            });
+                            ff.on("close", (code) => {
+                                ffClosed = true;
+                                if (code !== 0 && !ffError) {
+                                    ffError = new Error(`ffmpeg chunk_${chunk.index} failed with code ${code}: ${errorOutput.slice(-500)}`);
+                                }
+                            });
+
+                            ff.stdin.on("error", (err: any) => {
+                                if (err.code !== "EPIPE" && err.code !== "ERR_STREAM_DESTROYED") {
+                                    console.warn(`[Renderer] ff chunk_${chunk.index} stdin error:`, err);
+                                }
+                            });
+
+                            if (shouldApplyBlur) {
+                                await page.evaluate(() => {
+                                    (window as any).__hasShutterBlur = true;
                                 });
-                                const decoded = decodePng(buf);
-                                frameToPipe = decoded.data;
-                                lastFrame = frameToPipe;
-                            } catch (err: any) {
-                                if (lastFrame) {
-                                    frameToPipe = lastFrame;
-                                } else {
-                                    const diagInfo = await dumpDiagnosticSnapshot(page, htmlPath, `Renderer/Seek (${t0}s)`);
-                                    err.message = `${err.message}\n${diagInfo}`;
-                                    throw err;
-                                }
                             }
-                        } else {
-                            // Có chuyển động: lấy mẫu K sub-frames và pha trộn trong Linear Light
-                            accumulator!.reset();
-                            const subTimes = calculateSubFrameTimestamps(i, fps, shutterSamples, seed);
 
-                            for (const subT of subTimes) {
-                                let subFrameData: Uint8Array;
-                                try {
-                                    await seekToTimestamp(page, subT);
-                                    const buf = await page.screenshot({
-                                        type: "png",
-                                        animations: "disabled",
-                                        timeout: 8000,
-                                    });
-                                    const decoded = decodePng(buf);
-                                    subFrameData = decoded.data;
-                                    lastFrame = subFrameData;
-                                } catch (err: any) {
-                                    if (lastFrame) {
-                                        subFrameData = lastFrame;
-                                    } else {
-                                        const diagInfo = await dumpDiagnosticSnapshot(page, htmlPath, `Renderer/SubFrame (${subT}s)`);
-                                        err.message = `${err.message}\n${diagInfo}`;
-                                        throw err;
+                            const accumulator = shouldApplyBlur ? new LinearLightAccumulator(width, height) : null;
+                            const frameCtx: FrameRenderContext = { cachedBoxes0: undefined, lastFrame: null };
+
+                            for (let i = chunk.startFrame; i < chunk.endFrame; i++) {
+                                if (abortController.signal.aborted || signal?.aborted) {
+                                    if (ff.stdin.writable && !ff.stdin.destroyed) ff.stdin.end();
+                                    throw new DOMException("Operation aborted", "AbortError");
+                                }
+                                if (ffError) throw ffError;
+                                if (ffClosed) throw new Error(`ffmpeg closed unexpectedly: ${errorOutput.slice(-500)}`);
+
+                                const frameToPipe = await renderFrameData(
+                                    page,
+                                    i,
+                                    fps,
+                                    shutterSamples,
+                                    shouldApplyBlur,
+                                    seed,
+                                    accumulator,
+                                    frameCtx,
+                                    htmlPath,
+                                    `/Chunk-${chunk.index}`
+                                );
+
+                                if (ff.stdin.writable && !ff.stdin.destroyed) {
+                                    const canWrite = ff.stdin.write(
+                                        Buffer.from(frameToPipe.buffer, frameToPipe.byteOffset, frameToPipe.byteLength)
+                                    );
+                                    if (!canWrite) {
+                                        await Promise.race([
+                                            new Promise((r) => ff.stdin.once("drain", r)),
+                                            new Promise((_, rej) =>
+                                                ff.once("close", () =>
+                                                    rej(ffError || new Error(`ffmpeg closed before drain: ${errorOutput.slice(-500)}`))
+                                                )
+                                            ),
+                                            new Promise((_, rej) => ff.once("error", rej)),
+                                        ]);
                                     }
+                                } else {
+                                    break;
                                 }
-                                accumulator!.addFrame(subFrameData);
+
+                                completedFrames++;
+                                if (completedFrames % reportStep === 0 || completedFrames === totalFrames) {
+                                    const pct = Math.round((completedFrames / totalFrames) * 95);
+                                    onProgress?.(`Rendering frames: ${completedFrames}/${totalFrames} (${pct}%)`, pct);
+                                }
                             }
 
-                            frameToPipe = accumulator!.toRgba();
+                            if (ff.stdin.writable && !ff.stdin.destroyed) {
+                                ff.stdin.end();
+                            }
+
+                            await new Promise<void>((res, rej) => {
+                                ff.on("close", (code) => {
+                                    activeProcesses.delete(ff);
+                                    if (code === 0) {
+                                        res();
+                                    } else {
+                                        rej(new Error(`ffmpeg chunk_${chunk.index} failed with code ${code}: ${errorOutput.slice(-500)}`));
+                                    }
+                                });
+                                ff.on("error", (err) => {
+                                    activeProcesses.delete(ff);
+                                    rej(err);
+                                });
+                            });
+                        } finally {
+                            await context.close().catch(() => {});
                         }
+                    };
+
+                    await Promise.all(
+                        chunks.map((chunk) =>
+                            renderChunkWorker(chunk).catch((err) => {
+                                abortController.abort();
+                                for (const p of activeProcesses) {
+                                    try {
+                                        p.kill("SIGKILL");
+                                    } catch {}
+                                }
+                                throw err;
+                            })
+                        )
+                    );
+
+                    if (abortController.signal.aborted || signal?.aborted) {
+                        throw new DOMException("Operation aborted", "AbortError");
                     }
 
-                    if (ff.stdin.writable && !ff.stdin.destroyed) {
-                        const canWrite = ff.stdin.write(
-                            Buffer.from(frameToPipe.buffer, frameToPipe.byteOffset, frameToPipe.byteLength)
-                        );
-                        if (!canWrite) {
-                            await new Promise((r) => ff.stdin.once("drain", r));
-                        }
-                    } else {
-                        // FFmpeg đã đóng stdin hoặc thoát sớm, ngừng ghi khung hình và chờ sự kiện close
-                        break;
+                    // Fast Concat Demuxer
+                    onProgress?.("Fast concatenating video chunks...", 96);
+
+                    const lines = chunks
+                        .map((c) => `file '${resolve(c.chunkOutputPath).replace(/'/g, "'\\''")}'`)
+                        .join("\n");
+                    writeFileSync(concatListPath, lines, "utf-8");
+
+                    const hasAudio = existsSync(audioPath);
+                    const concatArgs = [
+                        "-y",
+                        "-f", "concat",
+                        "-safe", "0",
+                        "-i", concatListPath,
+                    ];
+
+                    if (hasAudio) {
+                        concatArgs.push("-i", audioPath);
                     }
 
-                    if (i % reportStep === 0 || i === totalFrames - 1) {
-                        const pct = Math.round(((i + 1) / totalFrames) * 100);
-                        onProgress?.(`Rendering frames: ${i + 1}/${totalFrames} (${pct}%)`, pct);
-                    }
-                }
-                if (ff.stdin.writable && !ff.stdin.destroyed) {
-                    ff.stdin.end();
-                }
+                    concatArgs.push("-c:v", "copy");
 
-                await new Promise<void>((res, rej) => {
-                    ff.on("close", (code) => {
-                        if (code === 0) {
-                            res();
-                        } else {
-                            console.error("[Renderer] FFMPEG FULL ERROR OUTPUT:\n", errorOutput);
-                            rej(new Error(`ffmpeg render failed with code ${code}: ${errorOutput.slice(-500)}`));
-                        }
+                    if (hasAudio) {
+                        concatArgs.push("-c:a", "aac", "-b:a", "192k", "-shortest");
+                    }
+
+                    concatArgs.push(
+                        "-movflags", "+faststart",
+                        outputPath
+                    );
+
+                    const ffConcat = spawn("ffmpeg", concatArgs);
+                    activeProcesses.add(ffConcat);
+                    let concatError = "";
+                    ffConcat.stderr.on("data", (data) => {
+                        concatError += data.toString();
                     });
-                    ff.on("error", rej);
-                });
+
+                    await new Promise<void>((res, rej) => {
+                        ffConcat.on("close", (code) => {
+                            activeProcesses.delete(ffConcat);
+                            if (code === 0) {
+                                res();
+                            } else {
+                                rej(new Error(`ffmpeg fast concat failed with code ${code}: ${concatError.slice(-500)}`));
+                            }
+                        });
+                        ffConcat.on("error", (err) => {
+                            activeProcesses.delete(ffConcat);
+                            rej(err);
+                        });
+                    });
+                }
 
                 onProgress?.("Video rendering and muxing completed", 100);
                 return outputPath;
             } finally {
-                await browser.close().catch(() => { });
+                if (signal) {
+                    signal.removeEventListener("abort", onSignalAbort);
+                }
+                for (const p of activeProcesses) {
+                    try {
+                        p.kill("SIGKILL");
+                    } catch {}
+                }
+                await browser.close().catch(() => {});
+
+                if (existsSync(concatListPath)) {
+                    rmSync(concatListPath, { force: true });
+                }
+                for (const f of chunkFilesToCleanup) {
+                    if (existsSync(f)) {
+                        rmSync(f, { force: true });
+                    }
+                }
             }
         },
         {
             maxAttempts: 2,
+            signal,
             shouldRetry: (err) => !isAbortError(err),
             onRetry: (err, attempt, delayMs) => {
                 onProgress?.(`[Render] Video render lỗi (${err.message}). Đang thử lại lần ${attempt + 1}/2 sau ${delayMs}ms...`);
@@ -429,3 +777,4 @@ export async function renderVideo(options: RenderVideoOptions): Promise<string> 
         }
     );
 }
+
