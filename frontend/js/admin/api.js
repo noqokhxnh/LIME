@@ -191,12 +191,24 @@ export const AdminApi = {
     },
 
     // Failed Payments & Refunds
-    async getUnmatched(status = 'pending') {
-        return this.request(`/api/admin/unmatched?status=${encodeURIComponent(status)}`);
+    async getUnmatched(params = {}) {
+        // Cho phép gọi cũ dạng chuỗi trạng thái: getUnmatched('pending').
+        const query = typeof params === 'string' ? { status: params } : params;
+        const qs = new URLSearchParams();
+        Object.entries(query).forEach(([key, val]) => {
+            if (val !== undefined && val !== null && val !== '') qs.append(key, val);
+        });
+        const suffix = qs.toString();
+        return this.request(`/api/admin/unmatched${suffix ? `?${suffix}` : ''}`);
     },
 
-    async getDuplicatePayments() {
-        return this.request('/api/admin/payments/duplicates');
+    async getDuplicatePayments(params = {}) {
+        const qs = new URLSearchParams();
+        Object.entries(params).forEach(([key, val]) => {
+            if (val !== undefined && val !== null && val !== '') qs.append(key, val);
+        });
+        const suffix = qs.toString();
+        return this.request(`/api/admin/payments/duplicates${suffix ? `?${suffix}` : ''}`);
     },
 
     async resolveUnmatched(id, data) {
