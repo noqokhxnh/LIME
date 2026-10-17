@@ -351,3 +351,108 @@ body.ws .statusbar .right{margin-left:auto;display:flex;gap:16px;font-family:ui-
 
 /* ---------- auth modal stays light (from style.css) ---------- */
 body.ws .auth-modal{position:fixed}
+
+/* Preview Player (Issue #36) */
+.preview-player {
+    display: flex;
+    flex-direction: column;
+    height: 100%;
+    background: #1a1a1a;
+    border-radius: 8px;
+    overflow: hidden;
+}
+
+.pp-viewport {
+    position: relative;
+    flex: 1;
+    min-height: 300px;
+    background: #000;
+}
+
+.pp-viewport iframe {
+    position: absolute;
+    top: 0;
+    left: 0;
+}
+
+.pp-loading {
+    position: absolute;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    background: rgba(0, 0, 0, 0.7);
+    color: #fff;
+    font-size: 14px;
+}
+
+.pp-controls {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 12px;
+    background: #2a2a2a;
+    border-top: 1px solid #3a3a3a;
+}
+
+.pp-btn {
+    padding: 8px 12px;
+    background: #B9E72B;
+    color: #1a1a1a;
+    border: none;
+    border-radius: 6px;
+    cursor: pointer;
+    font-size: 14px;
+    font-weight: 600;
+    white-space: nowrap;
+}
+
+.pp-btn:hover {
+    background: #a8d626;
+}
+
+.pp-btn:active {
+    transform: scale(0.95);
+}
+
+#pp-scrubber {
+    flex: 1;
+    height: 6px;
+    -webkit-appearance: none;
+    appearance: none;
+    background: #4a4a4a;
+    border-radius: 3px;
+    outline: none;
+    cursor: pointer;
+}
+
+#pp-scrubber::-webkit-slider-thumb {
+    -webkit-appearance: none;
+    appearance: none;
+    width: 16px;
+    height: 16px;
+    background: #B9E72B;
+    border-radius: 50%;
+    cursor: pointer;
+}
+
+#pp-scrubber::-moz-range-thumb {
+    width: 16px;
+    height: 16px;
+    background: #B9E72B;
+    border-radius: 50%;
+    cursor: pointer;
+    border: none;
+}
+
+.pp-time {
+    color: #fff;
+    font-size: 13px;
+    font-family: monospace;
+    white-space: nowrap;
+    min-width: 110px;
+    text-align: right;
+}
