@@ -9,6 +9,7 @@ import { Config, getConfig } from "@/config";
 import { AudioResult, durationMap, videoScript } from "@/llm/schema";
 import { estimateTextDuration } from "./estimateDuration";
 import { withRetry } from "./retry.js";
+import { WordTiming, computeFallbackWordTimings, parseEdgeWordBoundaries } from "./wordTiming.js";
 
 export interface TTSClient {
     readonly provider: string;
@@ -22,7 +23,7 @@ export interface TTSClient {
             pitch?: string;
             signal?: AbortSignal;
         }
-    ): Promise<void>;
+    ): Promise<{ wordTimings?: WordTiming[] } | void>;
 }
 
 // ---------------------------------------------------------------- Edge TTS
@@ -81,7 +82,7 @@ export function buildSpeechConfigFrame(): string {
         `X-Timestamp:${dateToString()}\r\n` +
         "Content-Type:application/json; charset=utf-8\r\n" +
         "Path:speech.config\r\n\r\n" +
-        '{"context":{"synthesis":{"audio":{"metadataoptions":{"sentenceBoundaryEnabled":"true","wordBoundaryEnabled":"false"},"outputFormat":"audio-24khz-48kbitrate-mono-mp3"}}}}\r\n'
+        '{"context":{"synthesis":{"audio":{"metadataoptions":{"sentenceBoundaryEnabled":"false","wordBoundaryEnabled":"true"},"outputFormat":"audio-24khz-48kbitrate-mono-mp3"}}}}\r\n'
     );
 }
 
@@ -146,7 +147,7 @@ export class EdgeTTSClient implements TTSClient {
         text: string,
         outputPath: string,
         options?: { voice?: string; language?: string; signal?: AbortSignal }
-    ): Promise<void> {
+    ): Promise<{ wordTimings?: WordTiming[] } | void> {
         const voice = resolveEdgeVoice(options?.voice ?? this.config.TTS_Voice, options?.language ?? "vi");
         const connectionId = uuidv4().replace(/-/g, "");
         const url =
@@ -156,6 +157,7 @@ export class EdgeTTSClient implements TTSClient {
             `&Sec-MS-GEC-Version=${EDGE_TTS_VERSION}`;
 
         const chunks: Buffer[] = [];
+        const wordTimings: WordTiming[] = [];
         await new Promise<void>((resolve, reject) => {
             let settled = false;
             const ws = new EdgeWebSocketImpl(url, {
@@ -188,7 +190,13 @@ export class EdgeTTSClient implements TTSClient {
             ws.onmessage = (event) => {
                 const data = event.data;
                 if (typeof data === "string") {
-                    const { headers } = parseFrameHeaders(data);
+                    const { headers, body } = parseFrameHeaders(data);
+                    if (headers["path"] === "audio.metadata") {
+                        const parsed = parseEdgeWordBoundaries(body);
+                        if (parsed.length > 0) {
+                            wordTimings.push(...parsed);
+                        }
+                    }
                     if (headers["path"] === "turn.end") {
                         settled = true;
                         clearTimeout(timeout);
@@ -230,6 +238,7 @@ export class EdgeTTSClient implements TTSClient {
             throw new Error("Edge TTS returned no audio data");
         }
         writeFileSync(outputPath, Buffer.concat(chunks));
+        return { wordTimings };
     }
 }
 
@@ -634,6 +643,7 @@ export async function synthesizeAudio(options: AudioSynthesisOptions): Promise<A
     const tts = ttsProvider ? createTTSClient(ttsProvider) : getTTSClient();
     const audioFiles: Record<string, string> = {};
     const sceneDurations: durationMap = {};
+    const sceneWordTimings: Record<string, WordTiming[]> = {};
     const total = script.scenes.length;
 
     for (let i = 0; i < total; i++) {
@@ -648,20 +658,28 @@ export async function synthesizeAudio(options: AudioSynthesisOptions): Promise<A
 
         await withRetry(
             async (attempt) => {
+                let ttsRes: { wordTimings?: WordTiming[] } | void = undefined;
                 if (!text) {
                     const silenceDuration = estimateTextDuration(scene.voiceOverText, { language });
                     onProgress?.(`[TTS] Scene "${scene.title}" không có lời thoại — tạo đoạn im lặng ${silenceDuration}s`);
                     await generateSilence(sceneAudioPath, silenceDuration);
                 } else {
-                    await tts.synthesize(text, sceneAudioPath, { voice, language, signal });
+                    ttsRes = await tts.synthesize(text, sceneAudioPath, { voice, language, signal });
                 }
 
                 const durationSec = await probeDuration(sceneAudioPath);
                 if (!durationSec || durationSec <= 0) {
                     throw new Error(`Không đo được duration audio của scene "${scene.id}"`);
                 }
-                sceneDurations[scene.id] = Math.round(durationSec * 100) / 100;
+                const roundedDuration = Math.round(durationSec * 100) / 100;
+                sceneDurations[scene.id] = roundedDuration;
                 audioFiles[scene.id] = sceneAudioPath;
+
+                let timings = ttsRes && ttsRes.wordTimings && ttsRes.wordTimings.length > 0 ? ttsRes.wordTimings : undefined;
+                if (!timings) {
+                    timings = computeFallbackWordTimings(text, roundedDuration);
+                }
+                sceneWordTimings[scene.id] = timings;
             },
             {
                 maxAttempts: 3,
@@ -725,7 +743,9 @@ export async function synthesizeAudio(options: AudioSynthesisOptions): Promise<A
         audioFiles,
         totalDurationSec,
         mixAudioPath,
+        wordTimings: sceneWordTimings,
     };
 }
 
 export * from "./audioMixer.js";
+export * from "./wordTiming.js";

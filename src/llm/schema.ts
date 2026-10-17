@@ -1,4 +1,6 @@
 import { z } from 'zod';
+import type { WordTiming } from '../pipeline/wordTiming.js';
+export type { WordTiming };
 
 export const mechanismSchema = z.enum([
     'morph',
@@ -383,7 +385,9 @@ export type WatermarkConfig = z.infer<typeof watermarkConfigSchema>;
 
 export const videoRequestSchema = z.object({
     prompt: z.string().min(10).max(5000),
-    aspectRatio: z.enum(['16:9', '9:16', '1:1', '4:3']),
+    aspectRatio: z.enum(['16:9', '9:16', '1:1', '4:3']).optional().default('16:9'),
+    /** Format khung hình chuẩn: vertical (9:16, 720x1280) hoặc horizontal (16:9, 1920x1080) */
+    format: z.enum(['vertical', 'horizontal']).optional(),
     targetDurationSec: z.coerce.number().min(10).max(300),
     language: z.string().default('vi'),
     style: z.enum(['modern', 'classic', 'stickman', 'minimal']),  // string hoac enum
@@ -398,7 +402,16 @@ export const videoRequestSchema = z.object({
     watermark: watermarkConfigSchema.optional(),
     /** Deterministic seed for PRNG and reproducible rendering (Spec B) */
     seed: z.number().int().optional(),
-})
+    /** Hiển thị khung viền Safe Area (80% frame) phục vụ QA */
+    safeArea: z.boolean().optional(),
+    /** Cấu hình phụ đề karaoke highlight */
+    karaoke: z.union([z.boolean(), z.record(z.string(), z.any())]).optional(),
+}).transform((data) => {
+    if (data.format === 'vertical' && (!data.aspectRatio || data.aspectRatio === '16:9')) {
+        return { ...data, aspectRatio: '9:16' as const };
+    }
+    return data;
+});
 export type videoRequest = z.infer<typeof videoRequestSchema>
 
 
@@ -416,6 +429,7 @@ export interface AudioResult {
     audioFiles: Record<string, string>,
     totalDurationSec: number,
     mixAudioPath: string,
+    wordTimings?: Record<string, WordTiming[]>,
     sfxPath?: string,
     hasSfx?: boolean,
     loudness?: {

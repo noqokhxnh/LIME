@@ -1,7 +1,7 @@
 import { existsSync, mkdirSync, rmSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { v4 } from "uuid";
-import { videoPreset } from "@/config";
+import { videoPreset, resolveResolution } from "@/config";
 import { videoRequest, pipelineResult, pipelineProgess, progressCallback, pipelinePhase, videoScript, AudioResult, checkRhythm } from "@/llm/schema";
 import { generateScript } from "./scriptGenerator";
 import { estimateDuration } from "./estimateDuration";
@@ -73,7 +73,7 @@ export async function runFullPipeline(option: orchestratorOptions): Promise<full
         rmSync(workDir, { recursive: true, force: true });
     }
 
-    const preset = videoPreset[request.aspectRatio];
+    const preset = resolveResolution(request.aspectRatio, request.format);
     const fps = 30;
     const timing: Record<string, number> = {};
     const startTime = Date.now();
@@ -145,7 +145,13 @@ export async function runFullPipeline(option: orchestratorOptions): Promise<full
                 preset.height,
                 workDir,
                 (msg) => logProgress("html_assembly", 25, msg),
-                { seed: currentSeed, jobId }
+                {
+                    seed: currentSeed,
+                    jobId,
+                    format: request.format,
+                    safeArea: request.safeArea,
+                    karaoke: request.karaoke,
+                }
             );
             timing["html_assembly"] = Date.now() - phaseStart;
 
@@ -199,7 +205,14 @@ export async function runFullPipeline(option: orchestratorOptions): Promise<full
                 preset.height,
                 workDir,
                 (msg) => logProgress("html_assembly", 75, msg),
-                { seed: currentSeed, jobId }
+                {
+                    seed: currentSeed,
+                    jobId,
+                    wordTimings: audio.wordTimings,
+                    format: request.format,
+                    safeArea: request.safeArea,
+                    karaoke: request.karaoke,
+                }
             );
             timing["html_assembly"] = Date.now() - phaseStart;
 

@@ -6,11 +6,32 @@ import { DETERMINISTIC_RUNTIME_JS, hashString32, RNG, getSceneSeed } from "./rng
 import { assertDeterministicScript } from "./compLinter.js";
 import { subsetFontsForHtml } from "./fontSubset.js";
 import { CHARACTER_RUNTIME_JS } from "./character/runtime.js";
+import {
+    KaraokeConfig,
+    buildKaraokeTimeline,
+    renderKaraokeHtml,
+    renderKaraokeCss,
+    renderKaraokeJs,
+    getSafeAreaBounds,
+    isBoxWithinSafeArea,
+    getKaraokeLayerBounds,
+} from "./karaoke.js";
+import { WordTiming } from "./wordTiming.js";
 
-export { BLOCK_HELPERS_JS, CHARACTER_RUNTIME_JS };
+export {
+    BLOCK_HELPERS_JS,
+    CHARACTER_RUNTIME_JS,
+    getSafeAreaBounds,
+    isBoxWithinSafeArea,
+    getKaraokeLayerBounds,
+};
 
 export interface assembleOptions {
     imageMap?: Record<string, string[]>;
+    wordTimings?: Record<string, WordTiming[]>;
+    karaoke?: boolean | KaraokeConfig;
+    safeArea?: boolean;
+    format?: 'vertical' | 'horizontal';
     customCdn?: {
         gsap?: string;
         textPlugin?: string;
@@ -192,6 +213,45 @@ export async function assembleHTML(
     const allScenesHtml = processedScenes.map((s) => s.html).join("\n\n");
     const allScenesCss = processedScenes.map((s) => s.css).join("\n\n");
 
+    const karaokeEnabled = options?.karaoke !== false;
+    const karaokeConfig = typeof options?.karaoke === "object" ? options.karaoke : { enabled: karaokeEnabled };
+    const karaokeCues = karaokeEnabled ? buildKaraokeTimeline(script, durations, options?.wordTimings) : [];
+    const karaokeHtml = karaokeEnabled ? renderKaraokeHtml(karaokeCues, karaokeConfig) : "";
+    const karaokeCss = karaokeEnabled ? renderKaraokeCss(karaokeConfig) : "";
+    const karaokeJs = karaokeEnabled ? renderKaraokeJs() : "";
+
+    const safeAreaGuideHtml = options?.safeArea
+        ? `\n    <!-- Safe Area Debug Overlay (QA Guide) -->\n    <div id="lime-safe-area-guide" class="lime-safe-area-guide" aria-hidden="true">\n        <div class="safe-area-label">SAFE AREA 80% (10% V / 10% H)</div>\n    </div>`
+        : "";
+
+    const safeAreaGuideCss = options?.safeArea
+        ? `
+/* Safe Area Debug Overlay (QA Guide) */
+.lime-safe-area-guide {
+    position: absolute;
+    top: 10%;
+    left: 10%;
+    width: 80%;
+    height: 80%;
+    border: 2px dashed rgba(255, 69, 58, 0.75);
+    box-sizing: border-box;
+    pointer-events: none;
+    z-index: 99999;
+}
+.lime-safe-area-guide .safe-area-label {
+    position: absolute;
+    top: 6px;
+    left: 8px;
+    font-size: 12px;
+    font-family: monospace;
+    font-weight: 700;
+    color: rgba(255, 69, 58, 0.9);
+    letter-spacing: 0.5px;
+    text-transform: uppercase;
+}
+`
+        : "";
+
     const allScenesJs = processedScenes
         .map(
             (s) => {
@@ -312,11 +372,18 @@ ${s.js}
 
         /* Per-Scene Styles */
         ${allScenesCss}
+
+        /* Karaoke Subtitles Styles */
+        ${karaokeCss}
+
+        ${safeAreaGuideCss}
     </style>
 </head>
 <body>
     <div id="viewport">
 ${allScenesHtml}
+${karaokeHtml}
+${safeAreaGuideHtml}
     </div>
 
     <script>
@@ -386,6 +453,9 @@ ${allScenesHtml}
             }
             if (typeof window.__renderCharacters === 'function') {
                 window.__renderCharacters(timeInSec);
+            }
+            if (typeof window.__updateKaraoke === 'function') {
+                window.__updateKaraoke(timeInSec);
             }
         };
 
@@ -477,8 +547,13 @@ ${allScenesHtml}
         // Scene Timeline Executions
         ${allScenesJs}
 
+        // Karaoke Subtitles Runtime
+        ${karaokeJs}
         if (typeof window.__renderCharacters === 'function') {
             window.__renderCharacters(0);
+        }
+        if (typeof window.__updateKaraoke === 'function') {
+            window.__updateKaraoke(0);
         }
 
         // Page Ready Signal for Headless Browser Renderer
