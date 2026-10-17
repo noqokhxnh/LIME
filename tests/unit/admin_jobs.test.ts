@@ -112,6 +112,16 @@ describe('Admin Jobs Management Test Suite', () => {
             if (String(data.request?.prompt || '').includes('__block__')) {
                 await new Promise<void>((resolve) => blockedJobs.set(data.jobId, resolve));
             }
+            if (String(data.request?.prompt || '').includes('__degraded__')) {
+                // QA thất bại nhưng pipeline vẫn render ra video (graceful degradation).
+                return {
+                    jobId: data.jobId,
+                    durationSec: 12,
+                    videoPath: `/tmp/${data.jobId}/final_video.mp4`,
+                    qaStatus: 'fail',
+                    qaReport: { jobId: data.jobId, qaStatus: 'fail', valid: false, degraded: true, errors: ['[RHYTHM] Lỗi nhịp điệu'], warnings: [] },
+                } as any;
+            }
             return { jobId: data.jobId, durationSec: 12, qaStatus: 'pass' } as any;
         });
 
@@ -374,6 +384,60 @@ describe('Admin Jobs Management Test Suite', () => {
             const res = await app.inject({ ...req, cookies: { vidtml_session: userToken } });
             assert.strictEqual(res.statusCode, 403, `${req.method} ${req.url} phải trả 403 cho user thường`);
         }
+    });
+
+    it('Job QA thất bại nhưng vẫn render (degraded) hiện đúng qa_failed + cờ degraded + có video', async () => {
+        const res = await app.inject({
+            method: 'POST',
+            url: '/api/pipeline',
+            cookies: { vidtml_session: userToken },
+            payload: pipelinePayload(`__degraded__ job test ${TOKEN}`),
+        });
+        assert.strictEqual(res.statusCode, 202, res.body);
+        const jobId = res.json().jobId as string;
+
+        let detail: any = null;
+        for (let i = 0; i < 60; i++) {
+            detail = await app.inject({
+                method: 'GET',
+                url: `/api/admin/jobs/${jobId}`,
+                cookies: { vidtml_session: adminToken },
+            });
+            if (detail.statusCode === 200 && ['completed', 'failed', 'qa_failed'].includes(detail.json().status)) {
+                break;
+            }
+            await new Promise((r) => setTimeout(r, 25));
+        }
+
+        const detailBody = detail.json();
+        // Kết luận QA trung thực: vẫn fail, nhưng video vẫn tồn tại (không abort).
+        assert.strictEqual(detailBody.status, 'qa_failed', detail.body);
+        assert.strictEqual(detailBody.qaStatus, 'fail');
+        assert.strictEqual(detailBody.degraded, true);
+        assert.strictEqual(detailBody.result?.hasVideo, true, 'Vẫn phải có video dù QA thất bại');
+
+        // Job phải xuất hiện trong bộ lọc qa_failed kèm cờ suy giảm chất lượng.
+        const list = await app.inject({
+            method: 'GET',
+            url: `/api/admin/jobs?status=qa_failed&search=${encodeURIComponent(jobId)}`,
+            cookies: { vidtml_session: adminToken },
+        });
+        assert.strictEqual(list.statusCode, 200, list.body);
+        const found = list.json().jobs.find((j: any) => j.jobId === jobId);
+        assert.ok(found, 'Job degraded phải xuất hiện trong bộ lọc qa_failed');
+        assert.strictEqual(found.degraded, true);
+        assert.strictEqual(found.hasVideo, true);
+
+        // Và chạy lại được (nút "Thử lại" của qa_failed có ý nghĩa trở lại).
+        const retry = await app.inject({
+            method: 'POST',
+            url: `/api/admin/jobs/${jobId}/retry`,
+            cookies: { vidtml_session: adminToken },
+        });
+        assert.ok([200, 202].includes(retry.statusCode), `Retry phải được chấp nhận: ${retry.body}`);
+
+        await new Promise((r) => setTimeout(r, 50));
+        await queue.removeJob(jobId);
     });
 });
 

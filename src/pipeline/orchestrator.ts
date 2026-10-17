@@ -280,15 +280,20 @@ export async function runFullPipeline(option: orchestratorOptions): Promise<full
                 timing["oracle_qa"] = Date.now() - phaseStart;
                 qaStatus = qaReport.qaStatus;
 
-                try {
-                    writeFileSync(
-                        join(workDir, "qa_report.json"),
-                        JSON.stringify(qaReport, null, 2),
-                        "utf-8"
-                    );
-                } catch (reportErr: any) {
-                    console.warn(`[Orchestrator] Không thể ghi file qa_report.json: ${reportErr.message}`);
-                }
+                /** Ghi qa_report.json để nội dung luôn khớp với kết luận cuối cùng. */
+                const persistQaReport = () => {
+                    try {
+                        writeFileSync(
+                            join(workDir, "qa_report.json"),
+                            JSON.stringify(qaReport, null, 2),
+                            "utf-8"
+                        );
+                    } catch (reportErr: any) {
+                        console.warn(`[Orchestrator] Không thể ghi file qa_report.json: ${reportErr.message}`);
+                    }
+                };
+
+                persistQaReport();
 
                 if (qaStatus === 'fail') {
                     if (attempt < maxQaAttempts && !inputScript) {
@@ -299,14 +304,21 @@ export async function runFullPipeline(option: orchestratorOptions): Promise<full
                         attempt++;
                         continue;
                     } else {
-                        // Hết số lần retry: hạ cấp thành cảnh báo và render tiếp thay vì
-                        // abort cả pipeline. Video không hoàn hảo về nhịp vẫn tốt hơn
-                        // không có video. Chi tiết lỗi giữ nguyên trong qa_report.json.
-                        const softFailMsg = `[Oracle QA] Kịch bản không đạt chuẩn sau ${attempt} lần thử: ${qaReport.errors.join("; ")}. Tiếp tục render với cảnh báo (graceful degradation).`;
-                        console.warn(`[Orchestrator] ${softFailMsg}`);
-                        logProgress("oracle_qa", 79, softFailMsg);
-                        qaStatus = 'warn';
-                        qaReport.warnings = [...(qaReport.warnings || []), ...qaReport.errors.map((e) => `[QA retry exhausted] ${e}`)];
+                        // Hết số lần retry: vẫn render tiếp để người dùng có video, nhưng
+                        // KHÔNG hạ cấp kết luận — báo cáo giữ nguyên 'fail' / valid: false và
+                        // được đánh dấu degraded để lộ rõ đây là bản render suy giảm chất lượng.
+                        // Nhờ vậy job vẫn vào trạng thái qa_failed (admin thấy và retry được)
+                        // mà vẫn có file video để đối chiếu.
+                        const degradeMsg = `[Oracle QA] Kịch bản không đạt chuẩn sau ${attempt} lần thử: ${qaReport.errors.join("; ")}. Vẫn render tiếp ở dạng suy giảm chất lượng (degraded).`;
+                        console.warn(`[Orchestrator] ${degradeMsg}`);
+                        logProgress("oracle_qa", 79, degradeMsg);
+                        qaStatus = "fail";
+                        qaReport.degraded = true;
+                        qaReport.warnings = [
+                            ...(qaReport.warnings || []),
+                            `[QA retry exhausted] Đã render tiếp dù QA thất bại sau ${attempt} lần thử.`,
+                        ];
+                        persistQaReport();
                         break;
                     }
                 } else if (qaStatus === 'warn') {

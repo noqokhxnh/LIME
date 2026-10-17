@@ -121,7 +121,7 @@ export const JobsView = {
                             <span style="font-size: 11px; font-family: var(--font-mono); font-weight: 600;">${getProgressPercent(j.progress)}%</span>
                         </div>
                     </td>
-                    <td><span class="badge ${statusBadge}">${escapeHtml(j.status)}</span></td>
+                    <td><span class="badge ${statusBadge}">${escapeHtml(j.status)}</span>${j.degraded ? ' <span class="badge badge-warning" title="QA thất bại nhưng vẫn render để có video — cần duyệt lại">suy giảm</span>' : ''}</td>
                     <td style="text-align: center;">
                         <div style="display: inline-flex; gap: 6px;">
                             <button class="btn btn-secondary btn-sm view-job-btn" style="padding: 4px 8px; font-size: 11px;">Chi tiết</button>
@@ -206,7 +206,7 @@ export const JobsView = {
                         </label>`).join('')}</div>` : '<div class="job-edit-note">Kịch bản chưa được lưu. Bạn vẫn có thể sửa thời lượng; Studio sẽ cho phép chỉnh kịch bản nếu dữ liệu đó có sẵn.</div>'}
                     <button class="btn btn-secondary" type="button" data-save-job-edits>Lưu chỉnh sửa</button>
                 </section>
-                <section class="drawer-section"><div class="drawer-section-title">Kết quả</div><div class="job-detail-summary">Video: ${result.hasVideo ? 'Có' : 'Chưa có'} · HTML: ${result.hasHtml ? 'Có' : 'Chưa có'}</div></section>
+                <section class="drawer-section"><div class="drawer-section-title">Kết quả</div><div class="job-detail-summary">Video: ${result.hasVideo ? 'Có' : 'Chưa có'} · HTML: ${result.hasHtml ? 'Có' : 'Chưa có'}${detail.degraded ? ' · <strong>Bản suy giảm chất lượng</strong> (QA thất bại nhưng vẫn render; nên duyệt lại trước khi dùng)' : ''}</div></section>
                 ${status === 'queued' && ['failed', 'completed'].includes(queue.state) ? '<section class="drawer-section job-detail-error"><div class="drawer-section-title">Trạng thái không đồng nhất</div><div>Job store đang ghi queued nhưng bản ghi hàng đợi mới nhất đã kết thúc. Có thể job chưa được cập nhật trạng thái sau khi worker dừng.</div></section>' : ''}
                 ${detail.error || queue.failedReason ? `<section class="drawer-section job-detail-error"><div class="drawer-section-title">Chi tiết lỗi</div><pre>${escapeHtml(detail.error || queue.failedReason)}</pre></section>` : ''}
                 ${status === 'failed' && !detail.error && !queue.failedReason ? '<section class="drawer-section job-detail-error"><div class="drawer-section-title">Chưa có thông báo lỗi</div><div>Job đã được đánh dấu thất bại nhưng job store và hàng đợi không lưu thông báo lỗi. Kiểm tra log của server/worker tại thời điểm cập nhật lần cuối.</div></section>' : ''}
