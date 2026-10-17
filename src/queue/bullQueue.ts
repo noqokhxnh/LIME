@@ -15,6 +15,14 @@ export class BullMQQueue implements IVideoQueue {
     private queueEvents?: QueueEvents;
     private connectionOptions: any;
     private redisUrl: string;
+    /**
+     * Kết nối ioredis do lớp này tạo. BullMQ KHÔNG đóng kết nối mà bên gọi truyền vào
+     * (nó coi kết nối đó thuộc về bên gọi), nên phải tự giữ và tự đóng ở `close()` —
+     * nếu không, tiến trình gọi `close()` (worker, CLI, test) vẫn còn socket mở và treo.
+     */
+    private connections: Redis[] = [];
+    /** `close()` phải gọi lại được (worker/CLI có thể đóng hai lần khi tắt máy). */
+    private closed = false;
 
     // We can simulate an event emitter so the API has a unified way to listen
     // regardless of BullMQ or Memory.
@@ -25,9 +33,13 @@ export class BullMQQueue implements IVideoQueue {
         this.connectionOptions = {
             maxRetriesPerRequest: null // Required by BullMQ
         };
-        const connection = new Redis(this.redisUrl, this.connectionOptions);
+        this.queue = new Queue('video-generation', { connection: this.createConnection() });
+    }
 
-        this.queue = new Queue('video-generation', { connection });
+    private createConnection(): Redis {
+        const connection = new Redis(this.redisUrl, this.connectionOptions);
+        this.connections.push(connection);
+        return connection;
     }
 
     async addJob(jobId: string, data: JobData): Promise<void> {
@@ -144,7 +156,7 @@ export class BullMQQueue implements IVideoQueue {
     }
 
     process(handler: (data: JobData, updateProgress: (p: JobProgress) => Promise<void>) => Promise<fullPipelineResult>): void {
-        const connection = new Redis(this.redisUrl, this.connectionOptions);
+        const connection = this.createConnection();
         // Số job chạy song song lấy theo cài đặt quản trị (trước đây viết cứng là 2).
         const configured = Math.round(Number(systemSettings.get().maxConcurrentJobs));
         const concurrency = Number.isFinite(configured) && configured > 0 ? configured : 2;
@@ -163,7 +175,7 @@ export class BullMQQueue implements IVideoQueue {
     }
 
     startListeners(): void {
-        const connection = new Redis(this.redisUrl, this.connectionOptions);
+        const connection = this.createConnection();
         this.queueEvents = new QueueEvents('video-generation', { connection });
 
         this.queueEvents.on('progress', (args: any) => {
@@ -180,8 +192,19 @@ export class BullMQQueue implements IVideoQueue {
     }
 
     async close(): Promise<void> {
+        // Gọi lại lần hai phải là việc rỗng: đóng tiếp một hàng đợi đã đóng khiến BullMQ
+        // gửi lệnh trên kết nối đã ngắt và treo hàng chục giây (đã gặp thật khi test gọi
+        // close() hai lần).
+        if (this.closed) return;
+        this.closed = true;
         if (this.worker) await this.worker.close();
         if (this.queueEvents) await this.queueEvents.close();
         await this.queue.close();
+        // Đóng nốt các kết nối mình đã tạo (BullMQ không sở hữu chúng) để tiến trình
+        // gọi close() thật sự thoát được, không để lại socket mở.
+        for (const connection of this.connections) {
+            if (connection.status !== 'end') connection.disconnect();
+        }
+        this.connections = [];
     }
 }

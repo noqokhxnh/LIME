@@ -140,6 +140,9 @@ function main(): number {
 
     console.log(`[test] nhóm ${group.label} — ${group.description}`);
     console.log(`[test] ${group.files.length} file: ${group.files.join(', ')}`);
+    if (group.forceExit) {
+        console.log('[test] sẽ ép tiến trình thoát khi test xong (nhóm để lại timer nền — xem FORCE_EXIT_GROUPS)');
+    }
     if (options.coverage) {
         console.log(
             threshold === undefined
@@ -152,6 +155,10 @@ function main(): number {
     // gì nằm sau đối số vị trí đầu tiên là đối số của script, nên nếu đặt cờ ở cuối
     // thì cờ coverage (kể cả cổng chất lượng) bị bỏ qua trong im lặng.
     const args = ['--test'];
+    if (group.forceExit) {
+        // Xem FORCE_EXIT_GROUPS trong scripts/test-groups.ts (nhóm Redis: race timer của BullMQ).
+        args.push('--test-force-exit');
+    }
     if (options.coverage) {
         args.push(...coverageArgs(threshold, options.coverageOut));
     }
