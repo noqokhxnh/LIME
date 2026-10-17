@@ -1,9 +1,16 @@
-name: Pipeline Tests (heavy)
+name: Pipeline Tests (PostgreSQL thật + cổng độ phủ)
 
-# Nhóm test nặng: mở Chromium thật, ghép video bằng ffmpeg hoặc chạy trọn pipeline
-# nhiều lần (xem scripts/run-unit-tests.ts). Nhóm này mất hàng chục phút nên KHÔNG
-# chạy cho PR thường ngày — chỉ khi PR vào `main` (mốc phát hành), theo lịch đêm,
-# hoặc khi chạy thủ công.
+# Workflow này chạy theo lịch đêm (00:00 giờ Việt Nam), khi có PR vào `main` (mốc phát
+# hành) và khi bấm chạy thủ công. Nó kiểm chứng đúng những thứ job PR không làm được:
+#
+#   1. nhóm test của PR chạy trên PostgreSQL THẬT (job PR chỉ chạy in-memory), và
+#   2. cổng chất lượng độ phủ đo lại trên chính nhóm đó.
+#
+# Nhóm test NẶNG (mở Chromium, ghép video bằng ffmpeg, chạy trọn pipeline) đã được tách
+# sang `heavy-tests.yml` chạy hằng tuần: `security.test.ts` chạy pipeline thật 10 lần nên
+# một mình nó ngốn hơn 30 phút trên runner CI — để trong workflow đêm thì không ai chờ nổi.
+# Muốn chạy nặng tại chỗ: `npm run test:unit` / `npm run test:coverage` (cổng 70% dòng ghi
+# trong scripts/coverage-thresholds.json).
 on:
   pull_request:
     branches:
@@ -18,16 +25,10 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
-  heavy:
-    name: Heavy Unit Tests (shard ${{ matrix.shard }}/3)
+  pr-coverage:
+    name: PR suite + coverage gate
     runs-on: ubuntu-latest
-    # Chia 3 lát chạy song song; mỗi lát vẫn cần dư thời gian vì runner CI yếu hơn
-    # máy phát triển nhiều lần.
-    timeout-minutes: 90
-    strategy:
-      fail-fast: false
-      matrix:
-        shard: [1, 2, 3]
+    timeout-minutes: 30
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
@@ -35,7 +36,7 @@ jobs:
       - name: Setup Node.js
         uses: actions/setup-node@v4
         with:
-          node-version: 22
+          node-version: 26
 
       - name: Setup FFmpeg
         run: |
@@ -79,6 +80,92 @@ jobs:
       - name: TypeScript Build Check
         run: npm run build
 
-      - name: Run Heavy Unit Tests
-        # Không cấu hình service PostgreSQL ⇒ suite chạy ở chế độ in-memory.
-        run: npx tsx scripts/run-unit-tests.ts heavy:${{ matrix.shard }}
+      - name: Run PR suite with coverage gate
+        # Cổng chất lượng lấy từ scripts/coverage-thresholds.json theo tên nhóm `pr`.
+        # `pipefail` để cổng làm đỏ job chứ không bị `tee` che mất mã thoát.
+        run: |
+          set -o pipefail
+          npm run test:coverage:pr 2>&1 | tee coverage-report.txt
+
+      - name: Đưa báo cáo độ phủ vào Step Summary
+        if: always()
+        run: |
+          {
+            echo "### Độ phủ mã nguồn — nhóm \`pr\` (đo đêm)"
+            echo ''
+            echo '(ngưỡng: xem `scripts/coverage-thresholds.json`)'
+            echo ''
+            echo '```'
+            sed -n '/start of coverage report/,/end of coverage report/p' coverage-report.txt \
+              | sed 's/^ℹ *//' | grep -v '^-\{5,\}' | cut -c1-140
+            echo '```'
+          } >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Upload lcov report
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: coverage-nightly
+          path: coverage/lcov.info
+          if-no-files-found: warn
+          retention-days: 14
+
+  postgres:
+    name: PR suite on real PostgreSQL
+    runs-on: ubuntu-latest
+    # CI thường chỉ chạy in-memory ⇒ các nhánh truy vấn thật (admin, billing) không được
+    # kiểm chứng. Job này chạy đúng nhóm của PR nhưng trên PostgreSQL thật.
+    timeout-minutes: 30
+    services:
+      postgres:
+        # Cùng phiên bản với docker-compose.yml của dự án.
+        image: postgres:13
+        env:
+          POSTGRES_DB: vidtml
+          POSTGRES_USER: vidtml
+          # Database chỉ sống trong vài phút của job nên dùng trust auth thay vì đặt mật
+          # khẩu: một "mật khẩu" viết thẳng trong file workflow không bảo vệ được gì mà lại
+          # khiến máy quét bí mật (GitGuardian) đánh dấu cả PR là rò rỉ secret.
+          POSTGRES_HOST_AUTH_METHOD: trust
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U vidtml -d vidtml"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 10
+    env:
+      DATABASE_URL: postgresql://vidtml@localhost:5432/vidtml
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 26
+
+      - name: Setup FFmpeg
+        run: |
+          sudo apt-get update -qq
+          sudo apt-get install -y --no-install-recommends ffmpeg
+          ffmpeg -version
+
+      - name: Cache Node Modules
+        uses: actions/cache@v4
+        id: node-modules-cache
+        with:
+          path: node_modules
+          key: node-modules-${{ runner.os }}-${{ hashFiles('package-lock.json') }}
+
+      - name: Install dependencies
+        if: steps.node-modules-cache.outputs.cache-hit != 'true'
+        run: npm ci --no-audit --prefer-offline
+
+      - name: TypeScript Build Check
+        run: npm run build
+
+      - name: Run PR suite against PostgreSQL
+        # Bảng và dữ liệu gói cước được tạo bởi initDatabase() (CREATE TABLE IF NOT EXISTS
+        # + INSERT ... ON CONFLICT) nên chỉ cần database rỗng là đủ.
+        run: npm run test:unit:pr

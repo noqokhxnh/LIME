@@ -1,93 +1,173 @@
 /**
- * Chạy bộ test đơn vị theo nhóm, để CI không phải "đốt" hàng chục phút cho mỗi PR.
+ * Chạy test theo nhóm, có thể kèm đo độ phủ mã nguồn.
  *
- *   fast        — mọi test KHÔNG mở trình duyệt thật và không render pipeline thật.
- *                 Dùng cho mọi PR/push vào main|dev (phản hồi ~1 phút trên CI).
- *   heavy       — các test mở Chromium, ghép video bằng ffmpeg hoặc chạy trọn
- *                 pipeline nhiều lần (chạy hết, tuần tự như node quyết định).
- *   heavy:N     — chỉ chạy "lát" thứ N của nhóm heavy, để CI chia thành nhiều job
- *                 song song (mỗi job một runner) thay vì một job dài lê thê.
+ *   tsx scripts/run-unit-tests.ts <nhóm> [--coverage] [--threshold=<n>] [--no-orphan-check]
  *
- * File test mới thêm mặc định rơi vào nhóm `fast`; muốn xếp vào `heavy` thì khai
- * báo thêm ở HEAVY_SHARDS kèm lý do.
+ * Nhóm: xem `scripts/test-groups.ts` (fast, heavy, heavy:N, unit, integration,
+ *       frontend, redis, e2e, pr, all).
+ *
+ * Cờ:
+ *   --coverage        bật đo độ phủ (Node built-in V8 coverage + source map, khớp đúng
+ *                     số dòng trong file .ts), xuất `coverage/lcov.info` cho CI.
+ *   --threshold=<n>   cổng chất lượng theo số % dòng; bỏ trống thì lấy từ
+ *                     `scripts/coverage-thresholds.json` theo tên nhóm.
+ *   --no-orphan-check bỏ qua chốt "không được có file test mồ côi".
+ *
+ * Ví dụ:
+ *   npm run test:coverage:pr        # nhóm chạy ở PR + cổng chất lượng
+ *   npm run test:coverage           # toàn bộ test tự động + cổng chất lượng
+ *   npx tsx scripts/run-unit-tests.ts heavy:2
  */
-import { readdirSync } from "node:fs";
-import { spawnSync } from "node:child_process";
-import { fileURLToPath } from "node:url";
-import { dirname, join } from "node:path";
+import { mkdirSync, readFileSync } from 'node:fs';
+import { spawnSync } from 'node:child_process';
+import { dirname, join } from 'node:path';
+import { GROUP_NAMES, REPO_ROOT, findOrphanTests, resolveGroup } from './test-groups.js';
 
-/**
- * Nhóm heavy chia thành các lát chạy song song. Chia theo thời lượng đo trên máy
- * phát triển để các lát cân nhau (orchestrator.test.ts một mình đã ~190s, gần bằng
- * tổng các file còn lại).
- */
-const HEAVY_SHARDS: string[][] = [
-    // Lát 1 — nặng nhất, gần như quyết định thời gian chạy.
-    ["orchestrator.test.ts"],
-    // Lát 2 — gọi pipeline thật qua HTTP/API.
-    ["security.test.ts", "api.test.ts", "queue.test.ts", "spec_d_shutter_blur.test.ts"],
-    // Lát 3 — mở Chromium/pyftsubset và Oracle QA.
-    [
-        "spec_c_oracle_qa.test.ts",
-        "preview.test.ts",
-        "spec_g_karaoke_vertical.test.ts",
-        "spec_h_font_subset.test.ts",
-    ],
-];
+const COVERAGE_DIR = join(REPO_ROOT, 'coverage');
+const THRESHOLDS_FILE = join(REPO_ROOT, 'scripts', 'coverage-thresholds.json');
 
-/** Tập hợp mọi file thuộc nhóm heavy (để nhóm fast biết cần loại trừ). */
-const HEAVY = new Set(HEAVY_SHARDS.flat());
-
-const group = process.argv[2] ?? "";
-const shardMatch = /^heavy:(\d+)$/.exec(group);
-
-if (group !== "fast" && group !== "heavy" && !shardMatch) {
-    console.error("Cách dùng: tsx scripts/run-unit-tests.ts <fast|heavy|heavy:N>");
-    process.exit(2);
+interface Options {
+    group: string;
+    coverage: boolean;
+    threshold?: number;
+    orphanCheck: boolean;
+    coverageOut?: string;
 }
 
-const unitDir = join(dirname(fileURLToPath(import.meta.url)), "..", "tests", "unit");
-const all = readdirSync(unitDir)
-    .filter((name) => name.endsWith(".test.ts"))
-    .sort();
-
-// Chốt an toàn: mọi file khai báo trong HEAVY_SHARDS phải thật sự tồn tại.
-const missing = [...HEAVY].filter((name) => !all.includes(name));
-if (missing.length > 0) {
-    console.error(`[unit-tests] File khai báo trong HEAVY_SHARDS không tồn tại: ${missing.join(", ")}`);
-    process.exit(1);
-}
-
-let selected: string[];
-let label = group;
-
-if (group === "fast") {
-    selected = all.filter((name) => !HEAVY.has(name));
-} else if (group === "heavy") {
-    selected = all.filter((name) => HEAVY.has(name));
-} else {
-    const shardNumber = Number(shardMatch![1]);
-    const shard = HEAVY_SHARDS[shardNumber - 1];
-    if (!shard) {
-        console.error(`[unit-tests] Không có lát heavy số ${shardNumber} (chỉ có 1..${HEAVY_SHARDS.length}).`);
-        process.exit(2);
+function parseArgs(argv: string[]): Options {
+    const positional = argv.filter((arg) => !arg.startsWith('--'));
+    const flags = new Map<string, string | true>();
+    for (const arg of argv.filter((value) => value.startsWith('--'))) {
+        const [key, value] = arg.replace(/^--/, '').split('=');
+        flags.set(key, value ?? true);
     }
-    selected = all.filter((name) => shard.includes(name));
-    label = `heavy:${shardNumber}/${HEAVY_SHARDS.length}`;
+
+    const rawThreshold = flags.get('threshold');
+    const threshold = rawThreshold === undefined || rawThreshold === true ? undefined : Number(rawThreshold);
+    if (threshold !== undefined && (!Number.isFinite(threshold) || threshold < 0)) {
+        throw new Error(`--threshold phải là một số ≥ 0, nhận được "${String(rawThreshold)}".`);
+    }
+
+    const rawOut = flags.get('coverage-out');
+
+    return {
+        group: positional[0] ?? '',
+        coverage: flags.has('coverage'),
+        threshold,
+        orphanCheck: !flags.has('no-orphan-check'),
+        coverageOut: rawOut === undefined || rawOut === true ? undefined : rawOut,
+    };
 }
 
-if (selected.length === 0) {
-    console.error(`[unit-tests] Không tìm thấy file test nào cho nhóm "${group}".`);
-    process.exit(1);
+/** Ngưỡng theo nhóm, để mỗi lần lấp thêm test chỉ cần sửa đúng một con số. */
+function thresholdFor(group: string): number | undefined {
+    let raw: string;
+    try {
+        raw = readFileSync(THRESHOLDS_FILE, 'utf8');
+    } catch {
+        return undefined;
+    }
+    let table: Record<string, number>;
+    try {
+        table = JSON.parse(raw) as Record<string, number>;
+    } catch (error) {
+        throw new Error(`Không đọc được ${THRESHOLDS_FILE}: ${(error as Error).message}`);
+    }
+    const value = table[group];
+    return typeof value === 'number' ? value : undefined;
 }
 
-console.log(`[unit-tests] nhóm ${label}: ${selected.length} file — ${selected.join(", ")}`);
-
-const args = ["--test", ...selected.map((name) => join("tests", "unit", name))];
-const result = spawnSync("npx", ["tsx", ...args], { stdio: "inherit", shell: process.platform === "win32" });
-
-if (result.error) {
-    console.error(`[unit-tests] Không chạy được bộ test: ${result.error.message}`);
-    process.exit(1);
+function coverageArgs(threshold?: number, out?: string): string[] {
+    const lcovPath = out ? join(REPO_ROOT, out) : join(COVERAGE_DIR, 'lcov.info');
+    mkdirSync(dirname(lcovPath), { recursive: true });
+    const args = [
+        '--experimental-test-coverage',
+        // Chỉ tính mã sản phẩm; `include-all` để file chưa từng được import vẫn bị tính 0%
+        // (nhờ vậy con số phản ánh đúng phần mã nằm ngoài tầm test).
+        '--test-coverage-include=src/**',
+        '--test-coverage-include-all',
+        '--test-reporter=spec',
+        '--test-reporter-destination=stdout',
+        '--test-reporter=lcov',
+        `--test-reporter-destination=${lcovPath}`,
+    ];
+    if (threshold !== undefined) {
+        args.push(`--test-coverage-lines=${threshold}`);
+    }
+    return args;
 }
-process.exit(result.status ?? 1);
+
+function main(): number {
+    let options: Options;
+    try {
+        options = parseArgs(process.argv.slice(2));
+    } catch (error) {
+        console.error(`[test] ${(error as Error).message}`);
+        return 2;
+    }
+
+    if (!options.group) {
+        console.error('Cách dùng: tsx scripts/run-unit-tests.ts <nhóm> [--coverage] [--threshold=<n>]');
+        console.error('            [--coverage-out=<đường dẫn .info>] [--no-orphan-check]');
+        console.error(`Nhóm hợp lệ: ${GROUP_NAMES.join(', ')}.`);
+        return 2;
+    }
+
+    if (options.orphanCheck) {
+        const orphans = findOrphanTests();
+        if (orphans.length > 0) {
+            console.error('[test] Có file test không thuộc nhóm nào (test mồ côi — sẽ không bao giờ chạy):');
+            for (const file of orphans) console.error(`  - ${file}`);
+            console.error('  Hãy khai báo trong scripts/test-groups.ts (hoặc chuyển vào tests/frontend, tests/redis).');
+            return 1;
+        }
+    }
+
+    let group;
+    try {
+        group = resolveGroup(options.group);
+    } catch (error) {
+        console.error(`[test] ${(error as Error).message}`);
+        return 2;
+    }
+
+    if (group.files.length === 0) {
+        console.error(`[test] Nhóm "${group.name}" chưa có file test nào.`);
+        return 1;
+    }
+
+    const threshold = options.coverage ? options.threshold ?? thresholdFor(group.name) : undefined;
+
+    console.log(`[test] nhóm ${group.label} — ${group.description}`);
+    console.log(`[test] ${group.files.length} file: ${group.files.join(', ')}`);
+    if (options.coverage) {
+        console.log(
+            threshold === undefined
+                ? '[test] có đo độ phủ (không đặt cổng chất lượng)'
+                : `[test] có đo độ phủ, cổng chất lượng: dòng ≥ ${threshold}%`,
+        );
+    }
+
+    // LƯU Ý: mọi cờ của Node phải đứng TRƯỚC danh sách file test — Node coi những
+    // gì nằm sau đối số vị trí đầu tiên là đối số của script, nên nếu đặt cờ ở cuối
+    // thì cờ coverage (kể cả cổng chất lượng) bị bỏ qua trong im lặng.
+    const args = ['--test'];
+    if (options.coverage) {
+        args.push(...coverageArgs(threshold, options.coverageOut));
+    }
+    args.push(...group.files);
+
+    const result = spawnSync('npx', ['tsx', ...args], {
+        cwd: REPO_ROOT,
+        stdio: 'inherit',
+        shell: process.platform === 'win32',
+    });
+
+    if (result.error) {
+        console.error(`[test] Không chạy được bộ test: ${result.error.message}`);
+        return 1;
+    }
+    return result.status ?? 1;
+}
+
+process.exit(main());
