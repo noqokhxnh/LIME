@@ -561,7 +561,7 @@ describe('Workstream WS-C (Spec C): Oracle QA Pipeline & Auto Validation', () =>
     // =========================================================================
     // SUITE 7: INTEGRATION - ORCHESTRATOR PIPELINE REROLL & RECOVERY
     // =========================================================================
-    describe('Pipeline Integration: Cơ chế Reroll tự động và Dừng an toàn khi QA Thất bại', () => {
+    describe('Pipeline Integration: Cơ chế Reroll tự động và xử lý an toàn khi QA Thất bại', () => {
         let testTempDir: string;
         let mockTTS: TTSClient;
 
@@ -743,7 +743,7 @@ describe('Workstream WS-C (Spec C): Oracle QA Pipeline & Auto Validation', () =>
             assert.ok(existsSync(join(jobDir, 'qa_report.json')));
         });
 
-        it('phải dừng pipeline và trả về qaStatus: fail khi thử lại hết số lần tối đa', async () => {
+        it('phải báo cáo qaStatus: fail và vẫn render bản suy giảm (degraded) khi hết số lần thử tối đa', async () => {
             class AlwaysFailLLM implements LLMClient {
                 readonly provider = 'always-fail-llm';
                 public callCount = 0;
@@ -791,17 +791,32 @@ describe('Workstream WS-C (Spec C): Oracle QA Pipeline & Auto Validation', () =>
                 request,
                 outputDir: jobDir,
                 skipPreview: true,
+                skipRender: true, // Bỏ render thật cho nhanh; vẫn kiểm chứng pipeline KHÔNG abort
                 maxQaAttempts: 2, // Thử tối đa 2 lần
                 domSampler: mockSampler,
                 audioAnalyzer: mockAudioAnalyzer,
             });
 
             assert.strictEqual(failLLM.callCount, 2);
+
+            // 1. Kết luận QA phải trung thực: vẫn là 'fail' sau khi hết lượt thử.
             assert.strictEqual(result.qaStatus, 'fail');
-            assert.strictEqual(result.videoPath, '', 'Khi QA fail, videoPath phải rỗng để tránh client tải nhầm');
             assert.strictEqual(result.qaReport?.valid, false);
-            assert.ok(result.qaReport?.errors.length > 0);
-            assert.ok(existsSync(join(jobDir, 'qa_report.json')));
+            assert.ok((result.qaReport?.errors.length ?? 0) > 0, 'Phải giữ lại danh sách lỗi của QA');
+
+            // 2. Pipeline KHÔNG abort: vẫn đi tiếp tới bước render (đường dẫn video được cấp)
+            //    và đánh dấu rõ đây là bản render suy giảm chất lượng để admin duyệt lại.
+            assert.strictEqual(result.qaReport?.degraded, true);
+            assert.notStrictEqual(result.videoPath, '', 'Không abort: vẫn phải có đường dẫn video để render');
+
+            // 3. qa_report.json phải khớp với kết luận cuối cùng (fail + degraded).
+            const reportPath = join(jobDir, 'qa_report.json');
+            assert.ok(existsSync(reportPath));
+            const persisted = JSON.parse(readFileSync(reportPath, 'utf-8'));
+            assert.strictEqual(persisted.qaStatus, 'fail');
+            assert.strictEqual(persisted.valid, false);
+            assert.strictEqual(persisted.degraded, true);
+            assert.ok(persisted.errors.length > 0);
         });
 
         it('trả về qaStatus: skipped khi skipQa = true mà không chạy oracle QA', async () => {
@@ -848,7 +863,8 @@ describe('Workstream WS-C (Spec C): Oracle QA Pipeline & Auto Validation', () =>
                 jobId,
                 seed: 12345,
                 workDir: '/tmp',
-                videoPath: '',
+                // Render suy giảm: QA kết luận fail nhưng vẫn có video.
+                videoPath: '/tmp/final_video.mp4',
                 durationSec: 10,
                 scences: [],
                 resolution: '1920x1080',
@@ -862,8 +878,9 @@ describe('Workstream WS-C (Spec C): Oracle QA Pipeline & Auto Validation', () =>
                     attempt: 3,
                     valid: false,
                     carryScore: 0.2,
-                    warnings: [],
+                    warnings: ['[QA retry exhausted] Đã render tiếp dù QA thất bại sau 2 lần thử.'],
                     errors: ['[RHYTHM] Lỗi nhịp điệu'],
+                    degraded: true,
                     legs: {} as any,
                     createdAt: new Date().toISOString(),
                 },
@@ -891,6 +908,8 @@ describe('Workstream WS-C (Spec C): Oracle QA Pipeline & Auto Validation', () =>
             assert.strictEqual(record?.status, 'qa_failed');
             assert.strictEqual(record?.qaStatus, 'fail');
             assert.strictEqual(record?.qaReport?.carryScore, 0.2);
+            assert.strictEqual(record?.qaReport?.degraded, true);
+            assert.notStrictEqual(record?.result?.videoPath, '', 'Job QA failed vẫn phải giữ video đã render');
         });
     });
 });
