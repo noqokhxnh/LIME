@@ -92,10 +92,43 @@ export const AdminApi = {
         });
     },
 
-    async resetPassword(userId) {
+    async resetPassword(userId, newPassword) {
         return this.request(`/api/admin/users/${encodeURIComponent(userId)}/reset-password`, {
-            method: 'POST'
+            method: 'POST',
+            body: newPassword ? JSON.stringify({ newPassword }) : undefined
         });
+    },
+
+    /**
+     * Xuất CSV danh sách người dùng theo bộ lọc hiện tại (server-side, không giới hạn
+     * theo trang đang xem). Trả về Blob + tên file để view kích hoạt tải xuống.
+     */
+    async exportUsers(params = {}) {
+        const qs = new URLSearchParams();
+        Object.entries(params).forEach(([key, val]) => {
+            if (val === undefined || val === null || val === '') return;
+            if (Array.isArray(val)) val.forEach((v) => qs.append(key, v));
+            else qs.append(key, val);
+        });
+
+        const res = await fetch(`/api/admin/users/export?${qs.toString()}`, {
+            credentials: 'include',
+            headers: this.getHeaders()
+        });
+
+        if (!res.ok) {
+            const data = await res.json().catch(() => ({}));
+            throw new Error(data.error || data.message || `Xuất CSV thất bại (HTTP ${res.status})`);
+        }
+
+        const blob = await res.blob();
+        const disposition = res.headers.get('Content-Disposition') || '';
+        const match = disposition.match(/filename="?([^"]+)"?/);
+
+        return {
+            blob,
+            filename: match ? match[1] : `vidtml_users_${new Date().toISOString().slice(0, 10)}.csv`
+        };
     },
 
     // Video Jobs
