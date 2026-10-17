@@ -134,8 +134,15 @@ export const AdminApi = {
     },
 
     // Orders
-    async getOrders() {
-        return this.request('/api/admin/orders');
+    async getOrders(params = {}) {
+        const qs = new URLSearchParams();
+        Object.entries(params).forEach(([key, val]) => {
+            if (val !== undefined && val !== null && val !== '') {
+                qs.append(key, val);
+            }
+        });
+        const suffix = qs.toString();
+        return this.request(`/api/admin/orders${suffix ? `?${suffix}` : ''}`);
     },
 
     async fulfillOrder(orderId) {

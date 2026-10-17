@@ -701,28 +701,74 @@ export async function adminRoutes(app: FastifyInstance, opts?: { queue?: IVideoQ
         }
 
         const query = (request.query as any) || {};
-        const search = (query.search || "").toLowerCase().trim();
-        const statusFilter = query.status;
+        const search = String(query.search || "").trim();
+        const statusFilter = String(query.status || "all");
+
+        const ORDER_STATUSES = ["pending", "claimed", "paid", "expired", "cancelled"];
+        if (statusFilter !== "all" && !ORDER_STATUSES.includes(statusFilter)) {
+            reply.status(400);
+            return { error: "Trạng thái đơn hàng không hợp lệ." };
+        }
+
+        const requestedPage = Number.parseInt(query.page, 10);
+        const page = Number.isFinite(requestedPage) && requestedPage > 0 ? requestedPage : 1;
+        const requestedLimit = Number.parseInt(query.limit, 10);
+        const limit = Number.isFinite(requestedLimit) && requestedLimit > 0 ? Math.min(requestedLimit, 100) : 25;
 
         let orders: any[] = [];
+        let total = 0;
         try {
-            orders = await billingStorage.listOrders({ status: statusFilter && statusFilter !== "all" ? statusFilter : undefined });
-        } catch {
+            const result = await billingStorage.listOrdersForAdmin({
+                status: statusFilter !== "all" ? statusFilter : undefined,
+                search,
+                page,
+                limit,
+            });
+            orders = result.orders;
+            total = result.total;
+        } catch (err: any) {
+            request.log?.warn?.({ err: err?.message }, "[Admin] Không tải được danh sách đơn hàng");
             orders = [];
+            total = 0;
         }
 
-        if (search) {
-            orders = orders.filter(
-                (o) =>
-                    o.pay_code.toLowerCase().includes(search) ||
-                    o.user_id.toLowerCase().includes(search) ||
-                    o.id.toLowerCase().includes(search)
-            );
+        // Làm giàu dữ liệu: email/khách hàng + thông tin gói để bảng admin hiển thị đúng.
+        const allUsers = await userStore.listUsers({ includeDeleted: true });
+        const userMap = new Map(allUsers.map((u) => [u.id, u]));
+
+        let planMap = new Map<string, any>();
+        try {
+            const plans = await billingStorage.getPlans();
+            planMap = new Map(plans.map((p) => [p.id, p]));
+        } catch {
+            planMap = new Map();
         }
 
-        orders.sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime());
+        const enrichedOrders = orders.map((o: any) => {
+            const owner = userMap.get(o.user_id);
+            const plan = planMap.get(o.plan_id);
+            return {
+                id: o.id,
+                orderId: o.id,
+                payCode: o.pay_code,
+                userId: o.user_id,
+                userEmail: owner?.email || null,
+                userName: owner?.name || null,
+                planId: o.plan_id,
+                planName: plan?.name || o.plan_id,
+                tier: o.plan_id,
+                amountVnd: o.amount_vnd,
+                quotaVideo: plan?.quota_video ?? null,
+                planDays: plan?.days ?? null,
+                status: o.status,
+                expiresAt: o.expires_at,
+                claimedAt: o.claimed_at ?? null,
+                paidAt: o.paid_at ?? null,
+                createdAt: o.created_at,
+            };
+        });
 
-        return { orders, total: orders.length };
+        return { orders: enrichedOrders, total, page, limit };
     });
 
     app.post("/api/admin/orders/:orderId/fulfill", async (request: FastifyRequest<{ Params: { orderId: string } }>, reply: FastifyReply) => {
@@ -741,10 +787,21 @@ export async function adminRoutes(app: FastifyInstance, opts?: { queue?: IVideoQ
             if (order.status === "paid") {
                 return reply.status(400).send({ error: "Đơn hàng đã được thanh toán trước đó." });
             }
+            if (order.status === "cancelled") {
+                return reply.status(400).send({
+                    error: "Đơn hàng đã bị hủy, không thể duyệt nạp. Hãy tạo đơn mới cho khách hàng.",
+                });
+            }
 
+            // Bắt buộc phải có gói cước thật: tránh cấp sai hạn mức khi gói bị xoá/đổi tên.
             const plan = await billingStorage.getPlanById(order.plan_id);
-            const planDays = plan?.days || 30;
-            const quotaVideo = plan?.quota_video || 50;
+            if (!plan) {
+                return reply.status(400).send({
+                    error: `Không tìm thấy gói cước "${order.plan_id}" để duyệt đơn. Vui lòng kiểm tra bảng plans.`,
+                });
+            }
+            const planDays = plan.days;
+            const quotaVideo = plan.quota_video;
 
             const fulfillResult = await billingStorage.lockAndFulfillOrder({
                 orderId: order.id,
@@ -757,6 +814,13 @@ export async function adminRoutes(app: FastifyInstance, opts?: { queue?: IVideoQ
                 result: "matched",
             });
 
+            if (!fulfillResult.success) {
+                return reply.status(409).send({
+                    error: "Không thể duyệt đơn hàng: trạng thái đã thay đổi ở tiến trình khác. Vui lòng tải lại danh sách.",
+                    reason: fulfillResult.reason,
+                });
+            }
+
             auditLog.record({
                 action: "admin.order_manual_approved",
                 status: "success",
@@ -765,6 +829,9 @@ export async function adminRoutes(app: FastifyInstance, opts?: { queue?: IVideoQ
                     orderId: order.id,
                     payCode: order.pay_code,
                     amount: order.amount_vnd,
+                    planId: order.plan_id,
+                    quotaVideo,
+                    planDays,
                 },
             });
 
