@@ -102,6 +102,18 @@ export const auditLog = {
         return item;
     },
 
+    /**
+     * Như `record()` nhưng chờ ghi xong bản ghi vào PostgreSQL.
+     *
+     * Dùng cho các sự kiện mà ngay sau đó cần truy vấn lại từ DB (ví dụ: lịch sử
+     * đăng nhập hiển thị ở cổng quản trị).
+     */
+    async recordAndPersist(entry: Omit<AuditLogEntry, "id" | "timestamp">): Promise<AuditLogEntry> {
+        const item = this.record(entry);
+        await persistToDb(item);
+        return item;
+    },
+
     getRecent(limit: number = 50, actionFilter?: string): AuditLogEntry[] {
         ensureLoaded();
         let results = auditLogs;

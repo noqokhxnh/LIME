@@ -62,6 +62,10 @@ CREATE INDEX IF NOT EXISTS idx_users_status
 -- ------------------------------------------------------------------
 CREATE INDEX IF NOT EXISTS idx_audit_logs_user_created_at
     ON audit_logs (user_id, created_at DESC);
+
+-- Lịch sử đăng nhập của một người dùng (lọc theo action + sắp xếp mới nhất trước).
+CREATE INDEX IF NOT EXISTS idx_audit_logs_user_action_created_at
+    ON audit_logs (user_id, action, created_at DESC);
 `;
 
 /**

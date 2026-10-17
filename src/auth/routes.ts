@@ -6,6 +6,7 @@ import { db } from '../database/index.js';
 import { createSession, deleteSession, getCurrentUser } from './session.js';
 import { getConfig } from '../config.js';
 import { createRemoteJWKSet, jwtVerify } from 'jose';
+import { recordAuthEvent } from './loginAudit.js';
 
 const registerSchema = z.object({
     username: z.string().trim().regex(/^[a-zA-Z0-9_]{3,30}$/),
@@ -54,6 +55,22 @@ export async function authRoutes(app: FastifyInstance): Promise<void> {
             );
             const user = result.rows[0];
             await createSession(user.id, reply);
+            await recordAuthEvent({
+                action: 'auth.register',
+                userId: user.id,
+                userEmail: user.email,
+                provider: 'local',
+                request,
+                details: { username: user.username },
+            });
+            await recordAuthEvent({
+                action: 'auth.login',
+                userId: user.id,
+                userEmail: user.email,
+                provider: 'local',
+                request,
+                details: { username: user.username, afterRegister: true },
+            });
             return reply.status(201).send({
                 id: user.id,
                 username: user.username,
@@ -86,11 +103,26 @@ export async function authRoutes(app: FastifyInstance): Promise<void> {
         );
         const user = result.rows[0];
         if (!user) {
+            await recordAuthEvent({
+                action: 'auth.login_failed',
+                status: 'failure',
+                request,
+                details: { identifier: parsed.data.username, reason: 'user_not_found' },
+            });
             return reply.status(401).send({
                 error: 'Invalid username or password',
             });
         }
         if(!user.password_hash) {
+            await recordAuthEvent({
+                action: 'auth.login_failed',
+                status: 'failure',
+                userId: user.id,
+                userEmail: user.email,
+                provider: 'google',
+                request,
+                details: { reason: 'google_account' },
+            });
             return reply.status(401).send({
                 error: 'đăng nhập bằng Google',
             });
@@ -100,6 +132,14 @@ export async function authRoutes(app: FastifyInstance): Promise<void> {
             user.password_hash
         );
         if (!validPassword) {
+            await recordAuthEvent({
+                action: 'auth.login_failed',
+                status: 'failure',
+                userId: user.id,
+                userEmail: user.email,
+                request,
+                details: { reason: 'wrong_password' },
+            });
             return reply.status(401).send({
                 error: 'Invalid username or password',
             });
@@ -108,6 +148,13 @@ export async function authRoutes(app: FastifyInstance): Promise<void> {
         const totalCredits = Math.max(Number(user.total_credits ?? 20), 1);
         const creditPercent = Math.min(100, Math.max(0, Math.round((credits / totalCredits) * 100)));
         await createSession(user.id, reply);
+        await recordAuthEvent({
+            action: 'auth.login',
+            userId: user.id,
+            userEmail: user.email,
+            request,
+            details: { username: user.username },
+        });
         return {
             id: user.id,
             username: user.username,
@@ -166,6 +213,13 @@ export async function authRoutes(app: FastifyInstance): Promise<void> {
             'UPDATE users SET password_hash = $1 WHERE id = $2',
             [passwordHash, user.id]
         );
+
+        await recordAuthEvent({
+            action: 'auth.password_changed',
+            userId: sessionUser.id,
+            userEmail: sessionUser.email,
+            request,
+        });
 
         return {
             ok: true,
@@ -352,6 +406,7 @@ export async function authRoutes(app: FastifyInstance): Promise<void> {
             }
 
             // 3. Nếu người dùng chưa tồn tại, tạo mới
+            let isNewGoogleUser = false;
             if (!user) {
                 const id = randomUUID();
                 const username = `google_${googleId.slice(-8)}_${randomBytes(2).toString('hex')}`;
@@ -365,9 +420,27 @@ export async function authRoutes(app: FastifyInstance): Promise<void> {
                     [id, username, email, googleId, role, tier, credits, totalCredits]
                 );
                 user = createdResult.rows[0];
+                isNewGoogleUser = true;
             }
 
             await createSession(user.id, reply);
+            if (isNewGoogleUser) {
+                await recordAuthEvent({
+                    action: 'auth.register',
+                    userId: user.id,
+                    userEmail: user.email,
+                    provider: 'google',
+                    request,
+                    details: { username: user.username },
+                });
+            }
+            await recordAuthEvent({
+                action: 'auth.login',
+                userId: user.id,
+                userEmail: user.email,
+                provider: 'google',
+                request,
+            });
             return reply.redirect('/workspace');
         } catch (error) {
             request.log.error(
