@@ -1,12 +1,13 @@
 import { existsSync, mkdirSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
-import { videoScript, scene, durationMap } from "../llm/schema.js";
+import { videoScript, scene, durationMap, CharacterActionItem } from "../llm/schema.js";
 import { BLOCK_HELPERS_JS } from "../templates/runtime/blockHelpers.js";
 import { DETERMINISTIC_RUNTIME_JS, hashString32, RNG, getSceneSeed } from "./rng.js";
 import { assertDeterministicScript } from "./compLinter.js";
 import { subsetFontsForHtml } from "./fontSubset.js";
+import { CHARACTER_RUNTIME_JS } from "./character/runtime.js";
 
-export { BLOCK_HELPERS_JS };
+export { BLOCK_HELPERS_JS, CHARACTER_RUNTIME_JS };
 
 export interface assembleOptions {
     imageMap?: Record<string, string[]>;
@@ -160,19 +161,31 @@ export async function assembleHTML(
         : (options?.jobId ? hashString32(options.jobId) : (hashString32(script.id || script.title || "vidtml-seed") >>> 0));
 
     const imageMap = options?.imageMap || {};
-    const processedScenes: { id: string; html: string; css: string; js: string; duration: number }[] = [];
+    const processedScenes: { id: string; html: string; css: string; js: string; duration: number; characterActions?: CharacterActionItem[] }[] = [];
 
     for (const scene of script.scenes) {
         const sceneDur = durations[scene.id] ?? 3.0;
         const images = imageMap[scene.id] || [];
         const processed = processSceneCode(scene, sceneDur, images);
 
+        let sceneHtml = processed.html;
+        const safeId = scene.id.replace(/[^a-zA-Z0-9_]/g, "_");
+        if (scene.characterActions && scene.characterActions.length > 0) {
+            const canvasTag = `<canvas class="character-canvas" id="char_canvas_${safeId}" width="${width}" height="${height}" style="position:absolute;inset:0;width:100%;height:100%;pointer-events:none;z-index:15;"></canvas>`;
+            if (sceneHtml.includes(`id="${scene.id}"`) || sceneHtml.includes(`id='${scene.id}'`)) {
+                sceneHtml = sceneHtml.replace(/(<\/div>\s*)$/, `${canvasTag}\n$1`);
+            } else {
+                sceneHtml += `\n${canvasTag}`;
+            }
+        }
+
         processedScenes.push({
             id: scene.id,
-            html: processed.html,
+            html: sceneHtml,
             css: processed.css,
             js: processed.js,
             duration: sceneDur,
+            characterActions: scene.characterActions,
         });
     }
 
@@ -185,10 +198,12 @@ export async function assembleHTML(
                 const safeId = s.id.replace(/[^a-zA-Z0-9_]/g, "_");
                 const sceneSeed = getSceneSeed(options?.jobId || String(seed), s.id);
                 const sceneIdLiteral = JSON.stringify(s.id);
+                const characterActionsLiteral = JSON.stringify(s.characterActions || []);
                 return `
 // --- Scene: ${s.id} (Duration: ${s.duration}s, Seed: ${sceneSeed}) ---
 try {
     window.__sceneSeeds[${sceneIdLiteral}] = ${sceneSeed};
+    window.__sceneCharacterActions[${sceneIdLiteral}] = ${characterActionsLiteral};
     let __capturedSceneTl_${safeId} = null;
     const __origTimeline_${safeId} = gsap.timeline;
     gsap.timeline = function(...args) {
@@ -320,7 +335,16 @@ ${allScenesHtml}
         window.__sceneTimelines = {};
         window.__sceneDurations = {};
         window.__sceneSeeds = {};
+        window.__sceneCharacterActions = {};
         window.__totalDuration = 0;
+
+        if (window.__masterTimeline) {
+            window.__masterTimeline.eventCallback('onUpdate', function() {
+                if (typeof window.__renderCharacters === 'function') {
+                    window.__renderCharacters(window.__masterTimeline.time());
+                }
+            });
+        }
 
         // Deterministic Seed & PRNG Contract (Spec B)
         window.__renderSeed = ${seed};
@@ -359,6 +383,9 @@ ${allScenesHtml}
         window.__seekTo = function(timeInSec) {
             if (window.__masterTimeline) {
                 window.__masterTimeline.seek(timeInSec, false);
+            }
+            if (typeof window.__renderCharacters === 'function') {
+                window.__renderCharacters(timeInSec);
             }
         };
 
@@ -444,8 +471,15 @@ ${allScenesHtml}
             .replace(/window\.__registerScene\s*=[^;]+;/g, "/* sanitized __registerScene */")
             .replace(/window\.__masterTimeline\s*=[^;]+;/g, "/* sanitized __masterTimeline */")}
 
+        // Procedural Character Runtime (Spec F)
+        ${CHARACTER_RUNTIME_JS}
+
         // Scene Timeline Executions
         ${allScenesJs}
+
+        if (typeof window.__renderCharacters === 'function') {
+            window.__renderCharacters(0);
+        }
 
         // Page Ready Signal for Headless Browser Renderer
         window.__ready = true;
