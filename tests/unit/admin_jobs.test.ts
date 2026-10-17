@@ -9,6 +9,7 @@ import { getConfig } from '../../src/config.js';
 import { db, initDatabase } from '../../src/database/index.js';
 import { MemoryQueue } from '../../src/queue/memoryQueue.js';
 import { type JobData, type JobRecord } from '../../src/queue/interfaces.js';
+import { systemSettings } from '../../src/admin/systemSettings.js';
 
 /**
  * Bộ test cho module "Video Jobs" của cổng quản trị.
@@ -390,7 +391,13 @@ describe('MemoryQueue: thao tác quản trị job (unit)', () => {
         };
     }
 
+    let previousConcurrency = 2;
+
     before(async () => {
+        // Số job chạy song song nay lấy từ cài đặt quản trị — đặt cố định = 2 để test tất định.
+        previousConcurrency = systemSettings.get().maxConcurrentJobs;
+        systemSettings.update({ maxConcurrentJobs: 2 });
+
         queue = new MemoryQueue();
         queue.process(async (data) => {
             if (block) {
@@ -403,6 +410,7 @@ describe('MemoryQueue: thao tác quản trị job (unit)', () => {
     after(async () => {
         for (const resolve of deferred.values()) resolve();
         await queue.close();
+        systemSettings.update({ maxConcurrentJobs: previousConcurrency });
     });
 
     it('Hủy job đang chờ: không bao giờ chạy và chuyển trạng thái cancelled', async () => {

@@ -77,6 +77,25 @@ export async function buildApp(options: { logger?: boolean, queue?: IVideoQueue 
 
     app.addHook("preHandler", async (request, reply) => {
         const url = request.url;
+        const path = url.split("?")[0];
+
+        // Chế độ bảo trì: chặn API của người dùng thường nhưng vẫn cho phép admin
+        // đăng nhập/quản trị để có thể tắt bảo trì. Trước đây cờ maintenanceMode
+        // chỉ được lưu mà không hề được áp dụng.
+        if (systemSettings.get().maintenanceMode && path.startsWith("/api/")) {
+            const alwaysAllowed =
+                path.startsWith("/api/admin") ||
+                path.startsWith("/api/auth") ||
+                path === "/api/settings";
+            if (!alwaysAllowed) {
+                const user = await getCurrentUser(request);
+                if (user?.role !== "admin") {
+                    reply.status(503).send({ error: "Hệ thống đang bảo trì. Vui lòng thử lại sau." });
+                    return reply;
+                }
+            }
+        }
+
         if (
             url.startsWith("/api/script/draft") ||
             url.startsWith("/api/pipeline") ||

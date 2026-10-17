@@ -4,6 +4,7 @@ import { IVideoQueue, JobData, JobRecord, JobProgress, JobUpdate } from './inter
 import { type fullPipelineResult } from '../pipeline/orchestrator.js';
 import { EventEmitter } from 'node:events';
 import { hashString32, parseSeedSafe } from '../pipeline/rng.js';
+import { systemSettings } from '../admin/systemSettings.js';
 
 /** Trạng thái BullMQ được coi là "chưa kết thúc" (có thể hủy). */
 const BULLMQ_ALL_STATES = ['active', 'waiting', 'delayed', 'prioritized', 'waiting-children', 'completed', 'failed'] as const;
@@ -144,13 +145,16 @@ export class BullMQQueue implements IVideoQueue {
 
     process(handler: (data: JobData, updateProgress: (p: JobProgress) => Promise<void>) => Promise<fullPipelineResult>): void {
         const connection = new Redis(this.redisUrl, this.connectionOptions);
+        // Số job chạy song song lấy theo cài đặt quản trị (trước đây viết cứng là 2).
+        const configured = Math.round(Number(systemSettings.get().maxConcurrentJobs));
+        const concurrency = Number.isFinite(configured) && configured > 0 ? configured : 2;
         this.worker = new Worker('video-generation', async (job: Job<JobData>) => {
             return await handler(job.data, async (p) => {
                 await job.updateProgress(p as any);
             });
         }, {
             connection,
-            concurrency: 2 // Max 2 parallel jobs on worker
+            concurrency
         });
 
         this.worker.on('error', (err: any) => {

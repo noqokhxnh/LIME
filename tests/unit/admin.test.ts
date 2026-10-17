@@ -8,6 +8,7 @@ import { systemSettings } from '../../src/admin/systemSettings.js';
 import { auditLog } from '../../src/security/auditLog.js';
 import { pageViewTracker } from '../../src/security/pageViewTracker.js';
 import { maintenanceTracker } from '../../src/admin/maintenanceTracker.js';
+import { setLLMClientFactory, resetLLMClientFactory } from '../../src/llm/client.js';
 
 describe('Admin, Profile, and Settings Test Suite', () => {
     let app: FastifyInstance;
@@ -303,20 +304,30 @@ describe('Admin, Profile, and Settings Test Suite', () => {
         });
 
         it('Super Admin gọi POST /api/admin/test-provider để kiểm tra kết nối', async () => {
-            const res = await app.inject({
-                method: 'POST',
-                url: '/api/admin/test-provider',
-                cookies: { vidtml_session: adminToken },
-                body: {
-                    provider: 'edge',
-                    type: 'tts',
-                    voice: 'vi-VN-HoaiMyNeural',
+            // test-provider nay gọi API thật; dùng factory thay thế để không phụ thuộc mạng.
+            setLLMClientFactory((provider) => ({
+                provider,
+                async generate() {
+                    return '{"status":"ok"}';
                 },
-            });
-            assert.strictEqual(res.statusCode, 200);
-            const body = JSON.parse(res.body);
-            assert.strictEqual(body.success, true);
-            assert.strictEqual(body.provider, 'edge');
+            }) as any);
+            try {
+                const res = await app.inject({
+                    method: 'POST',
+                    url: '/api/admin/test-provider',
+                    cookies: { vidtml_session: adminToken },
+                    body: {
+                        provider: '9router',
+                        type: 'llm',
+                    },
+                });
+                assert.strictEqual(res.statusCode, 200);
+                const body = JSON.parse(res.body);
+                assert.strictEqual(body.success, true, body.message);
+                assert.strictEqual(body.provider, '9router');
+            } finally {
+                resetLLMClientFactory();
+            }
         });
 
         it('Super Admin gọi GET /api/admin/audit-logs ghi nhận đầy đủ hành động', async () => {
