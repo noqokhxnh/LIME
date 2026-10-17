@@ -1,9 +1,12 @@
 import { Queue, Worker, QueueEvents, Job } from 'bullmq';
 import Redis from 'ioredis';
-import { IVideoQueue, JobData, JobRecord, JobProgress } from './interfaces.js';
+import { IVideoQueue, JobData, JobRecord, JobProgress, JobUpdate } from './interfaces.js';
 import { type fullPipelineResult } from '../pipeline/orchestrator.js';
 import { EventEmitter } from 'node:events';
 import { hashString32, parseSeedSafe } from '../pipeline/rng.js';
+
+/** Trạng thái BullMQ được coi là "chưa kết thúc" (có thể hủy). */
+const BULLMQ_ALL_STATES = ['active', 'waiting', 'delayed', 'prioritized', 'waiting-children', 'completed', 'failed'] as const;
 
 export class BullMQQueue implements IVideoQueue {
     private queue: Queue<JobData, fullPipelineResult, string>;
@@ -18,11 +21,11 @@ export class BullMQQueue implements IVideoQueue {
 
     constructor(redisUrl: string) {
         this.redisUrl = redisUrl;
-        this.connectionOptions = { 
+        this.connectionOptions = {
             maxRetriesPerRequest: null // Required by BullMQ
         };
         const connection = new Redis(this.redisUrl, this.connectionOptions);
-        
+
         this.queue = new Queue('video-generation', { connection });
     }
 
@@ -30,27 +33,26 @@ export class BullMQQueue implements IVideoQueue {
         if (data.seed === undefined) {
             data.seed = parseSeedSafe(data.request?.seed, hashString32(jobId));
         }
+        data.cancelled = false;
         await this.queue.add('render', data, { jobId });
     }
 
-    async getJob(jobId: string): Promise<JobRecord | null> {
-        const job = await this.queue.getJob(jobId);
-        if (!job) return null;
-
-        const state = await job.getState();
-
-        // Map bullmq state to JobRecord status
+    /** Chuyển trạng thái BullMQ (+ cờ cancelled) sang JobRecord. */
+    private mapJob(job: Job<JobData, fullPipelineResult, string>, state: string): JobRecord {
         let status: JobRecord['status'] = 'queued';
-        if (state === 'active') status = 'running';
+        if (job.data?.cancelled) {
+            status = 'cancelled';
+        } else if (state === 'active') status = 'running';
         else if (state === 'completed') {
             status = job.returnvalue?.qaStatus === 'fail' ? 'qa_failed' : 'completed';
-        }
-        else if (state === 'failed') status = 'failed';
+        } else if (state === 'failed') status = 'failed';
 
         return {
             jobId: job.id!,
+            userId: job.data?.userId,
             status,
             request: job.data.request,
+            script: job.data.script,
             seed: job.data.seed ?? (job.data.request?.seed !== undefined ? job.data.request?.seed : hashString32(job.id!)),
             createdAt: new Date(job.timestamp).toISOString(),
             updatedAt: job.finishedOn ? new Date(job.finishedOn).toISOString() : new Date().toISOString(),
@@ -62,25 +64,82 @@ export class BullMQQueue implements IVideoQueue {
         };
     }
 
+    async getJob(jobId: string): Promise<JobRecord | null> {
+        const job = await this.queue.getJob(jobId);
+        if (!job) return null;
+        return this.mapJob(job, await job.getState());
+    }
+
     async getJobs(): Promise<JobRecord[]> {
-        const jobs = await this.queue.getJobs(['active', 'waiting', 'completed', 'failed']);
+        const jobs = await this.queue.getJobs([...BULLMQ_ALL_STATES]);
         const records: JobRecord[] = [];
         for (const job of jobs) {
-            const state = await job.getState();
-            let status: JobRecord['status'] = 'queued';
-            if (state === 'active') status = 'running';
-            else if (state === 'completed') status = 'completed';
-            else if (state === 'failed') status = 'failed';
-            records.push({
-                jobId: job.id!,
-                status,
-                request: job.data.request,
-                seed: job.data.seed ?? (job.data.request?.seed !== undefined ? job.data.request?.seed : hashString32(job.id!)),
-                createdAt: new Date(job.timestamp).toISOString(),
-                updatedAt: job.finishedOn ? new Date(job.finishedOn).toISOString() : new Date().toISOString(),
-            });
+            records.push(this.mapJob(job, await job.getState()));
         }
         return records;
+    }
+
+    async cancelJob(jobId: string): Promise<boolean> {
+        const job = await this.queue.getJob(jobId);
+        if (!job) return false;
+        const state = await job.getState();
+        if (state === 'completed' || state === 'failed') return false;
+
+        if (state === 'active') {
+            // Không thể dừng handler đang chạy; đánh dấu để lần đọc sau trả về cancelled
+            // và để job không được thử lại.
+            await job.updateData({ ...job.data, cancelled: true });
+            return true;
+        }
+
+        // Job đang chờ: xoá khỏi hàng đợi để worker không nhặt lên chạy.
+        try {
+            await job.remove();
+        } catch {
+            await job.updateData({ ...job.data, cancelled: true });
+        }
+        return true;
+    }
+
+    async retryJob(jobId: string): Promise<boolean> {
+        const job = await this.queue.getJob(jobId);
+        if (!job) return false;
+        const state = await job.getState();
+        const wasCancelled = Boolean(job.data?.cancelled);
+        if (state !== 'failed' && !wasCancelled) return false;
+
+        await job.updateData({ ...job.data, cancelled: false });
+        if (state === 'failed') {
+            await job.retry('failed');
+        } else if (state === 'completed') {
+            await job.retry('completed');
+        }
+        return true;
+    }
+
+    async removeJob(jobId: string): Promise<boolean> {
+        const job = await this.queue.getJob(jobId);
+        if (!job) return false;
+        try {
+            await job.remove();
+            return true;
+        } catch {
+            return false;
+        }
+    }
+
+    async updateJob(jobId: string, patch: JobUpdate): Promise<JobRecord | null> {
+        const job = await this.queue.getJob(jobId);
+        if (!job) return null;
+        const data: JobData = { ...job.data };
+        if (patch.targetDurationSec !== undefined) {
+            data.request = { ...data.request, targetDurationSec: patch.targetDurationSec };
+        }
+        if (patch.script !== undefined) {
+            data.script = patch.script;
+        }
+        await job.updateData(data);
+        return this.getJob(jobId);
     }
 
     process(handler: (data: JobData, updateProgress: (p: JobProgress) => Promise<void>) => Promise<fullPipelineResult>): void {
@@ -89,7 +148,7 @@ export class BullMQQueue implements IVideoQueue {
             return await handler(job.data, async (p) => {
                 await job.updateProgress(p as any);
             });
-        }, { 
+        }, {
             connection,
             concurrency: 2 // Max 2 parallel jobs on worker
         });
@@ -106,7 +165,7 @@ export class BullMQQueue implements IVideoQueue {
         this.queueEvents.on('progress', (args: any) => {
             this.events.emit('progress', args);
         });
-        
+
         this.queueEvents.on('completed', (args: any) => {
             this.events.emit('completed', args);
         });

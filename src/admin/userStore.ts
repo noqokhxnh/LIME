@@ -388,6 +388,74 @@ export const userStore = {
     },
 
     /**
+     * Tìm nhanh ID người dùng khớp `search` theo username/email/tên.
+     *
+     * Dùng cho tìm kiếm job theo email người tạo: thay vì nạp toàn bộ bảng `users`
+     * vào RAM rồi so khớp, ta để PostgreSQL lọc (tận dụng chỉ mục trigram
+     * `idx_users_email_trgm` / `idx_users_username_trgm`).
+     */
+    async findIdsBySearch(search: string, limit = 500): Promise<string[]> {
+        ensureLoaded();
+        const term = (search || "").trim();
+        if (!term) return [];
+        const config = getConfig();
+
+        if (config.DATABASE_URL) {
+            try {
+                const res = await db.query(
+                    `SELECT id::text AS id FROM users
+                     WHERE deleted_at IS NULL
+                       AND (username ILIKE $1 OR email ILIKE $1 OR COALESCE(name, '') ILIKE $1)
+                     LIMIT $2`,
+                    [`%${term}%`, limit]
+                );
+                return res.rows.map((r: any) => String(r.id));
+            } catch (err) {
+                console.error("[UserStore] DB error in findIdsBySearch:", err);
+            }
+        }
+
+        const unique = Array.from(new Set(inMemoryUsers.values()));
+        const needle = term.toLowerCase();
+        return unique
+            .filter((u) => !u.deletedAt)
+            .filter((u) => `${u.username} ${u.email} ${u.name || ""}`.toLowerCase().includes(needle))
+            .slice(0, limit)
+            .map((u) => u.id);
+    },
+
+    /**
+     * Tra cứu email của nhiều người dùng trong **một** truy vấn (`id = ANY(...)`)
+     * thay vì gọi `findById` từng người — dùng khi làm giàu danh sách job.
+     */
+    async findEmailsByIds(ids: string[]): Promise<Map<string, string>> {
+        ensureLoaded();
+        const map = new Map<string, string>();
+        const unique = Array.from(new Set((ids || []).filter((id): id is string => Boolean(id))));
+        if (unique.length === 0) return map;
+        const config = getConfig();
+
+        if (config.DATABASE_URL) {
+            try {
+                const res = await db.query(
+                    `SELECT id::text AS id, email FROM users WHERE id::text = ANY($1::text[])`,
+                    [unique]
+                );
+                for (const row of res.rows) map.set(String(row.id), row.email);
+                return map;
+            } catch (err) {
+                console.error("[UserStore] DB error in findEmailsByIds:", err);
+            }
+        }
+
+        for (const id of unique) {
+            const u = inMemoryUsers.get(id) || inMemoryUsers.get(id.toLowerCase());
+            if (u?.email) map.set(id, u.email);
+        }
+        return map;
+    },
+
+    /**
      * Danh sách người dùng cho cổng quản trị: lọc + sắp xếp + phân trang ở phía server.
      *
      * Trước đây route `/api/admin/users` nạp toàn bộ bảng `users` vào RAM rồi mới

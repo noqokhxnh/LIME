@@ -107,21 +107,18 @@ export async function buildApp(options: { logger?: boolean, queue?: IVideoQueue 
         queue.process(processVideoJob);
     }
 
-    queue.events.on('completed', (args: any) => {
-        const ip = jobIpMap.get(args.jobId);
+    // Giải phóng suất chạy song song của IP khi job kết thúc (thành công/thất bại/bị hủy).
+    const releaseJobSlot = (args: any) => {
+        const ip = jobIpMap.get(args?.jobId);
         if (ip) {
             rateLimiter.releaseConcurrentJob(ip);
             jobIpMap.delete(args.jobId);
         }
-    });
+    };
 
-    queue.events.on('failed', (args: any) => {
-        const ip = jobIpMap.get(args.jobId);
-        if (ip) {
-            rateLimiter.releaseConcurrentJob(ip);
-            jobIpMap.delete(args.jobId);
-        }
-    });
+    queue.events.on('completed', releaseJobSlot);
+    queue.events.on('failed', releaseJobSlot);
+    queue.events.on('cancelled', releaseJobSlot);
     app.get("/", async (request: FastifyRequest, reply: FastifyReply) => {
         const accept = request.headers.accept || "";
         if (accept.startsWith("text/html")) {
@@ -435,12 +432,17 @@ export async function buildApp(options: { logger?: boolean, queue?: IVideoQueue 
         const defaultSeed = hashString32(jobId);
         const seed = parseSeedSafe(reqData.seed ?? body.seed, defaultSeed);
 
+        // Xác định chủ job để cổng quản trị hiển thị/tìm kiếm theo người dùng.
+        const currentUser = await getCurrentUser(request);
+        const userId = currentUser?.id;
+
         const outputDir = join(process.cwd(), "tmp", `job-${jobId}`);
 
         if (isAsync) {
             jobIpMap.set(jobId, ip);
             await queue.addJob(jobId, {
                 jobId,
+                userId,
                 request: reqData,
                 script: inputScript,
                 bgmPath,
@@ -463,6 +465,7 @@ export async function buildApp(options: { logger?: boolean, queue?: IVideoQueue 
             try {
                 const result = await processVideoJob({
                     jobId,
+                    userId,
                     request: reqData,
                     script: inputScript,
                     bgmPath,
