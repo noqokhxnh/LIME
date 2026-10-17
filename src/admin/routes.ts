@@ -22,8 +22,8 @@ import { billingStorage } from "../billing/storage.js";
 import { getConfig } from "../config.js";
 import { db } from "../database/index.js";
 import { createTTSClient } from "../pipeline/audioSysnthesis.js";
-import { videoScriptSchema } from "../llm/schema.js";
-import type { IVideoQueue } from "../queue/interfaces.js";
+import { videoScriptSchema, type videoScript } from "../llm/schema.js";
+import type { IVideoQueue, JobUpdate } from "../queue/interfaces.js";
 
 async function verifyAdminUser(request: FastifyRequest): Promise<{ isAdmin: boolean; user?: AuthUser; error?: string }> {
     const user = await getCurrentUser(request);
@@ -862,6 +862,14 @@ export async function adminRoutes(app: FastifyInstance, opts?: { queue?: IVideoQ
     // -------------------------------------------------------------
     // 3. JOBS & RENDERING PIPELINE MANAGEMENT
     // -------------------------------------------------------------
+    /** Các trạng thái job hợp lệ cho bộ lọc của cổng quản trị. */
+    const JOB_STATUSES = ["all", "queued", "running", "completed", "failed", "qa_failed", "cancelled"];
+    /** Trạng thái đã kết thúc — không thể hủy, nhưng có thể chạy lại. */
+    const JOB_FINISHED_STATUSES = ["completed", "failed", "qa_failed", "cancelled"];
+    const JOB_ACTIVE_STATUSES = ["queued", "running"];
+    /** Chỉ những trạng thái thất bại/bị hủy mới được phép chạy lại. */
+    const JOB_RETRYABLE_STATUSES = ["failed", "qa_failed", "cancelled"];
+
     app.get("/api/admin/jobs", async (request: FastifyRequest, reply: FastifyReply) => {
         const check = await verifyAdminUser(request);
         if (!check.isAdmin) {
@@ -870,30 +878,53 @@ export async function adminRoutes(app: FastifyInstance, opts?: { queue?: IVideoQ
         }
 
         const query = (request.query as any) || {};
-        const search = (query.search || "").toLowerCase().trim();
-        const statusFilter = query.status;
+        const search = String(query.search || "").trim().toLowerCase();
+        const statusFilter = String(query.status || "all");
+        if (!JOB_STATUSES.includes(statusFilter)) {
+            reply.status(400);
+            return { error: `Trạng thái không hợp lệ. Chỉ chấp nhận: ${JOB_STATUSES.join(", ")}` };
+        }
 
         const queue = getQueue();
         let allJobs = queue ? await queue.getJobs() : [];
-        const allUsers = await userStore.listUsers();
-        const userMap = new Map(allUsers.map((u) => [u.id, u.email]));
 
-        if (statusFilter && statusFilter !== "all") {
+        if (statusFilter !== "all") {
             allJobs = allJobs.filter((j) => j.status === statusFilter);
         }
 
         if (search) {
+            // Tìm theo email/username người tạo cần tra ID trước (dùng chỉ mục users),
+            // thay vì nạp toàn bộ bảng người dùng như trước.
+            const matchedIds = new Set(await userStore.findIdsBySearch(search));
             allJobs = allJobs.filter(
                 (j) =>
                     j.jobId.toLowerCase().includes(search) ||
                     (j.request?.prompt || "").toLowerCase().includes(search) ||
-                    ((j as any).userId && (userMap.get((j as any).userId) || "").toLowerCase().includes(search))
+                    Boolean(j.userId && matchedIds.has(j.userId))
             );
         }
 
         allJobs.sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
 
-        const enrichedJobs = allJobs.map((j: any) => ({
+        // Chỉ phân trang khi client gửi `limit` — giữ nguyên hành vi cũ (trả hết) cho
+        // các client/test chưa truyền tham số này.
+        const total = allJobs.length;
+        const wantsLimit = query.limit !== undefined && query.limit !== "";
+        let page = 1;
+        let limit = total;
+        if (wantsLimit) {
+            const rawLimit = Number(query.limit);
+            limit = Number.isFinite(rawLimit) && rawLimit > 0 ? Math.min(Math.floor(rawLimit), 200) : 25;
+            const rawPage = Number(query.page);
+            page = Number.isFinite(rawPage) && rawPage > 0 ? Math.floor(rawPage) : 1;
+        }
+        const start = wantsLimit ? (page - 1) * limit : 0;
+        const pageJobs = wantsLimit ? allJobs.slice(start, start + limit) : allJobs;
+
+        // Tra email chỉ cho các job thực sự trả về (một truy vấn duy nhất).
+        const emailById = await userStore.findEmailsByIds(pageJobs.map((j) => j.userId).filter(Boolean) as string[]);
+
+        const enrichedJobs = pageJobs.map((j: any) => ({
             id: j.jobId,
             jobId: j.jobId,
             status: j.status,
@@ -907,13 +938,13 @@ export async function adminRoutes(app: FastifyInstance, opts?: { queue?: IVideoQ
             ttsProvider: j.request?.ttsProvider,
             error: j.error,
             userId: j.userId,
-            userEmail: j.userId ? userMap.get(j.userId) || "Unknown" : "Anonymous",
+            userEmail: j.userId ? emailById.get(j.userId) || "Unknown" : "Anonymous",
             progress: j.progress,
             hasVideo: Boolean(j.result?.videoPath || j.result?.mp4Path),
             hasHtml: Boolean(j.result?.finalHtmlPath),
         }));
 
-        return { jobs: enrichedJobs, total: enrichedJobs.length };
+        return { jobs: enrichedJobs, total, page, limit };
     });
 
     app.get("/api/admin/jobs/:jobId", async (request: FastifyRequest<{ Params: { jobId: string } }>, reply: FastifyReply) => {
@@ -968,22 +999,96 @@ export async function adminRoutes(app: FastifyInstance, opts?: { queue?: IVideoQ
         }
 
         const { jobId } = request.params;
-        const workDir = join(process.cwd(), "tmp", jobId);
-        if (existsSync(workDir)) {
-            try {
-                rmSync(workDir, { recursive: true, force: true });
-            } catch (err) {
-                console.error(`[Admin] Failed to remove workdir for job ${jobId}:`, err);
+        // Xoá job khỏi hàng đợi/bộ lưu trạng thái — trước đây route chỉ xoá thư mục
+        // nên job vẫn nằm trong danh sách sau khi "xoá".
+        const queue = getQueue();
+        const removedFromQueue = queue ? await queue.removeJob(jobId) : false;
+
+        // Thư mục làm việc thực tế là `tmp/job-<jobId>` (xem handlePipelineRequest).
+        // Vẫn dọn thêm `tmp/<jobId>` để tương thích dữ liệu cũ.
+        for (const workDir of [join(process.cwd(), "tmp", `job-${jobId}`), join(process.cwd(), "tmp", jobId)]) {
+            if (existsSync(workDir)) {
+                try {
+                    rmSync(workDir, { recursive: true, force: true });
+                } catch (err) {
+                    console.error(`[Admin] Failed to remove workdir for job ${jobId}:`, err);
+                }
             }
         }
 
         auditLog.record({
             action: "admin.job_deleted",
             status: "warning",
-            details: { deletedBy: check.user?.email, jobId },
+            details: { deletedBy: check.user?.email, jobId, removedFromQueue },
         });
 
-        return { success: true, message: `Đã xóa job ${jobId}` };
+        if (!removedFromQueue) {
+            reply.status(404);
+            return { error: "Không tìm thấy job.", removedFromQueue: false };
+        }
+
+        return { success: true, message: `Đã xóa job ${jobId}`, removedFromQueue: true };
+    });
+
+    app.patch("/api/admin/jobs/:jobId", async (request: FastifyRequest<{ Params: { jobId: string } }>, reply: FastifyReply) => {
+        const check = await verifyAdminUser(request);
+        if (!check.isAdmin) {
+            reply.status(403);
+            return { error: check.error };
+        }
+
+        const { jobId } = request.params;
+        const body = (request.body as any) || {};
+        const patch: JobUpdate = {};
+
+        if (body.targetDurationSec !== undefined) {
+            const duration = Number(body.targetDurationSec);
+            if (!Number.isInteger(duration) || duration < 10 || duration > 300) {
+                reply.status(400);
+                return { error: "Thời lượng mục tiêu phải là số nguyên từ 10 đến 300 giây." };
+            }
+            patch.targetDurationSec = duration;
+        }
+
+        if (body.script !== undefined) {
+            const parsed = videoScriptSchema.safeParse(body.script);
+            if (!parsed.success) {
+                reply.status(400);
+                return { error: "Kịch bản không hợp lệ.", details: parsed.error.message };
+            }
+            patch.script = parsed.data as videoScript;
+        }
+
+        if (patch.targetDurationSec === undefined && patch.script === undefined) {
+            reply.status(400);
+            return { error: "Không có trường nào để cập nhật (targetDurationSec hoặc script)." };
+        }
+
+        const queue = getQueue();
+        if (!queue) {
+            reply.status(503);
+            return { error: "Hàng đợi chưa sẵn sàng." };
+        }
+
+        const updated = await queue.updateJob(jobId, patch);
+        if (!updated) {
+            reply.status(404);
+            return { error: "Không tìm thấy job." };
+        }
+
+        auditLog.record({
+            action: "admin.job_updated",
+            status: "success",
+            details: { updatedBy: check.user?.email, jobId, fields: Object.keys(patch) },
+        });
+
+        return {
+            success: true,
+            jobId,
+            targetDurationSec: updated.request?.targetDurationSec,
+            hasScript: Boolean(updated.script),
+            message: "Đã lưu chỉnh sửa. Có thể chạy lại job.",
+        };
     });
 
     app.post("/api/admin/jobs/:jobId/cancel", async (request: FastifyRequest<{ Params: { jobId: string } }>, reply: FastifyReply) => {
@@ -994,13 +1099,79 @@ export async function adminRoutes(app: FastifyInstance, opts?: { queue?: IVideoQ
         }
 
         const { jobId } = request.params;
+        const queue = getQueue();
+        if (!queue) {
+            reply.status(503);
+            return { error: "Hàng đợi chưa sẵn sàng." };
+        }
+
+        const job = await queue.getJob(jobId);
+        if (!job) {
+            reply.status(404);
+            return { error: "Không tìm thấy job." };
+        }
+        if (JOB_FINISHED_STATUSES.includes(job.status)) {
+            reply.status(409);
+            return { error: `Không thể hủy job ở trạng thái "${job.status}".` };
+        }
+
+        // Trước đây route này chỉ ghi audit log mà không hủy gì cả.
+        const cancelled = await queue.cancelJob(jobId);
+        if (!cancelled) {
+            reply.status(409);
+            return { error: "Không thể hủy job ở trạng thái hiện tại." };
+        }
+
         auditLog.record({
             action: "admin.job_cancelled",
             status: "warning",
             details: { cancelledBy: check.user?.email, jobId },
         });
 
-        return { success: true, message: `Đã gửi yêu cầu hủy tiến trình job ${jobId}` };
+        return { success: true, message: `Đã hủy job ${jobId}` };
+    });
+
+    app.post("/api/admin/jobs/:jobId/retry", async (request: FastifyRequest<{ Params: { jobId: string } }>, reply: FastifyReply) => {
+        const check = await verifyAdminUser(request);
+        if (!check.isAdmin) {
+            reply.status(403);
+            return { error: check.error };
+        }
+
+        const { jobId } = request.params;
+        const queue = getQueue();
+        if (!queue) {
+            reply.status(503);
+            return { error: "Hàng đợi chưa sẵn sàng." };
+        }
+
+        const job = await queue.getJob(jobId);
+        if (!job) {
+            reply.status(404);
+            return { error: "Không tìm thấy job." };
+        }
+        if (JOB_ACTIVE_STATUSES.includes(job.status)) {
+            reply.status(409);
+            return { error: `Job đang ở trạng thái "${job.status}" — hãy hủy trước khi chạy lại.` };
+        }
+        if (!JOB_RETRYABLE_STATUSES.includes(job.status)) {
+            reply.status(409);
+            return { error: `Chỉ có thể chạy lại job thất bại hoặc đã hủy (trạng thái hiện tại: "${job.status}").` };
+        }
+
+        const retried = await queue.retryJob(jobId);
+        if (!retried) {
+            reply.status(409);
+            return { error: `Không thể chạy lại job ở trạng thái "${job.status}".` };
+        }
+
+        auditLog.record({
+            action: "admin.job_retried",
+            status: "success",
+            details: { retriedBy: check.user?.email, jobId },
+        });
+
+        return { success: true, message: `Đã đưa job ${jobId} vào hàng đợi chạy lại.` };
     });
 
     // -------------------------------------------------------------

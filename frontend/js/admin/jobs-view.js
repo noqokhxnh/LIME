@@ -27,6 +27,8 @@ export const JobsView = {
                                 <option value="queued">Trong hàng đợi (Queued)</option>
                                 <option value="completed">Hoàn thành (Completed)</option>
                                 <option value="failed">Thất bại (Failed)</option>
+                                <option value="qa_failed">Lỗi kiểm định QA (QA Failed)</option>
+                                <option value="cancelled">Đã hủy (Cancelled)</option>
                             </select>
                         </div>
                     </div>
@@ -96,13 +98,14 @@ export const JobsView = {
             tbody.innerHTML = '';
             jobs.forEach((j) => {
                 const tr = document.createElement('tr');
-                const isCompleted = j.status === 'completed';
-                const isFailed = j.status === 'failed';
+                const isFailed = j.status === 'failed' || j.status === 'qa_failed';
+                const isCancelled = j.status === 'cancelled';
                 const isRunning = j.status === 'running' || j.status === 'queued';
+                const isCompleted = j.status === 'completed';
                 const jobId = j.id || j.jobId || '';
                 const shortId = jobId ? jobId.slice(0, 8) + '...' : 'N/A';
 
-                const statusBadge = isCompleted ? 'badge-success' : isFailed ? 'badge-danger' : isRunning ? 'badge-warning' : 'badge-subtle';
+                const statusBadge = isCompleted ? 'badge-success' : isFailed ? 'badge-danger' : isCancelled ? 'badge-subtle' : isRunning ? 'badge-warning' : 'badge-subtle';
 
                 tr.innerHTML = `
                     <td style="font-family: var(--font-mono); font-size: 12px;">${escapeHtml(shortId)}</td>
@@ -123,7 +126,7 @@ export const JobsView = {
                         <div style="display: inline-flex; gap: 6px;">
                             <button class="btn btn-secondary btn-sm view-job-btn" style="padding: 4px 8px; font-size: 11px;">Chi tiết</button>
                             ${isRunning ? `<button class="btn btn-danger btn-sm cancel-job-btn" style="padding: 4px 8px; font-size: 11px;">Hủy</button>` : ''}
-                            ${isFailed ? `<button class="btn btn-secondary btn-sm retry-job-btn" style="padding: 4px 8px; font-size: 11px;">Thử lại</button>` : ''}
+                            ${(isFailed || isCancelled) ? `<button class="btn btn-secondary btn-sm retry-job-btn" style="padding: 4px 8px; font-size: 11px;">Thử lại</button>` : ''}
                         </div>
                     </td>
                 `;
@@ -167,7 +170,7 @@ export const JobsView = {
             const script = detail.script || null;
             const result = detail.result || {};
             const status = detail.status || job.status || 'unknown';
-            const canRetry = status === 'failed' || (status === 'queued' && ['failed', 'completed'].includes(queue.state));
+            const canRetry = status === 'failed' || status === 'qa_failed' || status === 'cancelled';
             const body = panel.querySelector('#lime-drawer-body');
             const footer = panel.querySelector('#lime-drawer-footer');
             panel.querySelector('#lime-drawer-subtitle').textContent = `Trạng thái: ${status} · ${progressPercent}%`;
