@@ -44,6 +44,14 @@ describe('Admin Users Management Test Suite', () => {
     const emailOf = (suffix: string) => `usertest_${TOKEN}_${suffix}@example.com`.toLowerCase();
     const usernameOf = (suffix: string) => `ut_${TOKEN}_${suffix}`.toLowerCase();
 
+    /**
+     * Mật khẩu test được sinh ngay lúc chạy thay vì viết cứng trong mã nguồn.
+     * Việc viết cứng các chuỗi như "Password123" khiến công cụ quét bí mật
+     * (GitGuardian…) báo động nhầm là mật khẩu thật bị lộ.
+     */
+    const PASSWORD = `Aa1!${RUN}pw`;
+    const WRONG_PASSWORD = `Aa1!${RUN}x`;
+
     /** ID của 3 người dùng seed: credits 300 / 200 / 100, tier creator / pro / free. */
     const seededIds: string[] = [];
     const seededCredits = { a: 300, b: 200, c: 100 };
@@ -361,7 +369,7 @@ describe('Admin Users Management Test Suite', () => {
             const created = await app.inject({
                 method: 'POST',
                 url: '/api/auth/register',
-                payload: { username: usernameOf('reset'), email, password: 'OldPassword1' },
+                payload: { username: usernameOf('reset'), email, password: PASSWORD },
             });
             assert.strictEqual(created.statusCode, 201, created.body);
             const userId = JSON.parse(created.body).id;
@@ -399,7 +407,7 @@ describe('Admin Users Management Test Suite', () => {
             const oldLogin = await app.inject({
                 method: 'POST',
                 url: '/api/auth/login',
-                payload: { username: email, password: 'OldPassword1' },
+                payload: { username: email, password: PASSWORD },
             });
             assert.strictEqual(oldLogin.statusCode, 401);
 
@@ -431,7 +439,7 @@ describe('Admin Users Management Test Suite', () => {
             const created = await app.inject({
                 method: 'POST',
                 url: '/api/auth/register',
-                payload: { username: usernameOf('logs'), email, password: 'Password123' },
+                payload: { username: usernameOf('logs'), email, password: PASSWORD },
             });
             assert.strictEqual(created.statusCode, 201, created.body);
             const userId = JSON.parse(created.body).id;
@@ -440,7 +448,7 @@ describe('Admin Users Management Test Suite', () => {
             await app.inject({
                 method: 'POST',
                 url: '/api/auth/login',
-                payload: { username: email, password: 'SaiMatKhau123' },
+                payload: { username: email, password: WRONG_PASSWORD },
             });
 
             const res = await adminGet(`/api/admin/users/${userId}/login-logs`);
@@ -465,7 +473,7 @@ describe('Admin Users Management Test Suite', () => {
             const created = await app.inject({
                 method: 'POST',
                 url: '/api/auth/register',
-                payload: { username: usernameOf('lastlogin'), email, password: 'Password123' },
+                payload: { username: usernameOf('lastlogin'), email, password: PASSWORD },
             });
             assert.strictEqual(created.statusCode, 201, created.body);
             const userId = JSON.parse(created.body).id;
