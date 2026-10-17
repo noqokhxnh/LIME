@@ -28,6 +28,30 @@ const VIDEO_PRESETS: Record<string, string> = {
 };
 
 /**
+ * Tốc độ đọc THỰC ĐO của từng engine TTS (từ/phút), dùng riêng cho NGÂN SÁCH TỪ
+ * gửi cho LLM. Khác wordsPerMinute() trong estimateDuration.ts: con số ở đó là
+ * tốc độ ước lượng chung (có tính thêm khoảng nghỉ dấu câu) để đoán độ dài audio,
+ * còn đây là tốc độ đọc thuần đo trực tiếp trên audio thật:
+ *   - vieneu (engine mặc định): tiếng Việt ~195 wpm ở speed=1.0.
+ * Nếu xin LLM ít từ hơn tốc độ đọc thật thì lời thoại không lấp đủ thời lượng và
+ * pipeline phải bù một đoạn lặng dài ở cuối video.
+ */
+const MEASURED_TTS_WPM: Record<string, number> = {
+    vieneu: 195,
+};
+
+/**
+ * Tốc độ đọc dùng để tính ngân sách từ: ưu tiên con số đo được của engine, nếu
+ * không có (engine khác / ngôn ngữ khác) thì rơi về wordsPerMinute() chung.
+ */
+function narrationRate(language?: string, provider?: string): number {
+    const lang = (language ?? 'vi').toLowerCase().split(/[-_]/)[0];
+    const measured = MEASURED_TTS_WPM[(provider ?? 'vieneu').toLowerCase()];
+    if (measured && lang === 'vi') return measured;
+    return wordsPerMinute(language);
+}
+
+/**
  * Số từ lý thuyết cho `sec` giây ở tốc độ `wpm`, nhân hệ số `ratio`.
  * Làm tròn 6 chữ số trước khi floor/round để tránh sai số dấu phẩy động
  * (ví dụ 30s tiếng Anh: 0.72 * 30 * 150 / 60 = 53.99999999999999).
@@ -40,10 +64,9 @@ function narrationWords(sec: number, wpm: number, ratio: number): number {
  * Số từ narration mục tiêu để TTS đọc gần đúng `targetDurationSec`.
  * Trước đây chỉ có một "trần" nhân 0.8 nên LLM luôn viết thiếu, khiến video
  * ngắn hơn nhiều so với mục tiêu (đặt 90s ra 35s).
- * Dùng chung wordsPerMinute() từ estimateDuration.ts — một nguồn sự thật duy nhất.
  */
-export function narrationWordTarget(targetDurationSec: number, language?: string): number {
-    const wpm = wordsPerMinute(language);
+export function narrationWordTarget(targetDurationSec: number, language?: string, provider?: string): number {
+    const wpm = narrationRate(language, provider);
     return Math.max(10, Math.round(narrationWords(targetDurationSec, wpm, 0.9)));
 }
 
@@ -51,8 +74,8 @@ export function narrationWordTarget(targetDurationSec: number, language?: string
  * Cận dưới khuyến nghị: dưới mức này kịch bản bị coi là thiếu lời thoại, pipeline
  * ghi cảnh báo và phải bù khoảng lặng (làm giảm chất lượng video).
  */
-export function narrationWordFloor(targetDurationSec: number, language?: string): number {
-    const wpm = wordsPerMinute(language);
+export function narrationWordFloor(targetDurationSec: number, language?: string, provider?: string): number {
+    const wpm = narrationRate(language, provider);
     return Math.max(10, Math.floor(narrationWords(targetDurationSec, wpm, 0.72)));
 }
 
@@ -60,8 +83,8 @@ export function narrationWordFloor(targetDurationSec: number, language?: string)
  * Trần an toàn (≈ tốc độ đọc thuần) để không đẩy tổng thời lượng vượt xa mục tiêu,
  * vẫn nằm dưới ngưỡng chặn "estimated <= 150% of target".
  */
-export function narrationWordBudget(targetDurationSec: number, language?: string): number {
-    const wpm = wordsPerMinute(language);
+export function narrationWordBudget(targetDurationSec: number, language?: string, provider?: string): number {
+    const wpm = narrationRate(language, provider);
     return Math.max(10, Math.floor(narrationWords(targetDurationSec, wpm, 1.0)));
 }
 
@@ -75,9 +98,9 @@ export function buildUserPrompt(request: videoRequest, preset: string): string {
         style: request.style,
     });
     const catalogSummary = formatCatalogSummaryForPrompt(request.style);
-    const wordBudget = narrationWordBudget(request.targetDurationSec, request.language);
-    const wordTarget = narrationWordTarget(request.targetDurationSec, request.language);
-    const wordFloor = narrationWordFloor(request.targetDurationSec, request.language);
+    const wordBudget = narrationWordBudget(request.targetDurationSec, request.language, request.ttsProvider);
+    const wordTarget = narrationWordTarget(request.targetDurationSec, request.language, request.ttsProvider);
+    const wordFloor = narrationWordFloor(request.targetDurationSec, request.language, request.ttsProvider);
     const sceneCount = Math.max(1, allocateBeats(request.targetDurationSec).length);
     const perSceneWords = Math.max(8, Math.round(wordTarget / sceneCount));
 
@@ -201,8 +224,8 @@ export async function generateScript(
             // cả kịch bản ngắn nhưng hợp lệ và phá luồng QA reroll); thay vào đó cảnh báo
             // rõ ràng — bước bù khoảng lặng ở synthesizeAudio lo phần đảm bảo độ dài.
             if (estimated.totalDurationSec < request.targetDurationSec * 0.7) {
-                const floorWords = narrationWordFloor(request.targetDurationSec, request.language);
-                const targetWords = narrationWordTarget(request.targetDurationSec, request.language);
+                const floorWords = narrationWordFloor(request.targetDurationSec, request.language, request.ttsProvider);
+                const targetWords = narrationWordTarget(request.targetDurationSec, request.language, request.ttsProvider);
                 const warning =
                     `Kịch bản ước lượng ${estimated.totalDurationSec.toFixed(1)}s, thấp hơn nhiều so với mục tiêu ` +
                     `${request.targetDurationSec}s (cần ~${targetWords} từ, tối thiểu ~${floorWords} từ).`;
