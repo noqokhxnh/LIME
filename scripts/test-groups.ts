@@ -37,6 +37,7 @@ export const FAST: string[] = [
     'tests/unit/assembler.test.ts',
     'tests/unit/audio.test.ts',
     'tests/unit/billing_cron.test.ts',
+    'tests/unit/billing_queue_memory.test.ts',
     'tests/unit/billing_reconciler.test.ts',
     'tests/unit/billing_refunds.test.ts',
     'tests/unit/billing_vietqr_service.test.ts',
@@ -117,7 +118,20 @@ export interface ResolvedGroup {
     label: string;
     description: string;
     files: string[];
+    /** Xem `FORCE_EXIT_GROUPS`. */
+    forceExit: boolean;
 }
+
+/**
+ * Nhóm cần ép tiến trình thoát ngay khi test xong (`--test-force-exit`).
+ *
+ * `redis`: BullMQ 6.3.10 có race ở `Worker` — nó hẹn timer kiểm job treo (mặc định 30
+ * giây) NGAY SAU khi `close()` đã chạy xong, nên không còn ai huỷ timer đó; tiến trình test
+ * treo thêm đúng 30 giây dù mọi test đã xong (đo được: test xong ở 32ms, thoát ở 30059ms).
+ * Đây là race trong thư viện, không phải kết nối mình quên đóng — `close()` vẫn có test
+ * riêng kiểm nó đóng worker/bộ nghe sự kiện/hàng đợi.
+ */
+export const FORCE_EXIT_GROUPS = new Set(['redis']);
 
 function globDirFiles(dir: string): string[] {
     const abs = join(REPO_ROOT, dir);
@@ -229,5 +243,6 @@ export function resolveGroup(name: string): ResolvedGroup {
         label,
         description: GROUP_DESCRIPTION[name] ?? label,
         files: unique(files),
+        forceExit: FORCE_EXIT_GROUPS.has(name),
     };
 }

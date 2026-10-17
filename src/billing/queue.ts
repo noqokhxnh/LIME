@@ -15,13 +15,25 @@ export class BullMQBillingWebhookQueue implements IBillingWebhookQueue {
     private queue: Queue<SePayWebhookPayload>;
     private worker?: Worker<SePayWebhookPayload>;
     private redisUrl: string;
+    /**
+     * Kết nối ioredis do lớp này tạo. BullMQ không đóng kết nối mà bên gọi truyền vào,
+     * nên phải tự giữ và tự đóng ở `close()` để tiến trình gọi close() thoát được.
+     */
+    private connections: Redis[] = [];
+    /** `close()` phải gọi lại được (worker/CLI có thể đóng hai lần khi tắt máy). */
+    private closed = false;
 
     constructor(redisUrl: string) {
         this.redisUrl = redisUrl;
+        this.queue = new Queue('sepay-webhooks', { connection: this.createConnection() });
+    }
+
+    private createConnection(): Redis {
         const connection = new Redis(this.redisUrl, {
             maxRetriesPerRequest: null,
         });
-        this.queue = new Queue('sepay-webhooks', { connection });
+        this.connections.push(connection);
+        return connection;
     }
 
     async addJob(payload: SePayWebhookPayload): Promise<void> {
@@ -40,9 +52,7 @@ export class BullMQBillingWebhookQueue implements IBillingWebhookQueue {
 
     async startWorker(): Promise<void> {
         if (this.worker) return;
-        const connection = new Redis(this.redisUrl, {
-            maxRetriesPerRequest: null,
-        });
+        const connection = this.createConnection();
         this.worker = new Worker(
             'sepay-webhooks',
             async (job) => {
@@ -56,10 +66,18 @@ export class BullMQBillingWebhookQueue implements IBillingWebhookQueue {
     }
 
     async close(): Promise<void> {
+        // Gọi lại lần hai phải là việc rỗng (xem chú thích ở BullMQQueue.close).
+        if (this.closed) return;
+        this.closed = true;
         if (this.worker) {
             await this.worker.close();
         }
         await this.queue.close();
+        // Đóng nốt các kết nối mình đã tạo (BullMQ không sở hữu chúng).
+        for (const connection of this.connections) {
+            if (connection.status !== 'end') connection.disconnect();
+        }
+        this.connections = [];
     }
 }
 

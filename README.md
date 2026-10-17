@@ -249,12 +249,13 @@ Mọi file `*.test.ts` phải được khai báo trong `scripts/test-groups.ts`;
 viết xong nhưng không script nào chạy). Kiểm tra tay đặt ở `tests/manual/*.manual.ts`.
 
 CI: `pr-test.yml` chạy nhóm `pr` kèm cổng độ phủ ở mọi PR; `pipeline-tests.yml` chạy lại
-nhóm đó trên PostgreSQL thật theo lịch đêm; nhóm nặng chạy hằng tuần ở `heavy-tests.yml`
-(không nằm trong đường chạy thường ngày vì `security.test.ts` chạy pipeline thật 10 lần,
-mất hơn 30 phút trên runner CI).
+nhóm đó trên PostgreSQL thật và chạy nhóm `redis` trên Redis thật theo lịch đêm; nhóm nặng
+chạy hằng tuần ở `heavy-tests.yml` (không nằm trong đường chạy thường ngày vì
+`security.test.ts` chạy pipeline thật 10 lần, mất hơn 30 phút trên runner CI).
 
-Độ phủ hiện tại: **~77% dòng** cho toàn bộ suite, **~69%** cho nhóm chạy ở PR (CI gộp
-báo cáo của từng lát test rồi mới chấm điểm — xem `scripts/merge-coverage.ts`).
+Độ phủ hiện tại: **~77% dòng** cho toàn bộ suite, **~70%** cho nhóm chạy ở PR (cổng chất
+lượng 68% đo trên nhóm đó; chạy toàn bộ suite tại chỗ thì ngưỡng là 70% — xem
+`scripts/coverage-thresholds.json`).
 
 Test coverage includes:
 - GSAP timeline AST linter & contract safety

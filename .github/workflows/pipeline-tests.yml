@@ -1,10 +1,11 @@
-name: Pipeline Tests (PostgreSQL thật + cổng độ phủ)
+name: Pipeline Tests (PostgreSQL thật + Redis thật + cổng độ phủ)
 
 # Workflow này chạy theo lịch đêm (00:00 giờ Việt Nam), khi có PR vào `main` (mốc phát
 # hành) và khi bấm chạy thủ công. Nó kiểm chứng đúng những thứ job PR không làm được:
 #
-#   1. nhóm test của PR chạy trên PostgreSQL THẬT (job PR chỉ chạy in-memory), và
-#   2. cổng chất lượng độ phủ đo lại trên chính nhóm đó.
+#   1. nhóm test của PR chạy trên PostgreSQL THẬT (job PR chỉ chạy in-memory),
+#   2. nhóm `redis` chạy trên Redis THẬT (job PR không dựng service container), và
+#   3. cổng chất lượng độ phủ đo lại trên chính nhóm của PR.
 #
 # Nhóm test NẶNG (mở Chromium, ghép video bằng ffmpeg, chạy trọn pipeline) đã được tách
 # sang `heavy-tests.yml` chạy hằng tuần: `security.test.ts` chạy pipeline thật 10 lần nên
@@ -169,3 +170,52 @@ jobs:
         # Bảng và dữ liệu gói cước được tạo bởi initDatabase() (CREATE TABLE IF NOT EXISTS
         # + INSERT ... ON CONFLICT) nên chỉ cần database rỗng là đủ.
         run: npm run test:unit:pr
+
+  redis:
+    name: Redis suite (hàng đợi BullMQ)
+    runs-on: ubuntu-latest
+    # Nhóm `redis` chỉ chạy được khi có Redis thật: hai hàng đợi BullMQ (render + webhook
+    # thanh toán) là mã production nhưng trước đây chưa từng được chạy trong bộ test.
+    # Chạy theo lịch đêm vì job PR không dựng service container.
+    timeout-minutes: 30
+    services:
+      redis:
+        # Cùng phiên bản với docker-compose.yml của dự án.
+        image: redis:7-alpine
+        ports:
+          - 6379:6379
+        options: >-
+          --health-cmd "redis-cli ping"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 10
+    env:
+      REDIS_URL: redis://localhost:6379
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 26
+
+      - name: Cache Node Modules
+        uses: actions/cache@v4
+        id: node-modules-cache
+        with:
+          path: node_modules
+          key: node-modules-${{ runner.os }}-${{ hashFiles('package-lock.json') }}
+
+      - name: Install dependencies
+        if: steps.node-modules-cache.outputs.cache-hit != 'true'
+        run: npm ci --no-audit --prefer-offline
+
+      - name: TypeScript Build Check
+        run: npm run build
+
+      - name: Run Redis suite
+        # Test tự tách database Redis riêng cho từng file (tests/redis/test-redis.ts) nên
+        # chạy song song an toàn; không đo độ phủ ở đây vì nhóm này không nằm trong cổng
+        # chất lượng (cổng 68% đo trên nhóm `pr`).
+        run: npm run test:redis
