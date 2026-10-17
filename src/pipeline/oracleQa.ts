@@ -73,6 +73,12 @@ export interface QAReport {
     carryScore: number;
     warnings: string[];
     errors: string[];
+    /**
+     * `true` khi pipeline chọn render tiếp dù QA đã kết luận `fail` sau khi hết
+     * lượt thử (graceful degradation). Báo cáo vẫn giữ nguyên `qaStatus: 'fail'`
+     * và `valid: false` để phản ánh đúng chất lượng kịch bản.
+     */
+    degraded?: boolean;
     legs: {
         rhythm: RhythmLegResult;
         continuity: ContinuityLegResult;
