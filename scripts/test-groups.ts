@@ -42,6 +42,7 @@ export const FAST: string[] = [
     'tests/unit/billing_vietqr_service.test.ts',
     'tests/unit/config.test.ts',
     'tests/unit/duration.test.ts',
+    'tests/unit/durationPad.test.ts',
     'tests/unit/llm.test.ts',
     'tests/unit/retry.test.ts',
     'tests/unit/schema.test.ts',
@@ -52,6 +53,7 @@ export const FAST: string[] = [
     'tests/unit/spec_f_procedural_character.test.ts',
     'tests/unit/templates.test.ts',
     'tests/unit/uploadGuard.test.ts',
+    'tests/unit/vieneuVoice.test.ts',
     'tests/unit/watermarkFilter.test.ts',
 ];
 
