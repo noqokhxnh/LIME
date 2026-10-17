@@ -248,6 +248,11 @@ Mọi file `*.test.ts` phải được khai báo trong `scripts/test-groups.ts`;
 `scripts/run-unit-tests.ts` sẽ dừng và chỉ ra file bị bỏ quên (trước đây từng có test
 viết xong nhưng không script nào chạy). Kiểm tra tay đặt ở `tests/manual/*.manual.ts`.
 
+CI: `pr-test.yml` chạy nhóm `pr` kèm cổng độ phủ ở mọi PR; `pipeline-tests.yml` chạy lại
+nhóm đó trên PostgreSQL thật theo lịch đêm; nhóm nặng chạy hằng tuần ở `heavy-tests.yml`
+(không nằm trong đường chạy thường ngày vì `security.test.ts` chạy pipeline thật 10 lần,
+mất hơn 30 phút trên runner CI).
+
 Độ phủ hiện tại: **~77% dòng** cho toàn bộ suite, **~69%** cho nhóm chạy ở PR (CI gộp
 báo cáo của từng lát test rồi mới chấm điểm — xem `scripts/merge-coverage.ts`).
 

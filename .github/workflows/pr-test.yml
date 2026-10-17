@@ -17,7 +17,7 @@ concurrency:
 
 jobs:
   test:
-    name: Run Unit Tests
+    name: PR Suite + Coverage Gate
     runs-on: ubuntu-latest
     timeout-minutes: 30
     steps:
@@ -27,7 +27,9 @@ jobs:
       - name: Setup Node.js
         uses: actions/setup-node@v4
         with:
-          node-version: 22
+          # Khớp với môi trường phát triển (và @types/node ^26) để hành vi của
+          # coverage/glob không lệch giữa máy dev và CI.
+          node-version: 26
 
       - name: Setup FFmpeg
         run: |
@@ -71,8 +73,35 @@ jobs:
       - name: TypeScript Build Check
         run: npm run build
 
-      - name: Run Test Suite
-        # Nhóm "fast": loại các test mở trình duyệt thật / render pipeline thật
-        # (xem scripts/run-unit-tests.ts). Nhóm "heavy" chạy ở pipeline-tests.yml.
+      - name: Run PR test suite with coverage gate
+        # Nhóm `pr` = test nhanh + test tích hợp rẻ + test giao diện (xem
+        # scripts/test-groups.ts). Cổng chất lượng lấy từ scripts/coverage-thresholds.json.
         # Không cấu hình service PostgreSQL ⇒ suite chạy ở chế độ in-memory.
-        run: npm run test:unit:fast
+        # `pipefail` để cổng chất lượng làm đỏ PR, không bị `tee` che mất mã thoát.
+        run: |
+          set -o pipefail
+          npm run test:coverage:pr 2>&1 | tee coverage-report.txt
+
+      - name: Đưa báo cáo độ phủ vào Step Summary
+        if: always()
+        run: |
+          {
+            echo "### Độ phủ mã nguồn — nhóm \`pr\`"
+            echo ''
+            echo '(ngưỡng: xem `scripts/coverage-thresholds.json`; báo cáo đầy đủ ở artifact + bảng chi tiết trong log)'
+            echo ''
+            echo '```'
+            # Bỏ dòng kẻ và cắt bớt cột "dòng chưa phủ" cho dễ đọc trên trang PR.
+            sed -n '/start of coverage report/,/end of coverage report/p' coverage-report.txt \
+              | sed 's/^ℹ *//' | grep -v '^-\{5,\}' | cut -c1-140
+            echo '```'
+          } >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Upload lcov report
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: coverage-pr
+          path: coverage/lcov.info
+          if-no-files-found: warn
+          retention-days: 14
