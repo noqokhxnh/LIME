@@ -13,7 +13,7 @@ import {
     type SubscriptionTier,
     type AdminUserQuery,
 } from "./userStore.js";
-import { systemSettings } from "./systemSettings.js";
+import { systemSettings, validateSettingsPatch } from "./systemSettings.js";
 import { auditLog } from "../security/auditLog.js";
 import { pageViewTracker } from "../security/pageViewTracker.js";
 import { maintenanceTracker } from "./maintenanceTracker.js";
@@ -22,6 +22,7 @@ import { billingStorage } from "../billing/storage.js";
 import { getConfig } from "../config.js";
 import { db } from "../database/index.js";
 import { createTTSClient } from "../pipeline/audioSysnthesis.js";
+import { getLLMClientFactory } from "../llm/client.js";
 import { videoScriptSchema, type videoScript } from "../llm/schema.js";
 import type { IVideoQueue, JobUpdate } from "../queue/interfaces.js";
 
@@ -1739,6 +1740,14 @@ export async function adminRoutes(app: FastifyInstance, opts?: { queue?: IVideoQ
         }
 
         const body = (request.body as any) || {};
+
+        // Kiểm tra hợp lệ trước khi lưu (trước đây nhận thẳng `any` và lưu bừa).
+        const validationError = validateSettingsPatch(body);
+        if (validationError) {
+            reply.status(400);
+            return { error: validationError };
+        }
+
         const updated = systemSettings.update(body, check.user?.email);
 
         auditLog.record({
@@ -1799,15 +1808,33 @@ export async function adminRoutes(app: FastifyInstance, opts?: { queue?: IVideoQ
                 };
             }
 
-            const latencyMs = Math.round(Math.random() * 120 + 80);
-            return {
-                success: true,
-                provider: targetProvider,
-                latencyMs,
-                message: `Nhà cung cấp LLM [${targetProvider.toUpperCase()}]${targetModel ? ` (Model: ${targetModel})` : ""} sẵn sàng kết nối (độ trễ ~${latencyMs}ms).`,
-            };
+            // Thực hiện lời gọi thật tới nhà cung cấp thay vì trả về độ trễ giả.
+            try {
+                const client = getLLMClientFactory()(targetProvider, config);
+                const responseText = await client.generate(
+                    "Bạn là trợ lý kiểm tra kết nối. Chỉ trả lời ngắn gọn.",
+                    'Trả về đúng chuỗi JSON sau: {"status":"ok"}',
+                    AbortSignal.timeout(15000)
+                );
+                const latencyMs = Date.now() - startTime;
+                const preview = String(responseText ?? "").trim().slice(0, 120);
+                return {
+                    success: true,
+                    provider: targetProvider,
+                    model: targetModel || undefined,
+                    latencyMs,
+                    message: `Kết nối LLM [${targetProvider.toUpperCase()}]${targetModel ? ` (Model: ${targetModel})` : ""} thành công (${latencyMs}ms). Phản hồi: ${preview}`,
+                };
+            } catch (err: any) {
+                return {
+                    success: false,
+                    provider: targetProvider,
+                    model: targetModel || undefined,
+                    latencyMs: Date.now() - startTime,
+                    message: `Không kết nối được LLM [${targetProvider.toUpperCase()}]: ${err?.message || err}`,
+                };
+            }
         }
-
         if (targetType === "tts") {
             const config = getConfig();
             const targetTts = provider || config.TTS_Provider || "edge";
@@ -1828,46 +1855,39 @@ export async function adminRoutes(app: FastifyInstance, opts?: { queue?: IVideoQ
                 };
             }
 
-            if (body.synthesize || body.text) {
-                const tempFile = join(tmpdir(), `tts_sample_${Date.now()}_${Math.random().toString(36).slice(2, 8)}.mp3`);
-                try {
-                    const client = createTTSClient(targetTts);
-                    await client.synthesize(sampleText, tempFile, { voice: targetVoice });
-                    const audioBuffer = readFileSync(tempFile);
-                    const audioBase64 = audioBuffer.toString("base64");
-                    try { unlinkSync(tempFile); } catch {}
+            // Luôn tổng hợp thật một mẫu ngắn để xác thực nhà cung cấp, thay vì trả về
+            // độ trễ giả như trước đây.
+            const tempFile = join(tmpdir(), `tts_sample_${Date.now()}_${Math.random().toString(36).slice(2, 8)}.mp3`);
+            try {
+                const client = createTTSClient(targetTts);
+                await client.synthesize(sampleText, tempFile, { voice: targetVoice });
+                const audioBuffer = readFileSync(tempFile);
+                const audioBase64 = audioBuffer.toString("base64");
+                try { unlinkSync(tempFile); } catch {}
 
-                    const latencyMs = Date.now() - startTime;
-                    return {
-                        success: true,
-                        provider: targetTts,
-                        voice: targetVoice,
-                        audioBase64,
-                        latencyMs,
-                        message: `Đã sinh mẫu giọng đọc [${targetVoice}] thành công (${latencyMs}ms).`,
-                    };
-                } catch (err: any) {
-                    try { if (existsSync(tempFile)) unlinkSync(tempFile); } catch {}
-                    return {
-                        success: false,
-                        provider: targetTts,
-                        voice: targetVoice,
-                        latencyMs: Date.now() - startTime,
-                        message: `Lỗi sinh giọng đọc mẫu: ${err.message || err}`,
-                    };
-                }
+                const latencyMs = Date.now() - startTime;
+                return {
+                    success: true,
+                    provider: targetTts,
+                    voice: targetVoice,
+                    audioBase64,
+                    latencyMs,
+                    message: `Đã sinh mẫu giọng đọc [${targetVoice}] thành công (${latencyMs}ms).`,
+                };
+            } catch (err: any) {
+                try { if (existsSync(tempFile)) unlinkSync(tempFile); } catch {}
+                return {
+                    success: false,
+                    provider: targetTts,
+                    voice: targetVoice,
+                    latencyMs: Date.now() - startTime,
+                    message: `Lỗi sinh giọng đọc mẫu: ${err.message || err}`,
+                };
             }
-
-            const latencyMs = Math.round(Math.random() * 60 + 40);
-            return {
-                success: true,
-                provider: targetTts,
-                latencyMs,
-                message: `Động cơ giọng đọc TTS [${targetTts.toUpperCase()}]${targetVoice ? ` (Voice: ${targetVoice})` : ""} sẵn sàng tổng hợp audio (độ trễ ~${latencyMs}ms).`,
-            };
         }
 
-        return { success: true, message: "Kiểm tra kết nối hoàn tất." };
+        reply.status(400);
+        return { error: `Loại kiểm tra không hợp lệ hoặc nhà cung cấp không được hỗ trợ: ${type || provider || "(trống)"}` };
     });
 
     // -------------------------------------------------------------

@@ -358,28 +358,45 @@ export function setLLMClient(client: LLMClient | null): void {
     _client = client;
 }
 
+/** Tạo client LLM cho một nhà cung cấp cụ thể (không dùng singleton toàn cục). */
+export function createLLMClientForProvider(provider: string, config: Config = getConfig()): LLMClient {
+    switch ((provider || '').toLowerCase()) {
+        case 'openai':
+            return new OpenAIClient(config);
+        case 'deepseek':
+            return new DeepSeekClient(config);
+        case 'gemini':
+            return new GeminiClient(config);
+        case 'claude':
+            return new ClaudeClient(config);
+        case '9router':
+            return new NineRouterClient(config);
+        default:
+            throw new Error(`Unsupported LLM provider: ${provider}`);
+    }
+}
+
+/**
+ * Factory đang dùng để tạo client LLM cho kiểm tra kết nối nhà cung cấp.
+ * Có thể thay thế trong test để tránh gọi mạng thật.
+ */
+let _llmFactory: (provider: string, config: Config) => LLMClient = createLLMClientForProvider;
+
+export function setLLMClientFactory(factory: (provider: string, config: Config) => LLMClient): void {
+    _llmFactory = factory;
+}
+
+export function resetLLMClientFactory(): void {
+    _llmFactory = createLLMClientForProvider;
+}
+
+export function getLLMClientFactory(): (provider: string, config: Config) => LLMClient {
+    return _llmFactory;
+}
+
 export function getLLMClient(): LLMClient {
     if (!_client) {
-        const provider = getConfig().LLM_Provider;
-        switch (provider) {
-            case 'openai':
-                _client = new OpenAIClient(getConfig());
-                break;
-            case 'deepseek':
-                _client = new DeepSeekClient(getConfig());
-                break;
-            case 'gemini':
-                _client = new GeminiClient(getConfig());
-                break;
-            case 'claude':
-                _client = new ClaudeClient(getConfig());
-                break;
-            case '9router':
-                _client = new NineRouterClient(getConfig());
-                break;
-            default:
-                throw new Error(`Unsupported LLM provider: ${provider}`);
-        }
+        _client = createLLMClientForProvider(getConfig().LLM_Provider);
         console.log(`Using LLM: ${_client.provider}`);
     }
     return _client;
