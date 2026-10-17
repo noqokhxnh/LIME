@@ -5,10 +5,24 @@ import { BLOCK_HELPERS_JS } from "../templates/runtime/blockHelpers.js";
 import { DETERMINISTIC_RUNTIME_JS, hashString32, RNG, getSceneSeed } from "./rng.js";
 import { assertDeterministicScript } from "./compLinter.js";
 import { subsetFontsForHtml } from "./fontSubset.js";
-import { KaraokeConfig, buildKaraokeTimeline, renderKaraokeHtml, renderKaraokeCss, renderKaraokeJs } from "./karaoke.js";
+import {
+    KaraokeConfig,
+    buildKaraokeTimeline,
+    renderKaraokeHtml,
+    renderKaraokeCss,
+    renderKaraokeJs,
+    getSafeAreaBounds,
+    isBoxWithinSafeArea,
+    getKaraokeLayerBounds,
+} from "./karaoke.js";
 import { WordTiming } from "./wordTiming.js";
 
-export { BLOCK_HELPERS_JS };
+export {
+    BLOCK_HELPERS_JS,
+    getSafeAreaBounds,
+    isBoxWithinSafeArea,
+    getKaraokeLayerBounds,
+};
 
 export interface assembleOptions {
     imageMap?: Record<string, string[]>;
@@ -192,6 +206,38 @@ export async function assembleHTML(
     const karaokeCss = karaokeEnabled ? renderKaraokeCss(karaokeConfig) : "";
     const karaokeJs = karaokeEnabled ? renderKaraokeJs() : "";
 
+    const safeAreaGuideHtml = options?.safeArea
+        ? `\n    <!-- Safe Area Debug Overlay (QA Guide) -->\n    <div id="lime-safe-area-guide" class="lime-safe-area-guide" aria-hidden="true">\n        <div class="safe-area-label">SAFE AREA 80% (10% V / 10% H)</div>\n    </div>`
+        : "";
+
+    const safeAreaGuideCss = options?.safeArea
+        ? `
+/* Safe Area Debug Overlay (QA Guide) */
+.lime-safe-area-guide {
+    position: absolute;
+    top: 10%;
+    left: 10%;
+    width: 80%;
+    height: 80%;
+    border: 2px dashed rgba(255, 69, 58, 0.75);
+    box-sizing: border-box;
+    pointer-events: none;
+    z-index: 99999;
+}
+.lime-safe-area-guide .safe-area-label {
+    position: absolute;
+    top: 6px;
+    left: 8px;
+    font-size: 12px;
+    font-family: monospace;
+    font-weight: 700;
+    color: rgba(255, 69, 58, 0.9);
+    letter-spacing: 0.5px;
+    text-transform: uppercase;
+}
+`
+        : "";
+
     const allScenesJs = processedScenes
         .map(
             (s) => {
@@ -313,12 +359,15 @@ ${s.js}
 
         /* Karaoke Subtitles Styles */
         ${karaokeCss}
+
+        ${safeAreaGuideCss}
     </style>
 </head>
 <body>
     <div id="viewport">
 ${allScenesHtml}
 ${karaokeHtml}
+${safeAreaGuideHtml}
     </div>
 
     <script>
