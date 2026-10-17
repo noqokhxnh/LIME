@@ -6,6 +6,7 @@ import { DETERMINISTIC_RUNTIME_JS, hashString32, RNG, getSceneSeed } from "./rng
 import { assertDeterministicScript } from "./compLinter.js";
 import { subsetFontsForHtml } from "./fontSubset.js";
 import { CHARACTER_RUNTIME_JS } from "./character/runtime.js";
+import { KINETIC_TYPOGRAPHY_JS } from "./kineticTypography.js";
 import {
     KaraokeConfig,
     buildKaraokeTimeline,
@@ -543,6 +544,9 @@ ${safeAreaGuideHtml}
 
         // Procedural Character Runtime (Spec F)
         ${CHARACTER_RUNTIME_JS}
+
+        // Kinetic Typography Presets (Issue #31)
+        ${KINETIC_TYPOGRAPHY_JS}
 
         // Scene Timeline Executions
         ${allScenesJs}

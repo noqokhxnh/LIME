@@ -298,7 +298,32 @@ Complex UI is provided by runtime helpers. Prefer them over hand-rolling large D
 
 Also available: `window.__sm()` / `window.__fx()` for stickman comic scenes.
 
-## 11. STRICT TECHNICAL CONSTRAINTS
+## 11. KINETIC TYPOGRAPHY PRESETS (Issue #31)
+
+`window.__motionPresets` cung cấp các hiệu ứng chữ nghệ thuật. Gọi trong jsCode:
+
+```javascript
+// Layouts
+window.__motionPresets.marquee(el, { duration: 10 });
+window.__motionPresets.diagonalBanner(el, { angle: -15, bgColor: '#B9E72B' });
+window.__motionPresets.stickerLabel(el, { rotation: -5 });
+
+// Entrances
+const tl = window.__motionPresets.explodeAssemble(el, { duration: 1 });
+window.__motionPresets.domino(el);
+window.__motionPresets.crtTurnOn(el);
+
+// FX
+window.__motionPresets.rgbSplit(el, { intensity: 3 });
+```
+
+Mỗi preset trả về GSAP timeline. Thêm vào scene timeline chính:
+```javascript
+const presetTl = window.__motionPresets.domino(titleEl);
+tl.add(presetTl, 0.2);
+```
+
+## 12. STRICT TECHNICAL CONSTRAINTS
 
 - **DO NOT** use `setTimeout`, `setInterval`, `requestAnimationFrame`, or CSS animations (`@keyframes`). Use **GSAP ONLY**.
 - **DO NOT** reference external image URLs (Unsplash/Imgur/etc.). Use CSS gradients, SVG shapes, typography, and inline SVGs.
