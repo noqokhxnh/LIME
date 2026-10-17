@@ -4,9 +4,11 @@ on:
   push:
     branches:
       - main
+      - dev
   pull_request:
     branches:
       - main
+      - dev
   workflow_dispatch:
 
 concurrency:
@@ -70,4 +72,7 @@ jobs:
         run: npm run build
 
       - name: Run Test Suite
-        run: npm run test:unit
+        # Nhóm "fast": loại các test mở trình duyệt thật / render pipeline thật
+        # (xem scripts/run-unit-tests.ts). Nhóm "heavy" chạy ở pipeline-tests.yml.
+        # Không cấu hình service PostgreSQL ⇒ suite chạy ở chế độ in-memory.
+        run: npm run test:unit:fast

@@ -9,6 +9,8 @@
         "build": "tsc",
         "test": "npm run test:unit && npm run test:integration",
         "test:unit": "tsx --test tests/unit/*.test.ts",
+        "test:unit:fast": "tsx scripts/run-unit-tests.ts fast",
+        "test:unit:heavy": "tsx scripts/run-unit-tests.ts heavy",
         "test:integration": "tsx tests/integration/pipeline.test.ts",
         "worker": "tsx src/worker.ts",
         "cli": "tsx src/cli.ts",
