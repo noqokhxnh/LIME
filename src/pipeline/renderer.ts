@@ -11,7 +11,7 @@ import { decodePng } from "./pngDecoder.js";
 import { LinearLightAccumulator } from "./linearLight.js";
 import { calculateSubFrameTimestamps } from "./shutterRenderer.js";
 import { detectMotion, type DOMBox } from "./motion.js";
-import { createCdpCaptureSession, type CdpCaptureSession } from "./cdpCapture.js";
+import { createCdpCaptureSession, applyDeterminismGuards, type CdpCaptureSession } from "./cdpCapture.js";
 import { getConfig } from "../config.js";
 
 export interface RenderVideoOptions {
@@ -522,6 +522,9 @@ export async function renderVideo(options: RenderVideoOptions): Promise<string> 
                         } catch (e) { }
                     }
                 });
+
+                // Issue #38: Determinism guards — freeze CSS animations, chờ fonts/images
+                await applyDeterminismGuards(page);
 
                 // Issue #40: CDP BeginFrame session cho static frame deduplication
                 let cdpSession: CdpCaptureSession | null = null;
