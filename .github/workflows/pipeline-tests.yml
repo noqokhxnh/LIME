@@ -1,0 +1,98 @@
+name: Pipeline Tests (heavy)
+
+# Nhóm test nặng: mở Chromium thật, ghép video bằng ffmpeg hoặc chạy trọn pipeline
+# nhiều lần (xem scripts/run-unit-tests.ts). Nhóm này mất hàng chục phút nên KHÔNG
+# chạy cho mọi PR — chỉ chạy khi PR đụng tới vùng liên quan, theo lịch đêm, hoặc
+# khi chạy thủ công.
+on:
+  pull_request:
+    branches:
+      - main
+      - dev
+    paths:
+      - "src/pipeline/**"
+      - "src/queue/**"
+      - "src/llm/**"
+      - "src/security/**"
+      - "src/index.ts"
+      - "src/worker.ts"
+      - "src/config.ts"
+      - "tests/unit/orchestrator.test.ts"
+      - "tests/unit/security.test.ts"
+      - "tests/unit/api.test.ts"
+      - "tests/unit/queue.test.ts"
+      - "tests/unit/preview.test.ts"
+      - "tests/unit/spec_*.test.ts"
+      - "scripts/run-unit-tests.ts"
+      - "package.json"
+      - "package-lock.json"
+      - ".github/workflows/pipeline-tests.yml"
+  schedule:
+    # 17:00 UTC = 00:00 giờ Việt Nam, mỗi ngày.
+    - cron: "0 17 * * *"
+  workflow_dispatch:
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  heavy:
+    name: Run Heavy Unit Tests
+    runs-on: ubuntu-latest
+    # Nhóm nặng mất ~5,5 phút trên máy phát triển; runner CI yếu hơn nhiều lần.
+    timeout-minutes: 60
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+
+      - name: Setup FFmpeg
+        run: |
+          sudo apt-get update -qq
+          sudo apt-get install -y --no-install-recommends ffmpeg
+          ffmpeg -version
+
+      - name: Setup fonttools (pyftsubset)
+        run: |
+          pipx install "fonttools[woff,unicode]" || (sudo apt-get update -qq && sudo apt-get install -y --no-install-recommends fonttools python3-brotli python3-zopfli)
+          sudo apt-get install -y --no-install-recommends python3-fonttools python3-brotli || true
+          echo "$HOME/.local/bin" >> $GITHUB_PATH
+          which pyftsubset || echo "pyftsubset not in PATH"
+
+      - name: Cache Node Modules
+        uses: actions/cache@v4
+        id: node-modules-cache
+        with:
+          path: node_modules
+          key: node-modules-${{ runner.os }}-${{ hashFiles('package-lock.json') }}
+
+      - name: Install dependencies
+        if: steps.node-modules-cache.outputs.cache-hit != 'true'
+        run: npm ci --no-audit --prefer-offline
+
+      - name: Cache Playwright Chromium
+        uses: actions/cache@v4
+        id: playwright-cache
+        with:
+          path: ~/.cache/ms-playwright
+          key: playwright-${{ runner.os }}-${{ hashFiles('package-lock.json') }}
+
+      - name: Install Playwright Chromium & Dependencies
+        if: steps.playwright-cache.outputs.cache-hit != 'true'
+        run: npx playwright install --with-deps chromium
+
+      - name: Install Playwright OS Dependencies (when cached)
+        if: steps.playwright-cache.outputs.cache-hit == 'true'
+        run: npx playwright install-deps chromium
+
+      - name: TypeScript Build Check
+        run: npm run build
+
+      - name: Run Heavy Unit Tests
+        # Không cấu hình service PostgreSQL ⇒ suite chạy ở chế độ in-memory.
+        run: npm run test:unit:heavy

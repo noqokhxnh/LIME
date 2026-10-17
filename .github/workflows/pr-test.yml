@@ -72,6 +72,7 @@ jobs:
         run: npm run build
 
       - name: Run Test Suite
+        # Nhóm "fast": loại các test mở trình duyệt thật / render pipeline thật
+        # (xem scripts/run-unit-tests.ts). Nhóm "heavy" chạy ở pipeline-tests.yml.
         # Không cấu hình service PostgreSQL ⇒ suite chạy ở chế độ in-memory.
-        # (Bộ test tự bỏ qua các ca chỉ chạy được khi có DATABASE_URL.)
-        run: npm run test:unit
+        run: npm run test:unit:fast
