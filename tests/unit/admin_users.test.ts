@@ -44,6 +44,14 @@ describe('Admin Users Management Test Suite', () => {
     const emailOf = (suffix: string) => `usertest_${TOKEN}_${suffix}@example.com`.toLowerCase();
     const usernameOf = (suffix: string) => `ut_${TOKEN}_${suffix}`.toLowerCase();
 
+    /**
+     * Mật khẩu test được sinh ngay lúc chạy thay vì viết cứng trong mã nguồn.
+     * Việc viết cứng các chuỗi như mật khẩu ví dụ khiến công cụ quét bí mật
+     * (GitGuardian…) báo động nhầm là mật khẩu thật bị lộ.
+     */
+    const PASSWORD = `Aa1!${RUN}pw`;
+    const WRONG_PASSWORD = `Aa1!${RUN}x`;
+
     /** ID của 3 người dùng seed: credits 300 / 200 / 100, tier creator / pro / free. */
     const seededIds: string[] = [];
     const seededCredits = { a: 300, b: 200, c: 100 };
