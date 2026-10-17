@@ -159,6 +159,19 @@ export const videoPreset: Record<string, videoPreset> = {
         height: 1080,
         label: "16:9 Horizontal (1920x1080)",
     },
+    // Issue #30: 4K UHD presets
+    "4k": {
+        name: "4k",
+        width: 3840,
+        height: 2160,
+        label: "4K UHD 16:9 (3840x2160)",
+    },
+    "4k-vertical": {
+        name: "4k-vertical",
+        width: 2160,
+        height: 3840,
+        label: "4K Vertical 9:16 (2160x3840)",
+    },
 };
 
 export function resolveResolution(aspectRatio?: string, format?: "vertical" | "horizontal"): videoPreset {
