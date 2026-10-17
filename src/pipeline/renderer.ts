@@ -11,6 +11,7 @@ import { decodePng } from "./pngDecoder.js";
 import { LinearLightAccumulator } from "./linearLight.js";
 import { calculateSubFrameTimestamps } from "./shutterRenderer.js";
 import { detectMotion, type DOMBox } from "./motion.js";
+import { createCdpCaptureSession, type CdpCaptureSession } from "./cdpCapture.js";
 import { getConfig } from "../config.js";
 
 export interface RenderVideoOptions {
@@ -47,6 +48,11 @@ export interface RenderVideoOptions {
      * Signal để hủy render (Issue #35).
      */
     signal?: AbortSignal;
+    /**
+     * Bật static frame deduplication qua CDP BeginFrame (Issue #40, mặc định true).
+     * Khi tắt, dùng hành vi cũ (luôn screenshot).
+     */
+    useCdpDedup?: boolean;
 }
 
 export interface RenderChunk {
@@ -448,6 +454,7 @@ export async function renderVideo(options: RenderVideoOptions): Promise<string> 
         shutterSamples: rawShutterSamples,
         skipShutterBlur = false,
         seed = 0,
+        useCdpDedup = true,
     } = options;
 
     const shutterSamples = Math.max(1, Math.floor(rawShutterSamples ?? 8));
@@ -497,6 +504,16 @@ export async function renderVideo(options: RenderVideoOptions): Promise<string> 
                         } catch (e) { }
                     }
                 });
+
+                // Issue #40: CDP BeginFrame session cho static frame deduplication
+                let cdpSession: CdpCaptureSession | null = null;
+                if (useCdpDedup) {
+                    try {
+                        cdpSession = await createCdpCaptureSession(page);
+                    } catch (err) {
+                        console.warn("[Renderer] Không tạo được CDP session, tắt dedup:", (err as Error).message);
+                    }
+                }
 
                 const hasAudio = existsSync(audioPath);
 
@@ -643,14 +660,32 @@ export async function renderVideo(options: RenderVideoOptions): Promise<string> 
                         // Khi tắt shutter blur: render 1 khung hình tại t0
                         try {
                             await seekToTimestamp(page, t0);
-                            const buf = await page.screenshot({
-                                type: "png",
-                                animations: "disabled",
-                                timeout: 8000,
-                            });
-                            const decoded = decodePng(buf);
-                            frameToPipe = decoded.data;
-                            lastFrame = frameToPipe;
+                            // Issue #40: Static frame dedup — nếu không có thay đổi
+                            // thị giác, tái sử dụng frame cũ, bỏ qua screenshot
+                            if (cdpSession && lastFrame) {
+                                const hasDamage = await cdpSession.checkDamage();
+                                if (!hasDamage) {
+                                    frameToPipe = lastFrame;
+                                } else {
+                                    const buf = await page.screenshot({
+                                        type: "png",
+                                        animations: "disabled",
+                                        timeout: 8000,
+                                    });
+                                    const decoded = decodePng(buf);
+                                    frameToPipe = decoded.data;
+                                    lastFrame = frameToPipe;
+                                }
+                            } else {
+                                const buf = await page.screenshot({
+                                    type: "png",
+                                    animations: "disabled",
+                                    timeout: 8000,
+                                });
+                                const decoded = decodePng(buf);
+                                frameToPipe = decoded.data;
+                                lastFrame = frameToPipe;
+                            }
                         } catch (err: any) {
                             if (lastFrame) {
                                 frameToPipe = lastFrame;
@@ -672,16 +707,33 @@ export async function renderVideo(options: RenderVideoOptions): Promise<string> 
 
                         if (!motion.hasMotion) {
                             // Skip holds: tổng độ dịch chuyển < 1px -> render 1 frame tĩnh tiết kiệm compute
+                            // Issue #40: Kết hợp với CDP hasDamage để bỏ qua screenshot nếu thực sự tĩnh
                             try {
                                 await seekToTimestamp(page, t0);
-                                const buf = await page.screenshot({
-                                    type: "png",
-                                    animations: "disabled",
-                                    timeout: 8000,
-                                });
-                                const decoded = decodePng(buf);
-                                frameToPipe = decoded.data;
-                                lastFrame = frameToPipe;
+                                if (cdpSession && lastFrame) {
+                                    const hasDamage = await cdpSession.checkDamage();
+                                    if (!hasDamage) {
+                                        frameToPipe = lastFrame;
+                                    } else {
+                                        const buf = await page.screenshot({
+                                            type: "png",
+                                            animations: "disabled",
+                                            timeout: 8000,
+                                        });
+                                        const decoded = decodePng(buf);
+                                        frameToPipe = decoded.data;
+                                        lastFrame = frameToPipe;
+                                    }
+                                } else {
+                                    const buf = await page.screenshot({
+                                        type: "png",
+                                        animations: "disabled",
+                                        timeout: 8000,
+                                    });
+                                    const decoded = decodePng(buf);
+                                    frameToPipe = decoded.data;
+                                    lastFrame = frameToPipe;
+                                }
                             } catch (err: any) {
                                 if (lastFrame) {
                                     frameToPipe = lastFrame;
@@ -758,6 +810,10 @@ export async function renderVideo(options: RenderVideoOptions): Promise<string> 
                 });
 
                 onProgress?.("Video rendering and muxing completed", 100);
+                // Issue #40: Đóng CDP session trước khi đóng browser
+                if (cdpSession) {
+                    await cdpSession.close().catch(() => { });
+                }
                 return outputPath;
             } finally {
                 await browser.close().catch(() => { });
