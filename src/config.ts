@@ -65,6 +65,10 @@ const envSchema = z.object({
     Default_FPS: z.coerce.number().default(30),
     Default_Width: z.coerce.number().default(1920),
     Default_Height: z.coerce.number().default(1080),
+    RENDER_MAX_CONCURRENCY: z.preprocess(
+        (val) => val || process.env.RENDER_MAX_CONCURRENCY || process.env.RENDER_CONCURRENCY,
+        z.coerce.number().int().min(1).default(4)
+    ),
 
     GOOGLE_CLIENT_ID: z.string().optional(),
     GOOGLE_CLIENT_SECRET: z.string().optional(),
