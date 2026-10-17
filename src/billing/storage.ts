@@ -18,6 +18,8 @@ import type {
     AdminUnmatchedPage,
     AdminDuplicateQuery,
     AdminDuplicatePage,
+    AdminRefundQuery,
+    AdminRefundPage,
 } from './types.js';
 
 const UUID_REGEX = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
@@ -136,6 +138,8 @@ export interface IBillingStorage {
     listDuplicatePaymentsForAdmin(filters?: AdminDuplicateQuery): Promise<AdminDuplicatePage>;
     /** Danh sách giao dịch chưa khớp có lọc + phân trang (cổng quản trị). */
     listUnmatchedPaymentsForAdmin(filters?: AdminUnmatchedQuery): Promise<AdminUnmatchedPage>;
+    /** Lịch sử hoàn tiền thủ công có lọc + phân trang (cổng quản trị). */
+    listRefundsForAdmin(filters?: AdminRefundQuery): Promise<AdminRefundPage>;
     /** Tra nhiều đơn hàng trong MỘT truy vấn (tránh N+1 khi làm giàu dữ liệu). */
     findOrdersByIds(ids: string[]): Promise<Map<string, Order>>;
     findRefundBySource(sourceType: RefundSourceType, sourceId: string): Promise<Refund | null>;
@@ -693,7 +697,63 @@ export class PostgresBillingStorage implements IBillingStorage {
 
     async listRefunds(): Promise<Refund[]> {
         const res = await db.query('SELECT * FROM refunds ORDER BY created_at DESC LIMIT 100');
-        return res.rows.map(r => ({
+        return res.rows.map(r => this.mapRefund(r));
+    }
+
+    async listRefundsForAdmin(filters: AdminRefundQuery = {}): Promise<AdminRefundPage> {
+        const { limit, offset } = normalizeListPaging(
+            filters,
+            ADMIN_PAYMENTS_DEFAULT_LIMIT,
+            ADMIN_PAYMENTS_MAX_LIMIT
+        );
+
+        const conditions: string[] = [];
+        const params: any[] = [];
+
+        if (filters.sourceType && filters.sourceType !== 'all') {
+            params.push(filters.sourceType);
+            conditions.push(`source_type = $${params.length}`);
+        }
+
+        const search = (filters.search || '').trim();
+        if (search) {
+            params.push(`%${search}%`);
+            const like = `$${params.length}`;
+            conditions.push(
+                `(sepay_ref ILIKE ${like} OR bank_account ILIKE ${like} OR bank_name ILIKE ${like}` +
+                ` OR COALESCE(refunded_by, '') ILIKE ${like} OR COALESCE(admin_note, '') ILIKE ${like}` +
+                ` OR amount_vnd::text ILIKE ${like})`
+            );
+        }
+
+        if (filters.from) {
+            params.push(filters.from);
+            conditions.push(`created_at >= $${params.length}`);
+        }
+        if (filters.to) {
+            params.push(filters.to);
+            conditions.push(`created_at <= $${params.length}`);
+        }
+
+        const whereClause = conditions.length > 0 ? `WHERE ${conditions.join(' AND ')}` : '';
+
+        const countRes = await db.query(`SELECT COUNT(*)::int AS total FROM refunds ${whereClause}`, params);
+        const total = Number(countRes.rows[0]?.total ?? 0);
+
+        const listParams = [...params, limit, offset];
+        const res = await db.query(
+            `SELECT * FROM refunds
+             ${whereClause}
+             ORDER BY created_at DESC
+             LIMIT $${listParams.length - 1} OFFSET $${listParams.length}`,
+            listParams
+        );
+
+        return { refunds: res.rows.map(r => this.mapRefund(r)), total };
+    }
+
+    private mapRefund(r: any): Refund {
+        return {
             id: r.id,
             source_type: r.source_type,
             source_id: r.source_id,
@@ -705,7 +765,7 @@ export class PostgresBillingStorage implements IBillingStorage {
             refunded_by: r.refunded_by,
             refunded_at: new Date(r.refunded_at).toISOString(),
             created_at: new Date(r.created_at).toISOString(),
-        }));
+        };
     }
 
     async cancelOrder(orderId: string): Promise<Order | null> {
@@ -1274,6 +1334,45 @@ export class InMemoryBillingStorage implements IBillingStorage {
 
     async listRefunds(): Promise<Refund[]> {
         return Array.from(this.refunds.values()).sort((a, b) => b.created_at.localeCompare(a.created_at));
+    }
+
+    async listRefundsForAdmin(filters: AdminRefundQuery = {}): Promise<AdminRefundPage> {
+        const { limit, offset } = normalizeListPaging(
+            filters,
+            ADMIN_PAYMENTS_DEFAULT_LIMIT,
+            ADMIN_PAYMENTS_MAX_LIMIT
+        );
+
+        const sourceType = filters.sourceType && filters.sourceType !== 'all' ? filters.sourceType : undefined;
+        const search = (filters.search || '').trim().toLowerCase();
+        const fromTs = filters.from ? new Date(filters.from).getTime() : NaN;
+        const toTs = filters.to ? new Date(filters.to).getTime() : NaN;
+
+        const list = Array.from(this.refunds.values())
+            .filter((r) => {
+                if (sourceType && r.source_type !== sourceType) return false;
+                const ts = new Date(r.created_at).getTime();
+                if (!Number.isNaN(fromTs) && ts < fromTs) return false;
+                if (!Number.isNaN(toTs) && ts > toTs) return false;
+                if (search) {
+                    const haystack = [
+                        r.sepay_ref,
+                        r.bank_account,
+                        r.bank_name,
+                        r.refunded_by,
+                        r.admin_note,
+                        String(r.amount_vnd),
+                    ]
+                        .filter(Boolean)
+                        .join(' ')
+                        .toLowerCase();
+                    if (!haystack.includes(search)) return false;
+                }
+                return true;
+            })
+            .sort((a, b) => b.created_at.localeCompare(a.created_at));
+
+        return { refunds: list.slice(offset, offset + limit), total: list.length };
     }
 
     async cancelOrder(orderId: string): Promise<Order | null> {

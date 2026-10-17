@@ -83,6 +83,28 @@ export interface AdminDuplicatePage {
     total: number;
 }
 
+/**
+ * Bộ lọc + phân trang cho lịch sử hoàn tiền thủ công.
+ *
+ * `search` khớp mã giao dịch SePay, số tài khoản, ngân hàng, người duyệt, ghi chú
+ * và số tiền. `from`/`to` là ISO timestamp lọc theo `created_at`.
+ */
+export interface AdminRefundQuery {
+    search?: string;
+    /** 'unmatched' | 'duplicate'. */
+    sourceType?: string;
+    from?: string;
+    to?: string;
+    page?: number;
+    limit?: number;
+}
+
+/** Kết quả phân trang của lịch sử hoàn tiền. */
+export interface AdminRefundPage {
+    refunds: Refund[];
+    total: number;
+}
+
 export type PaymentResult = 'matched' | 'duplicate' | 'underpaid' | 'overpaid' | 'unmatched';
 
 export interface Payment {
