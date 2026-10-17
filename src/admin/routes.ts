@@ -26,6 +26,54 @@ import { getLLMClientFactory } from "../llm/client.js";
 import { videoScriptSchema, type videoScript } from "../llm/schema.js";
 import type { IVideoQueue, JobUpdate } from "../queue/interfaces.js";
 
+/**
+ * Đọc `limit`/`page` từ query string của các danh sách quản trị.
+ *
+ * Theo quy ước: chỉ phân trang khi client thực sự gửi `limit`; nếu không thì giữ
+ * nguyên hành vi cũ (không truyền thì danh sách dùng giới hạn mặc định của nó).
+ */
+function parseListPaging(query: any): { limit?: number; page: number; error?: string } {
+    const limitProvided = query.limit !== undefined && query.limit !== "";
+    let limit: number | undefined;
+    if (limitProvided) {
+        const parsed = parseInt(query.limit, 10);
+        if (!Number.isFinite(parsed) || parsed < 1) {
+            return { page: 1, error: "Tham số 'limit' không hợp lệ." };
+        }
+        limit = parsed;
+    }
+
+    let page = 1;
+    if (query.page !== undefined && query.page !== "") {
+        const parsedPage = parseInt(query.page, 10);
+        if (!Number.isFinite(parsedPage) || parsedPage < 1) {
+            return { page: 1, error: "Tham số 'page' không hợp lệ." };
+        }
+        page = parsedPage;
+    }
+
+    return { limit, page: limitProvided ? page : 1 };
+}
+
+/** Đọc khoảng thời gian `from`/`to` (ISO hoặc YYYY-MM-DD) từ query string. */
+function parseDateRange(query: any): { from?: string; to?: string; error?: string } {
+    const read = (value: any, label: string): { value?: string; error?: string } => {
+        if (value === undefined || value === null || value === "") return {};
+        if (typeof value !== "string") return { error: `Tham số '${label}' không hợp lệ.` };
+        const parsed = new Date(value);
+        if (Number.isNaN(parsed.getTime())) {
+            return { error: `Tham số '${label}' không phải thời gian hợp lệ.` };
+        }
+        return { value: parsed.toISOString() };
+    };
+
+    const from = read(query.from, "from");
+    if (from.error) return { error: from.error };
+    const to = read(query.to, "to");
+    if (to.error) return { error: to.error };
+    return { from: from.value, to: to.value };
+}
+
 async function verifyAdminUser(request: FastifyRequest): Promise<{ isAdmin: boolean; user?: AuthUser; error?: string }> {
     const user = await getCurrentUser(request);
     if (!user) {
@@ -80,6 +128,13 @@ const USER_ROLES = ["user", "admin"] as const;
 const AUDIT_LOG_STATUSES = ["success", "failure", "warning"];
 /** Giới hạn cứng số bản ghi nhật ký mỗi trang. */
 const AUDIT_LOGS_MAX_LIMIT = 500;
+/** Trạng thái lọc hợp lệ của giao dịch chưa khớp đơn. */
+const UNMATCHED_STATUSES = ["pending", "resolved", "refunded", "all"];
+/**
+ * Giới hạn mặc định của danh sách unmatched/duplicate khi client KHÔNG gửi `limit`
+ * (giữ nguyên hành vi cũ: `LIMIT 100`). Phải khớp hằng số trong `billing/storage.ts`.
+ */
+const ADMIN_PAYMENTS_DEFAULT_LIMIT = 100;
 /** Giới hạn độ dài mật khẩu admin đặt hộ (khớp /api/auth/reset-password). */
 const PASSWORD_MIN_LENGTH = 8;
 const PASSWORD_MAX_LENGTH = 128;
@@ -1374,13 +1429,30 @@ export async function adminRoutes(app: FastifyInstance, opts?: { queue?: IVideoQ
 
         const query = (request.query as any) || {};
         const status = query.status || "pending";
-        const validStatuses = ["pending", "resolved", "refunded", "all"];
-        if (!validStatuses.includes(status)) {
+        if (!UNMATCHED_STATUSES.includes(status)) {
             return reply.status(400).send({ error: "Trạng thái lọc không hợp lệ." });
         }
 
-        const unmatched = await billingStorage.getUnmatchedPayments(status);
-        return { unmatched, total: unmatched.length };
+        const paging = parseListPaging(query);
+        if (paging.error) {
+            return reply.status(400).send({ error: paging.error });
+        }
+
+        const range = parseDateRange(query);
+        if (range.error) {
+            return reply.status(400).send({ error: range.error });
+        }
+
+        const { unmatched, total } = await billingStorage.listUnmatchedPaymentsForAdmin({
+            status,
+            search: typeof query.search === "string" ? query.search : undefined,
+            from: range.from,
+            to: range.to,
+            limit: paging.limit,
+            page: paging.page,
+        });
+
+        return { unmatched, total, page: paging.page, limit: paging.limit ?? ADMIN_PAYMENTS_DEFAULT_LIMIT };
     });
 
     app.get("/api/admin/payments/duplicates", async (request: FastifyRequest, reply: FastifyReply) => {
@@ -1390,40 +1462,50 @@ export async function adminRoutes(app: FastifyInstance, opts?: { queue?: IVideoQ
             return { error: check.error };
         }
 
-        const duplicates = await billingStorage.listDuplicatePayments();
-        const duplicateIds = duplicates.map((p) => p.id);
-        const refundedPaymentIds = await billingStorage.getRefundedSourceIds("duplicate", duplicateIds);
+        const query = (request.query as any) || {};
 
-        const items: any[] = [];
-        for (const p of duplicates) {
-            let order: any = null;
-            let userEmail: string | null = null;
-            if (p.order_id) {
-                try {
-                    order = await billingStorage.findOrderById(p.order_id);
-                } catch {
-                    order = null;
-                }
-                if (order) {
-                    try {
-                        const u: any = await userStore.findById(order.user_id);
-                        userEmail = u?.email || null;
-                    } catch {
-                        userEmail = null;
-                    }
-                }
-            }
-            items.push({
+        const paging = parseListPaging(query);
+        if (paging.error) {
+            return reply.status(400).send({ error: paging.error });
+        }
+
+        const range = parseDateRange(query);
+        if (range.error) {
+            return reply.status(400).send({ error: range.error });
+        }
+
+        const { duplicates, total } = await billingStorage.listDuplicatePaymentsForAdmin({
+            search: typeof query.search === "string" ? query.search : undefined,
+            from: range.from,
+            to: range.to,
+            limit: paging.limit,
+            page: paging.page,
+        });
+
+        // Làm giàu dữ liệu bằng truy vấn gộp thay vì tra từng dòng (trước đây là N+1:
+        // mỗi giao dịch trùng lặp lại 1 truy vấn đơn hàng + 1 truy vấn người dùng).
+        const orderIds = duplicates.map((p) => p.order_id).filter((id): id is string => Boolean(id));
+        const ordersById = await billingStorage.findOrdersByIds(orderIds);
+        const userIds = Array.from(ordersById.values()).map((o) => o.user_id);
+        const emailsById = await userStore.findEmailsByIds(userIds);
+        const refundedPaymentIds = await billingStorage.getRefundedSourceIds(
+            "duplicate",
+            duplicates.map((p) => p.id)
+        );
+
+        const items = duplicates.map((p) => {
+            const order = p.order_id ? ordersById.get(p.order_id) || null : null;
+            return {
                 ...p,
                 alreadyRefunded: refundedPaymentIds.has(p.id),
                 order: order
                     ? { id: order.id, pay_code: order.pay_code, amount_vnd: order.amount_vnd, status: order.status }
                     : null,
-                userEmail,
-            });
-        }
+                userEmail: order ? emailsById.get(order.user_id) || null : null,
+            };
+        });
 
-        return { duplicates: items, total: items.length };
+        return { duplicates: items, total, page: paging.page, limit: paging.limit ?? ADMIN_PAYMENTS_DEFAULT_LIMIT };
     });
 
     app.post(
