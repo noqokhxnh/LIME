@@ -12,6 +12,8 @@ import type {
     UnmatchedPaymentStatus,
     Refund,
     RefundSourceType,
+    AdminOrderQuery,
+    AdminOrderPage,
 } from './types.js';
 
 const UUID_REGEX = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
@@ -45,6 +47,25 @@ export const DEFAULT_PLANS: Plan[] = [
         is_active: true,
     },
 ];
+
+const ADMIN_ORDERS_MAX_LIMIT = 100;
+const ADMIN_ORDERS_DEFAULT_LIMIT = 25;
+
+/** Chuẩn hoá tham số phân trang cho danh sách đơn hàng của admin. */
+function normalizeAdminPaging(filters: { page?: number; limit?: number }): {
+    page: number;
+    limit: number;
+    offset: number;
+} {
+    const rawLimit = Number(filters.limit);
+    const limit =
+        Number.isFinite(rawLimit) && rawLimit > 0
+            ? Math.min(Math.floor(rawLimit), ADMIN_ORDERS_MAX_LIMIT)
+            : ADMIN_ORDERS_DEFAULT_LIMIT;
+    const rawPage = Number(filters.page);
+    const page = Number.isFinite(rawPage) && rawPage > 0 ? Math.floor(rawPage) : 1;
+    return { page, limit, offset: (page - 1) * limit };
+}
 
 export interface IBillingStorage {
     getPlans(): Promise<Plan[]>;
@@ -98,6 +119,8 @@ export interface IBillingStorage {
         resolvedBy?: string
     ): Promise<UnmatchedPayment | null>;
     listOrders(filters?: { status?: string; userId?: string }): Promise<Order[]>;
+    /** Danh sách đơn hàng cho cổng quản trị: có tìm kiếm + phân trang phía server. */
+    listOrdersForAdmin(filters?: AdminOrderQuery): Promise<AdminOrderPage>;
     resetForTesting?(): Promise<void>;
 }
 
@@ -622,6 +645,58 @@ export class PostgresBillingStorage implements IBillingStorage {
         return res.rows.map(r => this.mapOrder(r));
     }
 
+    async listOrdersForAdmin(filters: AdminOrderQuery = {}): Promise<AdminOrderPage> {
+        const { limit, offset } = normalizeAdminPaging(filters);
+        const conditions: string[] = [];
+        const params: any[] = [];
+
+        if (filters.status && filters.status !== 'all') {
+            params.push(filters.status);
+            conditions.push(`o.status = $${params.length}`);
+        }
+
+        const search = (filters.search || '').trim();
+        if (search) {
+            // Khớp chính xác dùng được index B-tree (idx_orders_pay_code / khoá chính),
+            // khớp chuỗi con dùng index trigram (idx_orders_pay_code_trgm) nếu có pg_trgm.
+            params.push(search);
+            const exactIdx = params.length;
+            params.push(`%${search}%`);
+            const likeIdx = params.length;
+            conditions.push(
+                `(o.pay_code = $${exactIdx}` +
+                    ` OR o.pay_code ILIKE $${likeIdx}` +
+                    ` OR o.id::text ILIKE $${likeIdx}` +
+                    ` OR o.user_id::text ILIKE $${likeIdx}` +
+                    ` OR COALESCE(u.email, '') ILIKE $${likeIdx})`
+            );
+        }
+
+        const whereClause = conditions.length > 0 ? `WHERE ${conditions.join(' AND ')}` : '';
+
+        const countRes = await db.query(
+            `SELECT COUNT(*)::int AS total
+             FROM orders o
+             LEFT JOIN users u ON u.id = o.user_id
+             ${whereClause}`,
+            params
+        );
+        const total = Number(countRes.rows[0]?.total ?? 0);
+
+        const listParams = [...params, limit, offset];
+        const res = await db.query(
+            `SELECT o.*
+             FROM orders o
+             LEFT JOIN users u ON u.id = o.user_id
+             ${whereClause}
+             ORDER BY o.created_at DESC
+             LIMIT $${listParams.length - 1} OFFSET $${listParams.length}`,
+            listParams
+        );
+
+        return { orders: res.rows.map((r) => this.mapOrder(r)), total };
+    }
+
     private mapOrder(r: any): Order {
         return {
             id: r.id,
@@ -1004,6 +1079,28 @@ export class InMemoryBillingStorage implements IBillingStorage {
         if (filters?.status) list = list.filter(o => o.status === filters.status);
         if (filters?.userId) list = list.filter(o => o.user_id === filters.userId);
         return list.sort((a, b) => b.created_at.localeCompare(a.created_at));
+    }
+
+    async listOrdersForAdmin(filters: AdminOrderQuery = {}): Promise<AdminOrderPage> {
+        const { limit, offset } = normalizeAdminPaging(filters);
+        let list = Array.from(this.orders.values());
+
+        if (filters.status && filters.status !== 'all') {
+            list = list.filter((o) => o.status === filters.status);
+        }
+
+        const search = (filters.search || '').trim().toLowerCase();
+        if (search) {
+            list = list.filter(
+                (o) =>
+                    o.pay_code.toLowerCase().includes(search) ||
+                    o.id.toLowerCase().includes(search) ||
+                    o.user_id.toLowerCase().includes(search)
+            );
+        }
+
+        list.sort((a, b) => b.created_at.localeCompare(a.created_at));
+        return { orders: list.slice(offset, offset + limit), total: list.length };
     }
 
     async resetForTesting(): Promise<void> {
