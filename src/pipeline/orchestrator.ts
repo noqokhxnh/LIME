@@ -299,25 +299,15 @@ export async function runFullPipeline(option: orchestratorOptions): Promise<full
                         attempt++;
                         continue;
                     } else {
-                        const failMsg = `[Oracle QA Thất bại] Kịch bản không đạt tiêu chuẩn sau ${attempt} lần thử: ${qaReport.errors.join("; ")}. Dừng pipeline trước khâu kết xuất.`;
-                        console.error(`[Orchestrator] ${failMsg}`);
-                        logProgress("oracle_qa", 79, failMsg);
-
-                        return {
-                            jobId,
-                            seed: currentSeed,
-                            workDir,
-                            videoPath: "",
-                            durationSec: audio.totalDurationSec,
-                            scences: script.scenes,
-                            resolution: `${preset.width}x${preset.height}`,
-                            timing,
-                            preview: previews,
-                            audio,
-                            finalHtmlPath: join(workDir, "index.html"),
-                            qaStatus: 'fail',
-                            qaReport,
-                        };
+                        // Hết số lần retry: hạ cấp thành cảnh báo và render tiếp thay vì
+                        // abort cả pipeline. Video không hoàn hảo về nhịp vẫn tốt hơn
+                        // không có video. Chi tiết lỗi giữ nguyên trong qa_report.json.
+                        const softFailMsg = `[Oracle QA] Kịch bản không đạt chuẩn sau ${attempt} lần thử: ${qaReport.errors.join("; ")}. Tiếp tục render với cảnh báo (graceful degradation).`;
+                        console.warn(`[Orchestrator] ${softFailMsg}`);
+                        logProgress("oracle_qa", 79, softFailMsg);
+                        qaStatus = 'warn';
+                        qaReport.warnings = [...(qaReport.warnings || []), ...qaReport.errors.map((e) => `[QA retry exhausted] ${e}`)];
+                        break;
                     }
                 } else if (qaStatus === 'warn') {
                     const warnMsg = `[Oracle QA Cảnh báo] Kịch bản đạt nhưng có lưu ý: ${qaReport.warnings.join("; ")}`;
