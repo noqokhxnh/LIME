@@ -23,6 +23,25 @@ export interface Order {
     created_at: string;
 }
 
+/**
+ * Bộ lọc + phân trang cho danh sách đơn hàng ở cổng quản trị.
+ *
+ * `search` khớp theo mã đơn (pay_code), ID đơn, ID người dùng và (khi có DB)
+ * cả email người dùng. `page`/`limit` dùng để phân trang phía server.
+ */
+export interface AdminOrderQuery {
+    status?: string;
+    search?: string;
+    page?: number;
+    limit?: number;
+}
+
+/** Kết quả phân trang của danh sách đơn hàng dành cho admin. */
+export interface AdminOrderPage {
+    orders: Order[];
+    total: number;
+}
+
 export type PaymentResult = 'matched' | 'duplicate' | 'underpaid' | 'overpaid' | 'unmatched';
 
 export interface Payment {
