@@ -205,6 +205,37 @@ export interface LoudnessMetrics {
 /**
  * Đo lường chuẩn hóa âm lượng theo chuẩn EBU R128 (LUFS integrated, true peak dBTP, LRA).
  */
+/**
+ * Áp dụng micro-fade để khử tiếng click/pop ở đầu/cuối audio (Issue #44).
+ *
+ * Khi cắt/nối các file TTS, nếu sóng âm bị cắt ở biên độ khác 0 sẽ tạo ra
+ * tiếng "click" khó chịu. Fade-in 30ms và fade-out 50ms đảm bảo biên độ
+ * luôn bắt đầu/kết thúc tại zero-crossing.
+ *
+ * @param inputPath - File audio đầu vào
+ * @param outputPath - File audio đầu ra (có thể trùng inputPath)
+ * @param fadeInMs - Thời gian fade-in (mặc định 30ms)
+ * @param fadeOutMs - Thời gian fade-out (mặc định 50ms)
+ */
+export async function applyMicroFades(
+    inputPath: string,
+    outputPath: string,
+    fadeInMs: number = 30,
+    fadeOutMs: number = 50
+): Promise<void> {
+    const fadeInSec = (fadeInMs / 1000).toFixed(3);
+    const fadeOutSec = (fadeOutMs / 1000).toFixed(3);
+
+    // afade=t=out không cần st — FFmpeg tự áp dụng ở cuối file
+    await execFile("ffmpeg", [
+        "-y",
+        "-i", inputPath,
+        "-af", `afade=t=in:st=0:d=${fadeInSec},afade=t=out:d=${fadeOutSec}`,
+        "-c:a", "pcm_s16le",
+        outputPath,
+    ]);
+}
+
 export async function measureLoudness(audioPath: string): Promise<LoudnessMetrics> {
     try {
         const { stderr } = await execFile("ffmpeg", [
