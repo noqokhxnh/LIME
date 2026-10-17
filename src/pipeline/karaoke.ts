@@ -11,6 +11,76 @@ import { WordTiming, computeFallbackWordTimings } from "./wordTiming.js";
 
 export type KaraokeHighlightStyle = "glow" | "scale" | "pill" | "color";
 
+export interface SafeAreaBounds {
+    x: number;
+    y: number;
+    width: number;
+    height: number;
+    paddingX: number;
+    paddingY: number;
+}
+
+/**
+ * Tính toán vùng an toàn (Safe Area) chiếm 80% trung tâm khung hình:
+ * 10% lề trên, 10% lề dưới, 10% lề trái, 10% lề phải.
+ */
+export function getSafeAreaBounds(frameWidth: number, frameHeight: number): SafeAreaBounds {
+    const paddingX = Math.round(frameWidth * 0.1);
+    const paddingY = Math.round(frameHeight * 0.1);
+    return {
+        x: paddingX,
+        y: paddingY,
+        width: frameWidth - paddingX * 2,
+        height: frameHeight - paddingY * 2,
+        paddingX,
+        paddingY,
+    };
+}
+
+/**
+ * Kiểm tra một bounding box có nằm trọn vẹn trong vùng an toàn (Safe Area) hay không.
+ */
+export function isBoxWithinSafeArea(
+    box: { left: number; top: number; width: number; height: number },
+    frameWidth: number,
+    frameHeight: number
+): boolean {
+    const safe = getSafeAreaBounds(frameWidth, frameHeight);
+    const boxRight = box.left + box.width;
+    const boxBottom = box.top + box.height;
+    const safeRight = safe.x + safe.width;
+    const safeBottom = safe.y + safe.height;
+
+    return (
+        box.left >= safe.x &&
+        boxRight <= safeRight &&
+        box.top >= safe.y &&
+        boxBottom <= safeBottom
+    );
+}
+
+/**
+ * Lấy bounding box danh nghĩa của layer Karaoke theo cấu hình khung hình
+ */
+export function getKaraokeLayerBounds(
+    frameWidth: number,
+    frameHeight: number,
+    bottomOffsetPercent = 12,
+    layerHeight = 80
+): { left: number; top: number; width: number; height: number } {
+    const left = Math.round(frameWidth * 0.1);
+    const width = Math.round(frameWidth * 0.8);
+    const bottom = Math.round((bottomOffsetPercent / 100) * frameHeight);
+    const top = frameHeight - bottom - layerHeight;
+
+    return {
+        left,
+        top,
+        width,
+        height: layerHeight,
+    };
+}
+
 export interface KaraokeConfig {
     enabled?: boolean;
     activeColor?: string;
