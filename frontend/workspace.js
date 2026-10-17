@@ -549,6 +549,10 @@ function displayVideo(jobId) {
         btnPreviewHtml.style.display = 'inline-flex';
         btnPreviewHtml.href = `${API_BASE}/api/jobs/${jobId}/html`;
     }
+    if (btnLivePreview) {
+        btnLivePreview.style.display = inline-flex;
+        currentPreviewJobId = jobId;
+    }
 }
 if (transportPlay && videoPlayer) {
     transportPlay.addEventListener('click', () => {
@@ -971,4 +975,41 @@ function restorePendingPrompt() {
     }
     updateSummaryMeta();
     log('Đã nhận nội dung từ trang chủ.', 'info');
+}
+
+// Issue #36: Live Preview Player modal
+if (typeof btnLivePreview !== undefined && btnLivePreview && typeof previewModal !== undefined && previewModal) {
+    btnLivePreview.addEventListener(click, async () => {
+        if (!currentPreviewJobId) return;
+        previewModal.style.display = flex;
+        try {
+            if (!previewPlayer && window.PreviewPlayer) {
+                previewPlayer = new window.PreviewPlayer(preview-player-container);
+            }
+            if (previewPlayer) {
+                await previewPlayer.load(currentPreviewJobId);
+            }
+        } catch (err) {
+            console.error(Preview load failed:, err);
+            alert(Không tải được preview:  + err.message);
+        }
+    });
+}
+
+if (typeof previewModalClose !== undefined && previewModalClose && typeof previewModal !== undefined && previewModal) {
+    previewModalClose.addEventListener(click, () => {
+        previewModal.style.display = none;
+        if (previewPlayer) {
+            previewPlayer.pause();
+        }
+    });
+    
+    previewModal.addEventListener(click, (e) => {
+        if (e.target === previewModal) {
+            previewModal.style.display = none;
+            if (previewPlayer) {
+                previewPlayer.pause();
+            }
+        }
+    });
 }
