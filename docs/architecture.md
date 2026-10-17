@@ -434,13 +434,15 @@ LIME has a comprehensive automated test suite:
   - Quota reservations and security guards
 - **Integration tests** (`tests/integration/`):
   - `billing_vietqr.test.ts`: end-to-end VietQR order creation, claiming, and webhook reconciliation flow
-  - `vieneu.test.ts`: VieNeu-TTS synthesis connectivity and duration validation
   - `watermark.test.ts`: video watermark rendering and composition verification
+  - `tests/manual/vieneu.manual.ts`: kiểm tra tay kết nối VieNeu-TTS (không phải test tự động — không có `assert`, cần service Docker)
 
 Run tests:
 ```bash
-npm run test:unit
-npm test
+npm run test:unit:pr     # nhóm chạy ở mọi PR (fast + tích hợp rẻ), nhanh
+npm run test:unit        # test đơn vị: fast + heavy
+npm run test:coverage    # đo độ phủ + cổng chất lượng 70% dòng (toàn bộ suite)
+npm run test:e2e         # pipeline 6 giai đoạn (nặng)
 ```
 
 ## Deployment & containerization (Docker)

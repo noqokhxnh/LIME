@@ -227,12 +227,29 @@ QUOTA_DAILY_BUDGET_USD=2.0
 LIME is backed by extensive unit and integration test suites:
 
 ```bash
-# Run all unit tests (over 690+ assertions across 40+ test suites)
-npm run test:unit
+# Chạy nhóm test dùng ở mọi PR (fast + tích hợp rẻ) — nhanh, không cần PostgreSQL
+npm run test:unit:pr
 
-# Run end-to-end pipeline integration tests
-npm test
+# Chạy test đơn vị (fast + heavy) và test tích hợp
+npm run test:unit
+npm run test:integration
+
+# Đo độ phủ mã nguồn + kiểm tra cổng chất lượng (xem scripts/coverage-thresholds.json)
+npm run test:coverage          # toàn bộ suite, ngưỡng 70% dòng
+npm run test:coverage:pr       # nhóm PR, ngưỡng 68% dòng
+
+# Các bộ riêng: E2E pipeline (nặng), giao diện (Playwright), cần Redis
+npm run test:e2e
+npm run test:frontend
+npm run test:redis
 ```
+
+Mọi file `*.test.ts` phải được khai báo trong `scripts/test-groups.ts`; nếu không,
+`scripts/run-unit-tests.ts` sẽ dừng và chỉ ra file bị bỏ quên (trước đây từng có test
+viết xong nhưng không script nào chạy). Kiểm tra tay đặt ở `tests/manual/*.manual.ts`.
+
+Độ phủ hiện tại: **~77% dòng** cho toàn bộ suite, **~69%** cho nhóm chạy ở PR (CI gộp
+báo cáo của từng lát test rồi mới chấm điểm — xem `scripts/merge-coverage.ts`).
 
 Test coverage includes:
 - GSAP timeline AST linter & contract safety

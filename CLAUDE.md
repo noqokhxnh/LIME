@@ -101,6 +101,7 @@ Full reference in `docs/api.md`. The download/video/preview endpoints return 410
 ## Conventions
 
 - ESM throughout (`"type": "module"`); source files import with `.js` extension (e.g. `from './config.js'`). Path alias `@/*` exists in tsconfig but the code uses relative imports.
-- `tests/` contains `unit/` (19+ test suites covering schema, assembler, audio, watermark, admin, billing, security) and `integration/` (`billing_vietqr.test.ts`, `vieneu.test.ts`, `watermark.test.ts`). Run unit tests via `npm run test:unit`.
+- `tests/` contains `unit/` (test đơn vị), `integration/` (`billing_vietqr.test.ts`, `watermark.test.ts`) và `manual/` (`*.manual.ts` — kiểm tra tay, không phải test tự động). Mọi file test phải được khai báo trong `scripts/test-groups.ts`; nếu không, `scripts/run-unit-tests.ts` sẽ dừng và báo "test mồ côi" (lỗi đã từng xảy ra: test viết xong nhưng không script nào chạy).
+- Nhóm test và lệnh chạy: `npm run test:unit` (fast + heavy), `test:unit:fast` (mọi PR), `test:unit:heavy` (theo lát), `test:unit:pr`, `test:integration`, `test:e2e`, `test:frontend`, `test:redis`, `test:coverage` (toàn bộ, cổng chất lượng 70% dòng), `test:coverage:pr` (cổng 68%). Ngưỡng đặt tại `scripts/coverage-thresholds.json`.
 - `tmp/` holds job scratch workdirs (gitignored); integration runs create artifacts there.
 - Docs live in `README.md`, `docs/architecture.md`, `docs/api.md`, `docs/redis.md`, `docs/dac-ta-thanh-toan-vietqr.pdf` — keep them in sync when architecture or endpoints change.
