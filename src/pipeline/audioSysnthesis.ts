@@ -392,6 +392,24 @@ export const VIENEU_PRESET_VOICES = [
     { id: "Mạnh Dũng", name: "Mạnh Dũng (Nam · Bắc · Tự nhiên)", gender: "male", language: "vi" },
 ];
 
+/** Trả về preset khớp với `name` (so khớp không phân biệt hoa thường), hoặc undefined. */
+export function findVieNeuPreset(name?: string) {
+    const wanted = (name || "").trim().toLowerCase();
+    if (!wanted) return undefined;
+    return VIENEU_PRESET_VOICES.find((p) => p.id.toLowerCase() === wanted);
+}
+
+/**
+ * Chọn giọng gửi tới microservice VieNeu: ưu tiên giọng hợp lệ do người dùng yêu cầu,
+ * nếu không có thì dùng giọng cấu hình (`TTS_Voice`) khi hợp lệ, cuối cùng mới về
+ * "Minh Quân". Tách thành hàm thuần để test được mà không cần gọi mạng.
+ */
+export function resolveVieNeuVoice(requested?: string, configured?: string): string {
+    const preset = findVieNeuPreset(requested);
+    if (preset) return preset.id;
+    return findVieNeuPreset(configured)?.id ?? "Minh Quân";
+}
+
 export async function fetchVieNeuVoices(baseUrl?: string): Promise<
     Array<{
         id: string;
@@ -455,14 +473,13 @@ export class VieNeuTTSClient implements TTSClient {
         }
     ): Promise<void> {
         const baseUrl = (this.config.VIENEU_TTS_URL || process.env.VIENEU_TTS_URL || "http://127.0.0.1:7860").replace(/\/+$/, "");
-        const validPreset = VIENEU_PRESET_VOICES.find(
-            (p) => p.id.toLowerCase() === (options?.voice || "").toLowerCase()
-        );
-        const voice = validPreset
-            ? validPreset.id
-            : (this.config.TTS_Voice && VIENEU_PRESET_VOICES.some(p => p.id === this.config.TTS_Voice))
-                ? this.config.TTS_Voice
-                : "Minh Quân";
+        const requestedVoice = (options?.voice || "").trim();
+        if (requestedVoice && !findVieNeuPreset(requestedVoice)) {
+            console.warn(
+                `[VieNeu-TTS] Giọng yêu cầu "${requestedVoice}" không nằm trong danh sách preset — hệ thống sẽ dùng giọng thay thế.`
+            );
+        }
+        const voice = resolveVieNeuVoice(options?.voice, this.config.TTS_Voice);
 
         let speed = 1.0;
         if (typeof options?.speechRate === "number") {
