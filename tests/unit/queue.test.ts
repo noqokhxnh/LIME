@@ -89,9 +89,11 @@ describe('Module 11: Queue & Background Worker', () => {
         
         const jobId = json.jobId;
 
-        // Poll until completed
+        // Poll until completed.
+        // Chạy cả bộ test song song trong CI khiến pipeline (Playwright + ffmpeg)
+        // bị tranh tài nguyên, có lúc vượt mốc 15s cũ ⇒ nới lên ~60s cho ổn định.
         let jobResult = null;
-        for (let i = 0; i < 30; i++) {
+        for (let i = 0; i < 120; i++) {
             const checkRes = await app.inject({
                 method: 'GET',
                 url: `/api/jobs/${jobId}`
