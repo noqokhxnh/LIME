@@ -25,9 +25,6 @@
         </div>
         <nav class="ws-tabs" id="ws-tabs" aria-label="Không gian làm việc">
             <button type="button" class="ws-tab on" data-ws="script">Kịch bản</button>
-            <button type="button" class="ws-tab" data-ws="edit">Dựng phim</button>
-            <button type="button" class="ws-tab" data-ws="audio">Âm thanh</button>
-            <button type="button" class="ws-tab" data-ws="export">Xuất bản</button>
         </nav>
         <div class="top-right">
             <div class="ws-user-menu" id="ws-user-menu">
@@ -58,7 +55,7 @@
         </div>
     </header>
 
-    <!-- ============ TAB 1: KỊCH BẢN ============ -->
+    <!-- ============ WORKSPACE: KỊCH BẢN ============ -->
     <section class="ws-main on" id="ws-main-script">
         <div class="panel" id="panel-left">
             <div class="p-head"><span>Kịch bản AI</span></div>
@@ -85,7 +82,31 @@
 
         <div class="panel" id="panel-center">
             <div class="p-head"><span>Program · Preview</span></div>
-            <div class="monitor-host"></div>
+            <div class="monitor-host">
+                <!-- ============ PROGRAM MONITOR (shared) ============ -->
+                <div id="program-monitor" class="monitor">
+                    <div class="screen" id="monitor-screen">
+                        <div id="video-empty" class="video-empty">
+                            <div class="badge">Chưa có video</div>
+                            <div class="empty-play"></div>
+                            <div class="empty-hint-dark">Tạo video ở khung Kịch bản để xem trước tại đây</div>
+                        </div>
+                        <video id="video-player" controls playsinline style="display:none"></video>
+                        <div class="badge" id="monitor-badge" style="display:none"></div>
+                        <div class="tc mono" id="monitor-tc">00:00:00:00</div>
+                    </div>
+                    <div class="transport">
+                        <span class="tp">⏮</span><span class="tp">◀◀</span>
+                        <button type="button" class="play" id="transport-play" aria-label="Phát / Tạm dừng"></button>
+                        <span class="tp">▶▶</span><span class="tp">⏭</span>
+                    </div>
+                    <div class="video-action-links">
+                        <a id="btn-download" class="btn-video-action" style="display:none" download><span>Tải video MP4</span></a>
+                        <a id="btn-preview-html" class="btn-video-action outline" style="display:none" target="_blank"><span>Xem bản
+                                HTML gốc</span></a>
+                    </div>
+                </div>
+            </div>
         </div>
 
         <div class="panel" id="panel-right">
@@ -151,8 +172,7 @@
                                 </optgroup>
                             </select>
                         </div>
-                        <div class="insp-note">Đổi engine giọng nói ở tab <a href="#" id="goto-audio-link">Âm thanh
-                                →</a></div>
+                        <div class="insp-note">Engine (VieNeu / Edge) được chọn tự động theo giọng bạn chọn.</div>
                     </div>
                 </div>
 
@@ -163,7 +183,14 @@
                         <div class="chips" id="selected-motion-chips">
                             <span class="insp-note">Chưa chọn block nào.</span>
                         </div>
-                        <div class="insp-note">Chọn từ <b>Thư viện motion</b> ở tab Dựng phim.</div>
+                        <input class="search" id="motion-search" placeholder="Tìm motion block…" type="text">
+                        <div class="chips" id="category-chips-list"></div>
+                        <select id="catalog-category-filter" style="display:none">
+                            <option value="">Tất cả</option>
+                        </select>
+                        <div class="lib-grid" id="motion-library">
+                            <div class="empty-hint">Đang tải thư viện…</div>
+                        </div>
                     </div>
                 </div>
 
@@ -178,40 +205,7 @@
                         </div>
                     </div>
                 </div>
-            </div>
-        </div>
-    </section>
 
-    <!-- ============ TAB 2: DỰNG PHIM ============ -->
-    <section class="ws-main" id="ws-main-edit">
-        <div class="panel" id="panel-left">
-            <div class="p-head"><span>Thư viện motion</span></div>
-            <div class="p-body">
-                <input class="search" id="motion-search" placeholder="Tìm motion block…" type="text">
-                <div class="chips" id="category-chips-list"></div>
-                <select id="catalog-category-filter" style="display:none">
-                    <option value="">Tất cả</option>
-                </select>
-                <div class="lib-grid" id="motion-library">
-                    <div class="empty-hint">Đang tải thư viện…</div>
-                </div>
-            </div>
-        </div>
-
-        <div class="panel" id="panel-center">
-            <div class="p-head"><span>Program · Preview</span></div>
-            <div class="monitor-host"></div>
-        </div>
-
-        <div class="panel" id="panel-right">
-            <div class="p-head"><span>Clip đang chọn</span></div>
-            <div class="p-body">
-                <div class="insp-sec">
-                    <div class="insp-head"><span id="clip-title">Chưa chọn clip</span></div>
-                    <div class="insp-body" id="selected-clip-panel">
-                        <div class="insp-note">Bấm vào một clip trên timeline để xem chi tiết.</div>
-                    </div>
-                </div>
                 <div class="insp-sec">
                     <div class="insp-head"><span>Nâng cao</span><span class="sw off"></span></div>
                     <div class="insp-body">
@@ -228,242 +222,6 @@
             </div>
         </div>
     </section>
-
-    <!-- ============ TAB 3: ÂM THANH ============ -->
-    <section class="ws-main" id="ws-main-audio">
-        <div class="panel" id="panel-left">
-            <div class="p-head"><span>Nguồn âm thanh</span></div>
-            <div class="p-body">
-                <h4 class="mini-h">Voiceover</h4>
-                <div id="vo-segments" class="src-col">
-                    <div class="empty-hint">Chưa có voiceover — tạo video trước.</div>
-                </div>
-                <h4 class="mini-h">Nhạc nền</h4>
-                <div class="src-col">
-                    <div class="src-row">
-                        <div class="pl"></div>
-                        <div><b>Summer Pop 120BPM</b><span>00:00–00:15 · -18dB</span></div>
-                    </div>
-                    <div class="src-row">
-                        <div class="pl"></div>
-                        <div><b>Lo-fi Chill</b><span>chưa dùng</span></div>
-                    </div>
-                </div>
-                <h4 class="mini-h">Hiệu ứng</h4>
-                <div class="chips">
-                    <span class="mchip">Whoosh</span><span class="mchip">Pop</span><span
-                        class="mchip">Sparkle</span><span class="mchip">+12</span>
-                </div>
-            </div>
-        </div>
-
-        <div class="panel" id="panel-center">
-            <div class="p-head"><span>Mixer · A1 A2 A3</span></div>
-            <div class="mixer">
-                <div class="fader"><b>Voice</b>
-                    <div class="rail">
-                        <div class="fill" style="height:78%"></div>
-                        <div class="knob" style="bottom:calc(78% - 6px)"></div>
-                    </div><span>0 dB</span>
-                    <div class="ms-row"><span class="mbtn">M</span><span class="mbtn">S</span></div>
-                </div>
-                <div class="fader"><b>Music</b>
-                    <div class="rail">
-                        <div class="fill" style="height:42%"></div>
-                        <div class="knob" style="bottom:calc(42% - 6px)"></div>
-                    </div><span>-18 dB</span>
-                    <div class="ms-row"><span class="mbtn">M</span><span class="mbtn">S</span></div>
-                </div>
-                <div class="fader"><b>SFX</b>
-                    <div class="rail">
-                        <div class="fill" style="height:60%"></div>
-                        <div class="knob" style="bottom:calc(60% - 6px)"></div>
-                    </div><span>-9 dB</span>
-                    <div class="ms-row"><span class="mbtn">M</span><span class="mbtn on">S</span></div>
-                </div>
-                <div class="fader"><b>Master</b>
-                    <div class="rail">
-                        <div class="fill" style="height:70%"></div>
-                        <div class="knob" style="bottom:calc(70% - 6px)"></div>
-                    </div><span>-3 dB</span>
-                </div>
-                <div class="fader"><b class="dim">Độ lớn</b>
-                    <div class="meter"><i style="height:64%"></i></div><span class="mono">-14 LUFS</span>
-                </div>
-            </div>
-            <div class="insp-note mixer-note">Mixer hiện là giao diện xem trước — âm thanh được trộn tự động khi render.
-            </div>
-        </div>
-
-        <div class="panel" id="panel-right">
-            <div class="p-head"><span>Trộn &amp; giọng đọc</span></div>
-            <div class="p-body">
-                <div class="insp-sec">
-                    <div class="insp-head"><span>Công nghệ giọng nói</span><span class="sw"></span></div>
-                    <div class="insp-body">
-                        <div class="tts-engines-list">
-                            <button type="button" class="tts-engine-card on" data-engine="vieneu">
-                                <span class="engine-radio-circle"><span></span></span>
-                                <span class="engine-info"><span class="engine-name">VieNeu-TTS</span><span
-                                        class="engine-sub">Local AI · Tự chủ</span></span>
-                                <span class="engine-badge-pill">Đề xuất</span>
-                            </button>
-                            <button type="button" class="tts-engine-card" data-engine="edge">
-                                <span class="engine-radio-circle"><span></span></span>
-                                <span class="engine-info"><span class="engine-name">Edge TTS</span><span
-                                        class="engine-sub">Microsoft Cloud · Miễn phí</span></span>
-                            </button>
-                            <button type="button" class="tts-engine-card" data-engine="openai">
-                                <span class="engine-radio-circle"><span></span></span>
-                                <span class="engine-info"><span class="engine-name">OpenAI TTS</span><span
-                                        class="engine-sub">Cloud · Chất lượng cao</span></span>
-                            </button>
-                            <button type="button" class="tts-engine-card" data-engine="elevenlabs">
-                                <span class="engine-radio-circle"><span></span></span>
-                                <span class="engine-info"><span class="engine-name">ElevenLabs AI</span><span
-                                        class="engine-sub">Cloud · Giọng chân thực</span></span>
-                            </button>
-                        </div>
-                        <select id="tts-provider-select" style="display:none">
-                            <option value="vieneu" selected>VieNeu-TTS</option>
-                            <option value="edge">Edge TTS</option>
-                            <option value="openai">OpenAI TTS</option>
-                            <option value="elevenlabs">ElevenLabs AI</option>
-                        </select>
-                    </div>
-                </div>
-
-                <div class="insp-sec">
-                    <div class="insp-head"><span>Giọng đọc AI</span><span class="sw"></span></div>
-                    <div class="insp-body">
-                        <div class="voice-banner-dark">
-                            <div class="voice-banner-left">
-                                <span class="waveform-box"><span
-                                        class="waveform-bars"><i></i><i></i><i></i><i></i></span></span>
-                                <div><span class="voice-banner-title">Giọng đọc</span><span id="voice-status-text"
-                                        class="voice-banner-sub">Đang bật</span></div>
-                            </div>
-                            <button type="button" id="voice-toggle-btn" class="voice-toggle-switch on"
-                                aria-label="Bật tắt giọng đọc"><span class="toggle-knob"></span></button>
-                        </div>
-                        <div class="fld"><span>Tốc độ</span><b class="fd" id="voice-speed-val">1.0×</b></div>
-                        <input type="range" id="voice-speed" min="50" max="150" value="100">
-                        <div class="fld"><span>Cao độ</span><b class="fd" id="voice-pitch-val">0 st</b></div>
-                        <input type="range" id="voice-pitch" min="-12" max="12" value="0">
-                    </div>
-                </div>
-
-                <div class="insp-sec">
-                    <div class="insp-head"><span>Tự động ducking</span><span class="sw"></span></div>
-                    <div class="insp-body">
-                        <div class="insp-note">Tự giảm -12dB nhạc nền mỗi khi voiceover lên tiếng.</div>
-                    </div>
-                </div>
-                <div class="insp-sec">
-                    <div class="insp-head"><span>Chuẩn hoá</span><span class="sw off"></span></div>
-                    <div class="insp-body">
-                        <div class="insp-note">Chuẩn hoá master về -14 LUFS trước khi xuất.</div>
-                    </div>
-                </div>
-            </div>
-        </div>
-    </section>
-
-    <!-- ============ TAB 4: XUẤT BẢN ============ -->
-    <section class="ws-main ws-export" id="ws-main-export">
-        <div class="panel" id="panel-left">
-            <div class="p-head"><span>Cài đặt xuất</span></div>
-            <div class="p-body">
-                <div class="insp-sec">
-                    <div class="insp-head"><span>Định dạng</span></div>
-                    <div class="insp-body">
-                        <div class="row2 opt-group"><button type="button" class="opt-btn on">MP4</button><button
-                                type="button" class="opt-btn">WebM</button><button type="button"
-                                class="opt-btn">GIF</button></div>
-                        <div class="row2 opt-group"><button type="button" class="opt-btn on">1080p</button><button
-                                type="button" class="opt-btn">720p</button><button type="button"
-                                class="opt-btn">4K</button></div>
-                        <div class="row2 opt-group"><button type="button" class="opt-btn on">30fps</button><button
-                                type="button" class="opt-btn">60fps</button></div>
-                    </div>
-                </div>
-                <div class="insp-sec">
-                    <div class="insp-head"><span>Chất lượng</span><span class="sw"></span></div>
-                    <div class="insp-body">
-                        <input type="range" min="1" max="100" value="85">
-                        <div class="fld"><span>Bitrate mục tiêu</span><b class="fd mono">12 Mbps</b></div>
-                    </div>
-                </div>
-                <div class="insp-sec">
-                    <div class="insp-head"><span>Phụ đề</span><span class="sw"></span></div>
-                    <div class="insp-body">
-                        <div class="row2 opt-group"><button type="button" class="opt-btn on">Burn-in</button><button
-                                type="button" class="opt-btn">SRT</button><button type="button"
-                                class="opt-btn">Tắt</button></div>
-                    </div>
-                </div>
-                <div class="insp-sec">
-                    <div class="insp-head"><span>Watermark LIME</span><span class="sw off"></span></div>
-                </div>
-                <div class="insp-sec">
-                    <div class="insp-head"><span>Tùy chọn render</span></div>
-                    <div class="insp-body">
-                        <div class="switch-row" id="async-queue-switch">
-                            <div><span class="switch-name">Xử lý qua Queue</span><span class="switch-desc">Tạo video bất
-                                    đồng bộ</span></div>
-                            <button type="button" class="clean-toggle-switch on"><span
-                                    class="toggle-knob"></span></button>
-                        </div>
-                        <div class="switch-row" id="skip-preview-switch">
-                            <div><span class="switch-name">Bỏ qua ảnh xem trước</span><span class="switch-desc">Render
-                                    thẳng video hoàn chỉnh</span></div>
-                            <button type="button" class="clean-toggle-switch"><span class="toggle-knob"></span></button>
-                        </div>
-                    </div>
-                </div>
-            </div>
-        </div>
-
-        <div class="panel" id="panel-center">
-            <div class="p-head"><span>Xem trước bản xuất</span></div>
-            <div class="monitor-host"></div>
-            <div class="export-cta">
-                <button type="button" class="big-render" id="export-render-btn">Bắt đầu render</button>
-                <div class="insp-note export-note">Ước tính ~2 phút · H.264 + AAC</div>
-            </div>
-        </div>
-
-        <div class="panel" id="panel-right">
-            <div class="p-head"><span>Hàng đợi render</span></div>
-            <div class="p-body" id="render-queue">
-                <div class="empty-hint">Chưa có job nào.</div>
-            </div>
-        </div>
-    </section>
-
-    <!-- ============ PROGRAM MONITOR (shared, moved by JS) ============ -->
-    <div id="program-monitor" class="monitor">
-        <div class="screen" id="monitor-screen">
-            <div id="video-empty" class="video-empty">
-                <div class="badge">Chưa có video</div>
-                <div class="empty-play"></div>
-                <div class="empty-hint-dark">Tạo video ở tab Kịch bản để xem trước tại đây</div>
-            </div>
-            <video id="video-player" controls playsinline style="display:none"></video>
-            <div class="badge" id="monitor-badge" style="display:none"></div>
-            <div class="tc mono" id="monitor-tc">00:00:00:00</div>
-        </div>
-        <div class="transport">
-            <span class="tp">⏮</span><span class="tp">◀◀</span>
-            <button type="button" class="play" id="transport-play" aria-label="Phát / Tạm dừng"></button>
-            <span class="tp">▶▶</span><span class="tp">⏭</span>
-        </div>
-        <div class="video-action-links">
-            <a id="btn-download" class="btn-video-action" style="display:none" download><span>Tải video MP4</span></a>
-            <a id="btn-preview-html" class="btn-video-action outline" style="display:none" target="_blank"><span>Xem bản
-                    HTML gốc</span></a>
-        </div>
-    </div>
 
     <!-- ============ TIMELINE (persistent) ============ -->
     <section class="panel" id="panel-timeline">
