@@ -139,5 +139,29 @@ export const videoPreset: Record<string, videoPreset> = {
         height: 1920,
         label: "1:1",
     },
-
+    "vertical": {
+        name: "vertical",
+        width: 720,
+        height: 1280,
+        label: "9:16 Vertical (720x1280)",
+    },
+    "horizontal": {
+        name: "horizontal",
+        width: 1920,
+        height: 1080,
+        label: "16:9 Horizontal (1920x1080)",
+    },
 };
+
+export function resolveResolution(aspectRatio?: string, format?: "vertical" | "horizontal"): videoPreset {
+    if (format === "vertical") {
+        return videoPreset["vertical"];
+    }
+    if (format === "horizontal") {
+        return videoPreset["horizontal"];
+    }
+    if (aspectRatio && videoPreset[aspectRatio]) {
+        return videoPreset[aspectRatio];
+    }
+    return videoPreset["16:9"];
+}
