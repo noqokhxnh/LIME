@@ -232,8 +232,13 @@ export const AdminApi = {
         });
     },
 
-    async getRefunds() {
-        return this.request('/api/admin/refunds');
+    async getRefunds(params = {}) {
+        const qs = new URLSearchParams();
+        Object.entries(params).forEach(([key, val]) => {
+            if (val !== undefined && val !== null && val !== '') qs.append(key, val);
+        });
+        const suffix = qs.toString();
+        return this.request(`/api/admin/refunds${suffix ? `?${suffix}` : ''}`);
     },
 
     // System Settings

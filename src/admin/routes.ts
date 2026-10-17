@@ -130,6 +130,8 @@ const AUDIT_LOG_STATUSES = ["success", "failure", "warning"];
 const AUDIT_LOGS_MAX_LIMIT = 500;
 /** Trạng thái lọc hợp lệ của giao dịch chưa khớp đơn. */
 const UNMATCHED_STATUSES = ["pending", "resolved", "refunded", "all"];
+/** Loại nguồn hợp lệ của một bản ghi hoàn tiền. */
+const REFUND_SOURCE_TYPES = ["unmatched", "duplicate"];
 /**
  * Giới hạn mặc định của danh sách unmatched/duplicate khi client KHÔNG gửi `limit`
  * (giữ nguyên hành vi cũ: `LIMIT 100`). Phải khớp hằng số trong `billing/storage.ts`.
@@ -1749,8 +1751,33 @@ export async function adminRoutes(app: FastifyInstance, opts?: { queue?: IVideoQ
             return { error: check.error };
         }
 
-        const refunds = await billingStorage.listRefunds();
-        return { refunds, total: refunds.length };
+        const query = (request.query as any) || {};
+
+        const sourceType = typeof query.sourceType === "string" ? query.sourceType.trim() : "";
+        if (sourceType && sourceType !== "all" && !REFUND_SOURCE_TYPES.includes(sourceType)) {
+            return reply.status(400).send({ error: "Loại nguồn hoàn tiền không hợp lệ." });
+        }
+
+        const paging = parseListPaging(query);
+        if (paging.error) {
+            return reply.status(400).send({ error: paging.error });
+        }
+
+        const range = parseDateRange(query);
+        if (range.error) {
+            return reply.status(400).send({ error: range.error });
+        }
+
+        const { refunds, total } = await billingStorage.listRefundsForAdmin({
+            sourceType: sourceType || undefined,
+            search: typeof query.search === "string" ? query.search : undefined,
+            from: range.from,
+            to: range.to,
+            limit: paging.limit,
+            page: paging.page,
+        });
+
+        return { refunds, total, page: paging.page, limit: paging.limit ?? ADMIN_PAYMENTS_DEFAULT_LIMIT };
     });
 
     // -------------------------------------------------------------

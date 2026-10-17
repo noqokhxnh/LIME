@@ -63,6 +63,12 @@ export const FailedPaymentsView = {
     duplicatesSearch: '',
     duplicatesFrom: '',
     duplicatesTo: '',
+    refundsPage: 1,
+    refundsLimit: 25,
+    refundsSearch: '',
+    refundsSource: 'all',
+    refundsFrom: '',
+    refundsTo: '',
     searchDebounceTimer: null,
 
     init(container) {
@@ -180,6 +186,32 @@ export const FailedPaymentsView = {
 
             <div class="drawer-section">
                 <div class="drawer-section-title">Lịch sử hoàn tiền</div>
+                <div class="filter-row-bottom" style="margin-top: 8px;">
+                    <div class="filter-groups">
+                        <div class="search-input-wrapper">
+                            <span class="search-icon-prefix">
+                                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.3-4.3"/></svg>
+                            </span>
+                            <input type="text" class="search-input" id="refunds-search-input" placeholder="Tìm theo mã SePay, STK, ngân hàng, người duyệt...">
+                        </div>
+                        <div class="filter-select-wrapper">
+                            <span class="filter-label">Loại nguồn:</span>
+                            <select class="select-custom" id="refunds-source-filter">
+                                <option value="all">Tất cả</option>
+                                <option value="unmatched">Không khớp đơn</option>
+                                <option value="duplicate">Trùng lặp</option>
+                            </select>
+                        </div>
+                        <div class="filter-select-wrapper">
+                            <span class="filter-label">Từ ngày:</span>
+                            <input type="date" class="select-custom" id="refunds-from">
+                        </div>
+                        <div class="filter-select-wrapper">
+                            <span class="filter-label">Đến ngày:</span>
+                            <input type="date" class="select-custom" id="refunds-to">
+                        </div>
+                    </div>
+                </div>
                 <div class="table-panel">
                     <div class="table-wrapper">
                         <table class="admin-table">
@@ -198,6 +230,7 @@ export const FailedPaymentsView = {
                         </table>
                     </div>
                     <div id="refunds-empty-container"></div>
+                    <div id="refunds-pagination-container"></div>
                 </div>
             </div>
         `;
@@ -278,6 +311,47 @@ export const FailedPaymentsView = {
                 this.duplicatesTo = duplicatesTo.value;
                 this.duplicatesPage = 1;
                 this.fetchDuplicates();
+            };
+        }
+
+        // Bộ lọc + phân trang cho lịch sử hoàn tiền.
+        const refundsSearch = this.containerEl.querySelector('#refunds-search-input');
+        if (refundsSearch) {
+            refundsSearch.value = this.refundsSearch;
+            refundsSearch.oninput = () => {
+                clearTimeout(this.searchDebounceTimer);
+                this.searchDebounceTimer = setTimeout(() => {
+                    this.refundsSearch = refundsSearch.value.trim();
+                    this.refundsPage = 1;
+                    this.fetchRefunds();
+                }, 300);
+            };
+        }
+        const refundsSource = this.containerEl.querySelector('#refunds-source-filter');
+        if (refundsSource) {
+            refundsSource.value = this.refundsSource;
+            refundsSource.onchange = () => {
+                this.refundsSource = refundsSource.value;
+                this.refundsPage = 1;
+                this.fetchRefunds();
+            };
+        }
+        const refundsFrom = this.containerEl.querySelector('#refunds-from');
+        if (refundsFrom) {
+            refundsFrom.value = this.refundsFrom;
+            refundsFrom.onchange = () => {
+                this.refundsFrom = refundsFrom.value;
+                this.refundsPage = 1;
+                this.fetchRefunds();
+            };
+        }
+        const refundsTo = this.containerEl.querySelector('#refunds-to');
+        if (refundsTo) {
+            refundsTo.value = this.refundsTo;
+            refundsTo.onchange = () => {
+                this.refundsTo = refundsTo.value;
+                this.refundsPage = 1;
+                this.fetchRefunds();
             };
         }
     },
@@ -614,13 +688,22 @@ export const FailedPaymentsView = {
     async fetchRefunds() {
         const tbody = this.containerEl.querySelector('#refunds-table-body');
         const emptyContainer = this.containerEl.querySelector('#refunds-empty-container');
+        const paginationContainer = this.containerEl.querySelector('#refunds-pagination-container');
         if (!tbody) return;
         emptyContainer.innerHTML = '';
+        if (paginationContainer) paginationContainer.innerHTML = '';
         Skeleton.renderTableRows(tbody, 4, 7);
 
         try {
-            const res = await AdminApi.getRefunds();
+            const res = await AdminApi.getRefunds({
+                search: this.refundsSearch || undefined,
+                sourceType: this.refundsSource && this.refundsSource !== 'all' ? this.refundsSource : undefined,
+                ...this.dayRangeToIso(this.refundsFrom, this.refundsTo),
+                limit: this.refundsLimit,
+                page: this.refundsPage,
+            });
             const items = res.refunds || [];
+            const total = Number(res.total ?? items.length);
             tbody.innerHTML = '';
 
             if (items.length === 0) {
@@ -648,6 +731,24 @@ export const FailedPaymentsView = {
                 `;
                 tbody.appendChild(tr);
             });
+
+            if (paginationContainer) {
+                Pagination.render({
+                    container: paginationContainer,
+                    page: this.refundsPage,
+                    limit: this.refundsLimit,
+                    total,
+                    onPageChange: (newPage) => {
+                        this.refundsPage = newPage;
+                        this.fetchRefunds();
+                    },
+                    onLimitChange: (newLimit) => {
+                        this.refundsLimit = newLimit;
+                        this.refundsPage = 1;
+                        this.fetchRefunds();
+                    },
+                });
+            }
         } catch (err) {
             tbody.innerHTML = `<tr><td colspan="7" style="text-align: center; color: var(--danger); padding: 30px;">Lỗi: ${escapeHtml(err.message)}</td></tr>`;
         }

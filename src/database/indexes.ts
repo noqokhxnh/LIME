@@ -46,6 +46,11 @@ CREATE INDEX IF NOT EXISTS idx_unmatched_created_at
 -- ------------------------------------------------------------------
 CREATE INDEX IF NOT EXISTS idx_refunds_refunded_at
     ON refunds (refunded_at DESC);
+-- Danh sách hoàn tiền ở cổng quản trị: sắp xếp theo thời gian tạo và lọc theo loại nguồn.
+CREATE INDEX IF NOT EXISTS idx_refunds_created_at
+    ON refunds (created_at DESC);
+CREATE INDEX IF NOT EXISTS idx_refunds_source_created_at
+    ON refunds (source_type, created_at DESC);
 
 -- ------------------------------------------------------------------
 -- users: danh sách admin (chỉ user chưa xoá, mới nhất trước) + lọc role/tier/status
@@ -107,6 +112,10 @@ CREATE INDEX IF NOT EXISTS idx_unmatched_sepay_ref_trgm
     ON unmatched_payments USING gin (sepay_ref gin_trgm_ops);
 CREATE INDEX IF NOT EXISTS idx_payments_sepay_ref_trgm
     ON payments USING gin (sepay_ref gin_trgm_ops);
+
+-- Tìm lịch sử hoàn tiền theo mã SePay (khớp chuỗi con).
+CREATE INDEX IF NOT EXISTS idx_refunds_sepay_ref_trgm
+    ON refunds USING gin (sepay_ref gin_trgm_ops);
 
 -- Tìm kiếm nhật ký kiểm toán theo action (ILIKE '%...%')
 CREATE INDEX IF NOT EXISTS idx_audit_logs_action_trgm
