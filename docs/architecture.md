@@ -431,6 +431,7 @@ LIME has a comprehensive automated test suite:
   - Canvas2D & Three.js time-driver determinism
   - Brand Kit upload validation and Watermark FFmpeg filters (`uploadGuard.test.ts`, `watermarkFilter.test.ts`)
   - VietQR payment reconciliation and Admin refund operations (`admin.test.ts`, `admin_failed_payments.test.ts`, `billing_refunds.test.ts`)
+  - Payment flow safety net: pay-code generation and retry, order ownership checks, every webhook early-exit branch, SePay transaction reconciliation (stubbed `fetch`), and the two background cron jobs with a fake clock (`billing_vietqr_service.test.ts`, `billing_reconciler.test.ts`, `billing_cron.test.ts`)
   - Quota reservations and security guards
 - **Integration tests** (`tests/integration/`):
   - `billing_vietqr.test.ts`: end-to-end VietQR order creation, claiming, and webhook reconciliation flow
