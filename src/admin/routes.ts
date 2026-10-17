@@ -2,9 +2,17 @@ import { FastifyInstance, FastifyRequest, FastifyReply } from "fastify";
 import { rmSync, existsSync, readFileSync, unlinkSync } from "node:fs";
 import { join } from "node:path";
 import { tmpdir } from "node:os";
+import { randomInt } from "node:crypto";
 import bcrypt from "bcryptjs";
-import { getCurrentUser, type AuthUser } from "../auth/session.js";
-import { userStore, type UserRole, type SubscriptionTier } from "./userStore.js";
+import { getCurrentUser, revokeUserSessions, type AuthUser } from "../auth/session.js";
+import {
+    userStore,
+    USER_TIERS,
+    ADMIN_USERS_EXPORT_MAX,
+    type UserRole,
+    type SubscriptionTier,
+    type AdminUserQuery,
+} from "./userStore.js";
 import { systemSettings } from "./systemSettings.js";
 import { auditLog } from "../security/auditLog.js";
 import { pageViewTracker } from "../security/pageViewTracker.js";
@@ -29,6 +37,138 @@ async function verifyAdminUser(request: FastifyRequest): Promise<{ isAdmin: bool
         return { isAdmin: false, error: "Tài khoản quản trị của bạn đã bị khóa." };
     }
     return { isAdmin: true, user };
+}
+
+const SUPER_ADMIN_EMAIL = "khanh2k5xxx@gmail.com";
+const SUPER_ADMIN_IDS = new Set([
+    "00000000-0000-4000-a000-000000000001",
+    "admin-khanh2k5xxx",
+]);
+
+/** Tài khoản Super Admin tối cao: không được xoá, hạ quyền hay khoá. */
+function isSuperAdminAccount(target?: { id?: string; email?: string } | null): boolean {
+    if (!target) return false;
+    if (target.email && target.email.toLowerCase() === SUPER_ADMIN_EMAIL) return true;
+    return Boolean(target.id && SUPER_ADMIN_IDS.has(target.id));
+}
+
+const USER_STATUSES = ["all", "active", "banned", "deleted"] as const;
+const USER_ROLES = ["user", "admin"] as const;
+/** Giới hạn độ dài mật khẩu admin đặt hộ (khớp /api/auth/reset-password). */
+const PASSWORD_MIN_LENGTH = 8;
+const PASSWORD_MAX_LENGTH = 128;
+
+function validatePasswordStrength(password: string): string | null {
+    if (password.length < PASSWORD_MIN_LENGTH) {
+        return `Mật khẩu phải có ít nhất ${PASSWORD_MIN_LENGTH} ký tự.`;
+    }
+    if (password.length > PASSWORD_MAX_LENGTH) {
+        return `Mật khẩu tối đa ${PASSWORD_MAX_LENGTH} ký tự.`;
+    }
+    if (!/[A-Za-z]/.test(password)) {
+        return "Mật khẩu phải có ít nhất 1 chữ cái.";
+    }
+    if (!/[0-9]/.test(password)) {
+        return "Mật khẩu phải có ít nhất 1 chữ số.";
+    }
+    return null;
+}
+
+/**
+ * Sinh mật khẩu tạm ngẫu nhiên mạnh (14 ký tự, luôn có chữ và số).
+ *
+ * Trước đây hệ thống luôn đặt mật khẩu về "12345678" và trả về nguyên văn — ai
+ * biết quy tắc này đều có thể đăng nhập vào bất kỳ tài khoản nào vừa bị admin
+ * đặt lại mật khẩu.
+ */
+function generateTemporaryPassword(length = 14): string {
+    const letters = "abcdefghijkmnopqrstuvwxyzABCDEFGHJKLMNPQRSTUVWXYZ";
+    const digits = "23456789";
+    const all = letters + digits;
+    const chars: string[] = [letters[randomInt(letters.length)], digits[randomInt(digits.length)]];
+    while (chars.length < length) {
+        chars.push(all[randomInt(all.length)]);
+    }
+    for (let i = chars.length - 1; i > 0; i--) {
+        const j = randomInt(i + 1);
+        [chars[i], chars[j]] = [chars[j], chars[i]];
+    }
+    return chars.join("");
+}
+
+/** Bọc một giá trị thành ô CSV an toàn (escape dấu " và bọc trong ngoặc kép). */
+function csvCell(value: unknown): string {
+    const str = value === null || value === undefined ? "" : String(value);
+    return `"${str.replace(/"/g, '""')}"`;
+}
+
+function buildCsv(headers: string[], rows: unknown[][]): string {
+    const lines = [headers.map(csvCell).join(",")];
+    for (const row of rows) {
+        lines.push(row.map(csvCell).join(","));
+    }
+    // BOM giúp Excel đọc đúng UTF-8 (tên/gói cước tiếng Việt).
+    return `\ufeff${lines.join("\r\n")}\r\n`;
+}
+
+/**
+ * Chuẩn hoá + validate tham số lọc danh sách người dùng.
+ * Dùng chung cho cả `GET /api/admin/users` và `GET /api/admin/users/export`.
+ */
+function parseAdminUserQuery(query: any): { error?: string; params?: AdminUserQuery; wantsAll?: boolean } {
+    const raw = query || {};
+
+    const statusFilter = String(raw.status ?? "all");
+    if (!USER_STATUSES.includes(statusFilter as any)) {
+        return { error: `Trạng thái người dùng không hợp lệ. Chỉ chấp nhận: ${USER_STATUSES.join(", ")}.` };
+    }
+
+    const roleFilter = raw.role ? String(raw.role) : "all";
+    if (roleFilter !== "all" && !USER_ROLES.includes(roleFilter as any)) {
+        return { error: "Vai trò không hợp lệ. Chỉ chấp nhận: user, admin." };
+    }
+
+    const tierFilter = raw.tier ? String(raw.tier) : "all";
+    if (tierFilter !== "all" && !USER_TIERS.includes(tierFilter as SubscriptionTier)) {
+        return { error: `Gói cước không hợp lệ. Chỉ chấp nhận: ${USER_TIERS.join(", ")}.` };
+    }
+
+    const limitParam = raw.limit;
+    // Không truyền `limit` ⇒ giữ hành vi cũ (trả về toàn bộ kết quả khớp bộ lọc).
+    // Giao diện quản trị luôn gửi `limit` (mặc định 25) nên vẫn được phân trang
+    // phía server; nhờ vậy các client cũ không bị đổi hành vi.
+    const wantsAll =
+        limitParam === undefined || limitParam === null || limitParam === "" ||
+        limitParam === "all" || limitParam === "0";
+    const requestedLimit = Number.parseInt(limitParam, 10);
+    const requestedPage = Number.parseInt(raw.page, 10);
+
+    const ids = Array.isArray(raw.ids)
+        ? raw.ids.map((v: unknown) => String(v)).filter(Boolean).slice(0, ADMIN_USERS_EXPORT_MAX)
+        : undefined;
+
+    const includeDeleted =
+        statusFilter === "all" || statusFilter === "deleted" || raw.includeDeleted === "true";
+
+    return {
+        wantsAll,
+        params: {
+            search: String(raw.search ?? "").trim(),
+            role: roleFilter,
+            tier: tierFilter,
+            status: statusFilter,
+            includeDeleted,
+            ids,
+            sortBy: String(raw.sortBy ?? "createdAt"),
+            sortOrder: raw.sortOrder === "asc" ? "asc" : "desc",
+            page: Number.isFinite(requestedPage) && requestedPage > 0 ? requestedPage : 1,
+            limit: wantsAll
+                ? ADMIN_USERS_EXPORT_MAX
+                : Number.isFinite(requestedLimit) && requestedLimit > 0
+                  ? requestedLimit
+                  : 25,
+        },
+    };
 }
 
 export async function adminRoutes(app: FastifyInstance, opts?: { queue?: IVideoQueue }): Promise<void> {
@@ -178,17 +318,27 @@ export async function adminRoutes(app: FastifyInstance, opts?: { queue?: IVideoQ
             return { error: check.error };
         }
 
-        const query = (request.query as any) || {};
-        const search = (query.search || "").toLowerCase().trim();
-        const roleFilter = query.role;
-        const tierFilter = query.tier;
-        const statusFilter = query.status;
-        const includeDeleted = query.includeDeleted === "true" || statusFilter === "deleted" || statusFilter === "all";
+        const parsed = parseAdminUserQuery(request.query);
+        if (parsed.error || !parsed.params) {
+            reply.status(400);
+            return { error: parsed.error };
+        }
 
-        let users = await userStore.listUsers({ includeDeleted });
+        let users: any[] = [];
+        let total = 0;
+        try {
+            const result = await userStore.listUsersForAdmin(parsed.params, {
+                maxLimit: parsed.wantsAll ? ADMIN_USERS_EXPORT_MAX : undefined,
+            });
+            users = result.users;
+            total = result.total;
+        } catch (err: any) {
+            request.log?.warn?.({ err: err?.message }, "[Admin] Không tải được danh sách người dùng");
+        }
+
+        // Số lượng video job chỉ cần cho các dòng đang hiển thị (queue nằm trong bộ nhớ).
         const queue = getQueue();
         const allJobs = queue ? await queue.getJobs() : [];
-
         const jobCountByUser = new Map<string, number>();
         for (const job of allJobs) {
             const uid = (job as any).userId;
@@ -197,74 +347,120 @@ export async function adminRoutes(app: FastifyInstance, opts?: { queue?: IVideoQ
             }
         }
 
-        if (search) {
-            users = users.filter(
-                (u) =>
-                    u.name.toLowerCase().includes(search) ||
-                    u.username.toLowerCase().includes(search) ||
-                    u.email.toLowerCase().includes(search) ||
-                    u.id.toLowerCase().includes(search) ||
-                    (u.lastLoginIp && u.lastLoginIp.includes(search)) ||
-                    (u.signupIp && u.signupIp.includes(search)) ||
-                    (u.lastLocation && u.lastLocation.toLowerCase().includes(search)) ||
-                    (u.lastIsp && u.lastIsp.toLowerCase().includes(search))
-            );
-        }
-
-        if (roleFilter && roleFilter !== "all") {
-            users = users.filter((u) => u.role === roleFilter);
-        }
-
-        if (tierFilter && tierFilter !== "all") {
-            users = users.filter((u) => u.tier === tierFilter);
-        }
-
-        if (statusFilter && statusFilter !== "all") {
-            if (statusFilter === "banned") {
-                users = users.filter((u) => u.status === "banned" && !u.deletedAt);
-            } else if (statusFilter === "active") {
-                users = users.filter((u) => u.status !== "banned" && !u.deletedAt);
-            } else if (statusFilter === "deleted") {
-                users = users.filter((u) => Boolean(u.deletedAt));
-            }
-        }
-
-        // Sort
-        const sortBy = query.sortBy || "createdAt";
-        const sortOrder = query.sortOrder === "asc" ? 1 : -1;
-        users.sort((a: any, b: any) => {
-            const valA = a[sortBy] || "";
-            const valB = b[sortBy] || "";
-            if (valA < valB) return -1 * sortOrder;
-            if (valA > valB) return 1 * sortOrder;
-            return 0;
-        });
-
-        const userListWithStats = users.map((u) => ({
-            ...u,
-            jobCount: jobCountByUser.get(u.id) || 0,
-        }));
-
-        const total = userListWithStats.length;
-        const requestedPage = Number.parseInt(query.page || "1", 10);
-        const page = Number.isFinite(requestedPage) ? Math.max(1, requestedPage) : 1;
-        const requestedLimit = Number.parseInt(query.limit, 10);
-        const limit = query.limit !== undefined && query.limit !== ""
-            ? (Number.isFinite(requestedLimit) && requestedLimit > 0 ? Math.min(requestedLimit, 100) : 25)
-            : 0;
-
-        let paginatedUsers = userListWithStats;
-        if (limit > 0) {
-            const startIndex = (page - 1) * limit;
-            paginatedUsers = userListWithStats.slice(startIndex, startIndex + limit);
-        }
+        const page = parsed.params.page || 1;
+        const limit = parsed.params.limit || 25;
 
         return {
-            users: paginatedUsers,
+            users: users.map((u) => ({ ...u, jobCount: jobCountByUser.get(u.id) || 0 })),
             total,
-            page: limit > 0 ? page : 1,
-            limit: limit > 0 ? limit : total,
+            page: parsed.wantsAll ? 1 : page,
+            limit: parsed.wantsAll ? total : limit,
         };
+    });
+
+    /**
+     * Xuất CSV danh sách người dùng theo đúng bộ lọc đang áp dụng.
+     *
+     * Trước đây nút "Xuất CSV" ở frontend chỉ xuất các dòng đang có trên trang hiện
+     * tại (tối đa `limit` bản ghi), nên xuất thiếu dữ liệu. Nay server xuất toàn bộ
+     * kết quả khớp bộ lọc (hoặc đúng danh sách `ids` đã chọn).
+     */
+    app.get("/api/admin/users/export", async (request: FastifyRequest, reply: FastifyReply) => {
+        const check = await verifyAdminUser(request);
+        if (!check.isAdmin) {
+            reply.status(403);
+            return { error: check.error };
+        }
+
+        const parsed = parseAdminUserQuery(request.query);
+        if (parsed.error || !parsed.params) {
+            reply.status(400);
+            return { error: parsed.error };
+        }
+
+        let users: any[] = [];
+        try {
+            const result = await userStore.listUsersForAdmin(
+                { ...parsed.params, page: 1, limit: ADMIN_USERS_EXPORT_MAX },
+                { maxLimit: ADMIN_USERS_EXPORT_MAX }
+            );
+            users = result.users;
+        } catch (err: any) {
+            request.log?.error?.({ err: err?.message }, "[Admin] Xuất CSV người dùng thất bại");
+            reply.status(500);
+            return { error: "Không xuất được danh sách người dùng." };
+        }
+
+        const queue = getQueue();
+        const allJobs = queue ? await queue.getJobs() : [];
+        const jobCountByUser = new Map<string, number>();
+        for (const job of allJobs) {
+            const uid = (job as any).userId;
+            if (uid) jobCountByUser.set(uid, (jobCountByUser.get(uid) || 0) + 1);
+        }
+
+        const csv = buildCsv(
+            [
+                "ID",
+                "Username",
+                "Email",
+                "Role",
+                "Tier",
+                "Credits",
+                "TotalCredits",
+                "Status",
+                "DeletedAt",
+                "PlanExpiresAt",
+                "CreatedAt",
+                "LastLoginAt",
+                "LastLoginIp",
+                "SignupIp",
+                "Location",
+                "ISP",
+                "JobCount",
+            ],
+            users.map((u) => [
+                u.id,
+                u.username,
+                u.email,
+                u.role,
+                u.tier,
+                u.credits,
+                u.totalCredits,
+                u.deletedAt ? "deleted" : u.status,
+                u.deletedAt || "",
+                u.planExpiresAt || "",
+                u.createdAt,
+                u.lastLoginAt || "",
+                u.lastLoginIp || "",
+                u.signupIp || "",
+                u.lastLocation || "",
+                u.lastIsp || "",
+                jobCountByUser.get(u.id) || 0,
+            ])
+        );
+
+        auditLog.record({
+            action: "admin.users_exported",
+            status: "success",
+            details: {
+                exportedBy: check.user?.email,
+                rowCount: users.length,
+                filters: {
+                    search: parsed.params.search || undefined,
+                    status: parsed.params.status,
+                    role: parsed.params.role,
+                    tier: parsed.params.tier,
+                    ids: parsed.params.ids?.length || 0,
+                },
+            },
+        });
+
+        const filename = `vidtml_users_${new Date().toISOString().slice(0, 10)}.csv`;
+        reply
+            .header("Content-Type", "text/csv; charset=utf-8")
+            .header("Content-Disposition", `attachment; filename="${filename}"`);
+        return csv;
     });
 
     app.post("/api/admin/users/bulk", async (request: FastifyRequest, reply: FastifyReply) => {
@@ -294,12 +490,7 @@ export async function adminRoutes(app: FastifyInstance, opts?: { queue?: IVideoQ
             }
 
             // Protect Super Admin
-            const isSuperAdmin =
-                target.email === "khanh2k5xxx@gmail.com" ||
-                target.id === "00000000-0000-4000-a000-000000000001" ||
-                target.id === "admin-khanh2k5xxx";
-
-            if (isSuperAdmin && (action === "suspend" || action === "delete" || action === "hard-delete")) {
+            if (isSuperAdminAccount(target) && (action === "suspend" || action === "delete" || action === "hard-delete")) {
                 skippedIds.push(id);
                 continue;
             }
@@ -355,7 +546,6 @@ export async function adminRoutes(app: FastifyInstance, opts?: { queue?: IVideoQ
 
         const { userId } = request.params;
         const body = (request.body as any) || {};
-        const newPassword = body.newPassword || "12345678";
         const target = await userStore.findById(userId);
 
         if (!target) {
@@ -363,28 +553,66 @@ export async function adminRoutes(app: FastifyInstance, opts?: { queue?: IVideoQ
             return { error: "Không tìm thấy người dùng." };
         }
 
-        const config = getConfig();
-        if (config.DATABASE_URL) {
-            const passwordHash = await bcrypt.hash(newPassword, 12);
-            await db.query("UPDATE users SET password_hash = $1, updated_at = NOW() WHERE id = $2", [passwordHash, userId]);
+        if (target.provider === "google") {
+            reply.status(400);
+            return {
+                error: "Tài khoản này đăng nhập bằng Google nên không có mật khẩu cục bộ để đặt lại.",
+            };
         }
+
+        const config = getConfig();
+
+        // Validate mật khẩu mới (nếu admin tự nhập) trước khi kiểm tra hạ tầng.
+        let newPassword: string;
+        let generated = false;
+        if (body.newPassword !== undefined && body.newPassword !== null && String(body.newPassword) !== "") {
+            const candidate = String(body.newPassword);
+            const strengthError = validatePasswordStrength(candidate);
+            if (strengthError) {
+                reply.status(400);
+                return { error: strengthError };
+            }
+            newPassword = candidate;
+        } else {
+            newPassword = generateTemporaryPassword();
+            generated = true;
+        }
+
+        if (!config.DATABASE_URL) {
+            reply.status(503);
+            return { error: "Không thể đặt lại mật khẩu: hệ thống chưa cấu hình cơ sở dữ liệu." };
+        }
+
+        const passwordHash = await bcrypt.hash(newPassword, 12);
+        await db.query("UPDATE users SET password_hash = $1, updated_at = NOW() WHERE id = $2", [passwordHash, userId]);
+
+        // Mật khẩu mới phải có hiệu lực ngay, kể cả với phiên đang mở trước đó.
+        const revokedSessions = await revokeUserSessions(userId);
 
         auditLog.record({
             action: "admin.user_password_reset",
             userId,
             userEmail: target.email,
-            status: "success",
+            status: "warning",
             details: {
                 resetBy: check.user?.email,
                 provider: target.provider,
+                generated,
+                revokedSessions,
             },
         });
 
         return {
             success: true,
-            message: `Mật khẩu cho ${target.email} đã được đặt lại thành "${newPassword}".`,
             userId,
             provider: target.provider,
+            generated,
+            revokedSessions,
+            // Chỉ trả mật khẩu tạm khi hệ thống tự sinh, để admin gửi cho người dùng.
+            temporaryPassword: generated ? newPassword : undefined,
+            message: generated
+                ? `Đã đặt lại mật khẩu cho ${target.email} bằng mật khẩu tạm. Hãy gửi mật khẩu này cho người dùng và yêu cầu họ đổi ngay sau khi đăng nhập.`
+                : `Đã cập nhật mật khẩu mới cho ${target.email}.`,
         };
     });
 
@@ -404,38 +632,110 @@ export async function adminRoutes(app: FastifyInstance, opts?: { queue?: IVideoQ
             return { error: "Không tìm thấy người dùng." };
         }
 
-        if (body.tier) {
-            await userStore.updateTier(userId, body.tier as SubscriptionTier, body.durationDays || 30);
+        // ---- 1. Validate dữ liệu đầu vào (trước đây mọi giá trị đều được ép kiểu
+        //         bằng `as`, nên có thể ghi vào DB một tier/role tuỳ ý) ----
+        if (body.tier !== undefined && !USER_TIERS.includes(body.tier as SubscriptionTier)) {
+            reply.status(400);
+            return { error: `Gói cước không hợp lệ. Chỉ chấp nhận: ${USER_TIERS.join(", ")}.` };
+        }
+        if (body.role !== undefined && !USER_ROLES.includes(body.role as UserRole)) {
+            reply.status(400);
+            return { error: "Vai trò không hợp lệ. Chỉ chấp nhận: user, admin." };
+        }
+        if (body.status !== undefined && body.status !== "active" && body.status !== "banned") {
+            reply.status(400);
+            return { error: "Trạng thái không hợp lệ. Chỉ chấp nhận: active, banned." };
+        }
+        if (
+            body.credits !== undefined &&
+            (!Number.isInteger(body.credits) || body.credits < 0 || body.credits > 1000000)
+        ) {
+            reply.status(400);
+            return { error: "Credits phải là số nguyên trong khoảng 0 - 1.000.000." };
+        }
+        if (
+            body.creditsDelta !== undefined &&
+            (!Number.isInteger(body.creditsDelta) || Math.abs(body.creditsDelta) > 1000000)
+        ) {
+            reply.status(400);
+            return { error: "creditsDelta phải là số nguyên trong khoảng -1.000.000 - 1.000.000." };
+        }
+        if (
+            body.durationDays !== undefined &&
+            (!Number.isInteger(body.durationDays) || body.durationDays < 1 || body.durationDays > 3650)
+        ) {
+            reply.status(400);
+            return { error: "Thời hạn gói phải là số nguyên từ 1 đến 3650 ngày." };
         }
 
-        if (typeof body.credits === "number") {
+        // ---- 2. Bảo vệ Super Admin và chính mình: không hạ quyền / khoá ----
+        const isSuperAdmin = isSuperAdminAccount(target);
+        const isSelf = Boolean(check.user?.id && check.user.id === target.id);
+
+        if (isSuperAdmin || isSelf) {
+            const who = isSuperAdmin ? "Super Admin tối cao" : "chính mình";
+            if (body.role !== undefined && body.role !== "admin") {
+                reply.status(400);
+                return { error: `Không thể hạ quyền ${who}.` };
+            }
+            if (body.status === "banned") {
+                reply.status(400);
+                return { error: `Không thể khoá tài khoản ${who}.` };
+            }
+        }
+
+        const changes: Record<string, unknown> = {};
+
+        // ---- 3. Chỉ đổi gói khi tier thực sự khác, và chỉ gia hạn khi `durationDays`
+        //         được gửi tường minh. Trước đây màn quản trị luôn gửi kèm
+        //         tier + durationDays nên chỉ sửa credits cũng reset hạn gói về now+30 ngày. ----
+        if (body.tier !== undefined && body.tier !== target.tier) {
+            const durationDays = body.durationDays !== undefined ? body.durationDays : 30;
+            await userStore.updateTier(userId, body.tier as SubscriptionTier, durationDays);
+            changes.tier = body.tier;
+            changes.durationDays = durationDays;
+        } else if (body.durationDays !== undefined) {
+            await userStore.updateTier(userId, target.tier, body.durationDays);
+            changes.durationDays = body.durationDays;
+        }
+
+        if (typeof body.credits === "number" && body.credits !== target.credits) {
             await userStore.setCredits(userId, body.credits);
-        } else if (typeof body.creditsDelta === "number") {
-            if (body.creditsDelta >= 0) {
+            changes.credits = body.credits;
+        } else if (typeof body.creditsDelta === "number" && body.creditsDelta !== 0) {
+            if (body.creditsDelta > 0) {
                 await userStore.addCredits(userId, body.creditsDelta);
             } else {
                 await userStore.deductCredits(userId, Math.abs(body.creditsDelta));
             }
+            changes.creditsDelta = body.creditsDelta;
         }
 
-        if (body.role) {
+        if (body.role !== undefined && body.role !== target.role) {
             await userStore.updateUserRole(userId, body.role as UserRole);
+            changes.role = body.role;
         }
 
-        if (body.status === "active" || body.status === "banned") {
+        if (
+            (body.status === "active" || body.status === "banned") &&
+            body.status !== target.status
+        ) {
             await userStore.setUserStatus(userId, body.status);
+            changes.status = body.status;
         }
 
-        auditLog.record({
-            action: "admin.user_update",
-            userId,
-            userEmail: target.email,
-            status: "success",
-            details: { updatedBy: check.user?.email, changes: body },
-        });
+        if (Object.keys(changes).length > 0) {
+            auditLog.record({
+                action: "admin.user_update",
+                userId,
+                userEmail: target.email,
+                status: "success",
+                details: { updatedBy: check.user?.email, changes },
+            });
+        }
 
         const updated = await userStore.findById(userId);
-        return { success: true, user: updated };
+        return { success: true, user: updated, changes };
     });
 
     app.delete("/api/admin/users/:userId", async (request: FastifyRequest<{ Params: { userId: string }; Querystring: { hard?: string } }>, reply: FastifyReply) => {
@@ -452,6 +752,11 @@ export async function adminRoutes(app: FastifyInstance, opts?: { queue?: IVideoQ
         if (!target) {
             reply.status(404);
             return { error: "Không tìm thấy người dùng cần xóa." };
+        }
+
+        if (check.user?.id && check.user.id === target.id) {
+            reply.status(400);
+            return { error: "Không thể tự xóa tài khoản quản trị của chính mình." };
         }
 
         try {
@@ -513,7 +818,15 @@ export async function adminRoutes(app: FastifyInstance, opts?: { queue?: IVideoQ
         }
 
         const { userId } = request.params;
-        const limit = parseInt(request.query.limit || "50", 10);
+        const rawLimit = Number.parseInt(request.query.limit || "50", 10);
+        const limit = Number.isFinite(rawLimit) && rawLimit > 0 ? Math.min(rawLimit, 200) : 50;
+
+        const target = await userStore.findById(userId);
+        if (!target) {
+            reply.status(404);
+            return { error: "Không tìm thấy người dùng." };
+        }
+
         const logs = await userStore.getUserLoginLogs(userId, limit);
 
         return { logs, total: logs.length };
