@@ -68,6 +68,7 @@ const LLM_PROVIDERS = [
         badgeType: 'badge-warning',
         models: [
             { id: 'ag/gemini-3.8-flash-high', label: 'ag/gemini-3.8-flash-high (Mặc định)' },
+            { id: 'oc/deepseek-v4.1-flash-free', label: 'oc/deepseek-v4.1-flash-free (Miễn phí)' },
         ],
         defaultModel: 'ag/gemini-3.8-flash-high',
         envKey: 'NINEROUTER_API_KEY',
