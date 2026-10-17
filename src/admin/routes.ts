@@ -1023,6 +1023,8 @@ export async function adminRoutes(app: FastifyInstance, opts?: { queue?: IVideoQ
             userId: j.userId,
             userEmail: j.userId ? emailById.get(j.userId) || "Unknown" : "Anonymous",
             progress: j.progress,
+            qaStatus: j.qaStatus ?? j.result?.qaStatus,
+            degraded: Boolean(j.qaReport?.degraded ?? j.result?.qaReport?.degraded),
             hasVideo: Boolean(j.result?.videoPath || j.result?.mp4Path),
             hasHtml: Boolean(j.result?.finalHtmlPath),
         }));
@@ -1065,6 +1067,8 @@ export async function adminRoutes(app: FastifyInstance, opts?: { queue?: IVideoQ
                 ttsProvider: job.request?.ttsProvider,
             },
             script: job.script || null,
+            qaStatus: job.qaStatus ?? job.result?.qaStatus,
+            degraded: Boolean(job.qaReport?.degraded ?? job.result?.qaReport?.degraded),
             result: job.result ? {
                 durationSec: job.result.durationSec,
                 hasVideo: Boolean(job.result.videoPath || job.result.mp4Path),
