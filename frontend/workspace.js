@@ -324,8 +324,6 @@ let pollInterval = null;
 let catalogBlocks = [];
 let selectedMotionBlockIds = new Set();
 let currentRatio = '16:9';
-let voiceEnabled = true;
-let activeWs = 'script';
 let selectedClipIdx = -1;
 const project = { scenes: [], durationSec: 15, topic: '', jobId: null, resolution: '' };
 
@@ -339,7 +337,6 @@ const catalogCategoryFilter = document.getElementById('catalog-category-filter')
 const motionLibrary = document.getElementById('motion-library');
 const motionBlocksCount = document.getElementById('motion-blocks-count');
 const selectedMotionChips = document.getElementById('selected-motion-chips');
-const ttsProviderSelect = document.getElementById('tts-provider-select');
 const voiceSelect = document.getElementById('voice-select');
 const generateBtn = document.getElementById('generate-btn');
 const btnSpinner = document.getElementById('btn-spinner');
@@ -356,11 +353,9 @@ const btnPreviewHtml = document.getElementById('btn-preview-html');
 const summaryMetaLine = document.getElementById('summary-meta-line');
 const customStyleInput = document.getElementById('custom-style-input');
 const customScriptJson = document.getElementById('custom-script-json');
-const programMonitor = document.getElementById('program-monitor');
 const monitorBadge = document.getElementById('monitor-badge');
 const monitorTc = document.getElementById('monitor-tc');
 const transportPlay = document.getElementById('transport-play');
-const timelinePanel = document.getElementById('panel-timeline');
 const timelineRuler = document.getElementById('timeline-ruler');
 const timelineTracks = document.getElementById('timeline-tracks');
 const statusState = document.getElementById('status-state');
@@ -369,36 +364,14 @@ const statusEta = document.getElementById('status-eta');
 const projName = document.getElementById('proj-name');
 const sceneList = document.getElementById('scene-list');
 const sceneCount = document.getElementById('scene-count');
-const voSegments = document.getElementById('vo-segments');
-const renderQueue = document.getElementById('render-queue');
-const exportRenderBtn = document.getElementById('export-render-btn');
-const selectedClipPanel = document.getElementById('selected-clip-panel');
-const clipTitle = document.getElementById('clip-title');
 
-/* ================= WORKSPACE SWITCHER ================= */
+/* ================= WORKSPACE ================= */
+// Workspace rút gọn còn một không gian duy nhất: "Kịch bản" (tạo video trọn gói).
 const wsTabs = document.querySelectorAll('.ws-tab');
-const wsMains = document.querySelectorAll('.ws-main');
-
-function switchWorkspace(name) {
-    activeWs = name;
-    wsTabs.forEach(t => t.classList.toggle('on', t.getAttribute('data-ws') === name));
-    wsMains.forEach(m => m.classList.toggle('on', m.id === `ws-main-${name}`));
-    // Move the single shared program monitor into the active tab
-    const host = document.querySelector(`#ws-main-${name} .monitor-host`);
-    if (host && programMonitor && programMonitor.parentElement !== host) {
-        host.appendChild(programMonitor);
-    }
-    // Timeline is hidden on the export tab (matches approved mockup)
-    if (timelinePanel) timelinePanel.style.display = (name === 'export') ? 'none' : '';
-    renderTimeline();
-}
 wsTabs.forEach(t => {
-    t.addEventListener('click', () => switchWorkspace(t.getAttribute('data-ws')));
+    t.classList.add('on');
 });
 const topbarExportBtn = document.getElementById('topbar-export-btn');
-if (topbarExportBtn) topbarExportBtn.addEventListener('click', () => switchWorkspace('export'));
-const gotoAudioLink = document.getElementById('goto-audio-link');
-if (gotoAudioLink) gotoAudioLink.addEventListener('click', (e) => { e.preventDefault(); switchWorkspace('audio'); });
 
 /* ================= HELPERS ================= */
 function esc(s) {
@@ -453,7 +426,6 @@ function applyProject(job, topic) {
     if (topic) project.topic = topic;
     if (projName && project.topic) projName.textContent = project.topic + ' ▾';
     renderSceneList();
-    renderVoSegments();
     renderTimeline();
     if (statusScenes) {
         statusScenes.textContent = project.scenes.length
@@ -480,23 +452,6 @@ function renderSceneList() {
             <span class="st"></span>`;
         btn.addEventListener('click', () => selectClip(i));
         sceneList.appendChild(btn);
-    });
-}
-
-function renderVoSegments() {
-    if (!voSegments) return;
-    if (!project.scenes.length) {
-        voSegments.innerHTML = '<div class="empty-hint">Chưa có voiceover — tạo video trước.</div>';
-        return;
-    }
-    const per = project.durationSec / project.scenes.length;
-    voSegments.innerHTML = '';
-    project.scenes.forEach((sc, i) => {
-        if (!sc.voiceOverText) return;
-        const row = document.createElement('div');
-        row.className = 'src-row';
-        row.innerHTML = `<div class="pl"></div><div><b>S${i + 1} — “${esc((sc.voiceOverText || '').slice(0, 32))}…”</b><span>${fmtRange(i, per, project.durationSec)} · ${esc(voiceSelect ? voiceSelect.value : '')}</span></div>`;
-        voSegments.appendChild(row);
     });
 }
 
@@ -534,23 +489,16 @@ function renderTimeline() {
         ? `<div class="clip a" style="left:0%;width:100%">${waveSvg()}<span style="position:relative">${esc(voiceSelect ? voiceSelect.value : 'Voiceover')} · Voiceover</span></div>`
         : emptyLane;
 
-    let tracks = '';
-    if (activeWs === 'audio') {
-        tracks = `
-        <div class="track"><div class="track-label">A1</div><div class="track-lane">${voiceClip}</div></div>
-        <div class="track"><div class="track-label">A2</div><div class="track-lane">${n ? '<div class="clip t" style="left:0%;width:100%"><span style="position:relative">Summer Pop 120BPM · ducking -12dB</span></div>' : emptyLane}</div></div>
-        <div class="track"><div class="track-label">A3</div><div class="track-lane">${n ? '<div class="clip v" style="left:22%;width:6%">Pop</div><div class="clip v" style="left:48%;width:6%">Whoosh</div><div class="clip v" style="left:82%;width:6%">Pop</div>' : emptyLane}</div></div>`;
-    } else {
-        const v1 = n ? project.scenes.map((sc, i) => clipHtml(i, sc)).join('') : emptyLane;
-        const v2 = n ? `<div class="clip t" style="left:${(0.62) * 100}%;width:18%">Phụ đề · CTA</div>` : '';
-        const trans = (activeWs === 'edit' && n > 1)
-            ? project.scenes.slice(0, -1).map((_, i) => `<div class="trans" style="left:${((i + 1) / n) * 100}%"><i>◐</i></div>`).join('')
-            : '';
-        tracks = `
+    const v1 = n ? project.scenes.map((sc, i) => clipHtml(i, sc)).join('') : emptyLane;
+    const v2 = n ? `<div class="clip t" style="left:${(0.62) * 100}%;width:18%">Phụ đề · CTA</div>` : '';
+    const trans = n > 1
+        ? project.scenes.slice(0, -1).map((_, i) => `<div class="trans" style="left:${((i + 1) / n) * 100}%"><i>◐</i></div>`).join('')
+        : '';
+
+    let tracks = `
         <div class="track"><div class="track-label">V2</div><div class="track-lane">${v2}</div></div>
         <div class="track"><div class="track-label">V1</div><div class="track-lane">${v1}${trans}</div></div>
         <div class="track"><div class="track-label">A1</div><div class="track-lane">${voiceClip}</div></div>`;
-    }
     tracks += `<div class="playhead" id="tl-playhead" style="left:64px"></div>`;
     timelineTracks.innerHTML = tracks;
 
@@ -564,16 +512,6 @@ function selectClip(i) {
     selectedClipIdx = i;
     const sc = project.scenes[i];
     if (!sc) return;
-    const per = project.durationSec / project.scenes.length;
-    if (clipTitle) clipTitle.textContent = `S${i + 1} · ${sc.title || ''}`;
-    if (selectedClipPanel) {
-        selectedClipPanel.innerHTML = `
-            <div class="fld"><span>Thời lượng</span><b class="fd">${per.toFixed(1)}s</b></div>
-            <div class="fld"><span>Chuyển cảnh</span><b>${esc(sc.transition || 'fade')}</b></div>
-            <div class="fld"><span>Voiceover</span><b style="font-weight:400;font-size:11px;max-width:170px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap" title="${esc(sc.voiceOverText || '')}">${esc((sc.voiceOverText || '—').slice(0, 40))}</b></div>
-            <div class="fld"><span>Màu nền</span><b class="mono">${esc(sc.backgroundColor || '#000000')}</b></div>
-            <div class="insp-note">${esc((sc.visualDescription || '').slice(0, 140))}</div>`;
-    }
     if (monitorBadge) {
         monitorBadge.style.display = '';
         monitorBadge.textContent = `S${i + 1} · ${(sc.title || '').toUpperCase().slice(0, 24)}`;
@@ -643,7 +581,7 @@ styleCards.forEach(card => {
     });
 });
 
-// Ratio buttons (script tab only — export tab uses .opt-btn)
+// Ratio buttons
 const ratioBtns = document.querySelectorAll('.ratio-btn');
 ratioBtns.forEach(btn => {
     btn.addEventListener('click', () => {
@@ -652,15 +590,6 @@ ratioBtns.forEach(btn => {
         currentRatio = btn.getAttribute('data-ratio') || '16:9';
         updateSummaryMeta();
     });
-});
-
-// Export option groups (visual only)
-document.querySelectorAll('.opt-group').forEach(group => {
-    const btns = group.querySelectorAll('.opt-btn');
-    btns.forEach(b => b.addEventListener('click', () => {
-        btns.forEach(x => x.classList.remove('on'));
-        b.classList.add('on');
-    }));
 });
 
 // Duration input
@@ -688,66 +617,13 @@ function setPrompt(text) {
     }
 }
 
-// TTS provider sync
-if (ttsProviderSelect && voiceSelect) {
-    ttsProviderSelect.addEventListener('change', () => {
-        const prov = ttsProviderSelect.value;
-        if (prov === 'vieneu') {
-            const isVieNeu = ['Minh Quân', 'Mai Anh', 'Adam', 'Ái Hân', 'Mỹ Duyên', 'Đức Trí', 'Hữu Quân', 'Xuân Tiên', 'Trúc Ly', 'Anh Khôi', 'Mạnh Dũng'].includes(voiceSelect.value);
-            if (!isVieNeu) voiceSelect.value = 'Minh Quân';
-        } else if (prov === 'edge') {
-            voiceSelect.value = 'vi-VN-HoaiMyNeural';
-        }
-    });
+// Engine TTS suy ra từ giọng đã chọn: giọng Edge có tiền tố "vi-VN-…", còn lại là VieNeu.
+// Nhờ vậy không còn khả năng lệch engine/giọng như khi chọn engine ở tab riêng.
+function providerForVoice(voice) {
+    return /^vi-VN-/i.test(String(voice || '')) ? 'edge' : 'vieneu';
 }
 
-// TTS engine cards (audio tab)
-const ttsEngineCards = document.querySelectorAll('.tts-engine-card');
-ttsEngineCards.forEach(card => {
-    card.addEventListener('click', () => {
-        ttsEngineCards.forEach(c => c.classList.remove('on'));
-        card.classList.add('on');
-        const eng = card.getAttribute('data-engine') || 'vieneu';
-        if (ttsProviderSelect) {
-            ttsProviderSelect.value = eng;
-            ttsProviderSelect.dispatchEvent(new Event('change'));
-        }
-    });
-});
-
-// Voice toggle (audio tab)
-const voiceToggleBtn = document.getElementById('voice-toggle-btn');
-const voiceStatusText = document.getElementById('voice-status-text');
-if (voiceToggleBtn) {
-    voiceToggleBtn.addEventListener('click', () => {
-        voiceEnabled = !voiceEnabled;
-        voiceToggleBtn.classList.toggle('on', voiceEnabled);
-        if (voiceStatusText) voiceStatusText.textContent = voiceEnabled ? 'Đang bật' : 'Đang tắt';
-    });
-}
-
-// Toggle switches (ducking/normalize/async/skip-preview)
-document.querySelectorAll('.switch-row').forEach(row => {
-    const btn = row.querySelector('.clean-toggle-switch');
-    if (btn) btn.addEventListener('click', () => btn.classList.toggle('on'));
-});
-
-// Voice speed / pitch sliders (visual)
-const voiceSpeed = document.getElementById('voice-speed');
-const voiceSpeedVal = document.getElementById('voice-speed-val');
-if (voiceSpeed && voiceSpeedVal) {
-    voiceSpeed.addEventListener('input', () => { voiceSpeedVal.textContent = (voiceSpeed.value / 100).toFixed(1) + '×'; });
-}
-const voicePitch = document.getElementById('voice-pitch');
-const voicePitchVal = document.getElementById('voice-pitch-val');
-if (voicePitch && voicePitchVal) {
-    voicePitch.addEventListener('input', () => {
-        const v = parseInt(voicePitch.value, 10);
-        voicePitchVal.textContent = (v > 0 ? '+' : '') + v + ' st';
-    });
-}
-
-// Motion search (edit tab library)
+// Motion search (thư viện ngay trong Inspector)
 const motionSearch = document.getElementById('motion-search');
 if (motionSearch) motionSearch.addEventListener('input', renderMotionBlocks);
 
@@ -879,36 +755,16 @@ async function loadCatalog() {
 }
 if (styleSelect) styleSelect.addEventListener('change', renderMotionBlocks);
 
-/* ================= RENDER QUEUE ================= */
-async function loadRenderQueue() {
-    if (!renderQueue) return;
+/* ================= JOBS ================= */
+// Danh sách job gần đây — dùng để khôi phục video hoàn tất gần nhất khi mở workspace.
+async function fetchJobs() {
     try {
         const res = await fetch(`${API_BASE}/api/jobs`);
-        if (!res.ok) throw new Error('no jobs');
+        if (!res.ok) throw new Error('Không tải được danh sách job');
         const jobs = await res.json();
-        if (!jobs.length) {
-            renderQueue.innerHTML = '<div class="empty-hint">Chưa có job nào.</div>';
-            return;
-        }
-        renderQueue.innerHTML = '';
-        jobs.slice(0, 8).forEach(j => {
-            const el = document.createElement('div');
-            el.className = 'job';
-            const pct = j.status === 'completed' ? 100 : (j.status === 'failed' ? 0 : 12);
-            const pill = j.status === 'completed' ? '<span class="st-pill done">Xong</span>'
-                : j.status === 'failed' ? '<span class="st-pill fail">Lỗi</span>'
-                    : '<span class="st-pill run">Đang chạy</span>';
-            el.innerHTML = `<div class="th">${j.status === 'completed' ? '▶' : '◌'}</div>
-                <div class="inf"><b>${esc(j.topic || j.jobId)}</b>
-                <span>${j.durationSec ? Math.round(j.durationSec) + 's · ' : ''}${esc(j.status)}</span>
-                ${j.status !== 'completed' && j.status !== 'failed' ? `<div class="prog"><i style="width:${pct}%"></i></div>` : ''}</div>
-                ${pill}
-                ${j.status === 'completed' ? `<a class="dl" href="${API_BASE}/api/jobs/${j.jobId}/download" download>Tải MP4</a>` : ''}`;
-            renderQueue.appendChild(el);
-        });
-        return jobs;
+        return Array.isArray(jobs) ? jobs : [];
     } catch (e) {
-        renderQueue.innerHTML = '<div class="empty-hint">Không tải được hàng đợi.</div>';
+        log(`Hàng đợi: ${e.message}`, 'error');
         return [];
     }
 }
@@ -923,12 +779,8 @@ async function fetchJobDetail(jobId) {
 function startGenerate() {
     if (generateBtn) generateBtn.click();
 }
-if (exportRenderBtn) {
-    exportRenderBtn.addEventListener('click', () => {
-        switchWorkspace('script');
-        setTimeout(startGenerate, 60);
-    });
-}
+// Nút "Xuất bản" trên topbar = tạo/render video (không còn tab xuất bản riêng).
+if (topbarExportBtn) topbarExportBtn.addEventListener('click', startGenerate);
 
 if (generateBtn) {
     generateBtn.addEventListener('click', async () => {
@@ -939,7 +791,6 @@ if (generateBtn) {
             return;
         }
         generateBtn.disabled = true;
-        if (exportRenderBtn) exportRenderBtn.disabled = true;
         if (btnSpinner) btnSpinner.style.display = 'inline-block';
         if (btnText) btnText.textContent = 'Đang tạo...';
         setProgress(5);
@@ -954,8 +805,8 @@ if (generateBtn) {
                 /(?:^|[^\p{L}\p{N}_])(người\s*que|stickman)(?=[^\p{L}\p{N}_]|$)/iu.test(prompt)) {
                 selectedStyle = 'stickman';
             }
-            const prov = ttsProviderSelect ? ttsProviderSelect.value : 'vieneu';
             const v = voiceSelect ? voiceSelect.value : 'Minh Quân';
+            const prov = providerForVoice(v);
             const blueprintId = blueprintSelect && blueprintSelect.value ? blueprintSelect.value : undefined;
             const motionBlockIds = [...selectedMotionBlockIds].slice(0, 8);
 
@@ -970,21 +821,15 @@ if (generateBtn) {
                 }
             }
 
-            const asyncSwitch = document.querySelector('#async-queue-switch .clean-toggle-switch');
-            const skipPreviewSwitch = document.querySelector('#skip-preview-switch .clean-toggle-switch');
-            const isAsync = asyncSwitch ? asyncSwitch.classList.contains('on') : true;
-            const skipPrev = skipPreviewSwitch ? skipPreviewSwitch.classList.contains('on') : false;
-
             const payload = {
                 prompt, aspectRatio: currentRatio, targetDurationSec,
                 language: 'vi', style: selectedStyle,
-                ttsProvider: voiceEnabled ? prov : undefined,
-                voice: voiceEnabled ? v : undefined,
-                async: isAsync
+                ttsProvider: prov,
+                voice: v,
+                async: true
             };
             if (blueprintId) payload.blueprintId = blueprintId;
             if (motionBlockIds.length) payload.motionBlockIds = motionBlockIds;
-            if (skipPrev) payload.skipPreview = true;
             if (customStyleInput && customStyleInput.value.trim()) payload.customStyle = customStyleInput.value.trim();
             if (customScriptJson && customScriptJson.value.trim()) {
                 try { payload.script = JSON.parse(customScriptJson.value.trim()); }
@@ -1003,7 +848,6 @@ if (generateBtn) {
             const data = await res.json();
             const jobId = data.jobId;
             log(`Đã khởi tạo công việc: ${jobId}`, 'info');
-            loadRenderQueue();
 
             let lastMessage = '';
             if (pollInterval) clearInterval(pollInterval);
@@ -1025,23 +869,19 @@ if (generateBtn) {
                         setStatus('Sẵn sàng', false);
                         log('Hoàn tất render video!', 'success');
                         generateBtn.disabled = false;
-                        if (exportRenderBtn) exportRenderBtn.disabled = false;
                         if (btnSpinner) btnSpinner.style.display = 'none';
                         if (btnText) btnText.textContent = 'Tạo lại';
                         const full = await fetchJobDetail(jobId);
                         if (full) applyProject(full, project.topic);
                         displayVideo(jobId);
-                        loadRenderQueue();
                     } else if (job.status === 'failed') {
                         clearInterval(pollInterval);
                         setProgress(0);
                         setStatus('Sẵn sàng', false);
                         log(`Thất bại: ${job.error || 'Lỗi không xác định'}`, 'error');
                         generateBtn.disabled = false;
-                        if (exportRenderBtn) exportRenderBtn.disabled = false;
                         if (btnSpinner) btnSpinner.style.display = 'none';
                         if (btnText) btnText.textContent = 'Thử lại';
-                        loadRenderQueue();
                     }
                 } catch (pollErr) { console.error(pollErr); }
             }, 1000);
@@ -1049,7 +889,6 @@ if (generateBtn) {
             log(`Lỗi: ${err.message}`, 'error');
             setStatus('Sẵn sàng', false);
             generateBtn.disabled = false;
-            if (exportRenderBtn) exportRenderBtn.disabled = false;
             if (btnSpinner) btnSpinner.style.display = 'none';
             if (btnText) btnText.textContent = 'Tạo lại';
             setProgress(0);
@@ -1065,9 +904,9 @@ if (generateBtn) {
     await loadCatalog();
     updateSummaryMeta();
     restorePendingPrompt();
-    switchWorkspace('script');
+    renderTimeline();
 
-    const jobs = await loadRenderQueue();
+    const jobs = await fetchJobs();
     const completedJob = (jobs || []).find(j => j.status === 'completed');
     if (completedJob) {
         log(`Đã tìm thấy video trước đó: ${completedJob.topic || completedJob.jobId}`, 'info');
