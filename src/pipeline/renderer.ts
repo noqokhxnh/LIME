@@ -20,6 +20,8 @@ export interface RenderVideoOptions {
     height: number;
     fps?: number;
     durationSec: number;
+    concurrency?: number;
+    signal?: AbortSignal;
     onProgress?: (msg: string, percent?: number) => void;
     /**
      * Cấu hình logo / watermark cần đóng dấu lên video.
@@ -40,6 +42,66 @@ export interface RenderVideoOptions {
     seed?: number;
 }
 
+export interface RenderChunk {
+    index: number;
+    startFrame: number;
+    endFrame: number; // exclusive
+    frameCount: number;
+    startTimeSec: number;
+    endTimeSec: number;
+    chunkOutputPath: string;
+}
+
+/**
+ * Chia timeline video thành các chunk song song độc lập.
+ *
+ * @param totalFrames Tổng số frame của video (>= 1)
+ * @param fps Tốc độ khung hình (frame rate)
+ * @param maxConcurrency Số lượng chunk song song tối đa
+ * @param tempDir Thư mục chứa các file video chunk tạm
+ * @param minFramesPerChunk Số frame tối thiểu trong 1 chunk để tránh phân mảnh quá mức (mặc định: 15)
+ */
+export function calculateRenderChunks(
+    totalFrames: number,
+    fps: number,
+    maxConcurrency: number,
+    tempDir: string,
+    minFramesPerChunk = 15
+): RenderChunk[] {
+    const safeTotalFrames = Math.max(1, Math.floor(totalFrames));
+    const safeFps = Math.max(1, fps);
+    const safeMaxConcurrency = Math.max(1, Math.floor(maxConcurrency));
+
+    // Tự động giới hạn số chunk dựa trên số frame tối thiểu mỗi chunk
+    const concurrency = Math.max(
+        1,
+        Math.min(safeMaxConcurrency, Math.ceil(safeTotalFrames / Math.max(1, minFramesPerChunk)))
+    );
+
+    const baseFrames = Math.floor(safeTotalFrames / concurrency);
+    const remainder = safeTotalFrames % concurrency;
+
+    const chunks: RenderChunk[] = [];
+    let currentStart = 0;
+
+    for (let i = 0; i < concurrency; i++) {
+        const count = baseFrames + (i < remainder ? 1 : 0);
+        const end = currentStart + count;
+        chunks.push({
+            index: i,
+            startFrame: currentStart,
+            endFrame: end,
+            frameCount: count,
+            startTimeSec: currentStart / safeFps,
+            endTimeSec: end / safeFps,
+            chunkOutputPath: resolve(tempDir, `chunk_${i}.mp4`),
+        });
+        currentStart = end;
+    }
+
+    return chunks;
+}
+
 /**
  * Render frames from GSAP animated HTML page using Playwright Chromium
  * and encode/mux into an MP4 video using ffmpeg image2pipe.
@@ -53,12 +115,17 @@ export async function renderVideo(options: RenderVideoOptions): Promise<string> 
         height,
         fps = 30,
         durationSec,
+        signal,
         onProgress,
         watermark,
         shutterSamples: rawShutterSamples,
         skipShutterBlur = false,
         seed = 0,
     } = options;
+
+    if (signal?.aborted) {
+        throw new DOMException("Operation aborted", "AbortError");
+    }
 
     const shutterSamples = Math.max(1, Math.floor(rawShutterSamples ?? 8));
     const shouldApplyBlur = !skipShutterBlur && shutterSamples > 1;
