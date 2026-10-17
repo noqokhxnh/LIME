@@ -55,6 +55,24 @@ export interface RenderVideoOptions {
     useCdpDedup?: boolean;
 }
 
+/**
+ * Tính CRF phù hợp theo độ phân giải (Issue #30).
+ * 4K cần CRF thấp hơn để giữ chất lượng vì có 4x pixel.
+ */
+export function getCrfForResolution(width: number, height: number): string {
+    const pixels = width * height;
+    // 4K UHD: 3840x2160 = 8.3M pixels
+    if (pixels >= 3840 * 2160) {
+        return "20";
+    }
+    // 1440p: 2560x1440 = 3.7M pixels
+    if (pixels >= 2560 * 1440) {
+        return "21";
+    }
+    // 1080p trở xuống
+    return "22";
+}
+
 export interface RenderChunk {
     index: number;
     startFrame: number;
@@ -192,7 +210,7 @@ async function renderSingleChunk(
             "-c:v", "libx264",
             "-pix_fmt", "yuv420p",
             "-preset", "veryfast",
-            "-crf", "22",
+            "-crf", getCrfForResolution(width, height),
             chunk.chunkOutputPath,
         ];
 
@@ -409,7 +427,7 @@ async function renderChunksParallel(
     }
 
     finalArgs.push(
-        "-c:v", "libx264", "-pix_fmt", "yuv420p", "-preset", "veryfast", "-crf", "22"
+        "-c:v", "libx264", "-pix_fmt", "yuv420p", "-preset", "veryfast", "-crf", getCrfForResolution(opts.width, opts.height)
     );
     if (opts.hasAudio) {
         finalArgs.push("-c:a", "aac", "-b:a", "192k", "-shortest");
@@ -590,7 +608,7 @@ export async function renderVideo(options: RenderVideoOptions): Promise<string> 
                     "-c:v", "libx264",
                     "-pix_fmt", "yuv420p",
                     "-preset", "veryfast",
-                    "-crf", "22"
+                    "-crf", getCrfForResolution(width, height)
                 );
 
                 if (hasAudio) {
