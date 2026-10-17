@@ -4,9 +4,11 @@ on:
   push:
     branches:
       - main
+      - dev
   pull_request:
     branches:
       - main
+      - dev
   workflow_dispatch:
 
 concurrency:
@@ -70,4 +72,6 @@ jobs:
         run: npm run build
 
       - name: Run Test Suite
+        # Không cấu hình service PostgreSQL ⇒ suite chạy ở chế độ in-memory.
+        # (Bộ test tự bỏ qua các ca chỉ chạy được khi có DATABASE_URL.)
         run: npm run test:unit
