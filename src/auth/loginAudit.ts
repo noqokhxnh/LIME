@@ -65,6 +65,9 @@ export async function recordAuthEvent(event: AuthEvent): Promise<void> {
             status: event.status || 'success',
             userId: event.userId || undefined,
             userEmail: event.userEmail || undefined,
+            // Với sự kiện xác thực, chính người dùng là người thực hiện hành động.
+            actorId: event.userId || undefined,
+            actorEmail: event.userEmail || undefined,
             ip,
             details: {
                 provider: event.provider || 'local',

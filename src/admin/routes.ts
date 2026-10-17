@@ -14,8 +14,8 @@ import {
     type AdminUserQuery,
 } from "./userStore.js";
 import { systemSettings, validateSettingsPatch } from "./systemSettings.js";
-import { auditLog } from "../security/auditLog.js";
-import { pageViewTracker } from "../security/pageViewTracker.js";
+import { auditLog, type AuditLogEntry } from "../security/auditLog.js";
+import { pageViewTracker, extractClientIp } from "../security/pageViewTracker.js";
 import { maintenanceTracker } from "./maintenanceTracker.js";
 import { defaultTokenTracker } from "../usage/tokenTracker.js";
 import { billingStorage } from "../billing/storage.js";
@@ -40,6 +40,27 @@ async function verifyAdminUser(request: FastifyRequest): Promise<{ isAdmin: bool
     return { isAdmin: true, user };
 }
 
+/**
+ * Ghi nhật ký cho một hành động quản trị, tự động kèm danh tính người thực hiện
+ * (actor) và IP của họ.
+ *
+ * Trước đây mỗi nơi gọi `auditLog.record()` tự truyền thông tin người thực hiện vào
+ * `details` (updatedBy/deletedBy/...) và KHÔNG nơi nào ghi IP, nên nhật ký thiếu hẳn
+ * manh mối truy vết "ai làm, từ đâu".
+ */
+function auditAdminAction(
+    request: FastifyRequest,
+    check: { user?: AuthUser },
+    entry: Omit<AuditLogEntry, "id" | "timestamp" | "actorId" | "actorEmail" | "ip">
+): AuditLogEntry {
+    return auditLog.record({
+        ...entry,
+        actorId: check.user?.id,
+        actorEmail: check.user?.email,
+        ip: extractClientIp(request),
+    });
+}
+
 const SUPER_ADMIN_EMAIL = "khanh2k5xxx@gmail.com";
 const SUPER_ADMIN_IDS = new Set([
     "00000000-0000-4000-a000-000000000001",
@@ -55,6 +76,10 @@ function isSuperAdminAccount(target?: { id?: string; email?: string } | null): b
 
 const USER_STATUSES = ["all", "active", "banned", "deleted"] as const;
 const USER_ROLES = ["user", "admin"] as const;
+/** Trạng thái hợp lệ của một bản ghi nhật ký kiểm toán. */
+const AUDIT_LOG_STATUSES = ["success", "failure", "warning"];
+/** Giới hạn cứng số bản ghi nhật ký mỗi trang. */
+const AUDIT_LOGS_MAX_LIMIT = 500;
 /** Giới hạn độ dài mật khẩu admin đặt hộ (khớp /api/auth/reset-password). */
 const PASSWORD_MIN_LENGTH = 8;
 const PASSWORD_MAX_LENGTH = 128;
@@ -441,7 +466,7 @@ export async function adminRoutes(app: FastifyInstance, opts?: { queue?: IVideoQ
             ])
         );
 
-        auditLog.record({
+        auditAdminAction(request, check, {
             action: "admin.users_exported",
             status: "success",
             details: {
@@ -518,7 +543,7 @@ export async function adminRoutes(app: FastifyInstance, opts?: { queue?: IVideoQ
             }
         }
 
-        auditLog.record({
+        auditAdminAction(request, check, {
             action: "admin.bulk_users_action",
             status: "success",
             details: {
@@ -590,7 +615,7 @@ export async function adminRoutes(app: FastifyInstance, opts?: { queue?: IVideoQ
         // Mật khẩu mới phải có hiệu lực ngay, kể cả với phiên đang mở trước đó.
         const revokedSessions = await revokeUserSessions(userId);
 
-        auditLog.record({
+        auditAdminAction(request, check, {
             action: "admin.user_password_reset",
             userId,
             userEmail: target.email,
@@ -726,7 +751,7 @@ export async function adminRoutes(app: FastifyInstance, opts?: { queue?: IVideoQ
         }
 
         if (Object.keys(changes).length > 0) {
-            auditLog.record({
+            auditAdminAction(request, check, {
                 action: "admin.user_update",
                 userId,
                 userEmail: target.email,
@@ -762,7 +787,7 @@ export async function adminRoutes(app: FastifyInstance, opts?: { queue?: IVideoQ
 
         try {
             await userStore.deleteUser(userId, { soft: !isHardDelete });
-            auditLog.record({
+            auditAdminAction(request, check, {
                 action: isHardDelete ? "admin.user_hard_deleted" : "admin.user_soft_deleted",
                 userId,
                 userEmail: target.email,
@@ -797,7 +822,7 @@ export async function adminRoutes(app: FastifyInstance, opts?: { queue?: IVideoQ
 
         try {
             const restored = await userStore.restoreUser(userId);
-            auditLog.record({
+            auditAdminAction(request, check, {
                 action: "admin.user_restored",
                 userId,
                 userEmail: target.email,
@@ -1017,7 +1042,7 @@ export async function adminRoutes(app: FastifyInstance, opts?: { queue?: IVideoQ
             }
         }
 
-        auditLog.record({
+        auditAdminAction(request, check, {
             action: "admin.job_deleted",
             status: "warning",
             details: { deletedBy: check.user?.email, jobId, removedFromQueue },
@@ -1077,7 +1102,7 @@ export async function adminRoutes(app: FastifyInstance, opts?: { queue?: IVideoQ
             return { error: "Không tìm thấy job." };
         }
 
-        auditLog.record({
+        auditAdminAction(request, check, {
             action: "admin.job_updated",
             status: "success",
             details: { updatedBy: check.user?.email, jobId, fields: Object.keys(patch) },
@@ -1123,7 +1148,7 @@ export async function adminRoutes(app: FastifyInstance, opts?: { queue?: IVideoQ
             return { error: "Không thể hủy job ở trạng thái hiện tại." };
         }
 
-        auditLog.record({
+        auditAdminAction(request, check, {
             action: "admin.job_cancelled",
             status: "warning",
             details: { cancelledBy: check.user?.email, jobId },
@@ -1166,7 +1191,7 @@ export async function adminRoutes(app: FastifyInstance, opts?: { queue?: IVideoQ
             return { error: `Không thể chạy lại job ở trạng thái "${job.status}".` };
         }
 
-        auditLog.record({
+        auditAdminAction(request, check, {
             action: "admin.job_retried",
             status: "success",
             details: { retriedBy: check.user?.email, jobId },
@@ -1306,7 +1331,7 @@ export async function adminRoutes(app: FastifyInstance, opts?: { queue?: IVideoQ
                 });
             }
 
-            auditLog.record({
+            auditAdminAction(request, check, {
                 action: "admin.order_manual_approved",
                 status: "success",
                 details: {
@@ -1432,7 +1457,7 @@ export async function adminRoutes(app: FastifyInstance, opts?: { queue?: IVideoQ
 
             const item = await billingStorage.resolveUnmatchedPayment(id, "resolved", adminNote, check.user?.email);
 
-            auditLog.record({
+            auditAdminAction(request, check, {
                 action: "admin.unmatched_resolved",
                 status: "success",
                 details: {
@@ -1508,7 +1533,7 @@ export async function adminRoutes(app: FastifyInstance, opts?: { queue?: IVideoQ
 
             await billingStorage.resolveUnmatchedPayment(id, "refunded", adminNote, check.user?.email);
 
-            auditLog.record({
+            auditAdminAction(request, check, {
                 action: "admin.unmatched_refunded",
                 status: "success",
                 details: {
@@ -1583,7 +1608,7 @@ export async function adminRoutes(app: FastifyInstance, opts?: { queue?: IVideoQ
                 throw err;
             }
 
-            auditLog.record({
+            auditAdminAction(request, check, {
                 action: "admin.payment_refunded",
                 status: "success",
                 details: {
@@ -1620,7 +1645,7 @@ export async function adminRoutes(app: FastifyInstance, opts?: { queue?: IVideoQ
                 return reply.status(400).send({ error: "Chỉ hủy được đơn hàng đang chờ thanh toán." });
             }
 
-            auditLog.record({
+            auditAdminAction(request, check, {
                 action: "admin.order_cancelled",
                 status: "success",
                 details: {
@@ -1750,7 +1775,7 @@ export async function adminRoutes(app: FastifyInstance, opts?: { queue?: IVideoQ
 
         const updated = systemSettings.update(body, check.user?.email);
 
-        auditLog.record({
+        auditAdminAction(request, check, {
             action: "admin.settings_updated",
             status: "success",
             details: { updatedBy: check.user?.email, changes: body },
@@ -1901,11 +1926,44 @@ export async function adminRoutes(app: FastifyInstance, opts?: { queue?: IVideoQ
         }
 
         const query = (request.query as any) || {};
-        const limit = parseInt(query.limit, 10) || 150;
-        const filter = query.action;
 
-        const logs = auditLog.getRecent(limit, filter);
-        return { logs, total: logs.length };
+        // Chỉ phân trang khi client thực sự gửi `limit`; nếu không thì giữ nguyên
+        // hành vi cũ (lấy 150 bản ghi mới nhất).
+        const limitProvided = query.limit !== undefined && query.limit !== "";
+        const parsedLimit = parseInt(query.limit, 10);
+        if (limitProvided && (!Number.isFinite(parsedLimit) || parsedLimit < 1)) {
+            reply.status(400);
+            return { error: "Tham số 'limit' không hợp lệ." };
+        }
+        const limit = limitProvided ? Math.min(parsedLimit, AUDIT_LOGS_MAX_LIMIT) : 150;
+
+        let page = 1;
+        if (limitProvided) {
+            const parsedPage = parseInt(query.page, 10);
+            if (query.page !== undefined && query.page !== "" && (!Number.isFinite(parsedPage) || parsedPage < 1)) {
+                reply.status(400);
+                return { error: "Tham số 'page' không hợp lệ." };
+            }
+            page = Number.isFinite(parsedPage) && parsedPage > 0 ? parsedPage : 1;
+        }
+
+        const status = typeof query.status === "string" ? query.status.trim() : "";
+        if (status && !AUDIT_LOG_STATUSES.includes(status)) {
+            reply.status(400);
+            return { error: `Trạng thái nhật ký không hợp lệ: ${status}` };
+        }
+
+        const { logs, total } = await auditLog.list({
+            limit,
+            offset: limitProvided ? (page - 1) * limit : 0,
+            action: typeof query.action === "string" ? query.action : undefined,
+            status: status || undefined,
+            search: typeof query.search === "string" ? query.search : undefined,
+            from: typeof query.from === "string" && query.from ? query.from : undefined,
+            to: typeof query.to === "string" && query.to ? query.to : undefined,
+        });
+
+        return { logs, total, page, limit };
     });
 
     app.delete("/api/admin/audit-logs", async (request: FastifyRequest, reply: FastifyReply) => {
@@ -1915,11 +1973,38 @@ export async function adminRoutes(app: FastifyInstance, opts?: { queue?: IVideoQ
             return { error: check.error };
         }
 
-        auditLog.clear();
-        auditLog.record({
+        const query = (request.query as any) || {};
+        const status = typeof query.status === "string" ? query.status.trim() : "";
+        if (status && !AUDIT_LOG_STATUSES.includes(status)) {
+            reply.status(400);
+            return { error: `Trạng thái nhật ký không hợp lệ: ${status}` };
+        }
+
+        const filter = {
+            action: typeof query.action === "string" && query.action ? query.action : undefined,
+            status: status || undefined,
+            search: typeof query.search === "string" && query.search ? query.search : undefined,
+            from: typeof query.from === "string" && query.from ? query.from : undefined,
+            to: typeof query.to === "string" && query.to ? query.to : undefined,
+        };
+
+        try {
+            // Phải chờ xoá xong rồi mới ghi bản ghi "đã xoá", nếu không bản ghi đó sẽ
+            // bị chính thao tác xoá (đang chạy nền) cuốn mất.
+            await auditLog.clear(filter);
+        } catch (err: any) {
+            reply.status(500);
+            return { error: `Không xoá được nhật ký kiểm toán: ${err?.message || err}` };
+        }
+
+        // Ghi và CHỜ lưu vào DB để nhật ký "đã xoá" xuất hiện ngay ở lần đọc kế tiếp.
+        await auditLog.recordAndPersist({
             action: "admin.logs_cleared",
             status: "warning",
-            details: { clearedBy: check.user?.email },
+            actorId: check.user?.id,
+            actorEmail: check.user?.email,
+            ip: extractClientIp(request),
+            details: { clearedBy: check.user?.email, filter: Object.keys(filter).length ? filter : "all" },
         });
 
         return { success: true, message: "Đã xóa sạch toàn bộ nhật ký kiểm toán." };
@@ -1971,7 +2056,7 @@ export async function adminRoutes(app: FastifyInstance, opts?: { queue?: IVideoQ
         }
 
         pageViewTracker.clear();
-        auditLog.record({
+        auditAdminAction(request, check, {
             action: "admin.views_cleared",
             status: "warning",
             details: { clearedBy: check.user?.email },
@@ -2031,7 +2116,7 @@ export async function adminRoutes(app: FastifyInstance, opts?: { queue?: IVideoQ
 
         try {
             const syncResult = await maintenanceTracker.syncFromCloudflare();
-            auditLog.record({
+            auditAdminAction(request, check, {
                 action: "admin.maintenance_synced",
                 status: "success",
                 details: {
@@ -2062,7 +2147,7 @@ export async function adminRoutes(app: FastifyInstance, opts?: { queue?: IVideoQ
         }
 
         maintenanceTracker.clear();
-        auditLog.record({
+        auditAdminAction(request, check, {
             action: "admin.maintenance_cleared",
             status: "warning",
             details: { clearedBy: check.user?.email },

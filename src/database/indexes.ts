@@ -66,6 +66,17 @@ CREATE INDEX IF NOT EXISTS idx_audit_logs_user_created_at
 -- Lịch sử đăng nhập của một người dùng (lọc theo action + sắp xếp mới nhất trước).
 CREATE INDEX IF NOT EXISTS idx_audit_logs_user_action_created_at
     ON audit_logs (user_id, action, created_at DESC);
+
+-- Danh sách nhật ký kiểm toán của admin: lọc theo action/trạng thái/người thực hiện/IP
+-- kèm sắp xếp mới nhất trước và phân trang.
+CREATE INDEX IF NOT EXISTS idx_audit_logs_action_created_at
+    ON audit_logs (action, created_at DESC);
+CREATE INDEX IF NOT EXISTS idx_audit_logs_status_created_at
+    ON audit_logs (status, created_at DESC);
+CREATE INDEX IF NOT EXISTS idx_audit_logs_actor_created_at
+    ON audit_logs (actor_email, created_at DESC);
+CREATE INDEX IF NOT EXISTS idx_audit_logs_ip
+    ON audit_logs (ip_address);
 `;
 
 /**
@@ -86,6 +97,10 @@ CREATE INDEX IF NOT EXISTS idx_users_username_trgm
     ON users USING gin (username gin_trgm_ops);
 CREATE INDEX IF NOT EXISTS idx_unmatched_content_trgm
     ON unmatched_payments USING gin (content gin_trgm_ops);
+
+-- Tìm kiếm nhật ký kiểm toán theo action (ILIKE '%...%')
+CREATE INDEX IF NOT EXISTS idx_audit_logs_action_trgm
+    ON audit_logs USING gin (action gin_trgm_ops);
 `;
 
 /**
