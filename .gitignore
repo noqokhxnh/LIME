@@ -7,6 +7,7 @@ tmp/
 *.wav
 !assets/audio/**
 .env
+coverage/
 dump.rdb
 docs/comparison
 docs/plans/

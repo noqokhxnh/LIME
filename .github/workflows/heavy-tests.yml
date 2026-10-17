@@ -1,0 +1,88 @@
+name: Heavy Tests (hằng tuần, thủ công)
+
+# Nhóm test NẶNG: mở Chromium thật, ghép video bằng ffmpeg, chạy trọn pipeline (xem
+# scripts/test-groups.ts — HEAVY_SHARDS). Chạy hằng tuần vào Chủ nhật và khi bấm chạy
+# thủ công, KHÔNG chạy cho PR hay theo lịch đêm.
+#
+# Vì sao tách riêng: `security.test.ts` chạy pipeline thật 10 lần để kiểm hạn mức ngày,
+# nên riêng nó đã ngốn hơn 30 phút trên runner CI — để trong đường chạy thường ngày thì
+# không ai chờ nổi. Muốn chạy tại chỗ: `npm run test:unit` (nhanh nhất) hoặc
+# `npm run test:coverage` (kèm cổng 70% dòng).
+#
+# Không đo độ phủ ở đây: báo cáo độ phủ của một lát riêng lẻ luôn thiếu (một lát chỉ chạy
+# một phần suite), muốn gộp thì chạy ở máy phát triển rồi dùng
+# `npm run test:coverage:merge`.
+on:
+  schedule:
+    # 17:00 UTC Chủ nhật = 00:00 thứ Hai giờ Việt Nam.
+    - cron: "0 17 * * 0"
+  workflow_dispatch:
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  heavy:
+    name: Heavy Unit Tests (shard ${{ matrix.shard }}/3)
+    runs-on: ubuntu-latest
+    # GitHub cho phép tối đa 360 phút cho một job; runner CI yếu hơn máy phát triển nhiều
+    # lần nên đặt hạn mức rộng để không cắt ngang test render.
+    timeout-minutes: 300
+    strategy:
+      fail-fast: false
+      matrix:
+        shard: [1, 2, 3]
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 26
+
+      - name: Setup FFmpeg
+        run: |
+          sudo apt-get update -qq
+          sudo apt-get install -y --no-install-recommends ffmpeg
+          ffmpeg -version
+
+      - name: Setup fonttools (pyftsubset)
+        run: |
+          pipx install "fonttools[woff,unicode]" || (sudo apt-get update -qq && sudo apt-get install -y --no-install-recommends fonttools python3-brotli python3-zopfli)
+          sudo apt-get install -y --no-install-recommends python3-fonttools python3-brotli || true
+          echo "$HOME/.local/bin" >> $GITHUB_PATH
+          which pyftsubset || echo "pyftsubset not in PATH"
+
+      - name: Cache Node Modules
+        uses: actions/cache@v4
+        id: node-modules-cache
+        with:
+          path: node_modules
+          key: node-modules-${{ runner.os }}-${{ hashFiles('package-lock.json') }}
+
+      - name: Install dependencies
+        if: steps.node-modules-cache.outputs.cache-hit != 'true'
+        run: npm ci --no-audit --prefer-offline
+
+      - name: Cache Playwright Chromium
+        uses: actions/cache@v4
+        id: playwright-cache
+        with:
+          path: ~/.cache/ms-playwright
+          key: playwright-${{ runner.os }}-${{ hashFiles('package-lock.json') }}
+
+      - name: Install Playwright Chromium & Dependencies
+        if: steps.playwright-cache.outputs.cache-hit != 'true'
+        run: npx playwright install --with-deps chromium
+
+      - name: Install Playwright OS Dependencies (when cached)
+        if: steps.playwright-cache.outputs.cache-hit == 'true'
+        run: npx playwright install-deps chromium
+
+      - name: TypeScript Build Check
+        run: npm run build
+
+      - name: Run Heavy Unit Tests (shard ${{ matrix.shard }}/3)
+        run: npx tsx scripts/run-unit-tests.ts heavy:${{ matrix.shard }}
