@@ -244,8 +244,15 @@ export const AdminApi = {
     },
 
     // Audit Logs
-    async getAuditLogs() {
-        return this.request('/api/admin/audit-logs');
+    async getAuditLogs(params = {}) {
+        const qs = new URLSearchParams();
+        Object.entries(params).forEach(([key, val]) => {
+            if (val !== undefined && val !== null && val !== '') {
+                qs.append(key, val);
+            }
+        });
+        const suffix = qs.toString();
+        return this.request(`/api/admin/audit-logs${suffix ? `?${suffix}` : ''}`);
     },
 
     async clearAuditLogs() {

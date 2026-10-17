@@ -75,6 +75,12 @@ CREATE TABLE IF NOT EXISTS audit_logs (
     created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
 
+-- Người THỰC HIỆN hành động (actor), tách khỏi user_id/user_email là ĐỐI TƯỢNG bị
+-- tác động. Trước đây thông tin người thực hiện chỉ nằm rải rác trong details
+-- (updatedBy/deletedBy/...) và ip_address không bao giờ được ghi từ cổng quản trị.
+ALTER TABLE audit_logs ADD COLUMN IF NOT EXISTS actor_id UUID;
+ALTER TABLE audit_logs ADD COLUMN IF NOT EXISTS actor_email VARCHAR(255);
+
 CREATE INDEX IF NOT EXISTS idx_audit_logs_created_at ON audit_logs(created_at DESC);
 CREATE INDEX IF NOT EXISTS idx_audit_logs_action ON audit_logs(action);
 `;
