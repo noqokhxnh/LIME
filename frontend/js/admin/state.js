@@ -18,7 +18,11 @@ export const AdminState = {
         userType: 'all',
         country: 'all',
         sortBy: 'createdAt',
-        sortOrder: 'desc'
+        sortOrder: 'desc',
+        logStatus: 'all',
+        action: '',
+        from: '',
+        to: ''
     },
 
     listeners: [],
@@ -46,7 +50,11 @@ export const AdminState = {
             userType: searchParams.get('userType') || this.defaults.userType,
             country: searchParams.get('country') || this.defaults.country,
             sortBy: searchParams.get('sortBy') || this.defaults.sortBy,
-            sortOrder: searchParams.get('sortOrder') || this.defaults.sortOrder
+            sortOrder: searchParams.get('sortOrder') || this.defaults.sortOrder,
+            logStatus: searchParams.get('logStatus') || this.defaults.logStatus,
+            action: searchParams.get('action') || '',
+            from: searchParams.get('from') || '',
+            to: searchParams.get('to') || ''
         };
     },
 
@@ -70,6 +78,10 @@ export const AdminState = {
         if (merged.country && merged.country !== 'all') searchParams.set('country', merged.country);
         if (merged.sortBy && merged.sortBy !== this.defaults.sortBy) searchParams.set('sortBy', merged.sortBy);
         if (merged.sortOrder && merged.sortOrder !== this.defaults.sortOrder) searchParams.set('sortOrder', merged.sortOrder);
+        if (merged.logStatus && merged.logStatus !== 'all') searchParams.set('logStatus', merged.logStatus);
+        if (merged.action && String(merged.action).trim()) searchParams.set('action', String(merged.action).trim());
+        if (merged.from) searchParams.set('from', merged.from);
+        if (merged.to) searchParams.set('to', merged.to);
 
         const newQs = searchParams.toString();
         const newUrl = newQs ? `${window.location.pathname}?${newQs}` : window.location.pathname;
