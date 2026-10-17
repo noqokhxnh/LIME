@@ -42,6 +42,53 @@ export interface CdpCaptureSession {
  * Nếu CDP không khả dụng (trình duyệt không hỗ trợ), trả về session fallback
  * dùng `page.screenshot()` với hasDamage luôn là true.
  */
+/**
+ * Áp dụng determinism guards để chống frame flicker (Issue #38).
+ *
+ * - Freeze mọi CSS animation/transition không do GSAP kiểm soát
+ * - Đảm bảo fonts và images đã load xong trước khi render
+ */
+export async function applyDeterminismGuards(page: Page): Promise<void> {
+    await page.evaluate(() => {
+        // Freeze CSS animations/transitions
+        const style = document.createElement("style");
+        style.id = "__lime-determinism-guards";
+        style.textContent = `
+            *, *::before, *::after {
+                animation-play-state: paused !important;
+                transition: none !important;
+            }
+        `;
+        document.head.appendChild(style);
+    });
+
+    // Chờ fonts
+    await page.evaluate(async () => {
+        if (document.fonts?.ready) {
+            await Promise.race([
+                document.fonts.ready,
+                new Promise((r) => setTimeout(r, 5000)),
+            ]);
+        }
+    });
+
+    // Chờ images
+    await page.evaluate(async () => {
+        const imgs = Array.from(document.querySelectorAll("img"));
+        await Promise.all(
+            imgs.map((img) =>
+                img.complete
+                    ? Promise.resolve()
+                    : new Promise((resolve) => {
+                          img.onload = () => resolve(null);
+                          img.onerror = () => resolve(null);
+                          setTimeout(() => resolve(null), 5000);
+                      })
+            )
+        );
+    });
+}
+
 export async function createCdpCaptureSession(page: Page): Promise<CdpCaptureSession> {
     try {
         const client = await page.context().newCDPSession(page);
