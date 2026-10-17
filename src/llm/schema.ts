@@ -1,4 +1,6 @@
 import { z } from 'zod';
+import type { WordTiming } from '../pipeline/wordTiming.js';
+export type { WordTiming };
 
 export const mechanismSchema = z.enum([
     'morph',
@@ -403,6 +405,7 @@ export interface AudioResult {
     audioFiles: Record<string, string>,
     totalDurationSec: number,
     mixAudioPath: string,
+    wordTimings?: Record<string, WordTiming[]>,
     sfxPath?: string,
     hasSfx?: boolean,
     loudness?: {
