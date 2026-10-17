@@ -14,6 +14,10 @@ import type {
     RefundSourceType,
     AdminOrderQuery,
     AdminOrderPage,
+    AdminUnmatchedQuery,
+    AdminUnmatchedPage,
+    AdminDuplicateQuery,
+    AdminDuplicatePage,
 } from './types.js';
 
 const UUID_REGEX = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
@@ -51,17 +55,38 @@ export const DEFAULT_PLANS: Plan[] = [
 const ADMIN_ORDERS_MAX_LIMIT = 100;
 const ADMIN_ORDERS_DEFAULT_LIMIT = 25;
 
+/**
+ * Danh sách unmatched/duplicate trước đây luôn bị cắt ở 100 dòng (`LIMIT 100`) nên
+ * admin không xem được các giao dịch cũ hơn và không thể phân trang. Mặc định vẫn là
+ * 100 để giữ nguyên hành vi cũ khi client không gửi `limit`.
+ */
+const ADMIN_PAYMENTS_DEFAULT_LIMIT = 100;
+const ADMIN_PAYMENTS_MAX_LIMIT = 200;
+
 /** Chuẩn hoá tham số phân trang cho danh sách đơn hàng của admin. */
 function normalizeAdminPaging(filters: { page?: number; limit?: number }): {
     page: number;
     limit: number;
     offset: number;
 } {
+    return normalizeListPaging(filters, ADMIN_ORDERS_DEFAULT_LIMIT, ADMIN_ORDERS_MAX_LIMIT);
+}
+
+/**
+ * Chuẩn hoá tham số phân trang dùng chung.
+ *
+ * Không truyền `limit` ⇒ dùng `defaultLimit` (giữ hành vi cũ của endpoint).
+ */
+function normalizeListPaging(
+    filters: { page?: number; limit?: number },
+    defaultLimit: number,
+    maxLimit: number
+): { page: number; limit: number; offset: number } {
     const rawLimit = Number(filters.limit);
     const limit =
         Number.isFinite(rawLimit) && rawLimit > 0
-            ? Math.min(Math.floor(rawLimit), ADMIN_ORDERS_MAX_LIMIT)
-            : ADMIN_ORDERS_DEFAULT_LIMIT;
+            ? Math.min(Math.floor(rawLimit), maxLimit)
+            : defaultLimit;
     const rawPage = Number(filters.page);
     const page = Number.isFinite(rawPage) && rawPage > 0 ? Math.floor(rawPage) : 1;
     return { page, limit, offset: (page - 1) * limit };
@@ -107,6 +132,12 @@ export interface IBillingStorage {
     findUnmatchedPaymentById(id: string): Promise<UnmatchedPayment | null>;
     listDuplicatePayments(): Promise<Payment[]>;
     getUnmatchedPayments(status?: string): Promise<UnmatchedPayment[]>;
+    /** Danh sách giao dịch trùng lặp có lọc + phân trang (cổng quản trị). */
+    listDuplicatePaymentsForAdmin(filters?: AdminDuplicateQuery): Promise<AdminDuplicatePage>;
+    /** Danh sách giao dịch chưa khớp có lọc + phân trang (cổng quản trị). */
+    listUnmatchedPaymentsForAdmin(filters?: AdminUnmatchedQuery): Promise<AdminUnmatchedPage>;
+    /** Tra nhiều đơn hàng trong MỘT truy vấn (tránh N+1 khi làm giàu dữ liệu). */
+    findOrdersByIds(ids: string[]): Promise<Map<string, Order>>;
     findRefundBySource(sourceType: RefundSourceType, sourceId: string): Promise<Refund | null>;
     getRefundedSourceIds(sourceType: RefundSourceType, sourceIds: string[]): Promise<Set<string>>;
     recordRefund(item: Omit<Refund, 'id' | 'created_at' | 'refunded_at'>): Promise<Refund>;
@@ -442,18 +473,125 @@ export class PostgresBillingStorage implements IBillingStorage {
         const res = filter
             ? await db.query('SELECT * FROM unmatched_payments WHERE status = $1 ORDER BY created_at DESC LIMIT 100', [filter])
             : await db.query('SELECT * FROM unmatched_payments ORDER BY created_at DESC LIMIT 100');
-        return res.rows.map(r => ({
-            id: r.id,
-            sepay_ref: r.sepay_ref,
-            amount_vnd: r.amount_vnd,
-            content: r.content,
-            raw: r.raw,
-            status: r.status,
-            admin_note: r.admin_note,
-            resolved_by: r.resolved_by,
-            resolved_at: r.resolved_at ? new Date(r.resolved_at).toISOString() : null,
-            created_at: new Date(r.created_at).toISOString(),
-        }));
+        return res.rows.map(r => this.mapUnmatched(r));
+    }
+
+    async listUnmatchedPaymentsForAdmin(filters: AdminUnmatchedQuery = {}): Promise<AdminUnmatchedPage> {
+        const { limit, offset } = normalizeListPaging(
+            filters,
+            ADMIN_PAYMENTS_DEFAULT_LIMIT,
+            ADMIN_PAYMENTS_MAX_LIMIT
+        );
+
+        const conditions: string[] = [];
+        const params: any[] = [];
+
+        if (filters.status && filters.status !== 'all') {
+            params.push(filters.status);
+            conditions.push(`status = $${params.length}`);
+        }
+
+        const search = (filters.search || '').trim();
+        if (search) {
+            params.push(`%${search}%`);
+            const like = `$${params.length}`;
+            conditions.push(
+                `(sepay_ref ILIKE ${like} OR content ILIKE ${like}` +
+                ` OR COALESCE(admin_note, '') ILIKE ${like} OR amount_vnd::text ILIKE ${like})`
+            );
+        }
+
+        if (filters.from) {
+            params.push(filters.from);
+            conditions.push(`created_at >= $${params.length}`);
+        }
+        if (filters.to) {
+            params.push(filters.to);
+            conditions.push(`created_at <= $${params.length}`);
+        }
+
+        const whereClause = conditions.length > 0 ? `WHERE ${conditions.join(' AND ')}` : '';
+
+        const countRes = await db.query(
+            `SELECT COUNT(*)::int AS total FROM unmatched_payments ${whereClause}`,
+            params
+        );
+        const total = Number(countRes.rows[0]?.total ?? 0);
+
+        const listParams = [...params, limit, offset];
+        const res = await db.query(
+            `SELECT * FROM unmatched_payments
+             ${whereClause}
+             ORDER BY created_at DESC
+             LIMIT $${listParams.length - 1} OFFSET $${listParams.length}`,
+            listParams
+        );
+
+        return { unmatched: res.rows.map(r => this.mapUnmatched(r)), total };
+    }
+
+    async listDuplicatePaymentsForAdmin(filters: AdminDuplicateQuery = {}): Promise<AdminDuplicatePage> {
+        const { limit, offset } = normalizeListPaging(
+            filters,
+            ADMIN_PAYMENTS_DEFAULT_LIMIT,
+            ADMIN_PAYMENTS_MAX_LIMIT
+        );
+
+        // Chỉ lấy giao dịch trùng lặp; các điều kiện còn lại lọc thêm.
+        const conditions: string[] = [`p.result = 'duplicate'`];
+        const params: any[] = [];
+
+        const search = (filters.search || '').trim();
+        if (search) {
+            params.push(search);
+            const exact = `$${params.length}`;
+            params.push(`%${search}%`);
+            const like = `$${params.length}`;
+            conditions.push(
+                `(p.sepay_ref = ${exact} OR p.sepay_ref ILIKE ${like}` +
+                ` OR p.amount_vnd::text ILIKE ${like} OR COALESCE(o.pay_code, '') ILIKE ${like})`
+            );
+        }
+
+        if (filters.from) {
+            params.push(filters.from);
+            conditions.push(`p.received_at >= $${params.length}`);
+        }
+        if (filters.to) {
+            params.push(filters.to);
+            conditions.push(`p.received_at <= $${params.length}`);
+        }
+
+        const whereClause = `WHERE ${conditions.join(' AND ')}`;
+        const joins = `FROM payments p LEFT JOIN orders o ON o.id = p.order_id`;
+
+        const countRes = await db.query(`SELECT COUNT(*)::int AS total ${joins} ${whereClause}`, params);
+        const total = Number(countRes.rows[0]?.total ?? 0);
+
+        const listParams = [...params, limit, offset];
+        const res = await db.query(
+            `SELECT p.*
+             ${joins}
+             ${whereClause}
+             ORDER BY p.received_at DESC
+             LIMIT $${listParams.length - 1} OFFSET $${listParams.length}`,
+            listParams
+        );
+
+        return { duplicates: res.rows.map(r => this.mapPayment(r)), total };
+    }
+
+    async findOrdersByIds(ids: string[]): Promise<Map<string, Order>> {
+        const map = new Map<string, Order>();
+        const unique = Array.from(new Set((ids || []).filter((id): id is string => isUuid(id))));
+        if (unique.length === 0) return map;
+
+        const res = await db.query('SELECT * FROM orders WHERE id = ANY($1::uuid[])', [unique]);
+        for (const r of res.rows) {
+            const order = this.mapOrder(r);
+            map.set(order.id, order);
+        }
+        return map;
     }
 
     async findUnmatchedPaymentById(id: string): Promise<UnmatchedPayment | null> {
@@ -495,15 +633,7 @@ export class PostgresBillingStorage implements IBillingStorage {
         const res = await db.query(
             `SELECT * FROM payments WHERE result = 'duplicate' ORDER BY received_at DESC LIMIT 100`
         );
-        return res.rows.map(r => ({
-            id: r.id,
-            order_id: r.order_id,
-            sepay_ref: r.sepay_ref,
-            amount_vnd: r.amount_vnd,
-            raw: r.raw,
-            received_at: new Date(r.received_at).toISOString(),
-            result: r.result,
-        }));
+        return res.rows.map(r => this.mapPayment(r));
     }
 
     async findRefundBySource(sourceType: RefundSourceType, sourceId: string): Promise<Refund | null> {
@@ -708,6 +838,33 @@ export class PostgresBillingStorage implements IBillingStorage {
             expires_at: new Date(r.expires_at).toISOString(),
             claimed_at: r.claimed_at ? new Date(r.claimed_at).toISOString() : null,
             paid_at: r.paid_at ? new Date(r.paid_at).toISOString() : null,
+            created_at: new Date(r.created_at).toISOString(),
+        };
+    }
+
+    private mapPayment(r: any): Payment {
+        return {
+            id: r.id,
+            order_id: r.order_id,
+            sepay_ref: r.sepay_ref,
+            amount_vnd: r.amount_vnd,
+            raw: r.raw,
+            received_at: new Date(r.received_at).toISOString(),
+            result: r.result,
+        };
+    }
+
+    private mapUnmatched(r: any): UnmatchedPayment {
+        return {
+            id: r.id,
+            sepay_ref: r.sepay_ref,
+            amount_vnd: r.amount_vnd,
+            content: r.content,
+            raw: r.raw,
+            status: r.status,
+            admin_note: r.admin_note,
+            resolved_by: r.resolved_by,
+            resolved_at: r.resolved_at ? new Date(r.resolved_at).toISOString() : null,
             created_at: new Date(r.created_at).toISOString(),
         };
     }
@@ -1000,6 +1157,79 @@ export class InMemoryBillingStorage implements IBillingStorage {
         return Array.from(this.payments.values())
             .filter(p => p.result === 'duplicate')
             .sort((a, b) => b.received_at.localeCompare(a.received_at));
+    }
+
+    async listUnmatchedPaymentsForAdmin(filters: AdminUnmatchedQuery = {}): Promise<AdminUnmatchedPage> {
+        const { limit, offset } = normalizeListPaging(
+            filters,
+            ADMIN_PAYMENTS_DEFAULT_LIMIT,
+            ADMIN_PAYMENTS_MAX_LIMIT
+        );
+
+        const status = filters.status && filters.status !== 'all' ? filters.status : undefined;
+        const search = (filters.search || '').trim().toLowerCase();
+        const fromTs = filters.from ? new Date(filters.from).getTime() : NaN;
+        const toTs = filters.to ? new Date(filters.to).getTime() : NaN;
+
+        const list = Array.from(this.unmatched.values())
+            .filter((u) => {
+                if (status && u.status !== status) return false;
+                const ts = new Date(u.created_at).getTime();
+                if (!Number.isNaN(fromTs) && ts < fromTs) return false;
+                if (!Number.isNaN(toTs) && ts > toTs) return false;
+                if (search) {
+                    const haystack = [u.sepay_ref, u.content, u.admin_note, String(u.amount_vnd)]
+                        .filter(Boolean)
+                        .join(' ')
+                        .toLowerCase();
+                    if (!haystack.includes(search)) return false;
+                }
+                return true;
+            })
+            .sort((a, b) => b.created_at.localeCompare(a.created_at));
+
+        return { unmatched: list.slice(offset, offset + limit), total: list.length };
+    }
+
+    async listDuplicatePaymentsForAdmin(filters: AdminDuplicateQuery = {}): Promise<AdminDuplicatePage> {
+        const { limit, offset } = normalizeListPaging(
+            filters,
+            ADMIN_PAYMENTS_DEFAULT_LIMIT,
+            ADMIN_PAYMENTS_MAX_LIMIT
+        );
+
+        const search = (filters.search || '').trim().toLowerCase();
+        const fromTs = filters.from ? new Date(filters.from).getTime() : NaN;
+        const toTs = filters.to ? new Date(filters.to).getTime() : NaN;
+
+        const list = Array.from(this.payments.values())
+            .filter((p) => {
+                if (p.result !== 'duplicate') return false;
+                const ts = new Date(p.received_at).getTime();
+                if (!Number.isNaN(fromTs) && ts < fromTs) return false;
+                if (!Number.isNaN(toTs) && ts > toTs) return false;
+                if (search) {
+                    const orderPayCode = p.order_id ? this.orders.get(p.order_id)?.pay_code : undefined;
+                    const haystack = [p.sepay_ref, String(p.amount_vnd), orderPayCode]
+                        .filter(Boolean)
+                        .join(' ')
+                        .toLowerCase();
+                    if (!haystack.includes(search)) return false;
+                }
+                return true;
+            })
+            .sort((a, b) => b.received_at.localeCompare(a.received_at));
+
+        return { duplicates: list.slice(offset, offset + limit), total: list.length };
+    }
+
+    async findOrdersByIds(ids: string[]): Promise<Map<string, Order>> {
+        const map = new Map<string, Order>();
+        for (const id of new Set((ids || []).filter(Boolean))) {
+            const order = this.orders.get(id);
+            if (order) map.set(order.id, order);
+        }
+        return map;
     }
 
     async findRefundBySource(sourceType: RefundSourceType, sourceId: string): Promise<Refund | null> {

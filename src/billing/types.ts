@@ -42,6 +42,47 @@ export interface AdminOrderPage {
     total: number;
 }
 
+/**
+ * Bộ lọc + phân trang cho danh sách giao dịch chưa khớp đơn (unmatched).
+ *
+ * `search` khớp mã giao dịch SePay, nội dung chuyển khoản, ghi chú và số tiền.
+ * `from`/`to` là ISO timestamp lọc theo `created_at`.
+ */
+export interface AdminUnmatchedQuery {
+    status?: string;
+    search?: string;
+    from?: string;
+    to?: string;
+    page?: number;
+    limit?: number;
+}
+
+/** Kết quả phân trang của danh sách giao dịch chưa khớp. */
+export interface AdminUnmatchedPage {
+    unmatched: UnmatchedPayment[];
+    total: number;
+}
+
+/**
+ * Bộ lọc + phân trang cho danh sách giao dịch trùng lặp (duplicate).
+ *
+ * `search` khớp mã giao dịch SePay, mã đơn gốc (pay_code) và số tiền.
+ * `from`/`to` là ISO timestamp lọc theo `received_at`.
+ */
+export interface AdminDuplicateQuery {
+    search?: string;
+    from?: string;
+    to?: string;
+    page?: number;
+    limit?: number;
+}
+
+/** Kết quả phân trang của danh sách giao dịch trùng lặp. */
+export interface AdminDuplicatePage {
+    duplicates: Payment[];
+    total: number;
+}
+
 export type PaymentResult = 'matched' | 'duplicate' | 'underpaid' | 'overpaid' | 'unmatched';
 
 export interface Payment {

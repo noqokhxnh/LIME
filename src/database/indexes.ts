@@ -37,6 +37,9 @@ CREATE INDEX IF NOT EXISTS idx_payments_result_received_at
 -- ------------------------------------------------------------------
 CREATE INDEX IF NOT EXISTS idx_unmatched_status_created_at
     ON unmatched_payments (status, created_at DESC);
+-- Khi lọc "tất cả trạng thái" vẫn sắp xếp theo thời gian mới nhất trước.
+CREATE INDEX IF NOT EXISTS idx_unmatched_created_at
+    ON unmatched_payments (created_at DESC);
 
 -- ------------------------------------------------------------------
 -- refunds: lịch sử hoàn tiền mới nhất trước
@@ -97,6 +100,13 @@ CREATE INDEX IF NOT EXISTS idx_users_username_trgm
     ON users USING gin (username gin_trgm_ops);
 CREATE INDEX IF NOT EXISTS idx_unmatched_content_trgm
     ON unmatched_payments USING gin (content gin_trgm_ops);
+
+-- Tìm giao dịch theo mã SePay (khớp chuỗi con ILIKE); điều kiện khớp chính xác
+-- đã dùng chỉ mục UNIQUE có sẵn, chỉ mục trigram bổ sung cho phần khớp chuỗi con.
+CREATE INDEX IF NOT EXISTS idx_unmatched_sepay_ref_trgm
+    ON unmatched_payments USING gin (sepay_ref gin_trgm_ops);
+CREATE INDEX IF NOT EXISTS idx_payments_sepay_ref_trgm
+    ON payments USING gin (sepay_ref gin_trgm_ops);
 
 -- Tìm kiếm nhật ký kiểm toán theo action (ILIKE '%...%')
 CREATE INDEX IF NOT EXISTS idx_audit_logs_action_trgm
