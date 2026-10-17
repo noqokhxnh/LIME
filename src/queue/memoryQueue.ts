@@ -2,6 +2,7 @@ import { EventEmitter } from 'node:events';
 import { IVideoQueue, JobData, JobRecord, JobProgress, JobUpdate } from './interfaces.js';
 import { type fullPipelineResult } from '../pipeline/orchestrator.js';
 import { hashString32, parseSeedSafe } from '../pipeline/rng.js';
+import { systemSettings } from '../admin/systemSettings.js';
 
 export const memoryQueueEvents = new EventEmitter();
 
@@ -21,8 +22,15 @@ export class MemoryQueue implements IVideoQueue {
     private cancelRequested = new Set<string>();
     private isProcessing = false;
     private handler?: (data: JobData, updateProgress: (p: JobProgress) => Promise<void>) => Promise<fullPipelineResult>;
-    // Allow up to 2 concurrent jobs
-    private maxConcurrency = 2;
+    /**
+     * Số job chạy song song tối đa — lấy theo cài đặt quản trị (`maxConcurrentJobs`).
+     * Đọc mỗi lần pump nên thay đổi trong trang Cài đặt có hiệu lực ngay, không cần
+     * khởi động lại. Trước đây giá trị này bị viết cứng là 2.
+     */
+    private get maxConcurrency(): number {
+        const configured = Math.round(Number(systemSettings.get().maxConcurrentJobs));
+        return Number.isFinite(configured) && configured > 0 ? configured : 2;
+    }
     private activeJobs = 0;
 
     public events = memoryQueueEvents;
