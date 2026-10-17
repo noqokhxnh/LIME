@@ -1,4 +1,5 @@
 import { videoScript } from "../llm/schema.js";
+import * as acorn from "acorn";
 
 export type ViolationType =
   | "MATH_RANDOM"
@@ -6,7 +7,10 @@ export type ViolationType =
   | "DATE_CONSTRUCTOR_NOW"
   | "PERFORMANCE_NOW"
   | "REQUEST_ANIMATION_FRAME"
-  | "NON_DETERMINISTIC_TIMER";
+  | "NON_DETERMINISTIC_TIMER"
+  | "LAYOUT_THRASHING"
+  | "UNPAUSED_TIMELINE"
+  | "OVERLAPPING_TWEEN";
 
 export interface LintViolation {
   type: ViolationType;
