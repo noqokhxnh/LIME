@@ -188,6 +188,7 @@ export async function runFullPipeline(option: orchestratorOptions): Promise<full
                 voice: request.voice,
                 ttsProvider: request.ttsProvider,
                 language: request.language,
+                targetDurationSec: request.targetDurationSec,
                 onProgress: (msg, prog) => {
                     const scaledProg = prog !== undefined ? Math.round(45 + prog * 0.2) : 50;
                     logProgress("audio_synthesis", scaledProg, msg);

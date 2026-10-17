@@ -10,6 +10,7 @@ import {
     formatSelectedCatalogPrompt,
     formatStorySpinePrompt,
 } from "../templates/prompt.js";
+import { allocateBeats } from "../templates/storySpine.js";
 import { sleep } from "./retry.js";
 
 import { readFileSync } from "node:fs";
@@ -27,15 +28,41 @@ const VIDEO_PRESETS: Record<string, string> = {
 };
 
 /**
- * Maximum total narration words (summed over every scene's voiceOverText)
- * that fit inside `targetDurationSec` at the estimator's speaking rate.
- * Keeps ~20% headroom for punctuation pauses, per-scene padding and TTS variance
- * so the script passes the orchestrator's "estimated <= 150% of target" guard.
- * Uses the shared wordsPerMinute() from estimateDuration.ts — single source of truth.
+ * Số từ lý thuyết cho `sec` giây ở tốc độ `wpm`, nhân hệ số `ratio`.
+ * Làm tròn 6 chữ số trước khi floor/round để tránh sai số dấu phẩy động
+ * (ví dụ 30s tiếng Anh: 0.72 * 30 * 150 / 60 = 53.99999999999999).
+ */
+function narrationWords(sec: number, wpm: number, ratio: number): number {
+    return Number(((sec * ratio * wpm) / 60).toFixed(6));
+}
+
+/**
+ * Số từ narration mục tiêu để TTS đọc gần đúng `targetDurationSec`.
+ * Trước đây chỉ có một "trần" nhân 0.8 nên LLM luôn viết thiếu, khiến video
+ * ngắn hơn nhiều so với mục tiêu (đặt 90s ra 35s).
+ * Dùng chung wordsPerMinute() từ estimateDuration.ts — một nguồn sự thật duy nhất.
+ */
+export function narrationWordTarget(targetDurationSec: number, language?: string): number {
+    const wpm = wordsPerMinute(language);
+    return Math.max(10, Math.round(narrationWords(targetDurationSec, wpm, 0.9)));
+}
+
+/**
+ * Cận dưới khuyến nghị: dưới mức này kịch bản bị coi là thiếu lời thoại, pipeline
+ * ghi cảnh báo và phải bù khoảng lặng (làm giảm chất lượng video).
+ */
+export function narrationWordFloor(targetDurationSec: number, language?: string): number {
+    const wpm = wordsPerMinute(language);
+    return Math.max(10, Math.floor(narrationWords(targetDurationSec, wpm, 0.72)));
+}
+
+/**
+ * Trần an toàn (≈ tốc độ đọc thuần) để không đẩy tổng thời lượng vượt xa mục tiêu,
+ * vẫn nằm dưới ngưỡng chặn "estimated <= 150% of target".
  */
 export function narrationWordBudget(targetDurationSec: number, language?: string): number {
     const wpm = wordsPerMinute(language);
-    return Math.max(10, Math.floor((targetDurationSec * 0.8 * wpm) / 60));
+    return Math.max(10, Math.floor(narrationWords(targetDurationSec, wpm, 1.0)));
 }
 
 export function buildUserPrompt(request: videoRequest, preset: string): string {
@@ -49,6 +76,10 @@ export function buildUserPrompt(request: videoRequest, preset: string): string {
     });
     const catalogSummary = formatCatalogSummaryForPrompt(request.style);
     const wordBudget = narrationWordBudget(request.targetDurationSec, request.language);
+    const wordTarget = narrationWordTarget(request.targetDurationSec, request.language);
+    const wordFloor = narrationWordFloor(request.targetDurationSec, request.language);
+    const sceneCount = Math.max(1, allocateBeats(request.targetDurationSec).length);
+    const perSceneWords = Math.max(8, Math.round(wordTarget / sceneCount));
 
     return `Create a high-quality video script with the following requirements:
 Topic/Prompt: ${request.prompt}
@@ -82,10 +113,11 @@ ${catalogSummary}
 4. Motion Blocks:
    - For complex UI (IDE, charts, device mockups, chat), prefer window.__block(...) instead of hand-rolled DOM.
    - Always leave a .block-mount node in htmlCode when using __block.
-5. Narration Word Budget (HARD LIMIT — the pipeline rejects oversized scripts):
-   - The TOTAL narration across ALL scenes (sum of every scene's voiceOverText) must be ≤ ${wordBudget} words.
-   - At the target speaking rate this fits the ${request.targetDurationSec}s target with headroom for pauses and per-scene padding.
-   - Prefer fewer, punchier sentences over long explanations. If the topic needs more words, shorten — never exceed the budget.
+5. Narration Word Budget (BOTH a floor and a ceiling):
+   - The TOTAL narration across ALL scenes (sum of every scene's voiceOverText) MUST be between ${wordFloor} and ${wordBudget} words.
+   - Aim for about ${wordTarget} words total (≈ ${perSceneWords} words per scene across ~${sceneCount} scenes) so the spoken audio actually fills the ${request.targetDurationSec}s target.
+   - Falling below ${wordFloor} words is under-delivery: the video then gets padded with silence, which looks and sounds worse. Expand the explanation instead of shortening it.
+   - Prefer fewer, punchier sentences, but never drop below the floor.
 
 Remember to output ONLY valid JSON matching the schema, with GSAP animation code included.`;
 }
@@ -163,6 +195,19 @@ export async function generateScript(
                 throw new Error(
                     `Estimated duration (${estimated.totalDurationSec}s) exceeds target (${request.targetDurationSec}s) by more than 50%. Narration word count was too high — condense voiceOverText to fit the target duration.`
                 );
+            }
+            // Guard cận dưới: trước đây chỉ chặn vượt trần nên kịch bản thiếu lời thoại
+            // vẫn "đạt" và video ra ngắn hơn mục tiêu. Không ném lỗi ở đây (sẽ loại bỏ
+            // cả kịch bản ngắn nhưng hợp lệ và phá luồng QA reroll); thay vào đó cảnh báo
+            // rõ ràng — bước bù khoảng lặng ở synthesizeAudio lo phần đảm bảo độ dài.
+            if (estimated.totalDurationSec < request.targetDurationSec * 0.7) {
+                const floorWords = narrationWordFloor(request.targetDurationSec, request.language);
+                const targetWords = narrationWordTarget(request.targetDurationSec, request.language);
+                const warning =
+                    `Kịch bản ước lượng ${estimated.totalDurationSec.toFixed(1)}s, thấp hơn nhiều so với mục tiêu ` +
+                    `${request.targetDurationSec}s (cần ~${targetWords} từ, tối thiểu ~${floorWords} từ).`;
+                console.warn(`[Script] Cảnh báo cận dưới: ${warning}`);
+                onProgress?.(`[Script] Cảnh báo cận dưới: ${warning} Pipeline sẽ bù khoảng lặng nếu còn trong ngưỡng an toàn.`);
             }
 
             onProgress?.(`[Script] Attempt ${attempt}/3 - success`);

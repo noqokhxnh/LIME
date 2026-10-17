@@ -630,6 +630,51 @@ export async function generateSilence(outputPath: string, durationSec: number): 
 
 // ---------------------------------------------------------------- Main
 
+/**
+ * Bù khoảng lặng vào CUỐI video để tổng thời lượng cảnh khớp `targetDurationSec`.
+ *
+ * Toàn bộ phần thiếu được gộp vào cảnh CUỐI: giữ nguyên tương phản độ dài giữa các
+ * cảnh nên không phá luật nhịp điệu của Oracle QA (CV >= 0.3, ratio shot dài/ngắn >= 4),
+ * đồng thời lời thoại của mọi cảnh vẫn phát trọn vẹn nên timing karaoke không đổi.
+ *
+ * Bỏ qua (trả về nguyên trạng, `applied = false`) khi:
+ *  - không có cảnh / không có target, hoặc thiếu quá ít (< `minDeficitSec`), hoặc
+ *  - narration quá ngắn (< `minCoverageRatio` × target): lúc đó bù khoảng lặng sẽ biến
+ *    video thành gần như im lặng — trường hợp này để prompt và cảnh báo cận dưới lo.
+ */
+export function padScenesToTarget(
+    sceneDurations: durationMap,
+    targetDurationSec: number,
+    options?: { minDeficitSec?: number; minCoverageRatio?: number }
+): {
+    paddedDurations: durationMap;
+    tailGapSec: number;
+    lastSceneId: string | null;
+    deficitSec: number;
+    applied: boolean;
+} {
+    const ids = Object.keys(sceneDurations);
+    const currentTotal = ids.reduce((acc, id) => acc + (sceneDurations[id] || 0), 0);
+    const deficitSec = Math.round((targetDurationSec - currentTotal) * 100) / 100;
+    const minDeficitSec = options?.minDeficitSec ?? 0.25;
+    const minCoverageRatio = options?.minCoverageRatio ?? 0.25;
+
+    const applied =
+        ids.length > 0 &&
+        targetDurationSec > 0 &&
+        deficitSec >= minDeficitSec &&
+        currentTotal >= targetDurationSec * minCoverageRatio;
+
+    if (!applied) {
+        return { paddedDurations: { ...sceneDurations }, tailGapSec: 0, lastSceneId: null, deficitSec, applied: false };
+    }
+
+    const lastSceneId = ids[ids.length - 1];
+    const paddedDurations: durationMap = { ...sceneDurations };
+    paddedDurations[lastSceneId] = Math.round(((sceneDurations[lastSceneId] || 0) + deficitSec) * 100) / 100;
+    return { paddedDurations, tailGapSec: deficitSec, lastSceneId, deficitSec, applied: true };
+}
+
 export interface AudioSynthesisOptions {
     script: videoScript;
     outputDir: string;
@@ -637,6 +682,8 @@ export interface AudioSynthesisOptions {
     voice?: string;
     language?: string;
     bgmVolume?: number;
+    /** Thời lượng mục tiêu (giây) — bù khoảng lặng khi narration ngắn hơn mục tiêu. */
+    targetDurationSec?: number;
     ttsProvider?: 'edge' | 'elevenlabs' | 'openai' | 'google' | 'vieneu' | string;
     onProgress?: (message: string, progress?: number) => void;
     signal?: AbortSignal;
@@ -648,7 +695,7 @@ export interface AudioSynthesisOptions {
  * sceneDurations từ đây là nguồn sự thật cho timing animation.
  */
 export async function synthesizeAudio(options: AudioSynthesisOptions): Promise<AudioResult> {
-    const { script, outputDir, bgmPath, voice, language = "vi", bgmVolume = 0.15, ttsProvider, onProgress, signal } = options;
+    const { script, outputDir, bgmPath, voice, language = "vi", bgmVolume = 0.15, ttsProvider, targetDurationSec, onProgress, signal } = options;
 
     if (script.scenes.length === 0) {
         throw new Error("Script has no scenes to synthesize");
@@ -714,14 +761,34 @@ export async function synthesizeAudio(options: AudioSynthesisOptions): Promise<A
         );
     }
 
+    // Bù khoảng lặng để tổng thời lượng khớp mục tiêu (video không ngắn hơn mức đặt trước).
+    const target = targetDurationSec ?? 0;
+    const padding = padScenesToTarget(sceneDurations, target);
+    if (padding.applied && padding.lastSceneId) {
+        sceneDurations[padding.lastSceneId] = padding.paddedDurations[padding.lastSceneId];
+        onProgress?.(
+            `[Audio] Narration ngắn hơn mục tiêu ${padding.deficitSec.toFixed(1)}s — bù khoảng lặng ở cảnh cuối để đủ ${target}s`,
+            84
+        );
+    } else if (target > 0 && padding.deficitSec >= 0.25) {
+        onProgress?.(
+            `[Audio] Cảnh báo: narration chỉ đạt ${(target - padding.deficitSec).toFixed(1)}s/${target}s — quá ngắn để bù an toàn, giữ nguyên độ dài thực.`,
+            84
+        );
+    }
+
     onProgress?.("Đang nối các đoạn âm thanh thành track hoàn chỉnh", 85);
     const fullVoicePath = join(outputDir, "full_voice.mp3");
+
+    const concatFiles: string[] = script.scenes.map((s) => audioFiles[s.id]);
+    if (padding.applied && padding.tailGapSec > 0.01) {
+        const tailGapPath = join(audioDir, "tail__gap.mp3");
+        await generateSilence(tailGapPath, padding.tailGapSec);
+        concatFiles.push(tailGapPath);
+    }
+
     await withRetry(
-        () =>
-            concatAudios(
-                script.scenes.map((s) => audioFiles[s.id]),
-                fullVoicePath
-            ),
+        () => concatAudios(concatFiles, fullVoicePath),
         {
             maxAttempts: 2,
             signal,
