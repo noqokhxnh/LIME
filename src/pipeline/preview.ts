@@ -147,6 +147,10 @@ export async function launchPreviewBrowser(): Promise<Browser> {
             "--hide-scrollbars",
             "--disable-web-security",
             "--allow-file-access-from-files",
+            // Issue #40: CDP BeginFrame capture — cho phép điều khiển chu kỳ
+            // composite một cách nguyên tử qua HeadlessExperimental.beginFrame
+            "--enable-begin-frame-control",
+            "--run-all-compositor-stages-before-draw",
         ],
     });
 }
