@@ -2,31 +2,12 @@ name: Pipeline Tests (heavy)
 
 # Nhóm test nặng: mở Chromium thật, ghép video bằng ffmpeg hoặc chạy trọn pipeline
 # nhiều lần (xem scripts/run-unit-tests.ts). Nhóm này mất hàng chục phút nên KHÔNG
-# chạy cho mọi PR — chỉ chạy khi PR đụng tới vùng liên quan, theo lịch đêm, hoặc
-# khi chạy thủ công.
+# chạy cho PR thường ngày — chỉ khi PR vào `main` (mốc phát hành), theo lịch đêm,
+# hoặc khi chạy thủ công.
 on:
   pull_request:
     branches:
       - main
-      - dev
-    paths:
-      - "src/pipeline/**"
-      - "src/queue/**"
-      - "src/llm/**"
-      - "src/security/**"
-      - "src/index.ts"
-      - "src/worker.ts"
-      - "src/config.ts"
-      - "tests/unit/orchestrator.test.ts"
-      - "tests/unit/security.test.ts"
-      - "tests/unit/api.test.ts"
-      - "tests/unit/queue.test.ts"
-      - "tests/unit/preview.test.ts"
-      - "tests/unit/spec_*.test.ts"
-      - "scripts/run-unit-tests.ts"
-      - "package.json"
-      - "package-lock.json"
-      - ".github/workflows/pipeline-tests.yml"
   schedule:
     # 17:00 UTC = 00:00 giờ Việt Nam, mỗi ngày.
     - cron: "0 17 * * *"
@@ -38,10 +19,15 @@ concurrency:
 
 jobs:
   heavy:
-    name: Run Heavy Unit Tests
+    name: Heavy Unit Tests (shard ${{ matrix.shard }}/3)
     runs-on: ubuntu-latest
-    # Nhóm nặng mất ~5,5 phút trên máy phát triển; runner CI yếu hơn nhiều lần.
-    timeout-minutes: 60
+    # Chia 3 lát chạy song song; mỗi lát vẫn cần dư thời gian vì runner CI yếu hơn
+    # máy phát triển nhiều lần.
+    timeout-minutes: 90
+    strategy:
+      fail-fast: false
+      matrix:
+        shard: [1, 2, 3]
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
@@ -95,4 +81,4 @@ jobs:
 
       - name: Run Heavy Unit Tests
         # Không cấu hình service PostgreSQL ⇒ suite chạy ở chế độ in-memory.
-        run: npm run test:unit:heavy
+        run: npx tsx scripts/run-unit-tests.ts heavy:${{ matrix.shard }}
