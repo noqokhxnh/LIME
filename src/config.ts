@@ -93,6 +93,10 @@ export { envSchema };
 let _config: Config | null = null;
 export function getConfig(): Config {
     if (!_config) {
+        // Chấp nhận cả TTS_PROVIDER (chuẩn ALL_CAPS trong .env/docker) lẫn TTS_Provider (schema cũ)
+        if (!process.env.TTS_Provider && process.env.TTS_PROVIDER) {
+            process.env.TTS_Provider = process.env.TTS_PROVIDER;
+        }
         const result = envSchema.safeParse(process.env);
         if (!result.success) {
             throw new Error(`Configuration error: ${result.error.message}`);
