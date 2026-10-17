@@ -32,6 +32,18 @@ export const boundarySchema = z
     );
 export type Boundary = z.infer<typeof boundarySchema>;
 
+export const characterActionItemSchema = z.object({
+    characterId: z.string(),
+    action: z.enum(['enter', 'walk', 'run', 'idle', 'emote', 'exit']),
+    tStart: z.number().min(0),
+    tEnd: z.number().min(0),
+    emote: z.enum(['happy', 'sad', 'surprised', 'angry', 'thinking']).optional(),
+    position: z.object({ x: z.number(), y: z.number() }).optional(),
+    scale: z.number().optional(),
+    direction: z.enum(['left', 'right']).optional(),
+});
+export type CharacterActionItem = z.infer<typeof characterActionItemSchema>;
+
 export const sceneSchema = z.object({
     id: z.string(),
     title: z.string(),
@@ -50,6 +62,7 @@ export const sceneSchema = z.object({
         })
         .optional(),
     subject: z.string().optional(),
+    characterActions: z.array(characterActionItemSchema).optional(),
 });
 
 export type scene = z.infer<typeof sceneSchema>;
