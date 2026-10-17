@@ -159,7 +159,30 @@ Across the sequence of scenes (when script has ≥ 2 scenes):
 - **Near-Still Breathing Beat**: Script MUST have at least ONE near-still section lasting `≥ 1.5s` (declared via scene `nearStill: { from: number, to: number }` with `(to - from) >= 1.5` or specified in `visualDescription`).
 - **Anti-Uniform Cadence**: Cấm nhịp đều đơn điệu. Hệ số biến thiên độ dài cảnh $CV = \text{stdDev} / \text{mean} \ge 0.3$.
 
-## 8. OUTPUT FORMAT
+## 8. PROCEDURAL CHARACTERS (SPEC F CONTRACT)
+
+When narrative or explanatory context benefits from a human anchor, character guide, or presenter, scenes can declare `characterActions[]`:
+- `characterId`: Unique identifier (e.g. `"guide"`, `"narrator"`, `"hero"`). Deterministic avatar appearance is automatically derived from `(seed, characterId)`.
+- `action`:
+  * `"enter"`: Character enters stage into position from offscreen (`direction`: `"left"` or `"right"`).
+  * `"walk"` / `"run"`: Locomotion moves across stage.
+  * `"idle"`: Standing resting pose with natural breathing and subtle sway.
+  * `"emote"`: Expresses emotion on face and body gestures (`"happy"`, `"sad"`, `"surprised"`, `"angry"`, `"thinking"`). Zero external image assets; rendered procedurally.
+  * `"exit"`: Character moves outward offscreen.
+- `tStart` and `tEnd`: Action timing interval in seconds (e.g. `tStart: 0.0, tEnd: 2.0`).
+- `position`: Coordinates `{ x: number, y: number }` (default center bottom around `{ x: 960, y: 720 }`).
+- `scale`: Scaling factor (default 1.0).
+- `direction`: `"left"` or `"right"` (facing direction).
+- Example:
+```json
+"characterActions": [
+  { "characterId": "guide", "action": "enter", "tStart": 0.0, "tEnd": 1.2, "position": { "x": 480, "y": 750 }, "direction": "right" },
+  { "characterId": "guide", "action": "emote", "tStart": 1.2, "tEnd": 3.0, "emote": "happy", "position": { "x": 480, "y": 750 }, "direction": "right" },
+  { "characterId": "guide", "action": "exit", "tStart": 3.0, "tEnd": 4.5, "position": { "x": 480, "y": 750 }, "direction": "right" }
+]
+```
+
+## 9. OUTPUT FORMAT
 You MUST respond with a single valid JSON object matching this exact schema. DO NOT include any markdown explanations, commentary, or text outside the JSON.
 
 ```json
@@ -181,7 +204,17 @@ You MUST respond with a single valid JSON object matching this exact schema. DO 
             "transition": "fade|slide-left|slide-right|slide-up|zoom-in|zoom-out|none",
             "backgroundColor": "#0b0c10",
             "duration": 2.5,
-            "nearStill": { "from": 1.0, "to": 2.8 }
+            "nearStill": { "from": 1.0, "to": 2.8 },
+            "characterActions": [
+                {
+                    "characterId": "guide",
+                    "action": "enter",
+                    "tStart": 0.0,
+                    "tEnd": 1.0,
+                    "position": { "x": 480, "y": 750 },
+                    "direction": "right"
+                }
+            ]
         },
         {
             "id": "scene_2",
