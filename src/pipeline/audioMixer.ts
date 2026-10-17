@@ -183,10 +183,14 @@ export async function masterAudio(
         ? ["-c:a", "pcm_s16le"]
         : ["-c:a", "libmp3lame", "-b:a", "192k"];
 
+    // Issue #27: Voice Clarity Filter — high-pass (loại bỏ ồn trầm) + de-esser (giảm chói âm xì)
+    // Áp dụng trước loudnorm để tín hiệu sạch trước khi chuẩn hóa
+    const clarityFilter = "highpass=f=80,deesser";
+    
     await execFile("ffmpeg", [
         "-y",
         "-i", inputAudioPath,
-        "-af", `loudnorm=I=${targetLufs}:TP=${truePeak}:LRA=${lra},aformat=sample_rates=${sampleRate}:channel_layouts=stereo`,
+        "-af", `${clarityFilter},loudnorm=I=${targetLufs}:TP=${truePeak}:LRA=${lra},aformat=sample_rates=${sampleRate}:channel_layouts=stereo`,
         ...codecArgs,
         outputPath,
     ]);
