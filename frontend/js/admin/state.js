@@ -89,6 +89,8 @@ export const AdminState = {
             status: 'all',
             role: 'all',
             tier: 'all',
+            sortBy: this.defaults.sortBy,
+            sortOrder: this.defaults.sortOrder,
             page: 1
         });
     },
