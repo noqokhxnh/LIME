@@ -9,6 +9,8 @@ import { auditLog } from '../../src/security/auditLog.js';
 import { pageViewTracker } from '../../src/security/pageViewTracker.js';
 import { maintenanceTracker } from '../../src/admin/maintenanceTracker.js';
 import { setLLMClientFactory, resetLLMClientFactory } from '../../src/llm/client.js';
+import { initDatabase, db } from '../../src/database/index.js';
+import { getConfig } from '../../src/config.js';
 
 describe('Admin, Profile, and Settings Test Suite', () => {
     let app: FastifyInstance;
@@ -16,16 +18,44 @@ describe('Admin, Profile, and Settings Test Suite', () => {
     let userToken: string;
 
     const ADMIN_ID = '00000000-0000-4000-a000-000000000001';
-    const NORMAL_USER_ID = 'user-test-uuid-001';
+    // Phải là UUID hợp lệ: cột `users.id` là kiểu UUID nên ở chế độ PostgreSQL thật
+    // (job `postgres` trong CI) một id kiểu 'user-test-uuid-001' bị PostgreSQL từ chối
+    // ⇒ người dùng không tồn tại và endpoint danh sách người dùng trả về rỗng.
+    const NORMAL_USER_ID = '00000000-0000-4000-a000-000000000002';
 
     before(async () => {
+        const config = getConfig();
+        if (config.DATABASE_URL) {
+            // Cổng quản trị đọc danh sách người dùng từ PostgreSQL chứ không đọc cache bộ
+            // nhớ, nên ở chế độ PostgreSQL thật phải có sẵn hai hàng dữ liệu này. Trước đây
+            // file này là test admin DUY NHẤT không tự tạo người dùng ⇒ trên một database
+            // rỗng (đúng như job `postgres` trong CI) nó chỉ thấy dữ liệu do test khác chạy
+            // song song chèn vào, nên lúc đỏ lúc xanh tuỳ thứ tự chạy.
+            await initDatabase();
+            // Dùng ĐÚNG danh tính mà `userStore` tự tạo trong bộ nhớ (xem SUPER_ADMIN_UUID /
+            // ADMIN_EMAIL trong src/admin/userStore.ts): nhiều file test khác cũng dùng
+            // ADMIN_ID này và đối chiếu email, nên hai chế độ phải khớp nhau.
+            await db.query(
+                `INSERT INTO users (id, username, email, password_hash, role, tier, credits, total_credits, status)
+                 VALUES ($1, 'khanh2k5xxx', 'khanh2k5xxx@gmail.com', NULL, 'admin', 'enterprise', 10000, 10000, 'active')
+                 ON CONFLICT DO NOTHING`,
+                [ADMIN_ID],
+            );
+            await db.query(
+                `INSERT INTO users (id, username, email, password_hash, role, tier, credits, total_credits, status)
+                 VALUES ($1, 'lime_normal_test', 'lime_normal_test@lime.test', NULL, 'user', 'free', 15, 20, 'active')
+                 ON CONFLICT DO NOTHING`,
+                [NORMAL_USER_ID],
+            );
+        }
+
         const { getQueue } = await import('../../src/queue/index.js');
         const queue = await getQueue();
         queue.startListeners();
         app = await buildApp({ queue, logger: false });
         await app.ready();
 
-        // Setup test user
+        // Setup test user (đường dùng cho chế độ in-memory)
         await userStore.upsertUser({
             id: NORMAL_USER_ID,
             role: 'user',
