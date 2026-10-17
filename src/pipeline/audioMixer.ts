@@ -147,7 +147,7 @@ export async function applySharedReverb(
             "-y",
             "-i", inputAudioPath,
             "-i", tempIrPath,
-            "-filter_complex", `[0:a]aformat=sample_rates=44100:channel_layouts=stereo,asplit=2[dry_in][wet_in];[dry_in]volume=${dry}[dry];[wet_in][1:a]afir=irnorm=1[reverb];[reverb]volume=${wet}[wet];[dry][wet]amix=inputs=2:duration=first:dropout_transition=0:normalize=0[out]`,
+            "-filter_complex", `[0:a]aformat=sample_rates=44100:channel_layouts=stereo,asplit=2[dry_in][wet_in];[dry_in]volume=${dry}[dry];[wet_in][1:a]afir[reverb];[reverb]volume=${wet}[wet];[dry][wet]amix=inputs=2:duration=first:dropout_transition=0:normalize=0[out]`,
             "-map", "[out]",
             "-c:a", "pcm_s16le",
             outputPath,
