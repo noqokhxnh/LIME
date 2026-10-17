@@ -210,6 +210,31 @@ async function renderFrameData(
     return frameToPipe;
 }
 
+async function waitForDrain(ff: ChildProcess, errorOutput: string, getError: () => Error | null): Promise<void> {
+    await new Promise<void>((resolve, reject) => {
+        const onDrain = () => {
+            cleanup();
+            resolve();
+        };
+        const onClose = () => {
+            cleanup();
+            reject(getError() || new Error(`ffmpeg closed before drain: ${errorOutput.slice(-500)}`));
+        };
+        const onError = (err: Error) => {
+            cleanup();
+            reject(err);
+        };
+        const cleanup = () => {
+            ff.stdin?.off("drain", onDrain);
+            ff.off("close", onClose);
+            ff.off("error", onError);
+        };
+        ff.stdin?.once("drain", onDrain);
+        ff.once("close", onClose);
+        ff.once("error", onError);
+    });
+}
+
 /**
  * Render frames from GSAP animated HTML page using Playwright Chromium
  * and encode/mux into an MP4 video using ffmpeg image2pipe with parallel chunking.
@@ -444,15 +469,7 @@ export async function renderVideo(options: RenderVideoOptions): Promise<string> 
                                     Buffer.from(frameToPipe.buffer, frameToPipe.byteOffset, frameToPipe.byteLength)
                                 );
                                 if (!canWrite) {
-                                    await Promise.race([
-                                        new Promise((r) => ff.stdin.once("drain", r)),
-                                        new Promise((_, rej) =>
-                                            ff.once("close", () =>
-                                                rej(ffError || new Error(`ffmpeg closed before drain: ${errorOutput.slice(-500)}`))
-                                            )
-                                        ),
-                                        new Promise((_, rej) => ff.once("error", rej)),
-                                    ]);
+                                    await waitForDrain(ff, errorOutput, () => ffError);
                                 }
                             } else {
                                 break;
@@ -628,15 +645,7 @@ export async function renderVideo(options: RenderVideoOptions): Promise<string> 
                                         Buffer.from(frameToPipe.buffer, frameToPipe.byteOffset, frameToPipe.byteLength)
                                     );
                                     if (!canWrite) {
-                                        await Promise.race([
-                                            new Promise((r) => ff.stdin.once("drain", r)),
-                                            new Promise((_, rej) =>
-                                                ff.once("close", () =>
-                                                    rej(ffError || new Error(`ffmpeg closed before drain: ${errorOutput.slice(-500)}`))
-                                                )
-                                            ),
-                                            new Promise((_, rej) => ff.once("error", rej)),
-                                        ]);
+                                        await waitForDrain(ff, errorOutput, () => ffError);
                                     }
                                 } else {
                                     break;
