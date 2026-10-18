@@ -17,6 +17,7 @@ import { startBillingCron, stopBillingCron } from "./billing/cron.js";
 import { getQueue } from "./queue/index.js";
 import { processVideoJob } from "./queue/handler.js";
 import { IVideoQueue } from "./queue/interfaces.js";
+import { resolveJobVideoPath } from "./queue/jobVideo.js";
 import { validatePrompt } from "./security/promptGuard.js";
 import { rateLimiter } from "./security/rateLimiter.js";
 import { validateUploadedFile, generateSafeFilePath } from "./security/uploadGuard.js";
@@ -713,7 +714,7 @@ export async function buildApp(options: { logger?: boolean, queue?: IVideoQueue 
     app.get("/api/jobs/:jobId/video", async (request: FastifyRequest<{ Params: { jobId: string } }>, reply: FastifyReply) => {
         const { jobId } = request.params;
         const job = await queue.getJob(jobId);
-        const videoPath = job?.result?.videoPath ?? join(process.cwd(), "tmp", `job-${jobId}`, "final_video.mp4");
+        const videoPath = resolveJobVideoPath(job, jobId);
         if (!existsSync(videoPath)) {
             reply.status(404);
             return { error: "Video file not found for job" };
@@ -751,7 +752,7 @@ export async function buildApp(options: { logger?: boolean, queue?: IVideoQueue 
     app.get("/api/jobs/:jobId/download", async (request: FastifyRequest<{ Params: { jobId: string } }>, reply: FastifyReply) => {
         const { jobId } = request.params;
         const job = await queue.getJob(jobId);
-        const videoPath = job?.result?.videoPath ?? join(process.cwd(), "tmp", `job-${jobId}`, "final_video.mp4");
+        const videoPath = resolveJobVideoPath(job, jobId);
         if (!existsSync(videoPath)) {
             reply.status(404);
             return { error: "Video file not found for job" };
