@@ -249,12 +249,12 @@ export const AnnouncementsView = {
         if (!tbody) return;
 
         if (!items || items.length === 0) {
-            tbody.innerHTML = `<tr><td colspan="7">${EmptyState.render({
+            tbody.innerHTML = EmptyState.rowHtml(7, {
                 title: 'Chưa có thông báo nào',
                 description: 'Tạo thông báo đầu tiên để hiển thị banner tới toàn bộ người dùng.',
                 actionText: 'Tạo thông báo',
-                onAction: () => this.openForm(null),
-            })}</td></tr>`;
+            });
+            EmptyState.bindAction(tbody, () => this.openForm(null));
             return;
         }
 

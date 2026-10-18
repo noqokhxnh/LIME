@@ -5,7 +5,7 @@
 
 import { AdminApi } from './api.js';
 import { AdminState } from './state.js';
-import { Toast, Drawer, Pagination, Skeleton, EmptyState } from './components.js';
+import { Toast, Drawer, Pagination, Skeleton, EmptyState, AlertBanner } from './components.js';
 
 const STATUS_OPTIONS = [
     { value: 'open', label: 'Mới' },
@@ -235,7 +235,11 @@ export const TicketsView = {
             this.renderTable(res.items || []);
             this.renderPagination(res.page, res.totalPages, res.total);
         } catch (err) {
-            tbody.innerHTML = `<tr><td colspan="8" class="text-center" style="padding: 30px; color: #ef4444;">${escapeHtml(err.message)}</td></tr>`;
+            tbody.innerHTML = AlertBanner.rowHtml(8, {
+                title: 'Không tải được danh sách yêu cầu hỗ trợ',
+                message: err.message
+            });
+            AlertBanner.bindRetry(tbody, () => this.fetchAndRender());
         }
     },
 
@@ -258,10 +262,10 @@ export const TicketsView = {
         if (!tbody) return;
 
         if (!items || items.length === 0) {
-            tbody.innerHTML = `<tr><td colspan="8">${EmptyState.render({
+            tbody.innerHTML = EmptyState.rowHtml(8, {
                 title: 'Chưa có yêu cầu hỗ trợ nào',
                 description: 'Các yêu cầu người dùng gửi từ widget "Hỗ trợ" sẽ xuất hiện tại đây.',
-            })}</td></tr>`;
+            });
             return;
         }
 

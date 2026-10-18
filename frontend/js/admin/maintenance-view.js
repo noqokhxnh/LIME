@@ -333,10 +333,10 @@ export const MaintenanceView = {
         if (!tbody) return;
 
         if (!items || items.length === 0) {
-            tbody.innerHTML = `<tr><td colspan="7">${EmptyState.render({
+            tbody.innerHTML = EmptyState.rowHtml(7, {
                 title: 'Không có nhật ký nào',
-                message: 'Chưa có lượt truy cập nào trong thời gian máy chủ tắt hoặc bảo trì.',
-            })}</td></tr>`;
+                description: 'Chưa có lượt truy cập nào trong thời gian máy chủ tắt hoặc bảo trì.',
+            });
             return;
         }
 

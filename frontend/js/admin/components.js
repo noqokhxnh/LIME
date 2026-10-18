@@ -141,10 +141,9 @@ export const Skeleton = {
 
 // 6. EMPTY STATE
 export const EmptyState = {
-    render({ title = 'Không tìm thấy dữ liệu', description = 'Thử thay đổi bộ lọc hoặc từ khóa tìm kiếm.', actionText = 'Đặt lại bộ lọc', onAction }) {
-        const container = document.createElement('div');
-        container.className = 'empty-state';
-        container.innerHTML = `
+    /** Markup HTML — dùng khi cần nhúng vào innerHTML (ví dụ một hàng của bảng). */
+    markup({ title = 'Không tìm thấy dữ liệu', description = 'Thử thay đổi bộ lọc hoặc từ khóa tìm kiếm.', actionText = 'Đặt lại bộ lọc' } = {}) {
+        return `
             <div class="empty-state-icon">
                 <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.3-4.3"/></svg>
             </div>
@@ -152,13 +151,37 @@ export const EmptyState = {
             <div class="empty-state-desc">${description}</div>
             ${actionText ? `<button class="btn btn-secondary btn-reset-filter">${actionText}</button>` : ''}
         `;
+    },
+
+    render({ title = 'Không tìm thấy dữ liệu', description = 'Thử thay đổi bộ lọc hoặc từ khóa tìm kiếm.', actionText = 'Đặt lại bộ lọc', onAction } = {}) {
+        const container = document.createElement('div');
+        container.className = 'empty-state';
+        container.innerHTML = this.markup({ title, description, actionText });
 
         if (actionText && typeof onAction === 'function') {
             const btn = container.querySelector('.btn-reset-filter');
-            btn.onclick = onAction;
+            if (btn) btn.onclick = onAction;
         }
 
         return container;
+    },
+
+    /**
+     * Hàng bảng rỗng: `<tr><td colspan=N>…empty-state…</td></tr>`.
+     * `render()` trả về DOM element nên KHÔNG nội suy được vào template string
+     * (sẽ ra "[object HTMLDivElement]") — dùng hàm này cho `<tbody>`.
+     */
+    rowHtml(colspan, options = {}) {
+        const span = Number(colspan) || 1;
+        return `<tr><td colspan="${span}"><div class="empty-state">${this.markup(options)}</div></td></tr>`;
+    },
+
+    /** Gắn handler cho nút hành động trong vùng vừa ghi bằng rowHtml(). */
+    bindAction(scopeEl, onAction) {
+        if (!scopeEl) return null;
+        const btn = scopeEl.querySelector('.btn-reset-filter');
+        if (btn && typeof onAction === 'function') btn.addEventListener('click', onAction);
+        return btn;
     }
 };
 
