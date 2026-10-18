@@ -1,6 +1,9 @@
 import { describe, it, before, after } from 'node:test';
 import assert from 'node:assert/strict';
 import { randomUUID } from 'node:crypto';
+import { mkdirSync, writeFileSync, rmSync } from 'node:fs';
+import { join } from 'node:path';
+import { tmpdir } from 'node:os';
 import { type FastifyInstance } from 'fastify';
 import { buildApp } from '../../src/index.js';
 import { createTestSession } from '../../src/auth/session.js';
@@ -35,6 +38,10 @@ const RUN = `${Date.now().toString(36)}${Math.floor(Math.random() * 1e4).toStrin
 const TOKEN = `zq${RUN}x`;
 
 const config = getConfig();
+
+/** Tệp video giả có thật trên đĩa, để phân biệt "job ghi có video" với "tệp còn đó". */
+const VIDEO_DIR = join(tmpdir(), `lime-jobs-video-${RUN}`);
+const REAL_VIDEO_PATH = join(VIDEO_DIR, 'final_video.mp4');
 
 function pipelinePayload(prompt: string) {
     return {
@@ -88,6 +95,9 @@ describe('Admin Jobs Management Test Suite', () => {
             await initDatabase();
         }
 
+        mkdirSync(VIDEO_DIR, { recursive: true });
+        writeFileSync(REAL_VIDEO_PATH, Buffer.from([0x00, 0x00, 0x00, 0x18, 0x66, 0x74, 0x79, 0x70]));
+
         ownerId = randomUUID();
         if (config.DATABASE_URL) {
             await db.query(
@@ -122,6 +132,14 @@ describe('Admin Jobs Management Test Suite', () => {
                     qaReport: { jobId: data.jobId, qaStatus: 'fail', valid: false, degraded: true, errors: ['[RHYTHM] Lỗi nhịp điệu'], warnings: [] },
                 } as any;
             }
+            if (String(data.request?.prompt || '').includes('__withvideo__')) {
+                // Video được ghi ở nơi khác (máy khác) — tệp thật vẫn tồn tại trên máy này.
+                return { jobId: data.jobId, durationSec: 8, videoPath: REAL_VIDEO_PATH, qaStatus: 'pass' } as any;
+            }
+            if (String(data.request?.prompt || '').includes('__gonevideo__')) {
+                // Bản ghi ghi có video nhưng tệp không còn (đã bị dọn khỏi tmp / render ở máy khác).
+                return { jobId: data.jobId, durationSec: 8, videoPath: join(VIDEO_DIR, 'da-bi-xoa', 'final_video.mp4'), qaStatus: 'pass' } as any;
+            }
             return { jobId: data.jobId, durationSec: 12, qaStatus: 'pass' } as any;
         });
 
@@ -131,6 +149,7 @@ describe('Admin Jobs Management Test Suite', () => {
 
     after(async () => {
         for (const resolve of blockedJobs.values()) resolve();
+        rmSync(VIDEO_DIR, { recursive: true, force: true });
         await app.close();
     });
 
@@ -438,6 +457,69 @@ describe('Admin Jobs Management Test Suite', () => {
 
         await new Promise((r) => setTimeout(r, 50));
         await queue.removeJob(jobId);
+    });
+
+    it('Phân biệt "job ghi có video" với "tệp video còn thật trên máy chủ"', async () => {
+        // Hai job được đưa thẳng vào hàng đợi (không qua HTTP) để không phụ thuộc
+        // hạn mức ngày của người dùng trong test.
+        const addFinishedJob = async (marker: string): Promise<string> => {
+            const jobId = randomUUID();
+            await queue.addJob(jobId, {
+                jobId,
+                userId: ownerId,
+                request: { ...pipelinePayload(`direct ${TOKEN} ${marker}`) } as any,
+                outputDir: join(VIDEO_DIR, `job-${jobId}`),
+            });
+            for (let i = 0; i < 60; i++) {
+                const job = await queue.getJob(jobId);
+                if (job && ['completed', 'failed', 'qa_failed'].includes(job.status)) break;
+                await new Promise((r) => setTimeout(r, 25));
+            }
+            return jobId;
+        };
+
+        // Một job có tệp thật trên máy này, một job chỉ ghi đường dẫn tới tệp
+        // không còn tồn tại (tệp đã bị dọn khỏi tmp, hoặc render ở máy khác).
+        const availableJob = await addFinishedJob('__withvideo__');
+        const goneJob = await addFinishedJob('__gonevideo__');
+
+        const list = await app.inject({
+            method: 'GET',
+            url: '/api/admin/jobs?status=all',
+            cookies: { vidtml_session: adminToken },
+        });
+        assert.strictEqual(list.statusCode, 200, list.body);
+        const byId = new Map<string, any>(list.json().jobs.map((j: any) => [j.jobId, j]));
+
+        const available = byId.get(availableJob);
+        assert.ok(available, 'Job có tệp thật phải nằm trong danh sách');
+        assert.strictEqual(available.hasVideo, true);
+        assert.strictEqual(available.videoAvailable, true, 'Tệp còn trên máy chủ thì videoAvailable phải là true');
+
+        const gone = byId.get(goneJob);
+        assert.ok(gone, 'Job mất tệp phải nằm trong danh sách');
+        assert.strictEqual(gone.hasVideo, true, 'Bản ghi hàng đợi vẫn ghi job này có video');
+        assert.strictEqual(gone.videoAvailable, false, 'Tệp không còn thì videoAvailable phải là false để giao diện không mời xem');
+
+        const detail = await app.inject({
+            method: 'GET',
+            url: `/api/admin/jobs/${goneJob}`,
+            cookies: { vidtml_session: adminToken },
+        });
+        assert.strictEqual(detail.statusCode, 200, detail.body);
+        assert.strictEqual(detail.json().result?.hasVideo, true);
+        assert.strictEqual(detail.json().result?.videoAvailable, false);
+
+        // Và route phục vụ tệp phải khớp với cờ trên: từ chối job mất tệp, phục vụ được job còn tệp.
+        const missingRes = await app.inject({ method: 'GET', url: `/api/jobs/${goneJob}/video` });
+        assert.strictEqual(missingRes.statusCode, 404, 'Job mất tệp phải trả 404');
+
+        const servingRes = await app.inject({ method: 'GET', url: `/api/jobs/${availableJob}/video` });
+        assert.strictEqual(servingRes.statusCode, 200, servingRes.body);
+        assert.strictEqual(servingRes.headers['content-type'], 'video/mp4');
+
+        await queue.removeJob(availableJob);
+        await queue.removeJob(goneJob);
     });
 });
 

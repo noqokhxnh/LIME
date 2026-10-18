@@ -47,6 +47,7 @@ import { createTTSClient } from "../pipeline/audioSysnthesis.js";
 import { getLLMClientFactory } from "../llm/client.js";
 import { videoScriptSchema, type videoScript } from "../llm/schema.js";
 import type { IVideoQueue, JobUpdate } from "../queue/interfaces.js";
+import { isJobVideoAvailable } from "../queue/jobVideo.js";
 import {
     isAllowedContainer,
     getContainersStatus,
@@ -1262,6 +1263,11 @@ export async function adminRoutes(app: FastifyInstance, opts?: { queue?: IVideoQ
             qaStatus: j.qaStatus ?? j.result?.qaStatus,
             degraded: Boolean(j.qaReport?.degraded ?? j.result?.qaReport?.degraded),
             hasVideo: Boolean(j.result?.videoPath || j.result?.mp4Path),
+            // `hasVideo` chỉ nói job từng render ra video; `videoAvailable` nói tệp
+            // còn thật trên máy chủ này hay không (tệp có thể đã bị dọn khỏi tmp,
+            // hoặc job được render ở máy khác). Giao diện chỉ nên mời xem khi tệp
+            // thực sự phục vụ được.
+            videoAvailable: isJobVideoAvailable(j),
             hasHtml: Boolean(j.result?.finalHtmlPath),
         }));
 
@@ -1308,6 +1314,7 @@ export async function adminRoutes(app: FastifyInstance, opts?: { queue?: IVideoQ
             result: job.result ? {
                 durationSec: job.result.durationSec,
                 hasVideo: Boolean(job.result.videoPath || job.result.mp4Path),
+                videoAvailable: isJobVideoAvailable(job),
                 hasHtml: Boolean(job.result.finalHtmlPath),
             } : null,
             queue: { state: job.status },

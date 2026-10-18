@@ -838,11 +838,30 @@ export const VideoPreview = {
             if (event.target === root || event.target.closest('[data-video-preview-close]')) this.close();
         });
 
-        // Tệp video có thể đã bị dọn khỏi thư mục tạm của server → báo rõ thay vì
-        // để khung player trống.
-        this.playerEl.addEventListener('error', () => {
+        // Thẻ <video> chỉ báo "error" chung chung, không nói vì sao: có thể tệp đã bị
+        // dọn khỏi thư mục tạm (404) hoặc trình duyệt không giải mã được tệp. Hỏi lại
+        // máy chủ một phát gọn (Range 0-0) để báo đúng nguyên nhân.
+        this.playerEl.addEventListener('error', async () => {
             if (!this.activeJobId || this.rootEl.hidden) return;
-            this.setStatus('Không tải được tệp video. Tệp có thể đã bị xoá khỏi thư mục tạm (tmp) của máy chủ hoặc job render ở máy khác.');
+            const jobId = this.activeJobId;
+            let fileMissing = false;
+            let checked = false;
+            try {
+                const res = await fetch(this.videoUrl(jobId), { headers: { Range: 'bytes=0-0' } });
+                fileMissing = res.status === 404;
+                checked = true;
+            } catch {
+                // Lỗi mạng thì giữ thông báo chung bên dưới.
+            }
+            // Người dùng có thể đã đóng cửa sổ hoặc mở job khác trong lúc chờ.
+            if (!this.activeJobId || this.rootEl.hidden || this.activeJobId !== jobId) return;
+            if (fileMissing) {
+                this.setStatus('Tệp video không còn trên máy chủ: đã bị xoá khỏi thư mục tạm (tmp) hoặc job được render ở máy khác. Hãy tạo lại video để có tệp mới.');
+            } else if (checked) {
+                this.setStatus('Trình duyệt không phát được tệp video này (định dạng hoặc chuẩn mã hoá chưa được hỗ trợ). Bạn vẫn có thể bấm "Tải video" rồi mở bằng trình phát khác.');
+            } else {
+                this.setStatus('Không tải được tệp video. Kiểm tra kết nối tới máy chủ rồi thử lại, hoặc bấm "Tải video" để tải trực tiếp.');
+            }
         });
         const clearStatus = () => {
             if (this.activeJobId && !this.rootEl.hidden) this.setStatus('');
