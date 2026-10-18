@@ -14,6 +14,7 @@ import { FailedPaymentsView } from './failed-payments-view.js';
 import { SettingsView } from './settings-view.js';
 import { LogsView } from './logs-view.js';
 import { MaintenanceView } from './maintenance-view.js';
+import { AnnouncementsView } from './announcements-view.js';
 
 export const AdminCore = {
     currentUser: null,
@@ -85,6 +86,7 @@ export const AdminCore = {
                 const maintTag = document.getElementById('nav-tag-maintenance');
                 const jobsTag = document.getElementById('nav-tag-jobs');
                 const ordersTag = document.getElementById('nav-tag-orders');
+                const annTag = document.getElementById('nav-tag-announcements');
 
                 if (usersTag && s.totalUsers !== undefined) usersTag.textContent = s.totalUsers;
                 if (viewsTag && s.views?.total !== undefined) viewsTag.textContent = s.views.total;
@@ -99,6 +101,15 @@ export const AdminCore = {
                         failedTag.textContent = um.total ?? (um.unmatched || []).length;
                     } catch {
                         failedTag.textContent = '-';
+                    }
+                }
+
+                if (annTag) {
+                    try {
+                        const ann = await AdminApi.getAnnouncements({ limit: 1 });
+                        annTag.textContent = ann.stats?.active ?? '-';
+                    } catch {
+                        annTag.textContent = '-';
                     }
                 }
             }
@@ -148,6 +159,11 @@ export const AdminCore = {
                 if (titleEl) titleEl.textContent = 'Khách truy cập khi tắt máy / bảo trì';
                 MaintenanceView.init(container);
                 this.currentView = MaintenanceView;
+                break;
+            case 'announcements':
+                if (titleEl) titleEl.textContent = 'Thông báo toàn hệ thống (Broadcast Banner)';
+                AnnouncementsView.init(container);
+                this.currentView = AnnouncementsView;
                 break;
             case 'jobs':
                 if (titleEl) titleEl.textContent = 'Quản lý Video Jobs';

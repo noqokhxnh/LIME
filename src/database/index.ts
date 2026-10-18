@@ -1,6 +1,6 @@
 import { Pool } from 'pg';
 import { getConfig } from '../config.js';
-import { AUTH_SQL, BRAND_KIT_SQL, BILLING_SQL } from './base.js';
+import { AUTH_SQL, BRAND_KIT_SQL, BILLING_SQL, ANNOUNCEMENT_SQL } from './base.js';
 import { initPerformanceIndexes } from './indexes.js';
 
 const config = getConfig();
@@ -25,6 +25,7 @@ export async function initDatabase(): Promise<void> {
     await db.query(AUTH_SQL);
     await db.query(BRAND_KIT_SQL);
     await db.query(BILLING_SQL);
+    await db.query(ANNOUNCEMENT_SQL);
     // Tối ưu truy vấn: tạo chỉ mục hiệu năng (idempotent, lỗi không chặn khởi động).
     await initPerformanceIndexes(db);
 }

@@ -24,6 +24,7 @@ import { getBrandKitByUserId, upsertBrandKit } from "./database/brandKit.js";
 import { getCatalog, listBlueprints, listMotionBlocks } from "./templates/index.js";
 import { adminRoutes } from "./admin/routes.js";
 import { systemSettings } from "./admin/systemSettings.js";
+import { announcementsStore } from "./admin/announcements.js";
 import { pageViewTracker } from "./security/pageViewTracker.js";
 import { db } from "./database/index.js";
 import { hashString32, parseSeedSafe } from "./pipeline/rng.js";
@@ -86,7 +87,8 @@ export async function buildApp(options: { logger?: boolean, queue?: IVideoQueue 
             const alwaysAllowed =
                 path.startsWith("/api/admin") ||
                 path.startsWith("/api/auth") ||
-                path === "/api/settings";
+                path === "/api/settings" ||
+                path === "/api/announcements";
             if (!alwaysAllowed) {
                 const user = await getCurrentUser(request);
                 if (user?.role !== "admin") {
@@ -252,6 +254,27 @@ export async function buildApp(options: { logger?: boolean, queue?: IVideoQueue 
                 llm: ["deepseek", "gemini", "claude", "openai", "9router"],
                 tts: ["edge", "vieneu", "openai", "google", "elevenlabs"],
             },
+        };
+    });
+
+    /**
+     * Banner thông báo toàn hệ thống — công khai cho cả khách chưa đăng nhập.
+     *
+     * Trả về các thông báo đang hiệu lực (đúng đối tượng người xem), kèm cờ
+     * `maintenanceMode` và `systemNotice` cũ để giao diện hiển thị banner bảo trì
+     * ngay cả khi admin bật chế độ bảo trì mà chưa tạo thông báo riêng.
+     */
+    app.get("/api/announcements", async (request: FastifyRequest, reply: FastifyReply) => {
+        const user = await getCurrentUser(request);
+        const sys = systemSettings.get();
+        const announcements = await announcementsStore.listPublic(user ? "user" : "guest");
+
+        reply.header("Cache-Control", "no-store");
+        return {
+            announcements,
+            legacyNotice: sys.systemNotice || "",
+            maintenanceMode: sys.maintenanceMode,
+            viewer: user ? "user" : "guest",
         };
     });
 
