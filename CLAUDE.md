@@ -93,7 +93,7 @@ Key Endpoints:
 - **Video Pipeline**: `POST /api/script/draft`, `POST /api/generate` (validates with zod, rate-limits 30/min per user, atomically reserves per-user quotas with `429`, returns UUID with `202`), `GET /api/jobs`, `GET /api/jobs/:id` (status + logs + result), `GET /api/jobs/:id/events` (SSE), `GET /api/jobs/:id/video` (range-supported stream), `GET /api/jobs/:id/download`, `GET /api/jobs/:id/preview/:sceneId`, `DELETE /api/jobs/:id`
 - **Brand Kit / Watermark**: `POST /api/brand-kit/upload` 🔒, `GET /api/user/brand-kit` 🔒, `PUT /api/user/brand-kit` 🔒
 - **VietQR Billing**: `GET /api/billing/plans`, `POST /api/billing/vietqr/order` 🔒, `GET /api/billing/vietqr/order/:id` 🔒, `POST /api/billing/vietqr/order/:id/claimed` 🔒, `POST /api/billing/vietqr/webhook` (and `/api/billing/webhook`), `POST /api/billing/admin/simulate-test-webhook` 🔒
-- **Admin Portal**: `GET /admin`, `/api/admin/users`, `/api/admin/orders`, `/api/admin/unmatched`, `/api/admin/refunds`, `/api/admin/settings`, `/api/admin/announcements`
+- **Admin Portal**: `GET /admin`, `/api/admin/stats`, `/api/admin/analytics` (dashboard SaaS metrics: MRR/ARR, ARPU, LTV, churn, trial→paid, signups, feature usage), `/api/admin/users`, `/api/admin/orders`, `/api/admin/unmatched`, `/api/admin/refunds`, `/api/admin/settings`, `/api/admin/announcements`
 - **System Broadcast Banner**: `GET /api/announcements` (public — active banners for all visitors) + `/api/admin/announcements` CRUD (store in `src/admin/announcements.ts`, rendered by `frontend/js/broadcast.js` on every storefront page; stays reachable while `maintenanceMode` is on)
 - **User Settings & Health**: `GET /api/settings`, `PUT /api/settings`, `GET /api/usage`, `GET /api/health`
 

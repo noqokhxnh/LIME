@@ -26,6 +26,7 @@ export const REPO_ROOT = join(dirname(fileURLToPath(import.meta.url)), '..');
 /** Test nhanh — chạy ở mọi PR (xem chú thích đầu file). */
 export const FAST: string[] = [
     'tests/unit/admin.test.ts',
+    'tests/unit/admin_analytics.test.ts',
     'tests/unit/admin_announcements.test.ts',
     'tests/unit/admin_audit_logs.test.ts',
     'tests/unit/admin_failed_payments.test.ts',

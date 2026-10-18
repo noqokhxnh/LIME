@@ -25,6 +25,8 @@ import {
 } from "./announcements.js";
 import { defaultTokenTracker } from "../usage/tokenTracker.js";
 import { billingStorage } from "../billing/storage.js";
+import type { Order, Plan } from "../billing/types.js";
+import { computeAnalytics, type AnalyticsJob, type DistributionItem } from "./analytics.js";
 import { getConfig } from "../config.js";
 import { db } from "../database/index.js";
 import { createTTSClient } from "../pipeline/audioSysnthesis.js";
@@ -506,6 +508,65 @@ export async function adminRoutes(app: FastifyInstance, opts?: { queue?: IVideoQ
                 nodeVersion: process.version,
             },
         };
+    });
+
+    // -------------------------------------------------------------
+    // 1b. DASHBOARD ANALYTICS (SaaS metrics)
+    // -------------------------------------------------------------
+    app.get("/api/admin/analytics", async (request: FastifyRequest, reply: FastifyReply) => {
+        const check = await verifyAdminUser(request);
+        if (!check.isAdmin) {
+            reply.status(403);
+            return { error: check.error };
+        }
+
+        const query = (request.query || {}) as { period?: string };
+        const period = query.period;
+
+        let users: Awaited<ReturnType<typeof userStore.listUsers>> = [];
+        try {
+            users = await userStore.listUsers();
+        } catch {
+            users = [];
+        }
+
+        let orders: Order[] = [];
+        try {
+            orders = await billingStorage.listOrders();
+        } catch {
+            orders = [];
+        }
+
+        let plans: Plan[] = [];
+        try {
+            plans = await billingStorage.getPlans();
+        } catch {
+            plans = [];
+        }
+
+        const queue = getQueue();
+        let jobs: AnalyticsJob[] = [];
+        try {
+            if (queue) {
+                const records = await queue.getJobs();
+                jobs = records.map((record) => ({ status: record.status, request: record.request }));
+            }
+        } catch {
+            jobs = [];
+        }
+
+        let topPages: DistributionItem[] = [];
+        try {
+            topPages = pageViewTracker.getStats(period || "30d").topPages.map((page) => ({
+                name: page.path,
+                count: page.count,
+                percentage: page.percentage,
+            }));
+        } catch {
+            topPages = [];
+        }
+
+        return computeAnalytics({ users, orders, plans, jobs, topPages, period });
     });
 
     // -------------------------------------------------------------

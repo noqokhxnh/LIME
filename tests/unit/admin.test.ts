@@ -272,6 +272,40 @@ describe('Admin, Profile, and Settings Test Suite', () => {
             assert.ok(body.stats.maintenance);
         });
 
+        it('Super Admin gọi GET /api/admin/analytics phải trả về các chỉ số SaaS', async () => {
+            const res = await app.inject({
+                method: 'GET',
+                url: '/api/admin/analytics?period=30d',
+                cookies: { vidtml_session: adminToken },
+            });
+            assert.strictEqual(res.statusCode, 200);
+            const body = JSON.parse(res.body);
+            assert.strictEqual(body.period, '30d');
+            assert.ok(body.kpi);
+            assert.ok(typeof body.kpi.mrrVnd === 'number');
+            assert.ok(typeof body.kpi.arrVnd === 'number');
+            assert.ok(typeof body.kpi.arpuVnd === 'number');
+            assert.ok(typeof body.kpi.ltvVnd === 'number');
+            assert.ok(typeof body.kpi.churnRate === 'number');
+            assert.ok(typeof body.kpi.trialToPaidRate === 'number');
+            assert.ok(body.signups);
+            assert.ok(Array.isArray(body.signups.series));
+            assert.ok(body.revenue);
+            assert.ok(body.churn);
+            assert.ok(body.conversion);
+            assert.ok(body.featureUsage);
+            assert.ok(Array.isArray(body.featureUsage.dimensions));
+        });
+
+        it('Người dùng thông thường gọi /api/admin/analytics phải bị 403 Forbidden', async () => {
+            const res = await app.inject({
+                method: 'GET',
+                url: '/api/admin/analytics',
+                cookies: { vidtml_session: userToken },
+            });
+            assert.strictEqual(res.statusCode, 403);
+        });
+
         it('Super Admin gọi GET /api/admin/users phải trả về danh sách người dùng', async () => {
             const res = await app.inject({
                 method: 'GET',
