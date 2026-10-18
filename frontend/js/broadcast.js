@@ -3,8 +3,9 @@
  *
  * Module tự chứa, dùng chung cho mọi trang (index/workspace/profile/settings/legal).
  * Nạp danh sách thông báo đang hiệu lực từ `GET /api/announcements` rồi render thành
- * chồng banner nổi ở đáy màn hình. Trạng thái "đã đóng" lưu ở localStorage (theo id +
- * phiên bản nội dung) nên khi admin sửa nội dung, banner sẽ hiện lại.
+ * lớp thông báo to nổi bật ở chính giữa màn hình (nền mờ giống modal). Trạng thái
+ * "đã đóng" lưu ở localStorage (theo id + phiên bản nội dung) nên khi admin sửa
+ * nội dung, thông báo sẽ hiện lại.
  *
  * Không phụ thuộc UI kit để có thể chạy cả ở trang công khai không nạp ui-kit.js.
  */
@@ -197,8 +198,18 @@
         var root = getRoot();
         root.innerHTML = '';
 
+        // Nền mờ phía sau, giúp thông báo ở giữa màn hình thật nổi bật.
+        var backdrop = document.createElement('div');
+        backdrop.className = 'lime-broadcast-backdrop';
+        root.appendChild(backdrop);
+
+        // Cột thông báo căn chính giữa màn hình (cả hai trục).
+        var stack = document.createElement('div');
+        stack.className = 'lime-broadcast-stack';
+        root.appendChild(stack);
+
         visible.forEach(function (item) {
-            root.appendChild(
+            stack.appendChild(
                 renderBanner(item, function (dismissedItem) {
                     var list = loadDismissed();
                     var sig = signature(dismissedItem);
@@ -206,7 +217,7 @@
                         list.push(sig);
                         saveDismissed(list);
                     }
-                    if (!root.children.length) root.remove();
+                    if (!stack.children.length) root.remove();
                 })
             );
         });
