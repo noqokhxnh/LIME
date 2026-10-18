@@ -5,7 +5,7 @@
 
 import { AdminApi } from './api.js';
 import { AdminState } from './state.js';
-import { Toast, ActionMenu, HealthDot } from './components.js';
+import { Toast, ActionMenu, HealthDot, EnhanceTable, TableDensity } from './components.js';
 import { UsersView } from './users-view.js';
 import { DashboardView } from './dashboard-view.js';
 import { ViewsView } from './views-view.js';
@@ -103,7 +103,30 @@ export const AdminCore = {
         this.bindMobileNav();
         this.bindSidebarCollapse();
         this.bindUserMenu();
+        this.bindTopbarMetrics();
         HealthDot.mount(document.getElementById('admin-health-badge'));
+        TableDensity.mount(document.getElementById('admin-density-toggle'));
+
+        // Nhãn cột + cột thao tác cho mọi bảng, kể cả bảng render sau khi đổi tab.
+        EnhanceTable.watchDocument();
+    },
+
+    /**
+     * Chiều cao topbar thay đổi theo bề rộng màn hình (tiêu đề có thể xuống dòng),
+     * nên đo thực tế và ghi vào biến CSS — đây là mốc dán của header bảng.
+     */
+    bindTopbarMetrics() {
+        const topbar = document.querySelector('.admin-topbar');
+        if (!topbar) return;
+
+        const sync = () => {
+            const height = Math.round(topbar.getBoundingClientRect().height);
+            if (height > 0) document.documentElement.style.setProperty('--admin-topbar-h', `${height}px`);
+        };
+
+        sync();
+        if (typeof ResizeObserver === 'function') new ResizeObserver(sync).observe(topbar);
+        else window.addEventListener('resize', sync);
     },
 
     /** Off-canvas navigation for viewports where the sidebar is hidden. */

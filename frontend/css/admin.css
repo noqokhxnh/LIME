@@ -1872,3 +1872,166 @@ body {
 .tk-reply-actions { display: flex; align-items: center; gap: 10px; }
 .tk-internal-note { display: inline-flex; align-items: center; gap: 6px; font-size: 12px; color: #475569; cursor: pointer; }
 .tk-internal-note input { width: 15px; height: 15px; accent-color: var(--lime); cursor: pointer; }
+
+/* ==========================================================================
+   Bảng dữ liệu — sticky header/cột thao tác, zebra, mật độ, card view mobile
+   ========================================================================== */
+:root {
+    /* Chiều cao topbar (JS cập nhật) — mốc dán của header bảng. */
+    --admin-topbar-h: 77px;
+    --zebra: #FAF9F4;
+}
+
+/* `.table-panel` phải bỏ `overflow: hidden`, nếu không nó trở thành scroll
+   container và header sticky sẽ đứng yên tại chỗ thay vì dán theo trang. */
+.table-panel { overflow: visible; }
+.table-wrapper { border-radius: var(--radius-lg) var(--radius-lg) 0 0; }
+
+/*
+ * `overflow-x: auto` khiến `.table-wrapper` trở thành scroll container ở CẢ hai
+ * trục (trục còn lại từ `visible` tự chuyển thành `auto`). Vì vậy `top` của
+ * header sticky phải là 0 — mốc dán là scrollport của chính wrapper, không phải
+ * topbar. Chiều cao tối đa dùng `--admin-topbar-h` (JS đo) để chừa chỗ cho
+ * topbar + pagination.
+ */
+.admin-table thead th {
+    position: sticky;
+    top: 0;
+    z-index: 3;
+}
+
+@media (min-width: 769px) {
+    .table-wrapper {
+        overflow: auto;
+        max-height: max(320px, calc(100dvh - var(--admin-topbar-h) - 140px));
+    }
+}
+
+.admin-table tbody tr:nth-child(even) { background: var(--zebra); }
+.admin-table tbody tr:hover,
+.admin-table tbody tr:nth-child(even):hover { background: var(--paper); }
+.admin-table tbody tr.row-selected,
+.admin-table tbody tr.row-selected:nth-child(even) { background: var(--soft); }
+
+/* Cột thao tác dán bên phải (khi cuộn ngang). Class do EnhanceTable gắn. */
+.admin-table th.col-actions,
+.admin-table td.col-actions {
+    position: sticky;
+    right: 0;
+    z-index: 2;
+    background: var(--card);
+    box-shadow: inset 1px 0 0 var(--line);
+}
+
+.admin-table thead th.col-actions { background: var(--paper); z-index: 4; }
+.admin-table tbody tr:nth-child(even) td.col-actions { background: var(--zebra); }
+.admin-table tbody tr:hover td.col-actions,
+.admin-table tbody tr:nth-child(even):hover td.col-actions { background: var(--paper); }
+.admin-table tbody tr.row-selected td.col-actions { background: var(--soft); }
+
+/* Hàng đặc biệt (rỗng / báo lỗi) không được dán. */
+.admin-table tr.alert-banner-row > td,
+.admin-table tr.empty-state-row > td { position: static; box-shadow: none; }
+
+/* ---------- mật độ bảng (nút trên topbar) ---------- */
+html[data-density="compact"] .admin-table th,
+html[data-density="compact"] .admin-table td { padding: 7px 12px; }
+html[data-density="compact"] .admin-table { font-size: 12.5px; }
+html[data-density="compact"] .user-avatar-sm { width: 28px; height: 28px; flex-basis: 28px; }
+
+/* ---------- mobile: bảng chuyển thành danh sách card ---------- */
+@media (max-width: 768px) {
+    .admin-table { border-collapse: separate; border-spacing: 0; font-size: 13px; }
+    .admin-table thead { display: none; }
+
+    /* Card không cần cuộn ngang: cho phép nội dung xuống dòng. */
+    .table-wrapper { overflow: visible; border-radius: var(--radius-lg); }
+
+    .admin-table tbody tr {
+        display: block;
+        border: 1px solid var(--line);
+        border-radius: var(--radius-md);
+        background: var(--card);
+        margin-bottom: 10px;
+        padding: 4px 12px;
+    }
+
+    .admin-table tbody tr:nth-child(even),
+    .admin-table tbody tr.row-selected { background: var(--card); }
+
+    .admin-table tbody td {
+        display: flex;
+        flex-wrap: wrap;
+        align-items: center;
+        justify-content: space-between;
+        gap: 4px 14px;
+        padding: 8px 0;
+        border: 0;
+        border-bottom: 1px dashed var(--line);
+        text-align: right;
+        position: static;
+        box-shadow: none;
+        min-width: 0;
+        /* `anywhere` (khác `break-word`) mới thu được min-content của flex item
+           ẩn danh, nhờ đó email/IP dài xuống dòng thay vì tràn khỏi card. */
+        overflow-wrap: anywhere;
+    }
+
+    .admin-table tbody td > * { min-width: 0; max-width: 100%; }
+
+    /* Bỏ nowrap của các thành phần vốn dành cho bảng ngang. */
+    .admin-table tbody td .user-name-line,
+    .admin-table tbody td .user-email-line {
+        white-space: normal;
+        overflow: visible;
+        text-overflow: clip;
+        word-break: break-word;
+    }
+
+    .admin-table tbody td .user-cell { justify-content: flex-end; }
+
+    .admin-table tbody td:last-child { border-bottom: 0; }
+
+    .admin-table tbody td::before {
+        content: attr(data-label);
+        flex: 0 0 auto;
+        font-size: 11px;
+        font-weight: 700;
+        letter-spacing: 0.05em;
+        text-transform: uppercase;
+        color: var(--muted);
+        text-align: left;
+    }
+
+    .admin-table tbody td:not([data-label])::before { content: none; }
+    .admin-table tbody td.col-actions { justify-content: flex-end; }
+
+    /* Hàng rỗng / báo lỗi giữ nguyên khối, không bọc card. */
+    .admin-table tbody tr.alert-banner-row,
+    .admin-table tbody tr.empty-state-row {
+        border: 0;
+        padding: 0;
+        margin: 0;
+        background: transparent;
+    }
+
+    .admin-table tbody tr.alert-banner-row > td,
+    .admin-table tbody tr.empty-state-row > td {
+        display: block;
+        padding: 0;
+        border: 0;
+        text-align: left;
+    }
+}
+
+/* Nút mật độ trên topbar */
+.topbar-density-toggle.is-active {
+    background: var(--soft);
+    border-color: var(--lime);
+    color: var(--lime-ink);
+}
+
+/* Card view mobile: nút thao tác gọn lại */
+@media (max-width: 768px) {
+    .admin-table td.col-actions .action-menu-container { margin: 0; }
+}

@@ -3,7 +3,7 @@
  */
 
 import { AdminApi } from './api.js';
-import { Toast, Drawer, ConfirmModal, Skeleton, EmptyState, AlertBanner } from './components.js';
+import { Toast, Drawer, ConfirmModal, Skeleton, EmptyState, AlertBanner, ActionMenu } from './components.js';
 
 export const JobsView = {
     containerEl: null,
@@ -122,24 +122,20 @@ export const JobsView = {
                         </div>
                     </td>
                     <td><span class="badge ${statusBadge}">${escapeHtml(j.status)}</span>${j.degraded ? ' <span class="badge badge-warning" title="QA thất bại nhưng vẫn render để có video — cần duyệt lại">suy giảm</span>' : ''}</td>
-                    <td style="text-align: center;">
-                        <div style="display: inline-flex; gap: 6px;">
-                            <button class="btn btn-secondary btn-sm view-job-btn" style="padding: 4px 8px; font-size: 11px;">Chi tiết</button>
-                            ${isRunning ? `<button class="btn btn-danger btn-sm cancel-job-btn" style="padding: 4px 8px; font-size: 11px;">Hủy</button>` : ''}
-                            ${(isFailed || isCancelled) ? `<button class="btn btn-secondary btn-sm retry-job-btn" style="padding: 4px 8px; font-size: 11px;">Thử lại</button>` : ''}
-                        </div>
-                    </td>
+                    <td style="text-align: center;" class="job-actions-cell"></td>
                 `;
 
-                tr.querySelector('.view-job-btn').onclick = () => this.openJobDrawer(j);
-                const cancelBtn = tr.querySelector('.cancel-job-btn');
-                if (cancelBtn) {
-                    cancelBtn.onclick = () => this.handleCancelJob(jobId);
+                const actionsCell = tr.querySelector('.job-actions-cell');
+                const menuItems = [
+                    { label: 'Xem chi tiết', onClick: () => this.openJobDrawer(j) }
+                ];
+                if (isRunning) {
+                    menuItems.push({ label: 'Hủy job', danger: true, onClick: () => this.handleCancelJob(jobId) });
                 }
-                const retryBtn = tr.querySelector('.retry-job-btn');
-                if (retryBtn) {
-                    retryBtn.onclick = () => this.handleRetryJob(jobId);
+                if (isFailed || isCancelled) {
+                    menuItems.push({ label: 'Chạy lại', onClick: () => this.handleRetryJob(jobId) });
                 }
+                actionsCell.appendChild(ActionMenu.create(menuItems));
 
                 tbody.appendChild(tr);
             });

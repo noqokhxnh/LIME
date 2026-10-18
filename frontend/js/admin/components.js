@@ -173,7 +173,7 @@ export const EmptyState = {
      */
     rowHtml(colspan, options = {}) {
         const span = Number(colspan) || 1;
-        return `<tr><td colspan="${span}"><div class="empty-state">${this.markup(options)}</div></td></tr>`;
+        return `<tr class="empty-state-row"><td colspan="${span}"><div class="empty-state">${this.markup(options)}</div></td></tr>`;
     },
 
     /** Gắn handler cho nút hành động trong vùng vừa ghi bằng rowHtml(). */
@@ -235,6 +235,156 @@ export const AlertBanner = {
         const btn = scopeEl.querySelector('.alert-banner-retry');
         if (btn && typeof onRetry === 'function') btn.addEventListener('click', onRetry);
         return btn;
+    }
+};
+
+// 6c. TABLE ENHANCER — nhãn cột cho card view mobile + cột thao tác dán bên phải
+export const EnhanceTable = {
+    _tables: new WeakSet(),
+    _docObserver: null,
+    _rafId: null,
+
+    /**
+     * Gắn `data-label` (nhãn cột, dùng cho card view trên mobile) và đánh dấu
+     * cột thao tác (dán bên phải khi cuộn ngang).
+     *
+     * Bỏ qua các "hàng đặc biệt" chỉ có 1 ô (colspan) như hàng rỗng / hàng lỗi —
+     * nếu không chúng sẽ bị coi là cột thao tác và dán sai.
+     */
+    annotate(table) {
+        if (!table || !table.querySelector) return;
+
+        const headCells = Array.from(table.querySelectorAll('thead th'));
+        if (headCells.length === 0) return;
+
+        const labels = headCells.map((th) => (th.textContent || '').replace(/\s+/g, ' ').trim());
+        const actionIndex = labels.findIndex((label) => /^(thao tác|hành động|actions?)$/i.test(label));
+
+        headCells.forEach((th, i) => {
+            th.classList.toggle('col-actions', i === actionIndex);
+        });
+
+        table.querySelectorAll('tbody tr').forEach((tr) => {
+            const cells = tr.querySelectorAll(':scope > td');
+            if (cells.length <= 1) {
+                // Hàng colspan (empty state / alert banner): không gắn nhãn, không dán.
+                cells.forEach((td) => { td.classList.remove('col-actions'); });
+                return;
+            }
+            cells.forEach((td, i) => {
+                const label = labels[i];
+                if (label && td.dataset.label !== label) td.dataset.label = label;
+                td.classList.toggle('col-actions', i === actionIndex);
+            });
+        });
+    },
+
+    /** Idempotent: theo dõi mọi `.admin-table` hiện có và tự chạy lại khi bảng đổi. */
+    observe(root = document) {
+        root.querySelectorAll('.admin-table').forEach((table) => {
+            if (this._tables.has(table)) return;
+            this._tables.add(table);
+            this.annotate(table);
+
+            const tbody = table.querySelector('tbody');
+            if (!tbody) return;
+            new MutationObserver(() => this.scheduleAnnotate(table)).observe(tbody, {
+                childList: true,
+                subtree: true
+            });
+        });
+    },
+
+    /** Gộp nhiều lần render liên tiếp vào một lần quét trong khung hình kế tiếp. */
+    scheduleAnnotate(table) {
+        if (this._rafId) cancelAnimationFrame(this._rafId);
+        this._rafId = requestAnimationFrame(() => {
+            this._rafId = null;
+            this.annotate(table);
+            this.scheduleFit();
+        });
+    },
+
+    /** Theo dõi cả những bảng được thêm vào DOM sau (khi đổi tab). */
+    watchDocument() {
+        if (this._docObserver) {
+            this.observe();
+        } else {
+            this._docObserver = new MutationObserver(() => {
+                this.observe();
+                this.scheduleFit();
+            });
+            this._docObserver.observe(document.body, { childList: true, subtree: true });
+        }
+
+        window.addEventListener('resize', () => this.scheduleFit());
+        this.observe();
+        this.scheduleFit();
+    },
+
+    /**
+     * Cắt chiều cao `.table-wrapper` theo vị trí thật của nó để phần phân trang
+     * luôn nằm trong màn hình đầu — nhờ đó `thead` dán được mà vẫn thấy trang.
+     */
+    fitToViewport() {
+        document.querySelectorAll('.table-wrapper').forEach((wrapper) => {
+            const documentOffset = wrapper.getBoundingClientRect().top + window.scrollY;
+            if (!documentOffset) return;
+            const reserve = 104; // phân trang + đệm đáy
+            const maxHeight = Math.max(280, Math.round(window.innerHeight - documentOffset - reserve));
+            wrapper.style.maxHeight = `${maxHeight}px`;
+        });
+    },
+
+    scheduleFit() {
+        if (this._fitRafId) cancelAnimationFrame(this._fitRafId);
+        this._fitRafId = requestAnimationFrame(() => {
+            this._fitRafId = null;
+            this.fitToViewport();
+        });
+    }
+};
+
+// 6d. TABLE DENSITY — chuyển mật độ bảng (thoáng / gọn), ghi nhớ trong localStorage
+export const TableDensity = {
+    key: 'admin_table_density',
+    _value: 'comfortable',
+
+    get() {
+        return this._value;
+    },
+
+    isCompact() {
+        return this._value === 'compact';
+    },
+
+    /** Gắn nút bật/tắt mật độ vào topbar. */
+    mount(button) {
+        if (!button) return;
+
+        let stored = null;
+        try { stored = localStorage.getItem(this.key); } catch {}
+        if (stored === 'compact' || stored === 'comfortable') this._value = stored;
+        this.apply();
+
+        button.addEventListener('click', () => {
+            this._value = this.isCompact() ? 'comfortable' : 'compact';
+            this.apply();
+            try { localStorage.setItem(this.key, this._value); } catch {}
+        });
+    },
+
+    apply() {
+        const compact = this.isCompact();
+        document.documentElement.dataset.density = this._value;
+
+        const button = document.getElementById('admin-density-toggle');
+        if (button) {
+            button.setAttribute('aria-pressed', String(compact));
+            button.title = compact ? 'Mật độ: gọn (bấm để chuyển sang thoáng)' : 'Mật độ: thoáng (bấm để chuyển sang gọn)';
+            button.setAttribute('aria-label', button.title);
+            button.classList.toggle('is-active', compact);
+        }
     }
 };
 
