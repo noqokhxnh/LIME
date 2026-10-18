@@ -25,6 +25,7 @@ const TAB_GROUPS = {
     views: 'Quản lý nghiệp vụ',
     maintenance: 'Quản lý nghiệp vụ',
     announcements: 'Quản lý nghiệp vụ',
+    tickets: 'Quản lý nghiệp vụ',
     jobs: 'Quản lý nghiệp vụ',
     orders: 'Quản lý nghiệp vụ',
     'failed-payments': 'Quản lý nghiệp vụ',
