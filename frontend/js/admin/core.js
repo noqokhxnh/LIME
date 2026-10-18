@@ -18,6 +18,7 @@ import { MaintenanceView } from './maintenance-view.js';
 import { AnnouncementsView } from './announcements-view.js';
 import { TicketsView } from './tickets-view.js';
 import { DockerLogsView } from './docker-logs-view.js';
+import { RefundsView } from './refunds-view.js';
 
 /** Nhóm điều hướng cho breadcrumb — khớp nhãn nhóm trong sidebar. */
 const TAB_GROUPS = {
@@ -27,6 +28,7 @@ const TAB_GROUPS = {
     maintenance: 'Quản lý nghiệp vụ',
     announcements: 'Quản lý nghiệp vụ',
     tickets: 'Quản lý nghiệp vụ',
+    refunds: 'Quản lý nghiệp vụ',
     jobs: 'Quản lý nghiệp vụ',
     orders: 'Quản lý nghiệp vụ',
     'failed-payments': 'Quản lý nghiệp vụ',
@@ -334,6 +336,11 @@ export const AdminCore = {
                 if (titleEl) titleEl.textContent = 'Yêu cầu hỗ trợ (Helpdesk)';
                 TicketsView.init(container);
                 this.currentView = TicketsView;
+                break;
+            case 'refunds':
+                if (titleEl) titleEl.textContent = 'Yêu cầu hoàn tiền';
+                RefundsView.init(container);
+                this.currentView = RefundsView;
                 break;
             case 'jobs':
                 if (titleEl) titleEl.textContent = 'Quản lý Video Jobs';

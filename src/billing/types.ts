@@ -188,7 +188,14 @@ export interface OrderStatusResponse {
     plan_expires_at?: string | null;
 }
 
-export type RefundSourceType = 'unmatched' | 'duplicate';
+/**
+ * Nguồn của một bút toán hoàn tiền:
+ *  - `unmatched`: giao dịch chuyển khoản không khớp đơn nào;
+ *  - `duplicate`: giao dịch trùng lặp (khách chuyển 2 lần);
+ *  - `refund_request`: hoàn theo yêu cầu người dùng gửi từ widget Hỗ trợ
+ *    (`source_id` là ID ticket, không phải ID giao dịch).
+ */
+export type RefundSourceType = 'unmatched' | 'duplicate' | 'refund_request';
 
 export interface Refund {
     id: string;

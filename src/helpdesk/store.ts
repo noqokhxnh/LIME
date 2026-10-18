@@ -15,7 +15,7 @@ import { getConfig } from "../config.js";
  * Kho hoạt động ở hai chế độ giống `announcementsStore`: PostgreSQL khi có
  * `DATABASE_URL`, nếu không thì lùi về tệp JSON `data/tickets.json` (dev/test).
  */
-export const TICKET_CATEGORIES = ["bug", "feature_request", "billing", "account", "render", "other"] as const;
+export const TICKET_CATEGORIES = ["bug", "feature_request", "billing", "account", "render", "refund", "other"] as const;
 export type TicketCategory = (typeof TICKET_CATEGORIES)[number];
 
 export const TICKET_PRIORITIES = ["low", "normal", "high", "urgent"] as const;
@@ -70,6 +70,91 @@ export interface Ticket {
 export interface TicketWithMessages extends Ticket {
     messages: TicketMessage[];
 }
+
+/**
+ * Trạng thái xử lý của một yêu cầu hoàn tiền.
+ *
+ * Đây là "vòng đời nghiệp vụ" riêng, tách khỏi trạng thái hội thoại của ticket
+ * (`TicketStatus`): hội thoại nói việc hai bên đang trao đổi, còn trạng thái này
+ * nói tiền đã được duyệt/chuyển hay chưa. Cả hai cùng nằm trên một ticket để
+ * người dùng theo dõi ngay trong widget Hỗ trợ.
+ */
+export const REFUND_STATUSES = ["pending", "approved", "rejected", "refunded"] as const;
+export type RefundStatus = (typeof REFUND_STATUSES)[number];
+
+/** Số liệu tổng hợp theo trạng thái hoàn tiền, dùng cho thẻ KPI ở cổng quản trị. */
+export interface RefundStats {
+    total: number;
+    pending: number;
+    approved: number;
+    rejected: number;
+    refunded: number;
+}
+
+/**
+ * Dữ liệu một yêu cầu hoàn tiền, lưu ở `tickets.context.refund`.
+ *
+ * Không thêm bảng mới: yêu cầu hoàn tiền là một ticket danh mục `refund`, nhờ vậy
+ * tái dùng nguyên hạ tầng sẵn có (hội thoại, ảnh đính kèm, thông báo, tab Hỗ trợ).
+ * Số tiền và mã đơn do máy chủ điền lại từ đơn hàng thật, không tin dữ liệu client.
+ */
+export interface RefundRequestPayload {
+    orderId: string;
+    payCode: string;
+    planId: string | null;
+    planName: string | null;
+    amountVnd: number;
+    /** Trạng thái đơn hàng tại thời điểm gửi yêu cầu (để đối chiếu về sau). */
+    orderStatus: string;
+    bankCode: string;
+    bankName: string;
+    bankAccount: string;
+    accountHolder: string | null;
+    reason: string;
+    status: RefundStatus;
+    adminNote: string | null;
+    reviewedBy: string | null;
+    reviewedAt: string | null;
+    /** ID bút toán trong bảng `refunds` khi đã chuyển tiền hoàn. */
+    refundId: string | null;
+    refundedAt: string | null;
+}
+
+/** Trạng thái yêu cầu hoàn tiền còn đang chờ xử lý (chặn gửi trùng). */
+export const ACTIVE_REFUND_STATUSES: RefundStatus[] = ["pending", "approved"];
+
+/**
+ * Đọc payload hoàn tiền từ context của ticket và chuẩn hoá lại.
+ *
+ * Dữ liệu cũ hoặc hỏng luôn được hạ về giá trị an toàn thay vì ném lỗi, để một
+ * bản ghi méo mó không làm sập danh sách quản trị.
+ */
+export function getRefundPayload(ticket: Pick<Ticket, "context">): RefundRequestPayload | null {
+    const raw = (ticket.context as Record<string, any> | null)?.refund;
+    if (!raw || typeof raw !== "object") return null;
+    const status = REFUND_STATUSES.includes(raw.status) ? (raw.status as RefundStatus) : "pending";
+    return {
+        orderId: String(raw.orderId || ""),
+        payCode: String(raw.payCode || ""),
+        planId: raw.planId ?? null,
+        planName: raw.planName ?? null,
+        amountVnd: Number(raw.amountVnd) || 0,
+        orderStatus: String(raw.orderStatus || ""),
+        bankCode: String(raw.bankCode || ""),
+        bankName: String(raw.bankName || ""),
+        bankAccount: String(raw.bankAccount || ""),
+        accountHolder: raw.accountHolder ?? null,
+        reason: String(raw.reason || ""),
+        status,
+        adminNote: raw.adminNote ?? null,
+        reviewedBy: raw.reviewedBy ?? null,
+        reviewedAt: raw.reviewedAt ?? null,
+        refundId: raw.refundId ?? null,
+        refundedAt: raw.refundedAt ?? null,
+    };
+}
+
+export const EMPTY_REFUND_STATS: RefundStats = { total: 0, pending: 0, approved: 0, rejected: 0, refunded: 0 };
 
 export interface TicketListOptions {
     status?: string;
@@ -501,6 +586,117 @@ export const helpdeskStore = {
             saveToDisk();
         }
         return ticket;
+    },
+
+    /** Ghi đè `context` của ticket (dùng cho luồng xử lý yêu cầu hoàn tiền). */
+    async updateTicketContext(
+        id: string,
+        context: Record<string, unknown> | null
+    ): Promise<Ticket | null> {
+        const ticket = await this.findById(id);
+        if (!ticket) return null;
+
+        const nowIso = new Date().toISOString();
+        ticket.context = context;
+        ticket.updatedAt = nowIso;
+
+        const config = getConfig();
+        if (config.DATABASE_URL) {
+            await db.query(`UPDATE tickets SET context = $2, updated_at = $3 WHERE id = $1`, [
+                id,
+                context ? JSON.stringify(context) : null,
+                nowIso,
+            ]);
+        } else {
+            cacheTickets = cacheTickets.map((t) => (t.id === id ? { ...ticket } : t));
+            saveToDisk();
+        }
+        return ticket;
+    },
+
+    /**
+     * Danh sách yêu cầu hoàn tiền (ticket danh mục `refund`) cho cổng quản trị.
+     *
+     * Lọc theo trạng thái hoàn tiền nằm trong `context.refund` nên phải lọc sau khi
+     * đọc ticket; quy mô hiện tại (vài chục yêu cầu) chấp nhận được và giữ cho kho
+     * hành xử giống nhau ở cả hai chế độ PostgreSQL / in-memory.
+     */
+    async listRefundRequests(
+        options: { status?: string; search?: string; page?: number; limit?: number } = {}
+    ): Promise<{
+        items: Ticket[];
+        total: number;
+        page: number;
+        limit: number;
+        totalPages: number;
+        stats: RefundStats;
+    }> {
+        const all = await loadTickets();
+        let refunds = all.filter((t) => t.category === "refund" && getRefundPayload(t) !== null);
+
+        const stats: RefundStats = { ...EMPTY_REFUND_STATS };
+        for (const t of refunds) {
+            const payload = getRefundPayload(t)!;
+            stats.total += 1;
+            stats[payload.status] += 1;
+        }
+
+        if (options.status && options.status !== "all") {
+            refunds = refunds.filter((t) => getRefundPayload(t)!.status === options.status);
+        }
+
+        const search = (options.search || "").trim().toLowerCase();
+        if (search) {
+            refunds = refunds.filter((t) => {
+                const p = getRefundPayload(t)!;
+                return (
+                    t.code.toLowerCase().includes(search) ||
+                    (t.userEmail || "").toLowerCase().includes(search) ||
+                    p.payCode.toLowerCase().includes(search) ||
+                    p.bankAccount.toLowerCase().includes(search) ||
+                    p.bankName.toLowerCase().includes(search) ||
+                    p.reason.toLowerCase().includes(search) ||
+                    String(p.amountVnd).includes(search)
+                );
+            });
+        }
+
+        refunds = refunds.sort(
+            (a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()
+        );
+
+        const page = Math.max(1, options.page || 1);
+        const limit = Math.max(1, Math.min(100, options.limit || 25));
+        const totalPages = Math.ceil(refunds.length / limit) || 1;
+        const start = (page - 1) * limit;
+
+        return {
+            items: refunds.slice(start, start + limit),
+            total: refunds.length,
+            page,
+            limit,
+            totalPages,
+            stats,
+        };
+    },
+
+    /**
+     * Bản đồ `orderId → trạng thái yêu cầu hoàn tiền mới nhất` của một người dùng.
+     *
+     * Dùng để (a) chặn gửi trùng và (b) cho trang Hồ sơ biết giao dịch nào đang có
+     * yêu cầu hoàn tiền. Khi một đơn bị từ chối rồi gửi lại, trạng thái mới nhất thắng.
+     */
+    async mapRefundRequestsByOrder(userId: string): Promise<Map<string, RefundStatus>> {
+        const all = await loadTickets();
+        const result = new Map<string, RefundStatus>();
+        const mine = all
+            .filter((t) => t.userId === userId && t.category === "refund")
+            .sort((a, b) => new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime());
+        for (const t of mine) {
+            const payload = getRefundPayload(t);
+            if (payload?.orderId) result.set(payload.orderId, payload.status);
+        }
+        return result;
     },
 
     /** Đếm số ticket user tạo trong khoảng thời gian gần đây (chống spam). */
