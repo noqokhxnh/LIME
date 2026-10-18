@@ -553,6 +553,26 @@ export async function renderVideo(options: RenderVideoOptions): Promise<string> 
                 }
                 const hasWatermark = !!logoPath;
 
+                // Issue #35: Chunked parallel rendering
+                const maxConcurrency = options.concurrency ?? getConfig().RENDER_MAX_CONCURRENCY ?? 1;
+                const tempDir = dirname(outputPath);
+                const chunks = maxConcurrency > 1
+                    ? calculateRenderChunks(totalFrames, fps, maxConcurrency, tempDir)
+                    : [];
+
+                if (chunks.length > 1) {
+                    // Multi-chunk: render song song rồi concat
+                    onProgress?.(`Starting video render (${totalFrames} frames @ ${fps}fps, ${chunks.length} parallel chunks)...`, 0);
+                    await renderChunksParallel(chunks, {
+                        ...options, fps, totalFrames, shouldApplyBlur, shutterSamples, seed,
+                        browser, fileUrl: pathToFileURL(resolve(htmlPath)).href,
+                        logoPath, hasAudio, hasWatermark, watermark,
+                    });
+                    onProgress?.("Video rendering and muxing completed", 100);
+                    return outputPath;
+                }
+
+                // ── Single chunk: đường cũ (giữ nguyên hành vi) ─────────────
                 // ── Bước 1: Các input đầu vào ───────────────────────────────
                 // Input 0: luồng raw video RGBA từ Playwright / Linear Light accumulator (pipe stdin)
                 const ffmpegArgs = [
@@ -646,26 +666,6 @@ export async function renderVideo(options: RenderVideoOptions): Promise<string> 
                     });
                 }
 
-                // Issue #35: Chunked parallel rendering
-                const maxConcurrency = options.concurrency ?? getConfig().RENDER_MAX_CONCURRENCY ?? 1;
-                const tempDir = dirname(outputPath);
-                const chunks = maxConcurrency > 1
-                    ? calculateRenderChunks(totalFrames, fps, maxConcurrency, tempDir)
-                    : [];
-
-                if (chunks.length > 1) {
-                    // Multi-chunk: render song song rồi concat
-                    onProgress?.(`Starting video render (${totalFrames} frames @ ${fps}fps, ${chunks.length} parallel chunks)...`, 0);
-                    await renderChunksParallel(chunks, {
-                        ...options, fps, totalFrames, shouldApplyBlur, shutterSamples, seed,
-                        browser, fileUrl: pathToFileURL(resolve(htmlPath)).href,
-                        logoPath, hasAudio, hasWatermark, watermark,
-                    });
-                    onProgress?.("Video rendering and muxing completed", 100);
-                    return outputPath;
-                }
-
-                // Single chunk: đường cũ (giữ nguyên hành vi)
                 const accumulator = shouldApplyBlur ? new LinearLightAccumulator(width, height) : null;
                 const reportStep = Math.max(1, Math.floor(totalFrames / 10));
                 let lastFrame: Uint8Array | null = null;
