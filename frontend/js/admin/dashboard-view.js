@@ -11,7 +11,7 @@
  */
 
 import { AdminApi } from './api.js';
-import { Toast, AlertBanner } from './components.js';
+import { Toast, AlertBanner, MetricDelta, DonutChart } from './components.js';
 
 const PERIODS = [
     { value: '7d', label: '7 ngày qua' },
@@ -66,11 +66,19 @@ export const DashboardView = {
                 ${this.kpiCard('dashboard-kpi-signups', 'Đăng ký mới', 'plus')}
             </div>
 
-            <!-- Biểu đồ xu hướng đăng ký -->
-            <div class="views-widget-card" style="margin-top: 16px;">
-                <div class="views-widget-title">Đăng ký mới theo thời gian</div>
-                <div class="dash-trend" id="dashboard-signups-trend">
-                    <div class="views-widget-loading">Đang tải số liệu...</div>
+            <!-- Biểu đồ xu hướng đăng ký + cơ cấu gói cước -->
+            <div class="dash-split">
+                <div class="views-widget-card">
+                    <div class="views-widget-title">Đăng ký mới theo thời gian</div>
+                    <div class="dash-trend" id="dashboard-signups-trend">
+                        <div class="views-widget-loading">Đang tải số liệu...</div>
+                    </div>
+                </div>
+                <div class="views-widget-card">
+                    <div class="views-widget-title">Cơ cấu gói cước đang hoạt động</div>
+                    <div class="dash-plans" id="dashboard-plans-donut">
+                        <div class="views-widget-loading">Đang tải số liệu...</div>
+                    </div>
                 </div>
             </div>
 
@@ -119,6 +127,7 @@ export const DashboardView = {
                     <span class="views-kpi-icon">${iconSvg(icon)}</span>
                 </div>
                 <div class="views-kpi-value" id="${id}">-</div>
+                <div class="views-kpi-delta" id="${id}-delta"></div>
                 <div class="views-kpi-sub" id="${id}-sub"></div>
             </div>
         `;
@@ -166,11 +175,15 @@ export const DashboardView = {
         ]) {
             const el = this.containerEl.querySelector(`#${id}`);
             if (el) el.innerHTML = skeleton;
+            const delta = this.containerEl.querySelector(`#${id}-delta`);
+            if (delta) delta.innerHTML = '';
             const sub = this.containerEl.querySelector(`#${id}-sub`);
             if (sub) sub.textContent = '';
         }
         const trend = this.containerEl.querySelector('#dashboard-signups-trend');
         if (trend) trend.innerHTML = '<div class="views-widget-loading">Đang tải số liệu...</div>';
+        const plans = this.containerEl.querySelector('#dashboard-plans-donut');
+        if (plans) plans.innerHTML = '<div class="views-widget-loading">Đang tải số liệu...</div>';
     },
 
     renderError(err) {
@@ -182,6 +195,8 @@ export const DashboardView = {
                 onRetry: () => this.fetchAndRender()
             });
         }
+        const plans = this.containerEl.querySelector('#dashboard-plans-donut');
+        if (plans) plans.innerHTML = '<div class="views-widget-empty">Chưa tải được số liệu.</div>';
     },
 
     renderData(data) {
@@ -215,6 +230,58 @@ export const DashboardView = {
 
         this.renderTrend(data.signups);
         this.renderFeatureUsage(data.featureUsage);
+        this.renderPlans(data.plansDistribution);
+
+        // So sánh với kỳ liền trước — tăng là tốt, riêng churn tăng là xấu.
+        const previous = data.previous || {};
+        const prevKpi = previous.kpi || {};
+        const prevWindow = previous.window;
+        const context = prevWindow ? `Kỳ trước: ${formatDate(prevWindow.from)} – ${formatDate(prevWindow.to)}` : '';
+        if (prevWindow) {
+            this.setDelta('dashboard-kpi-mrr', kpi.mrrVnd, prevKpi.mrrVnd, { context, format: formatVnd });
+            this.setDelta('dashboard-kpi-arr', kpi.arrVnd, prevKpi.arrVnd, { context, format: formatVnd });
+            this.setDelta('dashboard-kpi-arpu', kpi.arpuVnd, prevKpi.arpuVnd, { context, format: formatVnd });
+            this.setDelta('dashboard-kpi-ltv', kpi.ltvVnd, prevKpi.ltvVnd, { context, format: formatVnd });
+            this.setDelta('dashboard-kpi-churn', kpi.churnRate, prevKpi.churnRate, {
+                context,
+                unit: 'point',
+                invert: true,
+                format: formatPercent
+            });
+            this.setDelta('dashboard-kpi-conversion', kpi.trialToPaidRate, prevKpi.trialToPaidRate, {
+                context,
+                unit: 'point',
+                format: formatPercent
+            });
+            this.setDelta('dashboard-kpi-signups', kpi.newSignups, prevKpi.newSignups, { context, format: formatNumber });
+        }
+    },
+
+    /** Ghi mức tăng/giảm so với kỳ trước vào dòng phụ của thẻ KPI. */
+    setDelta(id, current, previous, opts = {}) {
+        const el = this.containerEl.querySelector(`#${id}-delta`);
+        if (!el) return;
+        if (previous === undefined || previous === null) {
+            el.innerHTML = '';
+            return;
+        }
+        MetricDelta.render(el, { current, previous, ...opts });
+    },
+
+    /** Biểu đồ tròn cơ cấu gói cước đang hoạt động. */
+    renderPlans(plansDistribution) {
+        const container = this.containerEl.querySelector('#dashboard-plans-donut');
+        if (!container) return;
+        const items = (plansDistribution || []).map((plan) => ({
+            name: plan.name || plan.planId,
+            count: plan.count,
+            mrrVnd: plan.mrrVnd
+        }));
+        const total = items.reduce((sum, item) => sum + (Number(item.count) || 0), 0);
+        container.innerHTML = DonutChart.markup(items, {
+            centerValue: formatNumber(total),
+            centerLabel: 'gói đang chạy'
+        });
     },
 
     setText(id, value) {
@@ -246,7 +313,7 @@ export const DashboardView = {
                 const showLabel = index % labelEvery === 0 || index === series.length - 1;
                 const shortDate = signups.monthly ? point.date : point.date.slice(5);
                 return `
-                    <div class="dash-trend-col" title="${escapeHtml(point.date)}: ${point.count} đăng ký">
+                    <div class="dash-trend-col" title="${escapeHtml(`${formatDate(point.date)}: ${point.count} đăng ký`)}">
                         <div class="dash-trend-bar-track">
                             <div class="dash-trend-bar" style="height: ${Math.max(2, heightPct)}%;"></div>
                         </div>
@@ -256,6 +323,15 @@ export const DashboardView = {
                 `;
             })
             .join('');
+
+        // Nhãn cho trình đọc màn hình: biểu đồ chỉ có mô tả bằng tooltip nên cần tóm tắt.
+        const total = series.reduce((sum, point) => sum + (Number(point.count) || 0), 0);
+        const peak = series.reduce((best, point) => (point.count > best.count ? point : best), series[0]);
+        container.setAttribute('role', 'img');
+        container.setAttribute(
+            'aria-label',
+            `Biểu đồ đăng ký mới: tổng ${total} đăng ký trong ${series.length} mốc thời gian, cao nhất ${peak.count} vào ${formatDate(peak.date)}.`
+        );
     },
 
     renderFeatureUsage(featureUsage) {
@@ -320,7 +396,8 @@ function formatNumber(value) {
 
 function formatPercent(rate) {
     const pct = (Number(rate) || 0) * 100;
-    return `${pct.toFixed(pct > 0 && pct < 10 ? 1 : 0)}%`;
+    // Chuẩn vi-VN dùng dấu phẩy thập phân, khớp với formatNumber/formatVnd.
+    return `${pct.toFixed(pct > 0 && pct < 10 ? 1 : 0).replace('.', ',')}%`;
 }
 
 function formatDate(iso) {

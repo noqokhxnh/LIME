@@ -2035,3 +2035,131 @@ html[data-density="compact"] .user-avatar-sm { width: 28px; height: 28px; flex-b
 @media (max-width: 768px) {
     .admin-table td.col-actions .action-menu-container { margin: 0; }
 }
+
+/* ---------- dashboard: bố cục xu hướng + cơ cấu gói cước ---------- */
+.dash-split {
+    display: grid;
+    grid-template-columns: minmax(0, 2fr) minmax(0, 1fr);
+    gap: 16px;
+    margin-top: 16px;
+}
+
+@media (max-width: 960px) {
+    .dash-split { grid-template-columns: minmax(0, 1fr); }
+}
+
+/* ---------- dashboard: mức tăng/giảm so với kỳ trước ---------- */
+.metric-delta {
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    align-self: flex-start;
+    padding: 2px 8px;
+    border-radius: var(--radius-full);
+    border: 1px solid var(--line);
+    background: var(--paper);
+    font-family: var(--font-mono);
+    font-size: 11.5px;
+    font-weight: 700;
+    line-height: 1.5;
+    color: var(--muted);
+    cursor: help;
+}
+
+.metric-delta-icon { flex: 0 0 auto; }
+
+/* Tăng là tốt (doanh thu, đăng ký, chuyển đổi) */
+.metric-delta.is-good { color: #4C7A0B; background: var(--success-soft); border-color: rgba(101, 163, 13, 0.35); }
+/* Tăng là xấu (churn rate) */
+.metric-delta.is-bad { color: var(--danger); background: var(--danger-soft); border-color: rgba(220, 38, 38, 0.3); }
+.metric-delta.is-flat,
+.metric-delta.is-new { color: var(--muted); background: var(--soft); }
+
+.metric-delta:empty { display: none; }
+
+/* ---------- dashboard: donut cơ cấu gói cước ---------- */
+.donut-chart {
+    display: flex;
+    align-items: center;
+    gap: 20px;
+    flex-wrap: wrap;
+}
+
+.donut-chart-figure {
+    position: relative;
+    flex: 0 0 auto;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+.donut-segment { transition: opacity 0.18s var(--ease); }
+.donut-segment:hover { opacity: 0.82; }
+
+.donut-chart-center {
+    position: absolute;
+    inset: 0;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 2px;
+    pointer-events: none;
+}
+
+.donut-chart-center-value {
+    font-family: var(--font-display);
+    font-size: 26px;
+    font-weight: 700;
+    line-height: 1;
+    color: var(--ink);
+}
+
+.donut-chart-center-label {
+    font-size: 10.5px;
+    text-transform: uppercase;
+    letter-spacing: 0.06em;
+    color: var(--muted);
+}
+
+.donut-chart-legend {
+    list-style: none;
+    margin: 0;
+    padding: 0;
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    flex: 1 1 170px;
+    min-width: 0;
+}
+
+.donut-legend-item {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    font-size: 12.5px;
+}
+
+.donut-legend-dot { width: 10px; height: 10px; border-radius: 3px; flex: 0 0 auto; }
+
+.donut-legend-name { flex: 1 1 auto; min-width: 0; color: var(--ink); }
+
+.donut-legend-value {
+    font-family: var(--font-mono);
+    font-size: 11.5px;
+    font-weight: 700;
+    color: var(--ink);
+    white-space: nowrap;
+}
+
+.donut-legend-pct { color: var(--muted); font-weight: 500; }
+
+/* ---------- dashboard: số KPI vừa một dòng ----------
+   Lưới 7 thẻ nên mỗi thẻ chỉ rộng ~200px; cỡ 30px làm "57.420.000 ₫" rớt
+   ký hiệu ₫ xuống dòng. Thu nhỏ theo bề rộng màn hình, chỉ áp dụng cho dashboard
+   để không đổi giao diện trang "Lượt truy cập". */
+#dashboard-kpi-grid .views-kpi-value {
+    font-size: clamp(21px, 1.7vw, 30px);
+    letter-spacing: -0.03em;
+    white-space: nowrap;
+}

@@ -7,6 +7,7 @@ import {
     computeChurn,
     computeTrialToPaid,
     computeFeatureUsage,
+    computePlanDistribution,
     computeAnalytics,
 } from '../../src/admin/analytics.js';
 import type { AdminUserRecord } from '../../src/admin/userStore.js';
@@ -161,6 +162,56 @@ describe('Admin analytics engine', () => {
         const watermark = result.adoption.find((a) => a.name === 'Watermark / Logo');
         assert.equal(watermark?.count, 1);
         assert.equal(result.topPages.length, 1);
+    });
+
+    it('computePlanDistribution tổng hợp cơ cấu gói đang hoạt động', () => {
+        const users = [
+            user({ id: 'a', planId: 'pro', planExpiresAt: '2026-02-15T00:00:00.000Z' }),
+            user({ id: 'b', planId: 'pro', planExpiresAt: '2026-02-15T00:00:00.000Z' }),
+            user({ id: 'c', planId: 'creator', planExpiresAt: '2026-02-15T00:00:00.000Z' }),
+            // Gói đã hết hạn ⇒ không tính
+            user({ id: 'd', planId: 'pro', planExpiresAt: '2026-01-01T00:00:00.000Z' }),
+            // Không có gói ⇒ không tính
+            user({ id: 'e' }),
+            // Bị xoá ⇒ không tính
+            user({ id: 'f', planId: 'pro', planExpiresAt: '2026-02-15T00:00:00.000Z', deletedAt: '2026-01-10T00:00:00.000Z' }),
+        ];
+        const dist = computePlanDistribution(users, PLANS, NOW);
+        assert.equal(dist.length, 2);
+        assert.deepEqual(dist.map((d) => d.planId), ['pro', 'creator']);
+        assert.equal(dist[0].name, 'Pro');
+        assert.equal(dist[0].count, 2);
+        assert.equal(dist[0].percentage, 67);
+        assert.equal(dist[0].mrrVnd, 249000 * 2);
+        assert.equal(dist[1].count, 1);
+        assert.equal(dist[1].mrrVnd, 149000);
+
+        const result = computeAnalytics({ users, orders: [], plans: PLANS, jobs: [], period: '30d', now: NOW });
+        assert.equal(result.plansDistribution[0].planId, 'pro');
+    });
+
+    it('computeAnalytics trả chỉ số kỳ liền trước (cùng độ dài) để so sánh xu hướng', () => {
+        const users = [
+            // Nằm trong kỳ trước [2025-12-02, 2026-01-01]
+            user({ id: 'prev', createdAt: '2025-12-15T00:00:00.000Z' }),
+            // Nằm trong kỳ hiện tại [2026-01-01, 2026-01-31]
+            user({ id: 'cur', createdAt: '2026-01-05T00:00:00.000Z', planId: 'pro', planExpiresAt: '2026-02-15T00:00:00.000Z' }),
+        ];
+        const result = computeAnalytics({ users, orders: [], plans: PLANS, jobs: [], period: '30d', now: NOW });
+
+        assert.equal(result.kpi.newSignups, 1);
+        assert.equal(result.previous.kpi.newSignups, 1);
+        // Kỳ trước kết thúc đúng lúc kỳ hiện tại bắt đầu
+        assert.equal(result.previous.window.to, result.window.from);
+        assert.equal(result.previous.window.days, 30);
+        assert.ok(Date.parse(result.previous.window.from) < Date.parse(result.previous.window.to));
+        // Bộ chỉ số kỳ trước phải ĐỐI XỨNG với kỳ hiện tại (thiếu khoá ⇒ thẻ KPI
+        // trên dashboard không có delta).
+        assert.deepEqual(
+            Object.keys(result.previous.kpi).sort(),
+            Object.keys(result.kpi).sort()
+        );
+        assert.equal(result.previous.kpi.arrVnd, result.previous.kpi.mrrVnd * 12);
     });
 
     it('computeAnalytics tổng hợp đầy đủ chỉ số và LTV dự phòng khi chưa có churn', () => {

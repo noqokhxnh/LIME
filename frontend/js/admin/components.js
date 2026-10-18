@@ -388,6 +388,172 @@ export const TableDensity = {
     }
 };
 
+const escapeHtml = (value) =>
+    String(value ?? '')
+        .replace(/&/g, '&amp;')
+        .replace(/</g, '&lt;')
+        .replace(/>/g, '&gt;')
+        .replace(/"/g, '&quot;')
+        .replace(/'/g, '&#039;');
+
+/** Mũi tên xu hướng dùng chung cho `MetricDelta`. */
+const arrowIcon = (kind) => {
+    const paths = {
+        up: '<path d="M7 17 17 7"/><path d="M9 7h8v8"/>',
+        down: '<path d="M7 7l10 10"/><path d="M17 9v8H9"/>',
+        flat: '<path d="M6 12h12"/>'
+    };
+    return `<svg class="metric-delta-icon" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">${paths[kind] || paths.flat}</svg>`;
+};
+
+// 6e. METRIC DELTA — mức tăng/giảm so với kỳ liền trước
+export const MetricDelta = {
+    /**
+     * Chênh lệch giữa kỳ này và kỳ trước.
+     * - `up` / `down` / `flat`: hướng thay đổi
+     * - `new`: kỳ trước bằng 0 nên không có mốc để tính phần trăm
+     */
+    compute(current, previous) {
+        const cur = Number(current) || 0;
+        const prev = Number(previous) || 0;
+        if (prev === 0) return cur === 0 ? { kind: 'flat', ratio: 0 } : { kind: 'new', ratio: null };
+        return { kind: cur === prev ? 'flat' : cur > prev ? 'up' : 'down', ratio: (cur - prev) / Math.abs(prev) };
+    },
+
+    /**
+     * @param {object} opts
+     * @param {number} opts.current         giá trị kỳ này
+     * @param {number} opts.previous        giá trị kỳ trước
+     * @param {boolean} [opts.invert]       true khi TĂNG là điều xấu (vd: churn rate)
+     * @param {'percent'|'point'} [opts.unit] `point` cho các tỷ lệ (chênh lệch điểm %)
+     * @param {string} [opts.context]       mô tả kỳ trước, hiện trong tooltip
+     * @param {string} [opts.format]        hàm định dạng giá trị kỳ trước
+     */
+    markup({ current, previous, invert = false, unit = 'percent', context = '', format } = {}) {
+        const { kind, ratio } = this.compute(current, previous);
+
+        if (kind === 'new') {
+            // Không có mốc so sánh: nêu rõ thay vì bịa phần trăm.
+            const label = 'mới';
+            return `<span class="metric-delta is-new" title="${escapeHtml(context)}" aria-label="Không có dữ liệu kỳ trước để so sánh">${arrowIcon('flat')}<span>${label}</span></span>`;
+        }
+
+        let text;
+        if (unit === 'point') {
+            const points = ((Number(current) || 0) - (Number(previous) || 0)) * 100;
+            text = `${points > 0 ? '+' : points < 0 ? '−' : ''}${Math.abs(points).toFixed(1).replace('.', ',')} điểm`;
+        } else if (kind === 'flat') {
+            text = 'không đổi';
+        } else {
+            const pct = Math.abs(ratio) * 100;
+            text = `${kind === 'up' ? '+' : '−'}${pct.toFixed(pct >= 10 ? 0 : 1).replace('.', ',')}%`;
+        }
+
+        // "Tốt/xấu" phụ thuộc chiều của chỉ số: churn tăng là xấu, doanh thu tăng là tốt.
+        const tone = kind === 'flat' ? 'is-flat' : (kind === 'up') !== Boolean(invert) ? 'is-good' : 'is-bad';
+
+        const prevText = typeof format === 'function' ? format(previous) : String(previous ?? '');
+        const tip = [context, Number(previous) || Number(current) ? `Kỳ trước: ${prevText}` : '']
+            .filter(Boolean)
+            .join(' — ');
+
+        return `<span class="metric-delta ${tone}" title="${escapeHtml(tip)}" aria-label="${escapeHtml(`So với kỳ trước: ${text}`)}">${arrowIcon(kind)}<span>${escapeHtml(text)}</span></span>`;
+    },
+
+    /** Ghi kết quả vào một phần tử (thường là dòng phụ của thẻ KPI). */
+    render(container, opts = {}) {
+        if (!container) return;
+        container.innerHTML = this.markup(opts);
+        return container.firstElementChild;
+    }
+};
+
+// 6f. DONUT CHART — biểu đồ tròn SVG, không phụ thuộc thư viện ngoài
+export const DonutChart = {
+    /** Bảng màu lấy từ hệ màu LIME (lime → xanh lá → trung tính) để phân biệt được các phần. */
+    colors: ['#B9E72B', '#8FBE0A', '#65A30D', '#4D7C0F', '#14160F', '#9A9E92'],
+
+    color(index) {
+        return this.colors[index % this.colors.length];
+    },
+
+    /**
+     * @param {Array<{name: string, count: number, percentage?: number}>} items
+     * @param {object} [opts]
+     * @param {number} [opts.size]          đường kính (px)
+     * @param {number} [opts.thickness]     độ dày vành
+     * @param {string} [opts.centerValue]   số lớn giữa vòng
+     * @param {string} [opts.centerLabel]   nhãn nhỏ dưới số
+     */
+    markup(items, opts = {}) {
+        const list = (items || []).filter((item) => Number(item.count) > 0);
+        const total = list.reduce((sum, item) => sum + (Number(item.count) || 0), 0);
+
+        if (total === 0) {
+            return `<div class="views-widget-empty">Chưa có gói cước nào đang hoạt động.</div>`;
+        }
+
+        const size = opts.size || 168;
+        const thickness = opts.thickness || 22;
+        const radius = (size - thickness) / 2;
+        const circumference = 2 * Math.PI * radius;
+        const center = size / 2;
+        // Khe hở nhỏ giữa các phần; chỉ áp dụng khi có nhiều hơn 1 phần.
+        const gap = list.length > 1 ? Math.min(3, circumference / list.length / 4) : 0;
+
+        let offset = 0;
+        const arcs = list
+            .map((item, index) => {
+                const ratio = (Number(item.count) || 0) / total;
+                const length = Math.max(0.6, ratio * circumference - gap);
+                const arc = `<circle class="donut-segment" cx="${center}" cy="${center}" r="${radius}"
+                        fill="none" stroke="${this.color(index)}" stroke-width="${thickness}"
+                        stroke-dasharray="${length.toFixed(2)} ${(circumference - length).toFixed(2)}"
+                        stroke-dashoffset="${(-offset).toFixed(2)}"
+                        transform="rotate(-90 ${center} ${center})">
+                        <title>${escapeHtml(`${item.name}: ${item.count} gói (${Math.round(ratio * 100)}%)`)}</title>
+                    </circle>`;
+                offset += ratio * circumference;
+                return arc;
+            })
+            .join('');
+
+        const label = `Cơ cấu ${total} gói đang hoạt động: ${list
+            .map((item) => `${item.name} ${item.count} gói`)
+            .join(', ')}`;
+
+        const legend = list
+            .map((item, index) => {
+                const pct = Math.round(((Number(item.count) || 0) / total) * 100);
+                const mrr = Number(item.mrrVnd) || 0;
+                return `
+                    <li class="donut-legend-item" title="${escapeHtml(`${item.name}: ${pct}%`)}">
+                        <span class="donut-legend-dot" style="background: ${this.color(index)};"></span>
+                        <span class="donut-legend-name audit-break-word">${escapeHtml(item.name)}</span>
+                        <span class="donut-legend-value">${item.count} <span class="donut-legend-pct">(${pct}%)</span></span>
+                    </li>
+                `;
+            })
+            .join('');
+
+        return `
+            <div class="donut-chart">
+                <div class="donut-chart-figure">
+                    <svg width="${size}" height="${size}" viewBox="0 0 ${size} ${size}" role="img" aria-label="${escapeHtml(label)}">
+                        <circle cx="${center}" cy="${center}" r="${radius}" fill="none" stroke="var(--line)" stroke-width="${thickness}"></circle>
+                        ${arcs}
+                    </svg>
+                    <div class="donut-chart-center">
+                        <span class="donut-chart-center-value">${escapeHtml(opts.centerValue ?? String(total))}</span>
+                        <span class="donut-chart-center-label">${escapeHtml(opts.centerLabel ?? 'gói')}</span>
+                    </div>
+                </div>
+                <ul class="donut-chart-legend">${legend}</ul>
+            </div>
+        `;
+    }
+};
+
 // 7. QUICK STATUS TOGGLE (SWITCH)
 export const SwitchToggle = {
     create({ checked = true, disabled = false, onChange }) {

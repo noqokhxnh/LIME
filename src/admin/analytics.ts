@@ -48,6 +48,33 @@ export interface FeatureDimension {
     items: DistributionItem[];
 }
 
+/**
+ * Chỉ số của kỳ liền trước (cùng độ dài, kết thúc đúng lúc kỳ hiện tại bắt đầu).
+ * Dùng để hiển thị mức tăng/giảm trên thẻ KPI.
+ */
+export interface AnalyticsPrevious {
+    window: { from: string; to: string; days: number };
+    kpi: {
+        newSignups: number;
+        activeSubscriptions: number;
+        mrrVnd: number;
+        arrVnd: number;
+        arpuVnd: number;
+        ltvVnd: number;
+        churnRate: number;
+        trialToPaidRate: number;
+    };
+}
+
+/** Một phần trong cơ cấu gói cước đang hoạt động (nguồn cho biểu đồ tròn). */
+export interface PlanDistributionItem {
+    planId: string;
+    name: string;
+    count: number;
+    mrrVnd: number;
+    percentage: number;
+}
+
 export interface FeatureUsageResult {
     totalJobs: number;
     dimensions: FeatureDimension[];
@@ -127,6 +154,10 @@ export interface AnalyticsResult {
         totalUsers: number;
     };
     featureUsage: FeatureUsageResult;
+    /** Chỉ số kỳ liền trước (cùng độ dài) để so sánh xu hướng. */
+    previous: AnalyticsPrevious;
+    /** Cơ cấu gói cước đang hoạt động. */
+    plansDistribution: PlanDistributionItem[];
 }
 
 /** Chuẩn hoá kỳ phân tích; kỳ không hợp lệ rơi về `30d`. */
@@ -165,6 +196,39 @@ function buildPlanPriceMap(plans: Plan[]): Map<string, number> {
 function planDaysFor(planDays: Map<string, number>, planId?: string | null): number {
     if (planId && planDays.has(planId)) return planDays.get(planId)!;
     return MONTHLY_WINDOW_DAYS;
+}
+
+/** Dịch cửa sổ thời gian về trước (mặc định đúng bằng độ dài của nó). */
+function shiftWindowBack(window: AnalyticsWindow, days: number = window.days): AnalyticsWindow {
+    const to = new Date(window.from.getTime());
+    const from = new Date(to.getTime() - days * MS_PER_DAY);
+    return { from, to, days };
+}
+
+/** Tổng doanh thu đã thanh toán (tuỳ chọn: chỉ tính giao dịch trước một mốc thời gian). */
+function sumPaidRevenue(orders: Order[], beforeMs?: number): number {
+    let total = 0;
+    for (const order of orders) {
+        if (order.status !== "paid") continue;
+        const ms = toMs(order.paid_at) ?? toMs(order.created_at);
+        if (ms === null) continue;
+        if (beforeMs !== undefined && ms > beforeMs) continue;
+        total += Number(order.amount_vnd) || 0;
+    }
+    return total;
+}
+
+/** Số khách đã từng trả phí (tuỳ chọn: chỉ tính giao dịch trước một mốc thời gian). */
+function countPayingCustomers(orders: Order[], beforeMs?: number): number {
+    const ids = new Set<string>();
+    for (const order of orders) {
+        if (order.status !== "paid") continue;
+        const ms = toMs(order.paid_at) ?? toMs(order.created_at);
+        if (ms === null) continue;
+        if (beforeMs !== undefined && ms > beforeMs) continue;
+        ids.add(order.user_id);
+    }
+    return ids.size;
 }
 
 /** Sinh đủ nhãn thời gian cho một kỳ (để biểu đồ không bị hụt ngày không có dữ liệu). */
@@ -430,6 +494,50 @@ export function computeFeatureUsage(jobs: AnalyticsJob[], topPages: Distribution
     return { totalJobs, dimensions, adoption, topPages };
 }
 
+/**
+ * Cơ cấu gói cước đang hoạt động — cùng tiêu chí với `computeRecurringRevenue`:
+ * chỉ tính người dùng đang hoạt động, chưa bị xoá và gói còn hạn.
+ */
+export function computePlanDistribution(
+    users: AdminUserRecord[],
+    plans: Plan[],
+    now: Date
+): PlanDistributionItem[] {
+    const planNames = new Map<string, string>();
+    for (const plan of plans) planNames.set(plan.id, plan.name || plan.id);
+
+    const planPrices = buildPlanPriceMap(plans);
+    const planDays = buildPlanDaysMap(plans);
+    const nowMs = now.getTime();
+    const buckets = new Map<string, { count: number; mrrVnd: number }>();
+    let total = 0;
+
+    for (const user of users) {
+        if (user.status !== "active" || user.deletedAt) continue;
+        if (!user.planId) continue;
+        const expiresMs = toMs(user.planExpiresAt);
+        if (expiresMs === null || expiresMs <= nowMs) continue;
+
+        const price = planPrices.get(user.planId) ?? 0;
+        const days = planDaysFor(planDays, user.planId);
+        const entry = buckets.get(user.planId) ?? { count: 0, mrrVnd: 0 };
+        entry.count += 1;
+        entry.mrrVnd += price * (MONTHLY_WINDOW_DAYS / days);
+        buckets.set(user.planId, entry);
+        total += 1;
+    }
+
+    return Array.from(buckets.entries())
+        .map(([planId, entry]) => ({
+            planId,
+            name: planNames.get(planId) ?? planId,
+            count: entry.count,
+            mrrVnd: Math.round(entry.mrrVnd),
+            percentage: total > 0 ? Math.round((entry.count / total) * 100) : 0,
+        }))
+        .sort((a, b) => b.count - a.count || a.name.localeCompare(b.name));
+}
+
 /** Tổng hợp tất cả chỉ số cho bảng điều khiển. */
 export function computeAnalytics(input: ComputeAnalyticsInput): AnalyticsResult {
     const now = input.now ?? new Date();
@@ -446,9 +554,7 @@ export function computeAnalytics(input: ComputeAnalyticsInput): AnalyticsResult 
 
     const conversion = computeTrialToPaid(input.users, input.orders, window);
 
-    const totalRevenueVnd = input.orders
-        .filter((o) => o.status === "paid")
-        .reduce((sum, o) => sum + (Number(o.amount_vnd) || 0), 0);
+    const totalRevenueVnd = sumPaidRevenue(input.orders);
     const paidOrders = input.orders.filter((o) => o.status === "paid").length;
 
     // LTV = ARPU ÷ churn tháng; khi chưa có churn thì fallback về doanh thu lịch sử / số khách trả phí.
@@ -457,6 +563,29 @@ export function computeAnalytics(input: ComputeAnalyticsInput): AnalyticsResult 
             ? Math.round(arpuVnd / monthlyChurn)
             : conversion.payingCustomers > 0
               ? Math.round(totalRevenueVnd / conversion.payingCustomers)
+              : 0;
+
+    // ---- Kỳ liền trước (cùng độ dài) để so sánh xu hướng ----
+    // MRR/activeSubscriptions là chỉ số thời điểm nên "kỳ trước" = trạng thái tại
+    // thời điểm kỳ hiện tại bắt đầu. Churn tháng của kỳ trước lấy cửa sổ 30 ngày
+    // kết thúc ngay trước kỳ hiện tại, đúng như công thức LTV đang dùng.
+    const previousWindow = shiftWindowBack(window);
+    const previousSignups = computeSignups(input.users, previousWindow).total;
+    const previousRevenue = computeRecurringRevenue(input.users, input.plans, previousWindow.to);
+    const previousArpuVnd =
+        previousRevenue.activeSubscriptions > 0
+            ? Math.round(previousRevenue.mrrVnd / previousRevenue.activeSubscriptions)
+            : 0;
+    const previousMonthlyChurn = computeChurn(input.orders, input.plans, shiftWindowBack(monthlyWindow)).rate;
+    const previousChurn = computeChurn(input.orders, input.plans, previousWindow);
+    const previousConversion = computeTrialToPaid(input.users, input.orders, previousWindow);
+    const revenueAsOfPeriodStart = sumPaidRevenue(input.orders, window.from.getTime());
+    const payingAsOfPeriodStart = countPayingCustomers(input.orders, window.from.getTime());
+    const previousLtvVnd =
+        previousMonthlyChurn > 0
+            ? Math.round(previousArpuVnd / previousMonthlyChurn)
+            : payingAsOfPeriodStart > 0
+              ? Math.round(revenueAsOfPeriodStart / payingAsOfPeriodStart)
               : 0;
 
     const featureUsage = computeFeatureUsage(input.jobs, input.topPages);
@@ -493,5 +622,23 @@ export function computeAnalytics(input: ComputeAnalyticsInput): AnalyticsResult 
         },
         conversion,
         featureUsage,
+        previous: {
+            window: {
+                from: previousWindow.from.toISOString(),
+                to: previousWindow.to.toISOString(),
+                days: previousWindow.days,
+            },
+            kpi: {
+                newSignups: previousSignups,
+                activeSubscriptions: previousRevenue.activeSubscriptions,
+                mrrVnd: previousRevenue.mrrVnd,
+                arrVnd: previousRevenue.arrVnd,
+                arpuVnd: previousArpuVnd,
+                ltvVnd: previousLtvVnd,
+                churnRate: previousChurn.rate,
+                trialToPaidRate: previousConversion.rate,
+            },
+        },
+        plansDistribution: computePlanDistribution(input.users, input.plans, now),
     };
 }
