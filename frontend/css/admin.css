@@ -2332,3 +2332,523 @@ html[data-density="compact"] .user-avatar-sm { width: 28px; height: 28px; flex-b
     .video-preview-footer { justify-content: stretch; }
     .video-preview-footer .btn { flex: 1 1 auto; }
 }
+
+/* ============================================================
+   Docker Logs Real-time Streaming View
+   ============================================================ */
+.docker-logs-view {
+    display: flex;
+    flex-direction: column;
+    gap: 16px;
+    width: 100%;
+}
+
+.docker-logs-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: flex-start;
+    gap: 16px;
+    background: var(--card);
+    border: 1px solid var(--line);
+    border-radius: var(--radius-xl);
+    padding: 18px 24px;
+    box-shadow: var(--shadow-card);
+}
+
+.docker-logs-title-group {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+}
+
+.docker-logs-title {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+}
+
+.docker-logs-title h2 {
+    font-size: 18px;
+    font-weight: 700;
+    color: var(--ink);
+    margin: 0;
+}
+
+.docker-logs-icon {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 32px;
+    height: 32px;
+    border-radius: var(--radius-md);
+    background: var(--soft);
+    color: var(--lime-ink);
+}
+
+.docker-logs-subtitle {
+    font-size: 13px;
+    color: var(--muted);
+    margin: 0;
+}
+
+/* Live Badge */
+.docker-live-badge-wrapper {
+    display: flex;
+    align-items: center;
+    flex-shrink: 0;
+}
+
+.docker-live-badge {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    padding: 6px 14px;
+    border-radius: var(--radius-full);
+    font-size: 12px;
+    font-weight: 600;
+    letter-spacing: 0.02em;
+    border: 1px solid transparent;
+    transition: all 0.2s var(--ease);
+}
+
+.docker-live-badge.status-live {
+    background: rgba(101, 163, 13, 0.12);
+    color: #4d7c0f;
+    border-color: rgba(101, 163, 13, 0.25);
+}
+
+.docker-live-badge.status-live .live-dot {
+    background: #65a30d;
+    box-shadow: 0 0 0 0 rgba(101, 163, 13, 0.7);
+    animation: livePulse 1.8s infinite;
+}
+
+.docker-live-badge.status-connecting {
+    background: rgba(29, 78, 216, 0.10);
+    color: #1d4ed8;
+    border-color: rgba(29, 78, 216, 0.20);
+}
+
+.docker-live-badge.status-connecting .live-dot {
+    background: #2563eb;
+    animation: livePulse 1.2s infinite;
+}
+
+.docker-live-badge.status-paused {
+    background: rgba(180, 83, 9, 0.12);
+    color: #b45309;
+    border-color: rgba(180, 83, 9, 0.25);
+}
+
+.docker-live-badge.status-paused .live-dot {
+    background: #d97706;
+}
+
+.docker-live-badge.status-error,
+.docker-live-badge.status-closed {
+    background: rgba(220, 38, 38, 0.10);
+    color: #dc2626;
+    border-color: rgba(220, 38, 38, 0.20);
+}
+
+.docker-live-badge.status-error .live-dot,
+.docker-live-badge.status-closed .live-dot {
+    background: #dc2626;
+}
+
+.live-dot {
+    width: 8px;
+    height: 8px;
+    border-radius: 50%;
+    flex-shrink: 0;
+}
+
+@keyframes livePulse {
+    0% {
+        transform: scale(0.95);
+        box-shadow: 0 0 0 0 rgba(101, 163, 13, 0.7);
+    }
+    70% {
+        transform: scale(1);
+        box-shadow: 0 0 0 6px rgba(101, 163, 13, 0);
+    }
+    100% {
+        transform: scale(0.95);
+        box-shadow: 0 0 0 0 rgba(101, 163, 13, 0);
+    }
+}
+
+/* Container Tabs */
+.docker-tabs-bar {
+    display: flex;
+    gap: 8px;
+    overflow-x: auto;
+    padding-bottom: 2px;
+}
+
+.docker-tab-btn {
+    display: inline-flex;
+    align-items: center;
+    gap: 10px;
+    padding: 10px 16px;
+    background: var(--card);
+    border: 1px solid var(--line);
+    border-radius: var(--radius-lg);
+    cursor: pointer;
+    transition: all 0.18s var(--ease);
+    text-align: left;
+    white-space: nowrap;
+    user-select: none;
+    box-shadow: 0 1px 3px rgba(20, 22, 15, 0.04);
+}
+
+.docker-tab-btn:hover {
+    background: var(--paper);
+    border-color: #d1cfc7;
+    transform: translateY(-1px);
+}
+
+.docker-tab-btn.active {
+    background: var(--soft);
+    border-color: var(--lime-deep);
+    box-shadow: 0 2px 8px rgba(185, 231, 43, 0.25);
+}
+
+.tab-status-dot {
+    width: 9px;
+    height: 9px;
+    border-radius: 50%;
+    flex-shrink: 0;
+}
+
+.tab-status-dot.dot-running { background: #65a30d; }
+.tab-status-dot.dot-stopped { background: #dc2626; }
+.tab-status-dot.dot-unknown { background: #9ca3af; }
+
+.tab-btn-content {
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+}
+
+.tab-btn-name {
+    font-family: var(--font-mono);
+    font-size: 13px;
+    font-weight: 700;
+    color: var(--ink);
+}
+
+.docker-tab-btn.active .tab-btn-name {
+    color: var(--lime-ink);
+}
+
+.tab-btn-desc {
+    font-size: 11px;
+    color: var(--muted);
+}
+
+/* Toolbar */
+.docker-toolbar {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    flex-wrap: wrap;
+    gap: 12px;
+    background: var(--card);
+    border: 1px solid var(--line);
+    border-radius: var(--radius-lg);
+    padding: 10px 16px;
+}
+
+.docker-toolbar-left,
+.docker-toolbar-right {
+    display: flex;
+    align-items: center;
+    flex-wrap: wrap;
+    gap: 10px;
+}
+
+.docker-search-box {
+    position: relative;
+    display: flex;
+    align-items: center;
+}
+
+.docker-search-box svg {
+    position: absolute;
+    left: 10px;
+    color: var(--muted);
+    pointer-events: none;
+}
+
+.docker-search-box input {
+    height: 34px;
+    width: 240px;
+    padding: 0 28px 0 32px;
+    background: var(--paper);
+    border: 1px solid var(--line);
+    border-radius: var(--radius-md);
+    font-family: var(--font-body);
+    font-size: 13px;
+    color: var(--ink);
+    outline: none;
+    transition: all 0.15s ease;
+}
+
+.docker-search-box input:focus {
+    border-color: var(--lime-deep);
+    background: #fff;
+    box-shadow: 0 0 0 3px rgba(185, 231, 43, 0.2);
+}
+
+.docker-search-clear-btn {
+    position: absolute;
+    right: 8px;
+    background: none;
+    border: none;
+    cursor: pointer;
+    color: var(--muted);
+    padding: 2px;
+    display: flex;
+    align-items: center;
+}
+
+.docker-search-clear-btn:hover { color: var(--ink); }
+
+.docker-tail-select-wrapper {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    font-size: 12px;
+    color: var(--muted);
+}
+
+.docker-tail-select-wrapper select {
+    height: 34px;
+    padding: 0 10px;
+    font-size: 12px;
+    background: var(--paper);
+    border: 1px solid var(--line);
+    border-radius: var(--radius-md);
+    color: var(--ink);
+}
+
+.docker-toggle-label {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    font-size: 13px;
+    font-weight: 500;
+    color: var(--ink);
+    cursor: pointer;
+    user-select: none;
+}
+
+.docker-toggle-label input[type="checkbox"] {
+    accent-color: var(--lime-deep);
+    width: 15px;
+    height: 15px;
+    cursor: pointer;
+}
+
+/* Terminal Window */
+.docker-terminal-card {
+    background: #0d1117;
+    border: 1px solid #30363d;
+    border-radius: var(--radius-xl);
+    overflow: hidden;
+    box-shadow: 0 8px 32px rgba(0, 0, 0, 0.25);
+    display: flex;
+    flex-direction: column;
+}
+
+.docker-terminal-titlebar {
+    background: #161b22;
+    border-bottom: 1px solid #30363d;
+    padding: 10px 16px;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    user-select: none;
+}
+
+.terminal-dots {
+    display: flex;
+    align-items: center;
+    gap: 7px;
+}
+
+.terminal-dots .dot {
+    width: 11px;
+    height: 11px;
+    border-radius: 50%;
+}
+
+.terminal-dots .dot-red { background: #ff5f56; }
+.terminal-dots .dot-yellow { background: #ffbd2e; }
+.terminal-dots .dot-green { background: #27c93f; }
+
+.terminal-title {
+    font-family: var(--font-mono);
+    font-size: 12px;
+    font-weight: 600;
+    color: #8b949e;
+    letter-spacing: 0.02em;
+}
+
+.terminal-meta {
+    font-family: var(--font-mono);
+    font-size: 11px;
+    color: #6e7681;
+}
+
+.docker-terminal-body {
+    background: #0d1117;
+    color: #c9d1d9;
+    font-family: var(--font-mono);
+    font-size: 12.5px;
+    line-height: 1.6;
+    padding: 14px 16px;
+    height: calc(100vh - 380px);
+    min-height: 480px;
+    overflow-y: auto;
+    overflow-x: auto;
+    scroll-behavior: smooth;
+}
+
+.terminal-content {
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+}
+
+.terminal-row {
+    display: flex;
+    align-items: flex-start;
+    gap: 12px;
+    padding: 2px 4px;
+    border-radius: 4px;
+    transition: background 0.1s ease;
+}
+
+.terminal-row:hover {
+    background: rgba(255, 255, 255, 0.04);
+}
+
+.terminal-row .row-num {
+    font-size: 11px;
+    color: #484f58;
+    min-width: 38px;
+    text-align: right;
+    user-select: none;
+    flex-shrink: 0;
+    padding-top: 1px;
+}
+
+.terminal-row .row-text {
+    flex: 1;
+    white-space: pre-wrap;
+    word-break: break-all;
+}
+
+/* Syntax and Log Highlighting */
+.terminal-row.stream-stderr {
+    background: rgba(248, 113, 113, 0.06);
+}
+
+.terminal-row.log-level-error .row-text {
+    color: #f87171;
+    font-weight: 600;
+}
+
+.terminal-row.log-level-warn .row-text {
+    color: #fbbf24;
+}
+
+.terminal-row.log-level-info .row-text {
+    color: #e6edf3;
+}
+
+.badge-http-method {
+    display: inline-block;
+    padding: 1px 5px;
+    font-size: 10.5px;
+    font-weight: 700;
+    border-radius: 3px;
+    background: rgba(56, 189, 248, 0.15);
+    color: #38bdf8;
+    margin-right: 4px;
+}
+
+.log-time-prefix {
+    color: #6e7681;
+    font-size: 11.5px;
+    margin-right: 6px;
+}
+
+.log-highlight {
+    background: #fef08a;
+    color: #854d0e;
+    font-weight: 700;
+    padding: 0 3px;
+    border-radius: 2px;
+}
+
+.terminal-placeholder {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 10px;
+    padding: 60px 20px;
+    color: #6e7681;
+    font-size: 13px;
+    text-align: center;
+}
+
+.terminal-placeholder code {
+    color: #58a6ff;
+    background: rgba(110, 118, 129, 0.2);
+    padding: 2px 6px;
+    border-radius: 4px;
+}
+
+.spinner-inline {
+    width: 14px;
+    height: 14px;
+    border: 2px solid #30363d;
+    border-top-color: #58a6ff;
+    border-radius: 50%;
+    animation: spin 0.8s linear infinite;
+    display: inline-block;
+}
+
+@keyframes spin {
+    to { transform: rotate(360deg); }
+}
+
+@media (max-width: 960px) {
+    .docker-logs-header {
+        flex-direction: column;
+        align-items: flex-start;
+    }
+    .docker-toolbar {
+        flex-direction: column;
+        align-items: stretch;
+    }
+    .docker-toolbar-left,
+    .docker-toolbar-right {
+        justify-content: space-between;
+        width: 100%;
+    }
+    .docker-search-box {
+        flex: 1;
+    }
+    .docker-search-box input {
+        width: 100%;
+    }
+    .docker-terminal-body {
+        height: 400px;
+        min-height: 350px;
+    }
+}
+
