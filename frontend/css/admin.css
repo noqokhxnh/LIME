@@ -2332,3 +2332,158 @@ html[data-density="compact"] .user-avatar-sm { width: 28px; height: 28px; flex-b
     .video-preview-footer { justify-content: stretch; }
     .video-preview-footer .btn { flex: 1 1 auto; }
 }
+
+/* ---------- Yêu cầu hoàn tiền (RefundsView) ---------- */
+.rf-grid {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 12px;
+    margin-bottom: 18px;
+}
+
+.rf-card {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    padding: 14px;
+    border: 1px solid var(--line);
+    border-radius: 12px;
+    background: var(--paper);
+}
+
+.rf-card-title {
+    font-size: 11px;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.08em;
+    color: var(--muted);
+}
+
+.rf-row {
+    display: flex;
+    align-items: baseline;
+    justify-content: space-between;
+    gap: 10px;
+    font-size: 12.5px;
+    color: var(--muted);
+}
+
+.rf-row strong {
+    font-weight: 600;
+    color: var(--ink);
+    text-align: right;
+    word-break: break-word;
+}
+
+.rf-reason {
+    padding: 10px 12px;
+    border: 1px solid var(--line);
+    border-radius: 10px;
+    background: var(--paper);
+    font-size: 13px;
+    line-height: 1.55;
+    color: var(--ink);
+    white-space: pre-wrap;
+}
+
+.rf-shots {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+    margin-top: 10px;
+}
+
+.rf-shot {
+    max-width: 180px;
+    border: 1px solid var(--line);
+    border-radius: 10px;
+    cursor: zoom-in;
+}
+
+.rf-review {
+    margin-top: 12px;
+    font-size: 12px;
+    color: var(--muted);
+}
+
+.rf-review code,
+.rf-mono {
+    font-family: var(--font-mono);
+    font-size: 0.95em;
+}
+
+/* Khối quét mã chuyển tiền hoàn */
+.rf-qr {
+    display: flex;
+    align-items: flex-start;
+    gap: 16px;
+    padding: 14px;
+    border: 1px solid var(--line);
+    border-radius: 12px;
+    background: var(--soft);
+}
+
+.rf-qr-img {
+    flex-shrink: 0;
+    width: 168px;
+    height: 168px;
+    border-radius: 10px;
+    background: #fff;
+    object-fit: contain;
+}
+
+.rf-qr-info {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+    min-width: 0;
+}
+
+.rf-qr-amount {
+    font-family: var(--font-display);
+    font-size: 20px;
+    font-weight: 700;
+    color: var(--lime-ink);
+}
+
+.rf-qr-line {
+    font-size: 12.5px;
+    color: var(--ink);
+    word-break: break-word;
+}
+
+.rf-qr-actions {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+    margin-top: 4px;
+}
+
+.rf-qr-hint {
+    margin: 4px 0 0;
+    font-size: 11.5px;
+    line-height: 1.45;
+    color: var(--muted);
+}
+
+/* Chân drawer xử lý */
+.rf-footer {
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+    width: 100%;
+}
+
+.rf-actions {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    flex-wrap: wrap;
+}
+
+@media (max-width: 640px) {
+    .rf-grid { grid-template-columns: minmax(0, 1fr); }
+    .rf-qr { flex-direction: column; align-items: center; }
+    .rf-qr-info { width: 100%; }
+    .rf-actions .btn { flex: 1 1 auto; }
+}

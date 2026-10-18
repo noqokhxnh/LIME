@@ -401,5 +401,24 @@ export const AdminApi = {
             method: 'PATCH',
             body: JSON.stringify(data)
         });
+    },
+
+    // Yêu cầu hoàn tiền của người dùng (danh mục "refund" trong widget Hỗ trợ)
+    async getRefundRequests(params = {}) {
+        const qs = new URLSearchParams();
+        Object.entries(params).forEach(([key, val]) => {
+            if (val !== undefined && val !== null && val !== '') {
+                qs.append(key, val);
+            }
+        });
+        const suffix = qs.toString();
+        return this.request(`/api/admin/refund-requests${suffix ? `?${suffix}` : ''}`);
+    },
+
+    async updateRefundRequest(id, data) {
+        return this.request(`/api/admin/refund-requests/${encodeURIComponent(id)}`, {
+            method: 'PATCH',
+            body: JSON.stringify(data)
+        });
     }
 };
