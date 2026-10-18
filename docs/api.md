@@ -26,6 +26,7 @@ The API server is a Fastify app in `src/index.ts`. All endpoints are JSON unless
 | GET | `/api/health` | — | Health + runtime diagnostics |
 | GET | `/api/settings` | 🔒 | Provider list + user's current selection |
 | PUT | `/api/settings` | 🔒 | Switch LLM/TTS provider at runtime (scoped to current user) |
+| GET | `/api/announcements` | — | Active system broadcast banners (public, guests included) |
 | POST | `/api/script/draft` | 🔒 | Generate or regenerate a video script draft (Phase 1) |
 | POST | `/api/generate` | 🔒 | Create a video generation job (direct or from confirmed draft) |
 | POST | `/api/brand-kit/upload` | 🔒 | Upload brand logo (PNG, JPEG, SVG, WebP with XSS/XXE sanitization) |
@@ -222,6 +223,65 @@ Request body (either or both fields):
 - `200` → `{ "ok": true }`
 - `400` → `{ "error": "Unknown LLM provider: xyz" }` when the id isn't recognized
 - `401` → not authenticated
+
+## System Broadcast Banner (Announcements)
+
+Banners shown at the bottom of every storefront page (index, workspace, profile,
+settings, legal) for **all visitors**, signed in or not. Managed from the Admin
+portal → **Thông báo**. Each announcement has a type (`info` / `feature` /
+`warning` / `maintenance`), an optional schedule (`startsAt` / `endsAt`), a
+priority, an audience (`all` / `users` / `guests`) and a dismissible flag.
+
+### `GET /api/announcements`
+
+Public. Returns only announcements that are currently live (active, inside their
+schedule window and matching the caller's audience). Response:
+
+```json
+{
+  "announcements": [
+    {
+      "id": "uuid",
+      "title": "Bảo trì hệ thống định kỳ",
+      "body": "Hệ thống sẽ bảo trì từ 23:00 đến 00:00.",
+      "kind": "maintenance",
+      "priority": 10,
+      "isActive": true,
+      "startsAt": null,
+      "endsAt": null,
+      "dismissible": false,
+      "linkUrl": "/workspace",
+      "linkLabel": "Xem chi tiết",
+      "audience": "all",
+      "createdAt": "2026-01-01T00:00:00.000Z",
+      "updatedAt": "2026-01-01T00:00:00.000Z"
+    }
+  ],
+  "legacyNotice": "",
+  "maintenanceMode": false,
+  "viewer": "guest"
+}
+```
+
+- `legacyNotice` mirrors the old `systemNotice` setting so existing installs keep working.
+- `maintenanceMode` lets the client render a fallback maintenance banner even without an explicit announcement.
+- Remains reachable while `maintenanceMode` is on (allowlisted), so users still see the maintenance notice.
+- Responses are sent with `Cache-Control: no-store`.
+
+### Admin endpoints 🔒 (super admin only)
+
+| Method | Path | Description |
+|---|---|---|
+| GET | `/api/admin/announcements` | List with filters `status` (`all`/`active`/`scheduled`/`expired`/`draft`), `kind`, `search`, `page`, `limit` + `stats` |
+| POST | `/api/admin/announcements` | Create a banner |
+| PATCH | `/api/admin/announcements/:id` | Update fields (partial) |
+| POST | `/api/admin/announcements/:id/toggle` | Flip `isActive` |
+| DELETE | `/api/admin/announcements/:id` | Delete a banner |
+
+Create/update body: `title` (≤160), `body` (≤2000), `kind`, `priority` (0–1000),
+`isActive`, `dismissible`, `startsAt` / `endsAt` (ISO 8601 or `null`), `linkUrl`
+(http(s) or a leading `/`), `linkLabel` (≤80), `audience`. `endsAt` must be after
+`startsAt`. All admin actions are written to the audit log.
 
 ## Jobs
 

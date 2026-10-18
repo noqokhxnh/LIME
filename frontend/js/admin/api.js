@@ -324,5 +324,43 @@ export const AdminApi = {
         return this.request('/api/admin/maintenance', {
             method: 'DELETE'
         });
+    },
+
+    // System Broadcast Banner (Announcements)
+    async getAnnouncements(params = {}) {
+        const qs = new URLSearchParams();
+        Object.entries(params).forEach(([key, val]) => {
+            if (val !== undefined && val !== null && val !== '') {
+                qs.append(key, val);
+            }
+        });
+        const suffix = qs.toString();
+        return this.request(`/api/admin/announcements${suffix ? `?${suffix}` : ''}`);
+    },
+
+    async createAnnouncement(data) {
+        return this.request('/api/admin/announcements', {
+            method: 'POST',
+            body: JSON.stringify(data)
+        });
+    },
+
+    async updateAnnouncement(id, data) {
+        return this.request(`/api/admin/announcements/${encodeURIComponent(id)}`, {
+            method: 'PATCH',
+            body: JSON.stringify(data)
+        });
+    },
+
+    async toggleAnnouncement(id) {
+        return this.request(`/api/admin/announcements/${encodeURIComponent(id)}/toggle`, {
+            method: 'POST'
+        });
+    },
+
+    async deleteAnnouncement(id) {
+        return this.request(`/api/admin/announcements/${encodeURIComponent(id)}`, {
+            method: 'DELETE'
+        });
     }
 };

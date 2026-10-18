@@ -22,7 +22,8 @@ export const AdminState = {
         logStatus: 'all',
         action: '',
         from: '',
-        to: ''
+        to: '',
+        kind: 'all'
     },
 
     listeners: [],
@@ -54,7 +55,8 @@ export const AdminState = {
             logStatus: searchParams.get('logStatus') || this.defaults.logStatus,
             action: searchParams.get('action') || '',
             from: searchParams.get('from') || '',
-            to: searchParams.get('to') || ''
+            to: searchParams.get('to') || '',
+            kind: searchParams.get('kind') || this.defaults.kind
         };
     },
 
@@ -82,6 +84,7 @@ export const AdminState = {
         if (merged.action && String(merged.action).trim()) searchParams.set('action', String(merged.action).trim());
         if (merged.from) searchParams.set('from', merged.from);
         if (merged.to) searchParams.set('to', merged.to);
+        if (merged.kind && merged.kind !== 'all') searchParams.set('kind', merged.kind);
 
         const newQs = searchParams.toString();
         const newUrl = newQs ? `${window.location.pathname}?${newQs}` : window.location.pathname;

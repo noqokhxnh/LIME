@@ -207,3 +207,41 @@ CREATE TABLE IF NOT EXISTS refunds (
 
 CREATE UNIQUE INDEX IF NOT EXISTS uq_refunds_source ON refunds(source_type, source_id);
 `;
+
+/**
+ * Câu lệnh SQL khởi tạo bảng announcements (System Broadcast Banner).
+ *
+ * Mỗi bản ghi là một thông báo có thể hiển thị cho toàn bộ người dùng — đã đăng
+ * nhập lẫn khách chưa đăng nhập: bảo trì, ra mắt tính năng mới, cảnh báo…
+ *
+ * Các cột:
+ *   - kind        : info | feature | warning | maintenance (quyết định màu/kểu banner)
+ *   - priority    : số càng lớn càng ưu tiên hiển thị lên trên
+ *   - is_active   : bật/tắt nhanh mà không cần xoá
+ *   - starts_at   : thời điểm bắt đầu hiệu lực (NULL = ngay lập tức)
+ *   - ends_at     : thời điểm hết hiệu lực (NULL = không hết hạn)
+ *   - dismissible : người dùng có được phép đóng banner này không
+ *   - audience    : all | users | guests (phạm vi người xem)
+ */
+export const ANNOUNCEMENT_SQL = `
+CREATE TABLE IF NOT EXISTS announcements (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    title VARCHAR(160) NOT NULL,
+    body TEXT NOT NULL,
+    kind VARCHAR(20) NOT NULL DEFAULT 'info',
+    priority INTEGER NOT NULL DEFAULT 0,
+    is_active BOOLEAN NOT NULL DEFAULT true,
+    starts_at TIMESTAMPTZ,
+    ends_at TIMESTAMPTZ,
+    dismissible BOOLEAN NOT NULL DEFAULT true,
+    link_url TEXT,
+    link_label VARCHAR(80),
+    audience VARCHAR(20) NOT NULL DEFAULT 'all',
+    created_by VARCHAR(255),
+    created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+
+CREATE INDEX IF NOT EXISTS idx_announcements_active
+ON announcements(is_active, priority DESC, created_at DESC);
+`;

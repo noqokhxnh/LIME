@@ -1,0 +1,158 @@
+/* ==========================================================================
+   System Broadcast Banner — banner thông báo toàn hệ thống (mọi trang).
+   Chồng banner nổi ở đáy màn hình, không phá vỡ layout của bất kỳ trang nào.
+   ========================================================================== */
+
+.lime-broadcast-root {
+    position: fixed;
+    left: 50%;
+    bottom: 20px;
+    transform: translateX(-50%);
+    z-index: 100000;
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+    width: min(680px, calc(100vw - 32px));
+    pointer-events: none;
+}
+
+.lime-broadcast-banner {
+    --bc-accent: #2563eb;
+    --bc-soft: #eff6ff;
+    pointer-events: auto;
+    position: relative;
+    display: flex;
+    align-items: flex-start;
+    gap: 12px;
+    padding: 13px 15px;
+    border: 1px solid rgba(20, 22, 15, 0.08);
+    border-left: 4px solid var(--bc-accent);
+    border-radius: 14px;
+    background: #ffffff;
+    box-shadow: 0 18px 44px rgba(20, 22, 15, 0.18);
+    color: #20251b;
+    font-family: 'Inter', system-ui, sans-serif;
+    font-size: 13px;
+    line-height: 1.5;
+    animation: lime-broadcast-in 0.34s cubic-bezier(0.16, 1, 0.3, 1);
+    transition: opacity 0.18s ease, transform 0.18s ease;
+}
+
+.lime-broadcast-banner.is-leaving {
+    opacity: 0;
+    transform: translateY(8px);
+}
+
+.lime-broadcast-info { --bc-accent: #2563eb; --bc-soft: #eff6ff; }
+.lime-broadcast-feature { --bc-accent: #65a30d; --bc-soft: #f7fee7; }
+.lime-broadcast-warning { --bc-accent: #d97706; --bc-soft: #fffbeb; }
+.lime-broadcast-maintenance { --bc-accent: #dc2626; --bc-soft: #fef2f2; }
+
+.lime-broadcast-icon {
+    flex: none;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 32px;
+    height: 32px;
+    border-radius: 10px;
+    background: var(--bc-soft);
+    color: var(--bc-accent);
+}
+
+.lime-broadcast-content {
+    flex: 1 1 auto;
+    min-width: 0;
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+}
+
+.lime-broadcast-head {
+    display: flex;
+    align-items: center;
+    flex-wrap: wrap;
+    gap: 8px;
+}
+
+.lime-broadcast-badge {
+    flex: none;
+    padding: 2px 8px;
+    border-radius: 999px;
+    background: var(--bc-soft);
+    color: var(--bc-accent);
+    font-size: 10.5px;
+    font-weight: 700;
+    letter-spacing: 0.02em;
+    text-transform: uppercase;
+}
+
+.lime-broadcast-title {
+    font-weight: 650;
+    font-size: 13.5px;
+    color: #20251b;
+}
+
+.lime-broadcast-body {
+    color: #4b5563;
+    white-space: pre-line;
+    word-break: break-word;
+}
+
+.lime-broadcast-link {
+    align-self: flex-start;
+    margin-top: 4px;
+    color: var(--bc-accent);
+    font-weight: 600;
+    font-size: 12.5px;
+    text-decoration: none;
+    border-bottom: 1px solid transparent;
+}
+
+.lime-broadcast-link:hover {
+    border-bottom-color: currentColor;
+}
+
+.lime-broadcast-close {
+    flex: none;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 26px;
+    height: 26px;
+    margin: -2px -4px 0 0;
+    border: 1px solid transparent;
+    border-radius: 8px;
+    background: transparent;
+    color: #94a3b8;
+    cursor: pointer;
+    transition: color 0.15s ease, background 0.15s ease, border-color 0.15s ease;
+}
+
+.lime-broadcast-close:hover {
+    color: #20251b;
+    background: rgba(20, 22, 15, 0.05);
+    border-color: rgba(20, 22, 15, 0.08);
+}
+
+@keyframes lime-broadcast-in {
+    from { opacity: 0; transform: translateY(14px); }
+    to { opacity: 1; transform: translateY(0); }
+}
+
+@media (max-width: 560px) {
+    .lime-broadcast-root {
+        bottom: 12px;
+        width: calc(100vw - 20px);
+    }
+
+    .lime-broadcast-banner {
+        padding: 12px;
+    }
+}
+
+@media (prefers-reduced-motion: reduce) {
+    .lime-broadcast-banner {
+        animation: none;
+    }
+}

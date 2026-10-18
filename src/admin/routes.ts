@@ -17,6 +17,12 @@ import { systemSettings, validateSettingsPatch } from "./systemSettings.js";
 import { auditLog, type AuditLogEntry } from "../security/auditLog.js";
 import { pageViewTracker, extractClientIp } from "../security/pageViewTracker.js";
 import { maintenanceTracker } from "./maintenanceTracker.js";
+import {
+    announcementsStore,
+    ANNOUNCEMENT_KINDS,
+    ANNOUNCEMENT_AUDIENCES,
+    type AnnouncementInput,
+} from "./announcements.js";
 import { defaultTokenTracker } from "../usage/tokenTracker.js";
 import { billingStorage } from "../billing/storage.js";
 import { getConfig } from "../config.js";
@@ -252,6 +258,117 @@ function parseAdminUserQuery(query: any): { error?: string; params?: AdminUserQu
                   : 25,
         },
     };
+}
+
+/**
+ * Kiểm tra + chuẩn hoá dữ liệu tạo/cập nhật một thông báo toàn hệ thống.
+ *
+ * `partial = true` dùng cho PATCH: chỉ kiểm tra và trả về những trường thực sự
+ * được gửi lên, tránh vô tình ghi đè các trường khác bằng giá trị mặc định.
+ */
+function validateAnnouncementPayload(
+    raw: any,
+    partial = false
+): { error?: string; value?: Partial<AnnouncementInput> } {
+    if (!raw || typeof raw !== "object") {
+        return { error: "Dữ liệu thông báo không hợp lệ." };
+    }
+
+    const has = (key: string) => raw[key] !== undefined;
+    const value: Partial<AnnouncementInput> = {};
+
+    if (!partial || has("title")) {
+        const title = String(raw.title ?? "").trim();
+        if (!title) return { error: "Tiêu đề không được để trống." };
+        if (title.length > 160) return { error: "Tiêu đề tối đa 160 ký tự." };
+        value.title = title;
+    }
+
+    if (!partial || has("body")) {
+        const body = String(raw.body ?? "").trim();
+        if (!body) return { error: "Nội dung không được để trống." };
+        if (body.length > 2000) return { error: "Nội dung tối đa 2000 ký tự." };
+        value.body = body;
+    }
+
+    if (!partial || has("kind")) {
+        const kind = raw.kind ?? "info";
+        if (!ANNOUNCEMENT_KINDS.includes(kind)) {
+            return { error: `Loại thông báo không hợp lệ. Chỉ chấp nhận: ${ANNOUNCEMENT_KINDS.join(", ")}.` };
+        }
+        value.kind = kind;
+    }
+
+    if (!partial || has("audience")) {
+        const audience = raw.audience ?? "all";
+        if (!ANNOUNCEMENT_AUDIENCES.includes(audience)) {
+            return { error: `Đối tượng hiển thị không hợp lệ. Chỉ chấp nhận: ${ANNOUNCEMENT_AUDIENCES.join(", ")}.` };
+        }
+        value.audience = audience;
+    }
+
+    if (!partial || has("priority")) {
+        const priority = raw.priority === undefined ? 0 : Number(raw.priority);
+        if (!Number.isInteger(priority) || priority < 0 || priority > 1000) {
+            return { error: "Mức ưu tiên phải là số nguyên trong khoảng 0 – 1000." };
+        }
+        value.priority = priority;
+    }
+
+    if (!partial || has("isActive")) {
+        value.isActive = raw.isActive === undefined ? true : Boolean(raw.isActive);
+    }
+    if (!partial || has("dismissible")) {
+        value.dismissible = raw.dismissible === undefined ? true : Boolean(raw.dismissible);
+    }
+
+    if (!partial || has("linkUrl")) {
+        const linkUrl =
+            raw.linkUrl === undefined || raw.linkUrl === null || raw.linkUrl === ""
+                ? null
+                : String(raw.linkUrl).trim();
+        if (linkUrl && !/^(https?:\/\/|\/)/i.test(linkUrl)) {
+            return { error: "Liên kết phải là URL http(s) hoặc đường dẫn nội bộ bắt đầu bằng '/'." };
+        }
+        if (linkUrl && linkUrl.length > 500) return { error: "Liên kết tối đa 500 ký tự." };
+        value.linkUrl = linkUrl;
+    }
+
+    if (!partial || has("linkLabel")) {
+        const linkLabel =
+            raw.linkLabel === undefined || raw.linkLabel === null || raw.linkLabel === ""
+                ? null
+                : String(raw.linkLabel).trim();
+        if (linkLabel && linkLabel.length > 80) return { error: "Nhãn liên kết tối đa 80 ký tự." };
+        value.linkLabel = linkLabel;
+    }
+
+    const parseDate = (input: any): { ok: boolean; value: string | null } => {
+        if (input === undefined || input === null || input === "") return { ok: true, value: null };
+        const parsed = new Date(input);
+        if (Number.isNaN(parsed.getTime())) return { ok: false, value: null };
+        return { ok: true, value: parsed.toISOString() };
+    };
+
+    if (!partial || has("startsAt")) {
+        const parsed = parseDate(raw.startsAt);
+        if (!parsed.ok) return { error: "Thời gian bắt đầu không hợp lệ." };
+        value.startsAt = parsed.value;
+    }
+    if (!partial || has("endsAt")) {
+        const parsed = parseDate(raw.endsAt);
+        if (!parsed.ok) return { error: "Thời gian kết thúc không hợp lệ." };
+        value.endsAt = parsed.value;
+    }
+
+    // Chỉ kiểm tra khoảng thời gian khi cả hai mốc đều được cung cấp trong payload.
+    if (value.startsAt && value.endsAt) {
+        if (new Date(value.startsAt).getTime() >= new Date(value.endsAt).getTime()) {
+            return { error: "Thời gian kết thúc phải sau thời gian bắt đầu." };
+        }
+    }
+
+    return { value };
 }
 
 export async function adminRoutes(app: FastifyInstance, opts?: { queue?: IVideoQueue }): Promise<void> {
@@ -2268,4 +2385,165 @@ export async function adminRoutes(app: FastifyInstance, opts?: { queue?: IVideoQ
 
         return { success: true, message: "Đã xóa toàn bộ lịch sử khách truy cập khi bảo trì." };
     });
+
+    // ==========================================
+    // SYSTEM BROADCAST BANNER (ANNOUNCEMENTS)
+    // ==========================================
+    const ANNOUNCEMENT_STATUSES = ["all", "active", "scheduled", "expired", "draft"] as const;
+
+    app.get("/api/admin/announcements", async (request: FastifyRequest, reply: FastifyReply) => {
+        const check = await verifyAdminUser(request);
+        if (!check.isAdmin) {
+            reply.status(403);
+            return { error: check.error };
+        }
+
+        const query = (request.query as any) || {};
+        const statusFilter = String(query.status || "all");
+        if (!ANNOUNCEMENT_STATUSES.includes(statusFilter as any)) {
+            reply.status(400);
+            return { error: `Trạng thái không hợp lệ. Chỉ chấp nhận: ${ANNOUNCEMENT_STATUSES.join(", ")}.` };
+        }
+        const kindFilter = query.kind ? String(query.kind) : "all";
+        if (kindFilter !== "all" && !ANNOUNCEMENT_KINDS.includes(kindFilter as any)) {
+            reply.status(400);
+            return { error: `Loại thông báo không hợp lệ. Chỉ chấp nhận: ${ANNOUNCEMENT_KINDS.join(", ")}.` };
+        }
+
+        const page = parseInt(query.page, 10) || 1;
+        const limit = parseInt(query.limit, 10) || 25;
+
+        const result = await announcementsStore.listForAdmin({
+            status: statusFilter as any,
+            kind: kindFilter as any,
+            search: String(query.search || ""),
+            page,
+            limit,
+        });
+        const stats = await announcementsStore.getStats();
+
+        return { success: true, ...result, stats };
+    });
+
+    app.post("/api/admin/announcements", async (request: FastifyRequest, reply: FastifyReply) => {
+        const check = await verifyAdminUser(request);
+        if (!check.isAdmin) {
+            reply.status(403);
+            return { error: check.error };
+        }
+
+        const parsed = validateAnnouncementPayload(request.body, false);
+        if (parsed.error || !parsed.value) {
+            reply.status(400);
+            return { error: parsed.error };
+        }
+
+        const created = await announcementsStore.create(parsed.value as AnnouncementInput, check.user?.email);
+        auditAdminAction(request, check, {
+            action: "admin.announcement_created",
+            status: "success",
+            details: { createdBy: check.user?.email, announcementId: created.id, title: created.title, kind: created.kind },
+        });
+
+        return { success: true, announcement: created };
+    });
+
+    app.patch(
+        "/api/admin/announcements/:id",
+        async (request: FastifyRequest<{ Params: { id: string } }>, reply: FastifyReply) => {
+            const check = await verifyAdminUser(request);
+            if (!check.isAdmin) {
+                reply.status(403);
+                return { error: check.error };
+            }
+
+            const { id } = request.params;
+            const existing = await announcementsStore.findById(id);
+            if (!existing) {
+                reply.status(404);
+                return { error: "Không tìm thấy thông báo." };
+            }
+
+            const parsed = validateAnnouncementPayload(request.body, true);
+            if (parsed.error || !parsed.value) {
+                reply.status(400);
+                return { error: parsed.error };
+            }
+            if (Object.keys(parsed.value).length === 0) {
+                reply.status(400);
+                return { error: "Không có trường nào để cập nhật." };
+            }
+
+            // Kiểm tra khoảng thời gian trên giá trị sau khi trộn với bản ghi hiện tại.
+            const mergedStart = parsed.value.startsAt !== undefined ? parsed.value.startsAt : existing.startsAt;
+            const mergedEnd = parsed.value.endsAt !== undefined ? parsed.value.endsAt : existing.endsAt;
+            if (mergedStart && mergedEnd && new Date(mergedStart).getTime() >= new Date(mergedEnd).getTime()) {
+                reply.status(400);
+                return { error: "Thời gian kết thúc phải sau thời gian bắt đầu." };
+            }
+
+            const updated = await announcementsStore.update(id, parsed.value);
+            auditAdminAction(request, check, {
+                action: "admin.announcement_updated",
+                status: "success",
+                details: { updatedBy: check.user?.email, announcementId: id, fields: Object.keys(parsed.value) },
+            });
+
+            return { success: true, announcement: updated };
+        }
+    );
+
+    app.post(
+        "/api/admin/announcements/:id/toggle",
+        async (request: FastifyRequest<{ Params: { id: string } }>, reply: FastifyReply) => {
+            const check = await verifyAdminUser(request);
+            if (!check.isAdmin) {
+                reply.status(403);
+                return { error: check.error };
+            }
+
+            const { id } = request.params;
+            const existing = await announcementsStore.findById(id);
+            if (!existing) {
+                reply.status(404);
+                return { error: "Không tìm thấy thông báo." };
+            }
+
+            const updated = await announcementsStore.update(id, { isActive: !existing.isActive });
+            auditAdminAction(request, check, {
+                action: "admin.announcement_toggled",
+                status: "success",
+                details: { toggledBy: check.user?.email, announcementId: id, isActive: updated?.isActive },
+            });
+
+            return { success: true, announcement: updated };
+        }
+    );
+
+    app.delete(
+        "/api/admin/announcements/:id",
+        async (request: FastifyRequest<{ Params: { id: string } }>, reply: FastifyReply) => {
+            const check = await verifyAdminUser(request);
+            if (!check.isAdmin) {
+                reply.status(403);
+                return { error: check.error };
+            }
+
+            const { id } = request.params;
+            const existing = await announcementsStore.findById(id);
+            if (!existing) {
+                reply.status(404);
+                return { error: "Không tìm thấy thông báo." };
+            }
+
+            await announcementsStore.remove(id);
+            auditAdminAction(request, check, {
+                action: "admin.announcement_deleted",
+                status: "warning",
+                details: { deletedBy: check.user?.email, announcementId: id, title: existing.title },
+            });
+
+            return { success: true, message: "Đã xóa thông báo." };
+        }
+    );
 }
