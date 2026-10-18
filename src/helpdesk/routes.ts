@@ -1,14 +1,18 @@
 import { FastifyInstance, FastifyRequest, FastifyReply } from "fastify";
 import * as uploadGuard from "../security/uploadGuard.js";
 import { getCurrentUser, type AuthUser } from "../auth/session.js";
+import { billingStorage } from "../billing/storage.js";
+import { getBankByCode } from "../billing/banks.js";
 import {
     helpdeskStore,
     TICKET_CATEGORIES,
     TICKET_PRIORITIES,
     TICKET_CREATE_LIMIT_PER_HOUR,
+    ACTIVE_REFUND_STATUSES,
     type TicketCategory,
     type TicketPriority,
     type TicketAttachment,
+    type RefundRequestPayload,
 } from "./store.js";
 
 /**
@@ -77,6 +81,97 @@ function renditionContextApp(userAgent: unknown): string | null {
     return null;
 }
 
+/** Số tài khoản ngân hàng: 6 – 30 chữ số (bỏ khoảng trắng, dấu chấm, gạch nối). */
+const REFUND_BANK_ACCOUNT_RE = /^[0-9]{6,30}$/;
+
+/**
+ * Kiểm tra và dựng payload yêu cầu hoàn tiền.
+ *
+ * Quy tắc nghiệp vụ (chốt với chủ dự án):
+ *  - Chỉ nhận yêu cầu hoàn tiền cho giao dịch **lỗi / chưa được xử lý**. Giao dịch
+ *    đã thanh toán thành công (`status = 'paid'` — tiền vào và gói đã kích hoạt)
+ *    bị chặn thẳng: "đã thanh toán thành công và đã được xử lý thì không hoàn tiền".
+ *  - Số tiền, mã đơn và tên gói do máy chủ lấy lại từ đơn hàng thật, không tin client.
+ *  - Một giao dịch chỉ có tối đa một yêu cầu đang chờ/đã duyệt; đã hoàn tiền thì
+ *    không nhận thêm.
+ */
+async function validateRefundRequest(input: {
+    userId: string;
+    orderId: unknown;
+    bankCode: unknown;
+    bankAccount: unknown;
+    accountHolder: unknown;
+    reason: string;
+}): Promise<{ error?: string; value?: RefundRequestPayload }> {
+    const orderId = String(input.orderId ?? "").trim();
+    if (!orderId) {
+        return { error: "Vui lòng chọn giao dịch cần hoàn tiền." };
+    }
+
+    const bank = getBankByCode(String(input.bankCode ?? ""));
+    if (!bank) {
+        return { error: "Vui lòng chọn ngân hàng nhận tiền hoàn từ danh sách hỗ trợ." };
+    }
+
+    const bankAccount = String(input.bankAccount ?? "").replace(/[\s.\-]/g, "");
+    if (!REFUND_BANK_ACCOUNT_RE.test(bankAccount)) {
+        return { error: "Số tài khoản phải gồm 6 – 30 chữ số." };
+    }
+
+    const holderRaw =
+        input.accountHolder === undefined || input.accountHolder === null
+            ? ""
+            : String(input.accountHolder).trim();
+    if (holderRaw.length > 100) {
+        return { error: "Tên chủ tài khoản tối đa 100 ký tự." };
+    }
+
+    const order = await billingStorage.findOrderById(orderId);
+    if (!order || order.user_id !== input.userId) {
+        return { error: "Không tìm thấy giao dịch của bạn ứng với lựa chọn vừa rồi." };
+    }
+    if (order.status === "paid") {
+        return {
+            error:
+                "Giao dịch này đã thanh toán thành công và đã được xử lý nên không thể hoàn tiền. " +
+                "Nếu bạn cho rằng đây là nhầm lẫn, hãy tạo yêu cầu hỗ trợ với danh mục khác.",
+        };
+    }
+
+    const priorStatuses = await helpdeskStore.mapRefundRequestsByOrder(input.userId);
+    const prior = priorStatuses.get(order.id);
+    if (prior && ACTIVE_REFUND_STATUSES.includes(prior)) {
+        return { error: "Bạn đã gửi yêu cầu hoàn tiền cho giao dịch này và đang chờ xử lý." };
+    }
+    if (prior === "refunded") {
+        return { error: "Giao dịch này đã được hoàn tiền trước đó." };
+    }
+
+    const plan = order.plan_id ? await billingStorage.getPlanById(order.plan_id) : null;
+
+    return {
+        value: {
+            orderId: order.id,
+            payCode: order.pay_code,
+            planId: order.plan_id || null,
+            planName: plan?.name ?? null,
+            amountVnd: order.amount_vnd,
+            orderStatus: order.status,
+            bankCode: bank.code,
+            bankName: bank.name,
+            bankAccount,
+            accountHolder: holderRaw ? holderRaw.toUpperCase() : null,
+            reason: input.reason,
+            status: "pending",
+            adminNote: null,
+            reviewedBy: null,
+            reviewedAt: null,
+            refundId: null,
+            refundedAt: null,
+        },
+    };
+}
+
 function unauthorized(reply: FastifyReply): { user?: AuthUser; body?: object } {
     reply.status(401);
     return { body: { error: "Yêu cầu đăng nhập để tiếp nhận và theo dõi yêu cầu hỗ trợ." } };
@@ -128,6 +223,27 @@ export async function supportRoutes(app: FastifyInstance): Promise<void> {
             return { error: `Bạn đã tạo ${TICKET_CREATE_LIMIT_PER_HOUR} yêu cầu trong 1 giờ. Vui lòng chờ rồi thử lại.` };
         }
 
+        let context = normalizeContext(body.context);
+
+        // Danh mục "Hoàn tiền": người dùng chọn giao dịch lỗi + nhập số tài khoản,
+        // ngân hàng, (tuỳ chọn) ảnh chụp màn hình và lý do. Máy chủ dựng payload
+        // hoàn tiền từ đơn hàng thật rồi gắn vào context của ticket.
+        if (category === "refund") {
+            const refund = await validateRefundRequest({
+                userId: user.id,
+                orderId: (body.refund || {}).orderId,
+                bankCode: (body.refund || {}).bankCode,
+                bankAccount: (body.refund || {}).bankAccount,
+                accountHolder: (body.refund || {}).accountHolder,
+                reason: text,
+            });
+            if (refund.error) {
+                reply.status(400);
+                return { error: refund.error };
+            }
+            context = { ...(context || {}), refund: refund.value };
+        }
+
         try {
             const created = await helpdeskStore.createTicket({
                 userId: user.id,
@@ -137,7 +253,7 @@ export async function supportRoutes(app: FastifyInstance): Promise<void> {
                 priority: priority as TicketPriority,
                 body: text,
                 attachments: attachments.value,
-                context: normalizeContext(body.context),
+                context,
             });
             return { success: true, ticket: created };
         } catch (err: any) {

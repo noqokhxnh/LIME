@@ -28,11 +28,17 @@ import {
     TICKET_STATUSES,
     TICKET_CATEGORIES,
     TICKET_PRIORITIES,
+    REFUND_STATUSES,
+    getRefundPayload,
     type TicketStatus,
     type TicketPriority,
+    type RefundStatus,
+    type RefundRequestPayload,
 } from "../helpdesk/store.js";
 import { defaultTokenTracker } from "../usage/tokenTracker.js";
 import { billingStorage } from "../billing/storage.js";
+import { getBankByCode } from "../billing/banks.js";
+import { generateNapasQrString, generateQrImageUrl } from "../billing/napas.js";
 import type { Order, Plan } from "../billing/types.js";
 import { computeAnalytics, type AnalyticsJob, type DistributionItem } from "./analytics.js";
 import { getConfig } from "../config.js";
@@ -41,6 +47,42 @@ import { createTTSClient } from "../pipeline/audioSysnthesis.js";
 import { getLLMClientFactory } from "../llm/client.js";
 import { videoScriptSchema, type videoScript } from "../llm/schema.js";
 import type { IVideoQueue, JobUpdate } from "../queue/interfaces.js";
+
+/**
+ * Thông tin VietQR để quản trị quét trả tiền lại cho khách.
+ *
+ * Dựng từ chính số tài khoản + ngân hàng người dùng đã nhập và số tiền của đơn
+ * hàng, nội dung chuyển khoản kèm mã ticket để khi tiền về còn đối soát được.
+ * Trả `null` khi thiếu dữ liệu (không có gì để quét thì giao diện ẩn khối QR).
+ */
+function buildRefundQr(payload: RefundRequestPayload, ticketCode: string) {
+    const bank = getBankByCode(payload.bankCode);
+    if (!bank || !payload.bankAccount || !payload.amountVnd || payload.amountVnd <= 0) return null;
+
+    // Nội dung chuyển khoản: không dấu, ngắn gọn — nhiều app ngân hàng cắt dấu.
+    const memo = `HOAN TIEN ${ticketCode}`;
+
+    return {
+        bankCode: bank.code,
+        bankName: bank.name,
+        bankAccount: payload.bankAccount,
+        amountVnd: payload.amountVnd,
+        memo,
+        image: generateQrImageUrl({
+            bankCode: bank.code,
+            bankAccount: payload.bankAccount,
+            amount: payload.amountVnd,
+            memo,
+            accountName: payload.accountHolder || undefined,
+        }),
+        content: generateNapasQrString({
+            bankBin: bank.bin,
+            bankAccount: payload.bankAccount,
+            amount: payload.amountVnd,
+            memo,
+        }),
+    };
+}
 
 /**
  * Đọc `limit`/`page` từ query string của các danh sách quản trị.
@@ -147,7 +189,7 @@ const AUDIT_LOGS_MAX_LIMIT = 500;
 /** Trạng thái lọc hợp lệ của giao dịch chưa khớp đơn. */
 const UNMATCHED_STATUSES = ["pending", "resolved", "refunded", "all"];
 /** Loại nguồn hợp lệ của một bản ghi hoàn tiền. */
-const REFUND_SOURCE_TYPES = ["unmatched", "duplicate"];
+const REFUND_SOURCE_TYPES = ["unmatched", "duplicate", "refund_request"];
 /**
  * Giới hạn mặc định của danh sách unmatched/duplicate khi client KHÔNG gửi `limit`
  * (giữ nguyên hành vi cũ: `LIMIT 100`). Phải khớp hằng số trong `billing/storage.ts`.
@@ -1969,6 +2011,203 @@ export async function adminRoutes(app: FastifyInstance, opts?: { queue?: IVideoQ
 
         return { refunds, total, page: paging.page, limit: paging.limit ?? ADMIN_PAYMENTS_DEFAULT_LIMIT };
     });
+
+    // -------------------------------------------------------------
+    // 4d. YÊU CẦU HOÀN TIỀN CỦA NGƯỜI DÙNG
+    //
+    // Người dùng gửi từ widget Hỗ trợ (danh mục "refund") kèm giao dịch lỗi, số
+    // tài khoản, ngân hàng, (tuỳ chọn) ảnh chụp và lý do. Quản trị duyệt → từ chối
+    // → chuyển tiền; khi chuyển tiền thành công thì ghi vào sổ `refunds` để đối soát.
+    // Danh sách kèm sẵn mã VietQR (dựng từ số tài khoản + ngân hàng của khách) để
+    // quản trị quét trả tiền lại ngay trên màn hình.
+    // -------------------------------------------------------------
+
+    app.get("/api/admin/refund-requests", async (request: FastifyRequest, reply: FastifyReply) => {
+        const check = await verifyAdminUser(request);
+        if (!check.isAdmin) {
+            reply.status(403);
+            return { error: check.error };
+        }
+
+        const query = (request.query as any) || {};
+        const statusFilter = String(query.status || "all");
+        if (statusFilter !== "all" && !REFUND_STATUSES.includes(statusFilter as RefundStatus)) {
+            return reply
+                .status(400)
+                .send({ error: `Trạng thái không hợp lệ. Chỉ chấp nhận: ${REFUND_STATUSES.join(", ")}.` });
+        }
+
+        const page = parseInt(query.page, 10) || 1;
+        const limit = parseInt(query.limit, 10) || 25;
+
+        const result = await helpdeskStore.listRefundRequests({
+            status: statusFilter,
+            search: String(query.search || ""),
+            page,
+            limit,
+        });
+
+        return {
+            success: true,
+            total: result.total,
+            page: result.page,
+            limit: result.limit,
+            totalPages: result.totalPages,
+            stats: result.stats,
+            requests: result.items.map((t) => {
+                const refund = getRefundPayload(t);
+                return {
+                    ticketId: t.id,
+                    code: t.code,
+                    userId: t.userId,
+                    userEmail: t.userEmail,
+                    subject: t.subject,
+                    ticketStatus: t.status,
+                    priority: t.priority,
+                    createdAt: t.createdAt,
+                    lastMessageAt: t.lastMessageAt,
+                    refund,
+                    qr: refund ? buildRefundQr(refund, t.code) : null,
+                };
+            }),
+        };
+    });
+
+    app.patch(
+        "/api/admin/refund-requests/:id",
+        async (request: FastifyRequest<{ Params: { id: string } }>, reply: FastifyReply) => {
+            const check = await verifyAdminUser(request);
+            if (!check.isAdmin) {
+                reply.status(403);
+                return { error: check.error };
+            }
+
+            const { id } = request.params;
+            const body = (request.body as any) || {};
+            const nextStatus = String(body.status || "");
+            const note = body.note === undefined || body.note === null ? "" : String(body.note).trim();
+
+            if (!REFUND_STATUSES.includes(nextStatus as RefundStatus)) {
+                return reply
+                    .status(400)
+                    .send({ error: `Trạng thái không hợp lệ. Chỉ chấp nhận: ${REFUND_STATUSES.join(", ")}.` });
+            }
+            if (nextStatus === "pending") {
+                return reply.status(400).send({ error: "Không thể đưa yêu cầu trở lại trạng thái chờ xử lý." });
+            }
+            if (note.length > 1000) {
+                return reply.status(400).send({ error: "Ghi chú tối đa 1000 ký tự." });
+            }
+            if (nextStatus === "rejected" && note.length < 3) {
+                return reply.status(400).send({ error: "Vui lòng ghi rõ lý do từ chối để người dùng hiểu." });
+            }
+
+            const ticket = await helpdeskStore.findById(id);
+            const refund = ticket ? getRefundPayload(ticket) : null;
+            if (!ticket || ticket.category !== "refund" || !refund) {
+                reply.status(404);
+                return { error: "Không tìm thấy yêu cầu hoàn tiền." };
+            }
+
+            // Chỉ cho phép đi tới theo đúng luồng: chờ → duyệt → đã chuyển tiền.
+            const ALLOWED_FROM: Record<Exclude<RefundStatus, "pending">, RefundStatus[]> = {
+                approved: ["pending"],
+                rejected: ["pending", "approved"],
+                refunded: ["approved"],
+            };
+            if (!ALLOWED_FROM[nextStatus as Exclude<RefundStatus, "pending">].includes(refund.status)) {
+                return reply.status(409).send({
+                    error: `Không thể chuyển yêu cầu từ trạng thái "${refund.status}" sang "${nextStatus}".`,
+                });
+            }
+
+            const nowIso = new Date().toISOString();
+            const adminEmail = check.user?.email || "admin";
+            let refundId = refund.refundId;
+            let refundedAt = refund.refundedAt;
+
+            if (nextStatus === "refunded") {
+                // Ghi vào sổ hoàn tiền để đối soát; `sepay_ref` ưu tiên mã giao dịch
+                // thật của đơn, nếu đơn chưa từng khớp giao dịch nào thì dùng mã đơn.
+                const payment = await billingStorage.findPaymentByOrderId(refund.orderId);
+                try {
+                    const recorded = await billingStorage.recordRefund({
+                        source_type: "refund_request",
+                        source_id: ticket.id,
+                        sepay_ref: payment?.sepay_ref || refund.payCode,
+                        amount_vnd: refund.amountVnd,
+                        bank_account: refund.bankAccount,
+                        bank_name: refund.bankName,
+                        admin_note: note || `Hoàn theo yêu cầu ${ticket.code}`,
+                        refunded_by: adminEmail,
+                    });
+                    refundId = recorded.id;
+                    refundedAt = recorded.refunded_at;
+                } catch (err: any) {
+                    if (err?.code === "23505" || /already exists/i.test(err?.message || "")) {
+                        return reply.status(409).send({ error: "Yêu cầu này đã được ghi nhận hoàn tiền trước đó." });
+                    }
+                    throw err;
+                }
+
+                // Đơn chưa xử lý thì đóng lại để một giao dịch về muộn không kích hoạt
+                // gói nữa (tránh vừa được hoàn tiền vừa được cấp dịch vụ).
+                await billingStorage.cancelOrder(refund.orderId);
+            }
+
+            const updatedPayload: RefundRequestPayload = {
+                ...refund,
+                status: nextStatus as RefundStatus,
+                adminNote: note || refund.adminNote,
+                reviewedBy: adminEmail,
+                reviewedAt: nowIso,
+                refundId,
+                refundedAt,
+            };
+
+            await helpdeskStore.updateTicketContext(ticket.id, {
+                ...(ticket.context || {}),
+                refund: updatedPayload,
+            });
+
+            // Cho người dùng biết kết quả ngay trong hội thoại của widget.
+            const amountText = refund.amountVnd.toLocaleString("vi-VN");
+            const notices: Record<Exclude<RefundStatus, "pending">, string> = {
+                approved: `Yêu cầu hoàn tiền ${amountText} ₫ cho giao dịch ${refund.payCode} đã được duyệt. Đội ngũ LIME sẽ chuyển khoản trong thời gian sớm nhất.`,
+                rejected: `Yêu cầu hoàn tiền cho giao dịch ${refund.payCode} chưa được chấp nhận. Lý do: ${note}`,
+                refunded: `Đã hoàn ${amountText} ₫ vào tài khoản ${refund.bankName} - ${maskAccount(refund.bankAccount)}. Cảm ơn bạn đã kiên nhẫn chờ đợi.`,
+            };
+            await helpdeskStore.addMessage(ticket.id, {
+                senderType: "admin",
+                senderId: check.user?.id || null,
+                senderEmail: adminEmail,
+                body: notices[nextStatus as Exclude<RefundStatus, "pending">],
+            });
+
+            if (nextStatus === "refunded" || nextStatus === "rejected") {
+                await helpdeskStore.updateTicket(ticket.id, { status: "resolved" });
+            }
+
+            auditAdminAction(request, check, {
+                action: `admin.refund_request_${nextStatus}`,
+                status: "success",
+                details: {
+                    ticketId: ticket.id,
+                    code: ticket.code,
+                    userId: ticket.userId,
+                    orderId: refund.orderId,
+                    payCode: refund.payCode,
+                    amount: refund.amountVnd,
+                    bankName: refund.bankName,
+                    bankAccountMasked: maskAccount(refund.bankAccount),
+                    refundId,
+                    note: note || undefined,
+                },
+            });
+
+            return { success: true, refund: updatedPayload, ticket: await helpdeskStore.getTicket(ticket.id) };
+        }
+    );
 
     // -------------------------------------------------------------
     // 5. SYSTEM SETTINGS & PROVIDER CONNECTIVITY

@@ -131,6 +131,8 @@ export interface IBillingStorage {
     }): Promise<Payment>;
     getUserPlanExpiry(userId: string): Promise<string | null>;
     findPaymentById(id: string): Promise<Payment | null>;
+    /** Giao dịch ngân hàng gắn với một đơn hàng (nếu có) — dùng khi đối soát hoàn tiền. */
+    findPaymentByOrderId(orderId: string): Promise<Payment | null>;
     findUnmatchedPaymentById(id: string): Promise<UnmatchedPayment | null>;
     listDuplicatePayments(): Promise<Payment[]>;
     getUnmatchedPayments(status?: string): Promise<UnmatchedPayment[]>;
@@ -638,6 +640,16 @@ export class PostgresBillingStorage implements IBillingStorage {
             `SELECT * FROM payments WHERE result = 'duplicate' ORDER BY received_at DESC LIMIT 100`
         );
         return res.rows.map(r => this.mapPayment(r));
+    }
+
+    async findPaymentByOrderId(orderId: string): Promise<Payment | null> {
+        if (!isUuid(orderId)) return null;
+        const res = await db.query(
+            'SELECT * FROM payments WHERE order_id = $1 ORDER BY received_at DESC LIMIT 1',
+            [orderId]
+        );
+        if (res.rows.length === 0) return null;
+        return this.mapPayment(res.rows[0]);
     }
 
     async findRefundBySource(sourceType: RefundSourceType, sourceId: string): Promise<Refund | null> {
@@ -1211,6 +1223,13 @@ export class InMemoryBillingStorage implements IBillingStorage {
 
     async findPaymentById(id: string): Promise<Payment | null> {
         return this.payments.get(id) || null;
+    }
+
+    async findPaymentByOrderId(orderId: string): Promise<Payment | null> {
+        const matches = Array.from(this.payments.values())
+            .filter(p => p.order_id === orderId)
+            .sort((a, b) => b.received_at.localeCompare(a.received_at));
+        return matches[0] || null;
     }
 
     async listDuplicatePayments(): Promise<Payment[]> {
