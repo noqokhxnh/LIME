@@ -59,6 +59,8 @@ body {
 
 /* ---------- sidebar ---------- */
 .admin-sidebar {
+    /* Padding dọc tách thành biến để trừ đúng khỏi chiều cao bên dưới. */
+    --sidebar-pad-y: 20px;
     width: 252px;
     flex: 0 0 252px;
     background: var(--card);
@@ -66,10 +68,51 @@ body {
     display: flex;
     flex-direction: column;
     justify-content: space-between;
-    padding: 20px 14px;
+    padding: var(--sidebar-pad-y) 14px;
     position: sticky;
     top: 0;
-    height: 100vh;
+    /*
+     * Dự án không có reset `box-sizing: border-box` toàn cục, nên phần tử ở đây
+     * vẫn là `content-box`: phải trừ padding dọc khỏi chiều cao khung nhìn, nếu
+     * không sidebar cao hơn màn hình đúng 2 × 20px và khối tài khoản + "Quay lại
+     * Studio" bị đẩy ra ngoài vùng nhìn thấy.
+     * `dvh` theo chiều cao thật của khung nhìn (thanh địa chỉ mobile ẩn/hiện).
+     */
+    height: calc(100vh - (var(--sidebar-pad-y) * 2));
+    height: calc(100dvh - (var(--sidebar-pad-y) * 2));
+    /* Cho phép vùng giữa co lại để footer không bị đẩy ra ngoài màn hình. */
+    min-height: 0;
+}
+
+/*
+ * Vùng giữa (thương hiệu + điều hướng). Trên desktop phần này tự cuộn còn khối
+ * tài khoản ở `.sidebar-footer` luôn nằm trong màn hình — trước đây sidebar không
+ * cuộn được nên khi danh sách dài hơn khung nhìn thì "Quay lại Studio" bị đẩy ra
+ * ngoài và không thể cuộn tới.
+ */
+.sidebar-main {
+    display: flex;
+    flex-direction: column;
+    /* Mặc định không co lại: trên mobile cả sidebar cuộn như một khối. */
+    flex: 0 0 auto;
+    min-height: 0;
+}
+
+@media (min-width: 961px) {
+    .sidebar-main {
+        flex: 1 1 auto;
+        overflow-y: auto;
+        overscroll-behavior: contain;
+        scrollbar-width: thin;
+    }
+
+    /* Thương hiệu dán trên cùng để không bị cuộn mất khi danh sách dài. */
+    .sidebar-brand {
+        position: sticky;
+        top: 0;
+        z-index: 1;
+        background: var(--card);
+    }
 }
 
 .sidebar-brand {
@@ -179,6 +222,8 @@ body {
     gap: 12px;
     padding-top: 14px;
     border-top: 1px solid var(--line);
+    /* Không co lại theo vùng cuộn phía trên. */
+    flex: 0 0 auto;
 }
 
 .admin-user-profile {
@@ -1620,7 +1665,11 @@ body {
         top: 0;
         left: 0;
         bottom: 0;
-        height: 100dvh;
+        /*
+         * Không đặt `height` ở đây: `top: 0; bottom: 0` đã cho chiều cao đúng bằng
+         * khung nhìn (padding nằm bên trong), tránh lặp lại lỗi cộng thêm padding.
+         */
+        height: auto;
         width: min(300px, 84vw);
         flex: 0 0 auto;
         z-index: 70;
