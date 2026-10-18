@@ -305,7 +305,7 @@ export const MaintenanceView = {
 
         const state = AdminState.getParamsFromUrl();
         const page = parseInt(state.page, 10) || 1;
-        const limit = 25;
+        const limit = parseInt(state.limit, 10) || 25;
         const search = state.search || '';
 
         try {
@@ -388,14 +388,19 @@ export const MaintenanceView = {
     renderPagination(currentPage, totalPages, totalItems) {
         const container = document.getElementById('maint-pagination-container');
         if (!container) return;
+        const state = AdminState.getParamsFromUrl();
 
         Pagination.render({
             container,
-            currentPage,
-            totalPages,
-            totalItems,
+            page: currentPage,
+            total: totalItems,
+            limit: parseInt(state.limit, 10) || 25,
             onPageChange: (newPage) => {
                 AdminState.setParams({ page: newPage });
+                this.fetchAndRender();
+            },
+            onLimitChange: (newLimit) => {
+                AdminState.setParams({ limit: newLimit, page: 1 });
                 this.fetchAndRender();
             },
         });

@@ -332,14 +332,19 @@ export const AnnouncementsView = {
     renderPagination(currentPage, totalPages, totalItems) {
         const container = document.getElementById('ann-pagination-container');
         if (!container) return;
+        const state = AdminState.getParamsFromUrl();
 
         Pagination.render({
             container,
-            currentPage,
-            totalPages,
-            totalItems,
+            page: currentPage,
+            total: totalItems,
+            limit: parseInt(state.limit, 10) || 25,
             onPageChange: (newPage) => {
                 AdminState.setParams({ page: newPage });
+                this.fetchAndRender();
+            },
+            onLimitChange: (newLimit) => {
+                AdminState.setParams({ limit: newLimit, page: 1 });
                 this.fetchAndRender();
             },
         });
