@@ -621,7 +621,12 @@ export const ActionMenu = {
         }, true);
 
         document.addEventListener('keydown', (e) => {
-            if (e.key === 'Escape') this.close();
+            if (e.key !== 'Escape') return;
+            // Chỉ xử lý khi menu đang thật sự mở, và trả focus về nút "Thao tác".
+            if (!this.portalEl?.classList.contains('show')) return;
+            const trigger = this.activeTrigger;
+            this.close();
+            trigger?.focus?.();
         });
     },
 
@@ -662,7 +667,12 @@ export const ActionMenu = {
             itemBtn.innerHTML = `<span>${item.label}</span>`;
             itemBtn.onclick = (e) => {
                 e.stopPropagation();
+                // Trả focus về nút "Thao tác" TRƯỚC khi chạy hành động, để hộp
+                // thoại/drawer mở sau đó ghi nhận đúng phần tử cần trả focus khi
+                // đóng (nếu không, activeElement là <body> nên focus bị mất).
+                const trigger = this.activeTrigger;
                 this.close();
+                trigger?.focus?.();
                 if (typeof item.onClick === 'function') {
                     item.onClick();
                 }
@@ -772,7 +782,144 @@ export const BulkBar = {
     }
 };
 
-// 9b. API HEALTH INDICATOR (sidebar/topbar badge)
+// 9b. VIDEO PREVIEW — xem video của job đã hoàn thành ngay trong trang quản trị.
+// Dùng route sẵn có `/api/jobs/:jobId/video` (stream có hỗ trợ Range) và
+// `/api/jobs/:jobId/download`; cả hai cùng origin với trang admin.
+export const VideoPreview = {
+    rootEl: null,
+    playerEl: null,
+    statusEl: null,
+    returnFocus: null,
+    activeJobId: '',
+    onKeydown: null,
+
+    videoUrl(jobId) {
+        return `/api/jobs/${encodeURIComponent(jobId)}/video`;
+    },
+
+    downloadUrl(jobId) {
+        return `/api/jobs/${encodeURIComponent(jobId)}/download`;
+    },
+
+    init() {
+        if (this.rootEl?.isConnected) return this.rootEl;
+
+        const root = document.createElement('div');
+        root.className = 'video-preview-backdrop';
+        root.hidden = true;
+        root.innerHTML = `
+            <section class="video-preview-dialog" role="dialog" aria-modal="true" aria-labelledby="video-preview-title">
+                <header class="video-preview-header">
+                    <div class="video-preview-heading">
+                        <h2 class="video-preview-title" id="video-preview-title">Video</h2>
+                        <div class="video-preview-subtitle" data-video-preview-subtitle></div>
+                    </div>
+                    <button class="btn-icon" type="button" data-video-preview-close aria-label="Đóng cửa sổ xem video" title="Đóng">
+                        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><path d="M18 6 6 18M6 6l12 12"/></svg>
+                    </button>
+                </header>
+                <div class="video-preview-stage">
+                    <video class="video-preview-player" data-video-preview-player controls playsinline preload="metadata"></video>
+                    <div class="video-preview-status" data-video-preview-status role="status" hidden></div>
+                </div>
+                <footer class="video-preview-footer">
+                    <a class="btn btn-secondary" data-video-preview-newtab target="_blank" rel="noopener">Mở trong tab mới</a>
+                    <a class="btn btn-primary" data-video-preview-download>⬇ Tải video</a>
+                </footer>
+            </section>`;
+        document.body.appendChild(root);
+
+        this.rootEl = root;
+        this.playerEl = root.querySelector('[data-video-preview-player]');
+        this.statusEl = root.querySelector('[data-video-preview-status]');
+
+        // Không dùng sự kiện `close` mà tự đóng khi bấm nền/nút ✕.
+        root.addEventListener('click', (event) => {
+            if (event.target === root || event.target.closest('[data-video-preview-close]')) this.close();
+        });
+
+        // Tệp video có thể đã bị dọn khỏi thư mục tạm của server → báo rõ thay vì
+        // để khung player trống.
+        this.playerEl.addEventListener('error', () => {
+            if (!this.activeJobId || this.rootEl.hidden) return;
+            this.setStatus('Không tải được tệp video. Tệp có thể đã bị xoá khỏi thư mục tạm (tmp) của máy chủ hoặc job render ở máy khác.');
+        });
+        const clearStatus = () => {
+            if (this.activeJobId && !this.rootEl.hidden) this.setStatus('');
+        };
+        this.playerEl.addEventListener('loadedmetadata', clearStatus);
+        this.playerEl.addEventListener('canplay', clearStatus);
+
+        return root;
+    },
+
+    setStatus(message) {
+        if (!this.statusEl) return;
+        this.statusEl.textContent = message || '';
+        this.statusEl.hidden = !message;
+    },
+
+    /** Mở cửa sổ xem video cho một job đã có tệp video. */
+    show({ jobId, title = 'Video đã hoàn thành', subtitle = '' } = {}) {
+        const id = String(jobId || '').trim();
+        if (!id) return null;
+
+        this.init();
+        this.returnFocus = document.activeElement;
+        this.activeJobId = id;
+
+        this.rootEl.querySelector('#video-preview-title').textContent = title || 'Video đã hoàn thành';
+        this.rootEl.querySelector('[data-video-preview-subtitle]').textContent = subtitle || `Job ${id.slice(0, 8)}…`;
+        this.rootEl.querySelector('[data-video-preview-newtab]').href = this.videoUrl(id);
+        this.rootEl.querySelector('[data-video-preview-download]').href = this.downloadUrl(id);
+
+        this.setStatus('Đang tải video…');
+        this.playerEl.src = this.videoUrl(id);
+        this.playerEl.load();
+
+        this.rootEl.hidden = false;
+        requestAnimationFrame(() => {
+            this.rootEl.classList.add('is-open');
+            this.rootEl.querySelector('[data-video-preview-close]')?.focus();
+            // Chặn autoplay là bình thường (video có tiếng) — bỏ qua lỗi để không
+            // hiện cảnh báo thừa.
+            this.playerEl.play?.()?.catch?.(() => { });
+        });
+
+        this.onKeydown = (event) => {
+            if (event.key === 'Escape') {
+                event.stopPropagation();
+                this.close();
+            }
+        };
+        document.addEventListener('keydown', this.onKeydown, true);
+
+        return this.rootEl;
+    },
+
+    close() {
+        if (!this.rootEl || this.rootEl.hidden) return;
+        this.activeJobId = '';
+        this.rootEl.classList.remove('is-open');
+        this.rootEl.hidden = true;
+        this.playerEl.pause();
+        this.playerEl.removeAttribute('src');
+        this.playerEl.load();
+        this.setStatus('');
+        if (this.onKeydown) {
+            document.removeEventListener('keydown', this.onKeydown, true);
+            this.onKeydown = null;
+        }
+        this.returnFocus?.focus?.();
+        this.returnFocus = null;
+    },
+
+    isOpen() {
+        return Boolean(this.rootEl && !this.rootEl.hidden);
+    }
+};
+
+// 9c. API HEALTH INDICATOR (sidebar/topbar badge)
 export const HealthDot = {
     el: null,
     timer: null,

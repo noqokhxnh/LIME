@@ -2212,3 +2212,123 @@ html[data-density="compact"] .user-avatar-sm { width: 28px; height: 28px; flex-b
     letter-spacing: -0.03em;
     white-space: nowrap;
 }
+
+/* ---------- video jobs: cửa sổ xem video đã hoàn thành ----------
+   Dùng route sẵn có /api/jobs/:jobId/video + /download. Đặt trên drawer chi tiết
+   job (10991) nhưng dưới hộp thoại xác nhận (11990) và toast (12000). */
+.video-preview-backdrop {
+    position: fixed;
+    z-index: 11980;
+    inset: 0;
+    display: grid;
+    place-items: center;
+    padding: 18px;
+    background: rgba(20, 22, 15, 0.55);
+    opacity: 0;
+    transition: opacity 0.18s var(--ease);
+}
+
+.video-preview-backdrop[hidden] { display: none; }
+.video-preview-backdrop.is-open { opacity: 1; }
+
+.video-preview-dialog {
+    /* Dự án không có reset `box-sizing` toàn cục → phải tự đặt để padding/border
+       không cộng thêm ngoài `width: min(920px, 100%)` (nếu không sẽ tràn ngang
+       trên màn hình hẹp ~390px). */
+    box-sizing: border-box;
+    width: min(920px, 100%);
+    max-height: calc(100dvh - 36px);
+    display: flex;
+    flex-direction: column;
+    gap: 14px;
+    padding: 18px;
+    background: var(--card);
+    border: 1px solid var(--line);
+    border-radius: var(--radius-xl);
+    box-shadow: var(--shadow-pop);
+    transform: translateY(6px) scale(0.99);
+    transition: transform 0.18s var(--ease);
+}
+
+.video-preview-backdrop.is-open .video-preview-dialog { transform: none; }
+
+.video-preview-header {
+    display: flex;
+    align-items: flex-start;
+    justify-content: space-between;
+    gap: 12px;
+}
+
+.video-preview-heading { min-width: 0; }
+
+.video-preview-title {
+    margin: 0;
+    font-family: var(--font-display);
+    font-size: 16px;
+    font-weight: 700;
+    color: var(--ink);
+    line-height: 1.35;
+    overflow-wrap: anywhere;
+}
+
+.video-preview-subtitle {
+    margin-top: 3px;
+    font-size: 12px;
+    color: var(--muted);
+    overflow-wrap: anywhere;
+}
+
+.video-preview-stage {
+    position: relative;
+    background: var(--dark);
+    border-radius: var(--radius-md);
+    overflow: hidden;
+    aspect-ratio: 16 / 9;
+    min-height: 0;
+}
+
+.video-preview-player {
+    width: 100%;
+    height: 100%;
+    display: block;
+    background: var(--dark);
+    object-fit: contain;
+}
+
+.video-preview-status {
+    position: absolute;
+    inset: auto 0 0 0;
+    padding: 8px 12px;
+    font-size: 12px;
+    line-height: 1.5;
+    color: #F6F5F0;
+    background: rgba(20, 22, 15, 0.82);
+}
+
+.video-preview-status[hidden] { display: none; }
+
+.video-preview-footer {
+    display: flex;
+    justify-content: flex-end;
+    gap: 8px;
+    flex-wrap: wrap;
+}
+
+.video-preview-footer .btn { text-decoration: none; }
+
+/* Nút hành động trong mục "Kết quả" của drawer chi tiết job. */
+.job-result-actions {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+    margin-top: 10px;
+}
+
+.job-result-actions .btn { text-decoration: none; }
+
+@media (max-width: 640px) {
+    .video-preview-backdrop { padding: 10px; }
+    .video-preview-dialog { padding: 14px; gap: 12px; border-radius: var(--radius-lg); }
+    .video-preview-footer { justify-content: stretch; }
+    .video-preview-footer .btn { flex: 1 1 auto; }
+}

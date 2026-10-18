@@ -3,7 +3,7 @@
  */
 
 import { AdminApi } from './api.js';
-import { Toast, Drawer, ConfirmModal, Skeleton, EmptyState, AlertBanner, ActionMenu } from './components.js';
+import { Toast, Drawer, ConfirmModal, Skeleton, EmptyState, AlertBanner, ActionMenu, VideoPreview } from './components.js';
 
 export const JobsView = {
     containerEl: null,
@@ -129,6 +129,9 @@ export const JobsView = {
                 const menuItems = [
                     { label: 'Xem chi tiết', onClick: () => this.openJobDrawer(j) }
                 ];
+                if (j.hasVideo) {
+                    menuItems.push({ label: 'Xem video', onClick: () => this.openVideoPreview(j) });
+                }
                 if (isRunning) {
                     menuItems.push({ label: 'Hủy job', danger: true, onClick: () => this.handleCancelJob(jobId) });
                 }
@@ -206,7 +209,15 @@ export const JobsView = {
                         </label>`).join('')}</div>` : '<div class="job-edit-note">Kịch bản chưa được lưu. Bạn vẫn có thể sửa thời lượng; Studio sẽ cho phép chỉnh kịch bản nếu dữ liệu đó có sẵn.</div>'}
                     <button class="btn btn-secondary" type="button" data-save-job-edits>Lưu chỉnh sửa</button>
                 </section>
-                <section class="drawer-section"><div class="drawer-section-title">Kết quả</div><div class="job-detail-summary">Video: ${result.hasVideo ? 'Có' : 'Chưa có'} · HTML: ${result.hasHtml ? 'Có' : 'Chưa có'}${detail.degraded ? ' · <strong>Bản suy giảm chất lượng</strong> (QA thất bại nhưng vẫn render; nên duyệt lại trước khi dùng)' : ''}</div></section>
+                <section class="drawer-section">
+                    <div class="drawer-section-title">Kết quả</div>
+                    <div class="job-detail-summary">Video: ${result.hasVideo ? 'Có' : 'Chưa có'} · HTML: ${result.hasHtml ? 'Có' : 'Chưa có'}${detail.degraded ? ' · <strong>Bản suy giảm chất lượng</strong> (QA thất bại nhưng vẫn render; nên duyệt lại trước khi dùng)' : ''}</div>
+                    ${result.hasVideo ? `<div class="job-result-actions">
+                        <button class="btn btn-primary" type="button" data-watch-job-video>▶ Xem video</button>
+                        <a class="btn btn-secondary" href="${VideoPreview.videoUrl(jobId)}" target="_blank" rel="noopener">Mở trong tab mới</a>
+                        <a class="btn btn-secondary" href="${VideoPreview.downloadUrl(jobId)}">Tải video</a>
+                    </div>` : '<div class="job-detail-summary">Job này chưa có tệp video để xem (job lỗi, đã hủy, hoặc chưa render xong).</div>'}
+                </section>
                 ${status === 'queued' && ['failed', 'completed'].includes(queue.state) ? '<section class="drawer-section job-detail-error"><div class="drawer-section-title">Trạng thái không đồng nhất</div><div>Job store đang ghi queued nhưng bản ghi hàng đợi mới nhất đã kết thúc. Có thể job chưa được cập nhật trạng thái sau khi worker dừng.</div></section>' : ''}
                 ${detail.error || queue.failedReason ? `<section class="drawer-section job-detail-error"><div class="drawer-section-title">Chi tiết lỗi</div><pre>${escapeHtml(detail.error || queue.failedReason)}</pre></section>` : ''}
                 ${status === 'failed' && !detail.error && !queue.failedReason ? '<section class="drawer-section job-detail-error"><div class="drawer-section-title">Chưa có thông báo lỗi</div><div>Job đã được đánh dấu thất bại nhưng job store và hàng đợi không lưu thông báo lỗi. Kiểm tra log của server/worker tại thời điểm cập nhật lần cuối.</div></section>' : ''}
@@ -223,6 +234,14 @@ export const JobsView = {
             footer.querySelector('[data-retry-job]')?.addEventListener('click', () => {
                 this.handleRetryJob(jobId);
                 Drawer.close();
+            });
+            body.querySelector('[data-watch-job-video]')?.addEventListener('click', () => {
+                this.openVideoPreview({
+                    id: jobId,
+                    topic: request.prompt || job.topic || job.prompt,
+                    status,
+                    durationSec: result.durationSec || request.targetDurationSec
+                });
             });
             body.querySelector('[data-save-job-edits]')?.addEventListener('click', async (event) => {
                 const button = event.currentTarget;
@@ -254,6 +273,19 @@ export const JobsView = {
             panel.querySelector('#lime-drawer-subtitle').textContent = 'Không thể tải thông tin đầy đủ';
             panel.querySelector('#lime-drawer-body').innerHTML = `<section class="drawer-section job-detail-error"><pre>${escapeHtml(err.message)}</pre></section>`;
         }
+    },
+
+    /** Mở cửa sổ xem video cho job đã có tệp render (nút trong menu thao tác hoặc drawer). */
+    openVideoPreview(job) {
+        const jobId = job?.id || job?.jobId || '';
+        if (!jobId) return;
+        const duration = Math.round(Number(job.durationSec) || 0);
+        const meta = [job.status || 'completed', duration ? `${duration}s` : ''].filter(Boolean).join(' · ');
+        VideoPreview.show({
+            jobId,
+            title: job.topic || job.prompt || 'Video đã hoàn thành',
+            subtitle: `Job ${jobId.slice(0, 8)}… · ${meta}`
+        });
     },
 
     handleCancelJob(jobId) {
