@@ -3123,6 +3123,7 @@ export async function adminRoutes(app: FastifyInstance, opts?: { queue?: IVideoQ
                     onError: (err) => {
                         try {
                             reply.raw.write(`event: err\ndata: ${JSON.stringify({ message: err.message })}\n\n`);
+                            reply.raw.end();
                         } catch {}
                     },
                     onEnd: () => {

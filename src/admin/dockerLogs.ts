@@ -184,6 +184,18 @@ export interface StreamLogHandle {
     abort: () => void;
 }
 
+function hasDockerCli(): boolean {
+    try {
+        const path = process.env.PATH || '';
+        for (const dir of path.split(':')) {
+            if (existsSync(`${dir}/docker`)) return true;
+        }
+        return false;
+    } catch {
+        return false;
+    }
+}
+
 /**
  * Stream trực tiếp log của một container (tương đương docker logs -f <container>).
  * Tự động thử qua Docker Socket trước, nếu không khả dụng sẽ fallback sang `docker` CLI.
@@ -208,8 +220,20 @@ export function streamDockerLogs(
         }
     }
 
-    // Ưu tiên 2: Fallback sang Docker CLI spawn
-    return streamViaCli(container, tail, follow, callbacks);
+    // Ưu tiên 2: Fallback sang Docker CLI spawn nếu hệ thống có sẵn lệnh docker
+    if (hasDockerCli()) {
+        return streamViaCli(container, tail, follow, callbacks);
+    }
+
+    const handle = { abort: () => {} };
+    process.nextTick(() => {
+        callbacks.onError(
+            new Error(
+                `Không thể kết nối Docker daemon: không thể truy cập socket ${DOCKER_SOCKET} và lệnh 'docker' không khả dụng trong môi trường này.`
+            )
+        );
+    });
+    return handle;
 }
 
 /**
@@ -251,24 +275,44 @@ function streamViaSocket(
                 // bytes 1-3: zeros
                 // bytes 4-7: uint32be length
                 while (acc.length >= 8) {
-                    const streamCode = acc[0];
-                    const streamType = streamCode === 2 ? 'stderr' : 'stdout';
-                    const length = acc.readUInt32BE(4);
+                    const isMultiplexHeader =
+                        (acc[0] === 1 || acc[0] === 2 || acc[0] === 0) &&
+                        acc[1] === 0 &&
+                        acc[2] === 0 &&
+                        acc[3] === 0;
 
-                    if (acc.length < 8 + length) {
-                        // Chưa đủ frame, chờ chunk kế tiếp
+                    if (isMultiplexHeader) {
+                        const streamCode = acc[0];
+                        const streamType = streamCode === 2 ? 'stderr' : 'stdout';
+                        const length = acc.readUInt32BE(4);
+
+                        if (acc.length < 8 + length) {
+                            // Chưa đủ frame, chờ chunk kế tiếp
+                            break;
+                        }
+
+                        const payload = acc.subarray(8, 8 + length).toString('utf8');
+                        acc = acc.subarray(8 + length);
+
+                        callbacks.onData(payload, streamType);
+                    } else {
+                        // Luồng plain/raw text khi không có multiplex header (ví dụ container bật tty)
+                        const payload = acc.toString('utf8');
+                        acc = Buffer.alloc(0);
+                        callbacks.onData(payload, 'stdout');
                         break;
                     }
-
-                    const payload = acc.subarray(8, 8 + length).toString('utf8');
-                    acc = acc.subarray(8 + length);
-
-                    callbacks.onData(payload, streamType);
                 }
             });
 
             res.on('end', () => {
-                if (!aborted) callbacks.onEnd();
+                if (!aborted) {
+                    if (acc.length > 0) {
+                        callbacks.onData(acc.toString('utf8'), 'stdout');
+                        acc = Buffer.alloc(0);
+                    }
+                    callbacks.onEnd();
+                }
             });
 
             res.on('error', (err) => {
@@ -279,9 +323,15 @@ function streamViaSocket(
 
     req.on('error', (err) => {
         if (!aborted) {
-            // Thử fallback CLI nếu socket request gặp lỗi cấp kết nối
-            const cliHandle = streamViaCli(container, tail, follow, callbacks);
-            return cliHandle;
+            if (hasDockerCli()) {
+                streamViaCli(container, tail, follow, callbacks);
+                return;
+            }
+            callbacks.onError(
+                new Error(
+                    `Lỗi kết nối Docker socket (${err.message}). Vui lòng đảm bảo service có quyền truy cập ${DOCKER_SOCKET}.`
+                )
+            );
         }
     });
 

@@ -331,6 +331,9 @@ export const DockerLogsView = {
                 pauseIcon.innerHTML = `<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="6" y="4" width="4" height="16"/><rect x="14" y="4" width="4" height="16"/></svg>`;
             }
             if (pauseBtn) pauseBtn.classList.remove('btn-warning');
+            if (!this.eventSource) {
+                this.startStream(this.activeContainer);
+            }
             if (this.autoScroll) this.scrollToBottom();
         }
     },
@@ -362,13 +365,17 @@ export const DockerLogsView = {
             });
 
             this.eventSource.addEventListener('err', (event) => {
+                let msg = '';
                 try {
                     const data = JSON.parse(event.data);
-                    this.appendLogLine(`[HỆ THỐNG] Lỗi log stream: ${data.message}`, 'stderr');
+                    msg = data.message || event.data;
                 } catch {
-                    this.appendLogLine(`[HỆ THỐNG] Lỗi log stream: ${event.data}`, 'stderr');
+                    msg = event.data;
                 }
+                this.appendLogLine(`[HỆ THỐNG] Lỗi log stream: ${msg}`, 'stderr');
                 this.setConnectionStatus('error', 'Lỗi stream');
+                // Ngắt EventSource để tránh browser tự động reconnect lặp vô tận
+                this.stopStream();
             });
 
             this.eventSource.addEventListener('end', () => {
@@ -377,7 +384,11 @@ export const DockerLogsView = {
 
             this.eventSource.onerror = (err) => {
                 console.warn('[DockerLogs] Lỗi kết nối EventSource:', err);
-                this.setConnectionStatus('error', 'Mất kết nối — Đang thử lại...');
+                if (this.eventSource && this.eventSource.readyState === EventSource.CLOSED) {
+                    this.setConnectionStatus('error', 'Mất kết nối stream');
+                } else {
+                    this.setConnectionStatus('error', 'Mất kết nối — Đang thử lại...');
+                }
             };
         } catch (err) {
             console.error('[DockerLogs] Không thể khởi tạo EventSource:', err);
