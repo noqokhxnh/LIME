@@ -17,6 +17,7 @@ import { LogsView } from './logs-view.js';
 import { MaintenanceView } from './maintenance-view.js';
 import { AnnouncementsView } from './announcements-view.js';
 import { TicketsView } from './tickets-view.js';
+import { DockerLogsView } from './docker-logs-view.js';
 
 /** Nhóm điều hướng cho breadcrumb — khớp nhãn nhóm trong sidebar. */
 const TAB_GROUPS = {
@@ -31,6 +32,7 @@ const TAB_GROUPS = {
     'failed-payments': 'Quản lý nghiệp vụ',
     settings: 'Hệ thống & An toàn',
     logs: 'Hệ thống & An toàn',
+    'docker-logs': 'Hệ thống & An toàn',
 };
 
 export const AdminCore = {
@@ -290,6 +292,14 @@ export const AdminCore = {
         const container = document.getElementById('admin-view-container');
         if (!container) return;
 
+        if (this.currentView && typeof this.currentView.destroy === 'function') {
+            try {
+                this.currentView.destroy();
+            } catch (err) {
+                console.warn('[Admin] Lỗi dọn dẹp view cũ:', err);
+            }
+        }
+
         if (updateState) {
             AdminState.setParams({ tab: tabName });
         }
@@ -349,6 +359,11 @@ export const AdminCore = {
                 if (titleEl) titleEl.textContent = 'Nhật ký kiểm toán (Audit Logs)';
                 LogsView.init(container);
                 this.currentView = LogsView;
+                break;
+            case 'docker-logs':
+                if (titleEl) titleEl.textContent = 'Docker Logs (Nhật ký Containers)';
+                DockerLogsView.init(container);
+                this.currentView = DockerLogsView;
                 break;
             default:
                 if (titleEl) titleEl.textContent = 'Bảng điều khiển & Phân tích';

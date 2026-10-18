@@ -401,5 +401,18 @@ export const AdminApi = {
             method: 'PATCH',
             body: JSON.stringify(data)
         });
+    },
+
+    // Docker Logs
+    async getDockerContainers() {
+        return this.request('/api/admin/docker-logs/containers');
+    },
+
+    getDockerLogStreamUrl(container, tail = 100) {
+        return `/api/admin/docker-logs/stream?container=${encodeURIComponent(container)}&tail=${encodeURIComponent(tail)}`;
+    },
+
+    getDockerLogDownloadUrl(container, tail = 1000) {
+        return `/api/admin/docker-logs/download?container=${encodeURIComponent(container)}&tail=${encodeURIComponent(tail)}`;
     }
 };
