@@ -27,6 +27,12 @@ The API server is a Fastify app in `src/index.ts`. All endpoints are JSON unless
 | GET | `/api/settings` | 🔒 | Provider list + user's current selection |
 | PUT | `/api/settings` | 🔒 | Switch LLM/TTS provider at runtime (scoped to current user) |
 | GET | `/api/announcements` | — | Active system broadcast banners (public, guests included) |
+| POST | `/api/support/tickets` | 🔒 | Create a support ticket (max 5 per user per hour) |
+| GET | `/api/support/tickets` | 🔒 | List the current user's support tickets |
+| GET | `/api/support/tickets/:id` | 🔒 | Ticket thread (owner or admin; internal notes hidden) |
+| POST | `/api/support/tickets/:id/messages` | 🔒 | Reply to own ticket |
+| POST | `/api/support/tickets/:id/close` | 🔒 | Close own ticket |
+| POST | `/api/support/attachments` | 🔒 | Upload a ticket attachment image (PNG/JPEG/SVG/WebP, ≤5MB) |
 | POST | `/api/script/draft` | 🔒 | Generate or regenerate a video script draft (Phase 1) |
 | POST | `/api/generate` | 🔒 | Create a video generation job (direct or from confirmed draft) |
 | POST | `/api/brand-kit/upload` | 🔒 | Upload brand logo (PNG, JPEG, SVG, WebP with XSS/XXE sanitization) |
@@ -226,8 +232,9 @@ Request body (either or both fields):
 
 ## System Broadcast Banner (Announcements)
 
-Banners shown at the bottom of every storefront page (index, workspace, profile,
-settings, legal) for **all visitors**, signed in or not. Managed from the Admin
+Banners shown big in the middle of the screen (modal-like overlay with backdrop)
+on every storefront page (index, workspace, profile, settings, legal) for **all
+visitors**, signed in or not. Managed from the Admin
 portal → **Thông báo**. Each announcement has a type (`info` / `feature` /
 `warning` / `maintenance`), an optional schedule (`startsAt` / `endsAt`), a
 priority, an audience (`all` / `users` / `guests`) and a dismissible flag.
@@ -282,6 +289,72 @@ Create/update body: `title` (≤160), `body` (≤2000), `kind`, `priority` (0–
 `isActive`, `dismissible`, `startsAt` / `endsAt` (ISO 8601 or `null`), `linkUrl`
 (http(s) or a leading `/`), `linkLabel` (≤80), `audience`. `endsAt` must be after
 `startsAt`. All admin actions are written to the audit log.
+
+## Support & Ticketing (Helpdesk)
+
+Floating "Hỗ trợ" widget on every storefront page (index, workspace, profile,
+settings, legal). Signed-in users create bug reports / support requests with up
+to 3 screenshot attachments, follow the conversation thread and reply in place.
+Admins manage everything from the Admin portal → **Hỗ trợ**. Data lives in the
+`tickets` + `ticket_messages` tables (JSON fallback `data/tickets.json`), store
+in `src/helpdesk/store.ts`, routes in `src/helpdesk/routes.ts`. Reaches the
+server even while `maintenanceMode` is on (allowlisted) so outages can be
+reported.
+
+Ticket fields: `code` (`LIME-T-XXXXXX`), `subject` (5–200), `category`
+(`bug` / `feature_request` / `billing` / `account` / `render` / `other`),
+`priority` (`low` / `normal` / `high` / `urgent`), `status`
+(`open` / `in_progress` / `waiting_user` / `resolved` / `closed`), `context`
+(the page `url` + browser family sent by the widget).
+
+Automatic status transitions:
+- Admin thread reply (non-internal note) on an `open` ticket → `in_progress`.
+- User reply on a `waiting_user` ticket → back to `open`.
+
+Other rules:
+- Guests get 401; every ticket API is scoped to the owning user (another
+  user's ticket returns 404).
+- Max 5 ticket creations per user per hour (429 afterwards).
+- Internal notes (`isInternal`) are visible only to admins — the user-facing
+  detail APIs filter them out.
+- Closed tickets accept no further replies (409, also for admins until reopened).
+- Attachments must reference `/uploads/tickets/...` URLs returned by the upload
+  endpoint; uploads go through the same security guard as brand logos
+  (magic bytes + SVG sanitize) and are served with a `sandbox` CSP.
+
+### `POST /api/support/attachments` 🔒
+
+Multipart/form-data with the image in field `file` (PNG/JPEG/SVG/WebP, ≤5MB).
+Returns `{ "success": true, "url": "/uploads/tickets/<uuid>.png" }`.
+
+### `POST /api/support/tickets` 🔒
+
+Body: `subject`, `body` (5–5000), `category`, `priority` (optional, default
+`normal`), `attachments` (optional array of `{ url, name }`, ≤3), `context`
+(optional `{ url }`; the widget adds it automatically). Returns the created
+ticket including its first `messages` entry.
+
+### `GET /api/support/tickets` 🔒
+
+`page` / `limit` (default 20). Returns `{ items, total, page, limit, totalPages }`
+sorted by last activity, scoped to the current user.
+
+### `GET /api/support/tickets/:id` 🔒 / `POST /api/support/tickets/:id/messages` 🔒 /
+`POST /api/support/tickets/:id/close` 🔒
+
+Owner (or admin) reads the full thread — internal notes filtered out; replies
+with `body` (1–5000) + `attachments`; closing sets `status: closed`. True
+conversation state is returned in full.
+
+### Admin endpoints 🔒 (super admin only)
+
+| Method | Path | Description |
+|---|---|---|
+| GET | `/api/admin/tickets` | List with filters `status`, `category`, `priority`, `search` (code/subject/email), `page`, `limit` + `stats` counts per status |
+| GET | `/api/admin/tickets/stats` | Counts per status |
+| GET | `/api/admin/tickets/:id` | Full thread incl. internal notes |
+| POST | `/api/admin/tickets/:id/messages` | Reply (`body`, `isInternal?`) — audit-logged |
+| PATCH | `/api/admin/tickets/:id` | Update `status` and/or `priority` — audit-logged |
 
 ## Jobs
 

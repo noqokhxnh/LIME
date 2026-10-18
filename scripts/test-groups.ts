@@ -33,6 +33,7 @@ export const FAST: string[] = [
     'tests/unit/admin_jobs.test.ts',
     'tests/unit/admin_orders.test.ts',
     'tests/unit/admin_payments_lists.test.ts',
+    'tests/unit/admin_tickets.test.ts',
     'tests/unit/admin_refunds_list.test.ts',
     'tests/unit/admin_settings.test.ts',
     'tests/unit/admin_users.test.ts',

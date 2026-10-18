@@ -1,4 +1,4 @@
-import { mkdirSync, realpathSync, statSync } from 'node:fs';
+import { mkdirSync, realpathSync, statSync, writeFileSync } from 'node:fs';
 import { join, resolve, relative, basename, sep } from 'node:path';
 import { v4 as uuidv4 } from 'uuid';
 import { load } from 'cheerio';
@@ -385,6 +385,63 @@ export function getCanonicalLogosDir(): string {
 
 /** Tên file logo hợp lệ: chỉ gồm ký tự an toàn + đuôi ảnh cho phép */
 const SAFE_LOGO_FILENAME = /^[A-Za-z0-9][A-Za-z0-9._-]*\.(png|jpg|jpeg|svg|webp)$/i;
+
+// ─────────────────────────────────────────────────────────────
+// PHẠM VI THƯ MỤC TICKETS (ảnh đính kèm yêu cầu hỗ trợ)
+//
+// Ảnh screenshot người dùng gửi kèm ticket được lưu riêng tại
+// tmp/uploads/tickets. Nguyên tắc giống LOGOS_DIR: mọi lần ghi file
+// phải nằm gọn trong thư mục này (chặn path traversal khi tên file
+// bị can thiệp), và tên file luôn sinh sẵn bằng UUID nên không thể
+// ghi đè file hệ thống.
+// ─────────────────────────────────────────────────────────────
+
+/** Thư mục duy nhất được phép chứa ảnh đính kèm ticket */
+export const TICKETS_DIR = resolve(process.cwd(), 'tmp', 'uploads', 'tickets');
+
+/** Lấy đường dẫn canonical của TICKETS_DIR (giải quyết symlinks) */
+export function getCanonicalTicketsDir(): string {
+    mkdirSync(TICKETS_DIR, { recursive: true });
+    try {
+        return realpathSync(TICKETS_DIR);
+    } catch {
+        return TICKETS_DIR;
+    }
+}
+
+/** Tên file đính kèm hợp lệ (giống SAFE_LOGO_FILENAME) */
+const SAFE_TICKET_FILENAME = /^[A-Za-z0-9][A-Za-z0-9._-]*\.(png|jpg|jpeg|svg|webp)$/i;
+
+/**
+ * Ghi nội dung file đính kèm ticket vào thư mục TICKETS_DIR.
+ *
+ * Chặn path traversal: đường dẫn cha phải nằm trong TICKETS_DIR (sau khi
+ * canonicalize symlink) và tên file phải khớpSAFE_TICKET_FILENAME.
+ *
+ * @param targetPath  Đường dẫn tuyệt đối sinh bởi generateSafeFilePath
+ * @param content     Nội dung file (buffer nhị phân hoặc SVG đã sanitize)
+ */
+export function writeFileSyncInTickets(targetPath: string, content: Buffer | string): void {
+    const filename = basename(targetPath);
+    if (!SAFE_TICKET_FILENAME.test(filename)) {
+        throw new Error(`Tên file đính kèm không hợp lệ: ${filename}`);
+    }
+
+    const canonicalTicketsDir = getCanonicalTicketsDir();
+    const parent = resolve(targetPath, '..');
+    let canonicalParent: string;
+    try {
+        canonicalParent = realpathSync(parent);
+    } catch {
+        canonicalParent = resolve(parent);
+    }
+    const rel = relative(canonicalTicketsDir, canonicalParent);
+    if (rel !== '' && (rel === '..' || rel.startsWith(`..${sep}`))) {
+        throw new Error('Đường dẫn đính kèm vượt ra ngoài thư mục tickets.');
+    }
+
+    writeFileSync(targetPath, content);
+}
 
 /**
  * Chuẩn hoá và kiểm tra đường dẫn logo do client cung cấp.

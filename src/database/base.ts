@@ -245,3 +245,56 @@ CREATE TABLE IF NOT EXISTS announcements (
 CREATE INDEX IF NOT EXISTS idx_announcements_active
 ON announcements(is_active, priority DESC, created_at DESC);
 `;
+
+/**
+ * Câu lệnh SQL khởi tạo bảng helpdesk (Yêu cầu hỗ trợ / Ticketing).
+ *
+ * Người dùng tạo ticket (báo lỗi, yêu cầu hỗ trợ kỹ thuật) ngay trên trang của
+ * mình qua widget nổi; Admin tiếp nhận và phản hồi ngay trong trang Admin.
+ * Mỗi ticket là một chuỗi hội thoại gồm nhiều `ticket_messages` (bên user/admin,
+ * có thể kèm ảnh và ghi chú nội bộ `is_internal` ẩn khỏi người dùng).
+ *
+ * Các cột chính:
+ *   - code     : mã ticket hiển thị dạng LIME-T-XXXXXX (unique, tránh nhầm lẫn với UUID)
+ *   - status   : open | in_progress | waiting_user | resolved | closed
+ *   - category : bug | feature_request | billing | account | render | other
+ *   - priority : low | normal | high | urgent
+ *   - context  : JSONB tự báo cáo (URL, userAgent, tier, jobId) giúp admin tra cứu
+ */
+export const HELPDESK_SQL = `
+CREATE TABLE IF NOT EXISTS tickets (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    code VARCHAR(20) NOT NULL UNIQUE,
+    user_id UUID REFERENCES users(id) ON DELETE SET NULL,
+    user_email VARCHAR(255),
+    subject VARCHAR(200) NOT NULL,
+    category VARCHAR(30) NOT NULL DEFAULT 'other',
+    priority VARCHAR(20) NOT NULL DEFAULT 'normal',
+    status VARCHAR(20) NOT NULL DEFAULT 'open',
+    context JSONB,
+    last_message_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    last_admin_reply_at TIMESTAMPTZ,
+    created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+
+CREATE INDEX IF NOT EXISTS idx_tickets_status_last
+ON tickets(status, last_message_at DESC);
+CREATE INDEX IF NOT EXISTS idx_tickets_user
+ON tickets(user_id, created_at DESC);
+
+CREATE TABLE IF NOT EXISTS ticket_messages (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    ticket_id UUID NOT NULL REFERENCES tickets(id) ON DELETE CASCADE,
+    sender_type VARCHAR(10) NOT NULL,
+    sender_id UUID,
+    sender_email VARCHAR(255),
+    body TEXT NOT NULL,
+    attachments JSONB NOT NULL DEFAULT '[]'::jsonb,
+    is_internal BOOLEAN NOT NULL DEFAULT false,
+    created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+
+CREATE INDEX IF NOT EXISTS idx_ticket_messages_ticket
+ON ticket_messages(ticket_id, created_at);
+`;

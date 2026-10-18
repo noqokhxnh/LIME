@@ -23,6 +23,14 @@ import {
     ANNOUNCEMENT_AUDIENCES,
     type AnnouncementInput,
 } from "./announcements.js";
+import {
+    helpdeskStore,
+    TICKET_STATUSES,
+    TICKET_CATEGORIES,
+    TICKET_PRIORITIES,
+    type TicketStatus,
+    type TicketPriority,
+} from "../helpdesk/store.js";
 import { defaultTokenTracker } from "../usage/tokenTracker.js";
 import { billingStorage } from "../billing/storage.js";
 import type { Order, Plan } from "../billing/types.js";
@@ -2605,6 +2613,202 @@ export async function adminRoutes(app: FastifyInstance, opts?: { queue?: IVideoQ
             });
 
             return { success: true, message: "Đã xóa thông báo." };
+        }
+    );
+
+    // ==========================================
+    // HELPDESK / TICKETING
+    // Quản trị xử lý yêu cầu hỗ trợ của người dùng:
+    // xem danh sách, mở hội thoại, phản hồi (kể cả ghi chú nội bộ ẩn với
+    // người dùng), đổi trạng thái và mức ưu tiên. Mọi thao tác ghi vào audit log.
+    // ==========================================
+
+    app.get("/api/admin/tickets", async (request: FastifyRequest, reply: FastifyReply) => {
+        const check = await verifyAdminUser(request);
+        if (!check.isAdmin) {
+            reply.status(403);
+            return { error: check.error };
+        }
+
+        const query = (request.query as any) || {};
+        const statusFilter = String(query.status || "all");
+        if (statusFilter !== "all" && !TICKET_STATUSES.includes(statusFilter as any)) {
+            reply.status(400);
+            return { error: `Trạng thái không hợp lệ. Chỉ chấp nhận: ${TICKET_STATUSES.join(", ")}.` };
+        }
+        const categoryFilter = String(query.category || "all");
+        if (categoryFilter !== "all" && !TICKET_CATEGORIES.includes(categoryFilter as any)) {
+            reply.status(400);
+            return { error: `Danh mục không hợp lệ. Chỉ chấp nhận: ${TICKET_CATEGORIES.join(", ")}.` };
+        }
+        const priorityFilter = String(query.priority || "all");
+        if (priorityFilter !== "all" && !TICKET_PRIORITIES.includes(priorityFilter as any)) {
+            reply.status(400);
+            return { error: `Mức ưu tiên không hợp lệ. Chỉ chấp nhận: ${TICKET_PRIORITIES.join(", ")}.` };
+        }
+
+        const page = parseInt(query.page, 10) || 1;
+        const limit = parseInt(query.limit, 10) || 25;
+
+        const result = await helpdeskStore.listForAdmin({
+            status: statusFilter,
+            category: categoryFilter,
+            priority: priorityFilter,
+            search: String(query.search || ""),
+            page,
+            limit,
+        });
+        const stats = await helpdeskStore.getStats();
+
+        return { success: true, ...result, stats };
+    });
+
+    app.get("/api/admin/tickets/stats", async (request: FastifyRequest, reply: FastifyReply) => {
+        const check = await verifyAdminUser(request);
+        if (!check.isAdmin) {
+            reply.status(403);
+            return { error: check.error };
+        }
+
+        const stats = await helpdeskStore.getStats();
+        return { success: true, stats };
+    });
+
+    app.get(
+        "/api/admin/tickets/:id",
+        async (request: FastifyRequest<{ Params: { id: string } }>, reply: FastifyReply) => {
+            const check = await verifyAdminUser(request);
+            if (!check.isAdmin) {
+                reply.status(403);
+                return { error: check.error };
+            }
+
+            const ticket = await helpdeskStore.getTicket(request.params.id);
+            if (!ticket) {
+                reply.status(404);
+                return { error: "Không tìm thấy yêu cầu hỗ trợ." };
+            }
+
+            return { success: true, ticket };
+        }
+    );
+
+    app.post(
+        "/api/admin/tickets/:id/messages",
+        async (request: FastifyRequest<{ Params: { id: string } }>, reply: FastifyReply) => {
+            const check = await verifyAdminUser(request);
+            if (!check.isAdmin) {
+                reply.status(403);
+                return { error: check.error };
+            }
+
+            const ticket = await helpdeskStore.findById(request.params.id);
+            if (!ticket) {
+                reply.status(404);
+                return { error: "Không tìm thấy yêu cầu hỗ trợ." };
+            }
+            if (ticket.status === "closed") {
+                reply.status(409);
+                return { error: "Yêu cầu này đã đóng. Mở lại trước khi phản hồi." };
+            }
+
+            const body = (request.body as any) || {};
+            const text = String(body.body ?? "").trim();
+            if (text.length < 1 || text.length > 5000) {
+                reply.status(400);
+                return { error: "Nội dung phản hồi phải từ 1 đến 5000 ký tự." };
+            }
+            const isInternal = Boolean(body.isInternal);
+
+            try {
+                const updated = await helpdeskStore.addMessage(ticket.id, {
+                    senderType: "admin",
+                    senderId: check.user?.id,
+                    senderEmail: check.user?.email,
+                    body: text,
+                    isInternal,
+                });
+                if (!updated) {
+                    reply.status(404);
+                    return { error: "Không tìm thấy yêu cầu hỗ trợ." };
+                }
+
+                auditAdminAction(request, check, {
+                    action: isInternal ? "admin.ticket_noted" : "admin.ticket_replied",
+                    status: isInternal ? "warning" : "success",
+                    details: {
+                        email: check.user?.email,
+                        ticketId: ticket.id,
+                        ticketCode: ticket.code,
+                        isInternal,
+                    },
+                });
+
+                return { success: true, ticket: updated };
+            } catch (err: any) {
+                reply.status(500);
+                return { error: `Không gửi được phản hồi: ${err.message || err}` };
+            }
+        }
+    );
+
+    app.patch(
+        "/api/admin/tickets/:id",
+        async (request: FastifyRequest<{ Params: { id: string } }>, reply: FastifyReply) => {
+            const check = await verifyAdminUser(request);
+            if (!check.isAdmin) {
+                reply.status(403);
+                return { error: check.error };
+            }
+
+            const existing = await helpdeskStore.findById(request.params.id);
+            if (!existing) {
+                reply.status(404);
+                return { error: "Không tìm thấy yêu cầu hỗ trợ." };
+            }
+
+            const body = (request.body as any) || {};
+            const patch: { status?: TicketStatus; priority?: TicketPriority } = {};
+
+            if (body.status !== undefined) {
+                const status = String(body.status);
+                if (!TICKET_STATUSES.includes(status as any)) {
+                    reply.status(400);
+                    return { error: `Trạng thái không hợp lệ. Chỉ chấp nhận: ${TICKET_STATUSES.join(", ")}.` };
+                }
+                patch.status = status as TicketStatus;
+            }
+            if (body.priority !== undefined) {
+                const priority = String(body.priority);
+                if (!TICKET_PRIORITIES.includes(priority as any)) {
+                    reply.status(400);
+                    return { error: `Mức ưu tiên không hợp lệ. Chỉ chấp nhận: ${TICKET_PRIORITIES.join(", ")}.` };
+                }
+                patch.priority = priority as TicketPriority;
+            }
+            if (Object.keys(patch).length === 0) {
+                reply.status(400);
+                return { error: "Cần truyền ít nhất status hoặc priority để cập nhật." };
+            }
+
+            const updated = await helpdeskStore.updateTicket(existing.id, patch);
+            if (!updated) {
+                reply.status(404);
+                return { error: "Không tìm thấy yêu cầu hỗ trợ." };
+            }
+
+            auditAdminAction(request, check, {
+                action: "admin.ticket_updated",
+                status: "warning",
+                details: {
+                    email: check.user?.email,
+                    ticketId: existing.id,
+                    ticketCode: existing.code,
+                    ...patch,
+                },
+            });
+
+            return { success: true, ticket: updated };
         }
     );
 }

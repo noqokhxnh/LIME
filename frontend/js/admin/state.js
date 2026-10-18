@@ -23,7 +23,9 @@ export const AdminState = {
         action: '',
         from: '',
         to: '',
-        kind: 'all'
+        kind: 'all',
+        category: 'all',
+        priority: 'all'
     },
 
     listeners: [],
@@ -56,7 +58,9 @@ export const AdminState = {
             action: searchParams.get('action') || '',
             from: searchParams.get('from') || '',
             to: searchParams.get('to') || '',
-            kind: searchParams.get('kind') || this.defaults.kind
+            kind: searchParams.get('kind') || this.defaults.kind,
+            category: searchParams.get('category') || this.defaults.category,
+            priority: searchParams.get('priority') || this.defaults.priority
         };
     },
 
@@ -85,6 +89,8 @@ export const AdminState = {
         if (merged.from) searchParams.set('from', merged.from);
         if (merged.to) searchParams.set('to', merged.to);
         if (merged.kind && merged.kind !== 'all') searchParams.set('kind', merged.kind);
+        if (merged.category && merged.category !== 'all') searchParams.set('category', merged.category);
+        if (merged.priority && merged.priority !== 'all') searchParams.set('priority', merged.priority);
 
         const newQs = searchParams.toString();
         const newUrl = newQs ? `${window.location.pathname}?${newQs}` : window.location.pathname;

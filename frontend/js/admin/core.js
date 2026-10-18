@@ -16,6 +16,7 @@ import { SettingsView } from './settings-view.js';
 import { LogsView } from './logs-view.js';
 import { MaintenanceView } from './maintenance-view.js';
 import { AnnouncementsView } from './announcements-view.js';
+import { TicketsView } from './tickets-view.js';
 
 export const AdminCore = {
     currentUser: null,
@@ -279,6 +280,11 @@ export const AdminCore = {
                 if (titleEl) titleEl.textContent = 'Thông báo toàn hệ thống (Broadcast Banner)';
                 AnnouncementsView.init(container);
                 this.currentView = AnnouncementsView;
+                break;
+            case 'tickets':
+                if (titleEl) titleEl.textContent = 'Yêu cầu hỗ trợ (Helpdesk)';
+                TicketsView.init(container);
+                this.currentView = TicketsView;
                 break;
             case 'jobs':
                 if (titleEl) titleEl.textContent = 'Quản lý Video Jobs';
