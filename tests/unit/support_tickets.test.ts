@@ -6,6 +6,7 @@ import { createTestSession } from '../../src/auth/session.js';
 import { getConfig } from '../../src/config.js';
 import { initDatabase } from '../../src/database/index.js';
 import { db } from '../../src/database/index.js';
+import { userStore } from '../../src/admin/userStore.js';
 import {
     helpdeskStore,
     TICKET_CREATE_LIMIT_PER_HOUR,
@@ -34,6 +35,21 @@ const TAG = `zqtk${RUN}`;
 
 const config = getConfig();
 const OWNER_IDS = [USER_A_ID, USER_B_ID];
+
+/**
+ * Người dùng thử nghiệm dùng chung cho cả hai chế độ chạy.
+ *
+ * Chế độ có PostgreSQL: phải chèn dòng `users` thật vì `tickets.user_id` có khoá
+ * ngoại trỏ tới bảng này.
+ * Chế độ in-memory (CI không cấu hình PostgreSQL — xem .github/workflows/pr-test.yml):
+ * `getCurrentUser` giải token qua `inMemorySessions` rồi tới `userStore.findById`,
+ * mà kho người dùng trong bộ nhớ chỉ có Super Admin mặc định ⇒ thiếu bước nạp này
+ * thì mọi request của user A/B đều 401.
+ */
+const TEST_USERS = [
+    [USER_A_ID, 'useticketb0000a'],
+    [USER_B_ID, 'useticketb0000b'],
+] as const;
 
 describe('Helpdesk Ticketing (user side) Test Suite', () => {
     let app: FastifyInstance;
@@ -72,10 +88,7 @@ describe('Helpdesk Ticketing (user side) Test Suite', () => {
         if (config.DATABASE_URL) {
             await initDatabase();
             // Đảm bảo dòng users tồn tại cho ràng buộc khoá ngoại tickets.user_id
-            for (const [id, username] of [
-                [USER_A_ID, 'useticketb0000a'],
-                [USER_B_ID, 'useticketb0000b'],
-            ] as const) {
+            for (const [id, username] of TEST_USERS) {
                 await db.query(
                     `INSERT INTO users (id, username, email)
                      VALUES ($1, $2, $3)
@@ -83,6 +96,12 @@ describe('Helpdesk Ticketing (user side) Test Suite', () => {
                     [id, username, `${username}@test.email`]
                 );
             }
+        }
+
+        // Nạp người dùng vào kho trong bộ nhớ — cần cho chế độ in-memory, và cũng
+        // là đường dự phòng khi câu truy vấn DB không tìm thấy người dùng.
+        for (const [id, username] of TEST_USERS) {
+            await userStore.upsertUser({ id, username, email: `${username}@test.email` });
         }
 
         app = await buildApp({ logger: false });
