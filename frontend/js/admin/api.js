@@ -362,5 +362,35 @@ export const AdminApi = {
         return this.request(`/api/admin/announcements/${encodeURIComponent(id)}`, {
             method: 'DELETE'
         });
+    },
+
+    // Helpdesk / Ticketing (quản lý yêu cầu hỗ trợ)
+    async getTickets(params = {}) {
+        const qs = new URLSearchParams();
+        Object.entries(params).forEach(([key, val]) => {
+            if (val !== undefined && val !== null && val !== '') {
+                qs.append(key, val);
+            }
+        });
+        const suffix = qs.toString();
+        return this.request(`/api/admin/tickets${suffix ? `?${suffix}` : ''}`);
+    },
+
+    async getTicket(id) {
+        return this.request(`/api/admin/tickets/${encodeURIComponent(id)}`);
+    },
+
+    async replyTicket(id, { body, isInternal = false }) {
+        return this.request(`/api/admin/tickets/${encodeURIComponent(id)}/messages`, {
+            method: 'POST',
+            body: JSON.stringify({ body, isInternal })
+        });
+    },
+
+    async updateTicket(id, data) {
+        return this.request(`/api/admin/tickets/${encodeURIComponent(id)}`, {
+            method: 'PATCH',
+            body: JSON.stringify(data)
+        });
     }
 };

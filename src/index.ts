@@ -23,6 +23,7 @@ import { validateUploadedFile, generateSafeFilePath } from "./security/uploadGua
 import { getBrandKitByUserId, upsertBrandKit } from "./database/brandKit.js";
 import { getCatalog, listBlueprints, listMotionBlocks } from "./templates/index.js";
 import { adminRoutes } from "./admin/routes.js";
+import { supportRoutes } from "./helpdesk/routes.js";
 import { systemSettings } from "./admin/systemSettings.js";
 import { announcementsStore } from "./admin/announcements.js";
 import { pageViewTracker } from "./security/pageViewTracker.js";
@@ -40,18 +41,24 @@ export async function buildApp(options: { logger?: boolean, queue?: IVideoQueue 
 
     await app.register(fastifyCors, { origin: true , credentials: true });
     await app.register(fastifyCookie);
-    await app.register(authRoutes);
-    await app.register(billingRoutes);
-    await app.register(adminRoutes, { queue });
 
     // Đăng ký plugin xử lý upload file (multipart/form-data).
     // Giới hạn kích thước mỗi file tối đa 5MB để tránh tấn công DoS bằng file lớn.
+    // LƯU Ý: phải đăng ký TRƯỚC mọi plugin chứa route dùng `request.file()`
+    // (@fastify/multipart thêm content-type parser ở scope nơi nó boot — đăng ký
+    // sau sẽ làm các scope route đã tồn tại không thấy parser và trả 415).
     await app.register(fastifyMultipart, {
         limits: {
             fileSize: 5 * 1024 * 1024, // 5MB
             files: 1,                  // Chỉ chấp nhận 1 file mỗi request
         },
     });
+
+    await app.register(authRoutes);
+    await app.register(billingRoutes);
+    await app.register(adminRoutes, { queue });
+    // Helpdesk / Ticketing: widget "Hỗ trợ" phía người dùng (sau admin để nhất quán cấu trúc)
+    await app.register(supportRoutes);
 
     const frontendDir = join(process.cwd(), "frontend");
     if (existsSync(frontendDir)) {
@@ -76,6 +83,21 @@ export async function buildApp(options: { logger?: boolean, queue?: IVideoQueue 
         },
     });
 
+    // Đăng ký phục vụ tệp tĩnh ảnh đính kèm ticket từ thư mục tmp/uploads/tickets
+    // (headers bảo mật giống thư mục logos: sandbox CSP — vẫn thấy ảnh nhưng không chạy script)
+    const ticketsDir = join(process.cwd(), "tmp", "uploads", "tickets");
+    mkdirSync(ticketsDir, { recursive: true });
+    await app.register(fastifyStatic, {
+        root: ticketsDir,
+        prefix: "/uploads/tickets/",
+        decorateReply: false,
+        setHeaders: (res) => {
+            res.header("Content-Security-Policy", "default-src 'none'; style-src 'unsafe-inline'; sandbox");
+            res.header("X-Content-Type-Options", "nosniff");
+            res.header("X-Frame-Options", "DENY");
+        },
+    });
+
     app.addHook("preHandler", async (request, reply) => {
         const url = request.url;
         const path = url.split("?")[0];
@@ -88,7 +110,9 @@ export async function buildApp(options: { logger?: boolean, queue?: IVideoQueue 
                 path.startsWith("/api/admin") ||
                 path.startsWith("/api/auth") ||
                 path === "/api/settings" ||
-                path === "/api/announcements";
+                path === "/api/announcements" ||
+                // Helpdesk phải dùng được cả khi bảo trì để báo lỗi giữa chuyến
+                path.startsWith("/api/support");
             if (!alwaysAllowed) {
                 const user = await getCurrentUser(request);
                 if (user?.role !== "admin") {
