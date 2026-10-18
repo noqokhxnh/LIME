@@ -5,7 +5,7 @@
 
 export const AdminState = {
     defaults: {
-        tab: 'users',
+        tab: 'dashboard',
         page: 1,
         limit: 25,
         search: '',

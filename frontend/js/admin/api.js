@@ -47,6 +47,11 @@ export const AdminApi = {
         return this.request('/api/admin/stats');
     },
 
+    // Dashboard Analytics (SaaS metrics: MRR/ARR, ARPU, LTV, churn, conversion, signups, feature usage)
+    async getAnalytics(period = '30d') {
+        return this.request(`/api/admin/analytics?period=${encodeURIComponent(period)}`);
+    },
+
     // Users
     async getUsers(params = {}) {
         const qs = new URLSearchParams();

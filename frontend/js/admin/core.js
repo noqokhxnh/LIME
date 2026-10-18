@@ -7,6 +7,7 @@ import { AdminApi } from './api.js';
 import { AdminState } from './state.js';
 import { Toast } from './components.js';
 import { UsersView } from './users-view.js';
+import { DashboardView } from './dashboard-view.js';
 import { ViewsView } from './views-view.js';
 import { JobsView } from './jobs-view.js';
 import { OrdersView } from './orders-view.js';
@@ -60,7 +61,7 @@ export const AdminCore = {
 
         // 5. Initial Tab Load
         const initialParams = AdminState.getParamsFromUrl();
-        this.switchTab(initialParams.tab || 'users', false);
+        this.switchTab(initialParams.tab || 'dashboard', false);
     },
 
     renderUserProfile(user) {
@@ -145,6 +146,11 @@ export const AdminCore = {
         }
 
         switch (tabName) {
+            case 'dashboard':
+                if (titleEl) titleEl.textContent = 'Bảng điều khiển & Phân tích';
+                DashboardView.init(container);
+                this.currentView = DashboardView;
+                break;
             case 'users':
                 if (titleEl) titleEl.textContent = 'Quản lý người dùng';
                 UsersView.init(container);
@@ -191,9 +197,9 @@ export const AdminCore = {
                 this.currentView = LogsView;
                 break;
             default:
-                if (titleEl) titleEl.textContent = 'Quản lý người dùng';
-                UsersView.init(container);
-                this.currentView = UsersView;
+                if (titleEl) titleEl.textContent = 'Bảng điều khiển & Phân tích';
+                DashboardView.init(container);
+                this.currentView = DashboardView;
                 break;
         }
     }
