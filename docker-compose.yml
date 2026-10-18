@@ -45,6 +45,7 @@ services:
       - lime_data:/app/tmp
       - ./src:/app/src
       - ./frontend:/app/frontend
+      - /var/run/docker.sock:/var/run/docker.sock:ro
     environment:
       - REDIS_URL=redis://redis:6379
       - QUEUE_TYPE=redis

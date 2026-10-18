@@ -41,6 +41,14 @@ import { createTTSClient } from "../pipeline/audioSysnthesis.js";
 import { getLLMClientFactory } from "../llm/client.js";
 import { videoScriptSchema, type videoScript } from "../llm/schema.js";
 import type { IVideoQueue, JobUpdate } from "../queue/interfaces.js";
+import {
+    isAllowedContainer,
+    getContainersStatus,
+    streamDockerLogs,
+    getDockerLogsSnapshot,
+    ALLOWED_CONTAINERS,
+    type AllowedContainer,
+} from "./dockerLogs.js";
 
 /**
  * Đọc `limit`/`page` từ query string của các danh sách quản trị.
@@ -2809,6 +2817,126 @@ export async function adminRoutes(app: FastifyInstance, opts?: { queue?: IVideoQ
             });
 
             return { success: true, ticket: updated };
+        }
+    );
+
+    // =========================================================================
+    // Docker Logs Management (docker logs -f)
+    // =========================================================================
+
+    app.get("/api/admin/docker-logs/containers", async (request: FastifyRequest, reply: FastifyReply) => {
+        const check = await verifyAdminUser(request);
+        if (!check.isAdmin) {
+            reply.status(403);
+            return { error: check.error };
+        }
+        const containers = await getContainersStatus();
+        return { containers };
+    });
+
+    app.get(
+        "/api/admin/docker-logs/stream",
+        async (
+            request: FastifyRequest<{ Querystring: { container?: string; tail?: string } }>,
+            reply: FastifyReply
+        ) => {
+            const check = await verifyAdminUser(request);
+            if (!check.isAdmin) {
+                reply.status(403);
+                return { error: check.error };
+            }
+
+            const { container, tail: rawTail } = request.query;
+            if (!container || !isAllowedContainer(container)) {
+                reply.status(400);
+                return { error: `Container không hợp lệ. Chỉ chấp nhận: ${ALLOWED_CONTAINERS.join(", ")}.` };
+            }
+
+            const tail = rawTail ? parseInt(rawTail, 10) : 100;
+            const sanitizedTail = Number.isFinite(tail) && tail > 0 ? tail : 100;
+
+            reply.raw.setHeader("Content-Type", "text/event-stream");
+            reply.raw.setHeader("Cache-Control", "no-cache");
+            reply.raw.setHeader("Connection", "keep-alive");
+            reply.raw.flushHeaders();
+
+            reply.raw.write(
+                `event: connected\ndata: ${JSON.stringify({ container, timestamp: new Date().toISOString() })}\n\n`
+            );
+
+            const heartbeatTimer = setInterval(() => {
+                try {
+                    reply.raw.write(`: ping\n\n`);
+                } catch {}
+            }, 15000);
+
+            const logHandle = streamDockerLogs(
+                container as AllowedContainer,
+                { tail: sanitizedTail, follow: true },
+                {
+                    onData: (text, streamType) => {
+                        try {
+                            reply.raw.write(
+                                `event: log\ndata: ${JSON.stringify({ text, stream: streamType, timestamp: new Date().toISOString() })}\n\n`
+                            );
+                        } catch {}
+                    },
+                    onError: (err) => {
+                        try {
+                            reply.raw.write(`event: err\ndata: ${JSON.stringify({ message: err.message })}\n\n`);
+                        } catch {}
+                    },
+                    onEnd: () => {
+                        try {
+                            reply.raw.write(`event: end\ndata: ${JSON.stringify({ message: "Stream kết thúc" })}\n\n`);
+                            reply.raw.end();
+                        } catch {}
+                    },
+                }
+            );
+
+            const cleanup = () => {
+                clearInterval(heartbeatTimer);
+                logHandle.abort();
+            };
+
+            request.raw.on("close", cleanup);
+            request.raw.on("error", cleanup);
+        }
+    );
+
+    app.get(
+        "/api/admin/docker-logs/download",
+        async (
+            request: FastifyRequest<{ Querystring: { container?: string; tail?: string } }>,
+            reply: FastifyReply
+        ) => {
+            const check = await verifyAdminUser(request);
+            if (!check.isAdmin) {
+                reply.status(403);
+                return { error: check.error };
+            }
+
+            const { container, tail: rawTail } = request.query;
+            if (!container || !isAllowedContainer(container)) {
+                reply.status(400);
+                return { error: `Container không hợp lệ. Chỉ chấp nhận: ${ALLOWED_CONTAINERS.join(", ")}.` };
+            }
+
+            const tail = rawTail ? parseInt(rawTail, 10) : 1000;
+            const sanitizedTail = Number.isFinite(tail) && tail > 0 ? tail : 1000;
+
+            try {
+                const text = await getDockerLogsSnapshot(container as AllowedContainer, sanitizedTail);
+                const filename = `${container}-logs-${new Date().toISOString().slice(0, 10)}.txt`;
+
+                reply.header("Content-Type", "text/plain; charset=utf-8");
+                reply.header("Content-Disposition", `attachment; filename="${filename}"`);
+                return reply.send(text);
+            } catch (err: any) {
+                reply.status(500);
+                return { error: `Không thể tải log: ${err.message}` };
+            }
         }
     );
 }
