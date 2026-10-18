@@ -7,7 +7,7 @@
 
 import { AdminApi } from './api.js';
 import { AdminState } from './state.js';
-import { Toast, Drawer, ConfirmModal, Skeleton, EmptyState, Pagination } from './components.js';
+import { Toast, Drawer, ConfirmModal, Skeleton, EmptyState, Pagination, AlertBanner } from './components.js';
 
 /** Trả về email/danh tính người THỰC HIỆN hành động. */
 function actorOf(log) {
@@ -245,7 +245,11 @@ export const LogsView = {
                 }
             });
         } catch (err) {
-            tbody.innerHTML = `<tr><td colspan="7" style="text-align: center; color: var(--danger); padding: 30px;">Lỗi: ${escapeHtml(err.message)}</td></tr>`;
+            tbody.innerHTML = AlertBanner.rowHtml(7, {
+                title: 'Không tải được nhật ký kiểm toán',
+                message: err.message
+            });
+            AlertBanner.bindRetry(tbody, () => this.fetchAndRender());
         }
     },
 

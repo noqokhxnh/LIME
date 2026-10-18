@@ -5,7 +5,7 @@
 
 import { AdminApi } from './api.js';
 import { AdminState } from './state.js';
-import { Toast, Drawer, ConfirmModal, Pagination, Skeleton, EmptyState, SwitchToggle, ActionMenu, BulkBar, formatLocation, formatIsp } from './components.js';
+import { Toast, Drawer, ConfirmModal, Pagination, Skeleton, EmptyState, SwitchToggle, ActionMenu, BulkBar, AlertBanner, formatLocation, formatIsp } from './components.js';
 
 /**
  * Gói cước hợp lệ — khớp bảng `plans` (creator/pro/max) và 2 tier phi trả phí
@@ -294,7 +294,11 @@ export const UsersView = {
 
             this.updateBulkBar();
         } catch (err) {
-            tbody.innerHTML = `<tr><td colspan="7" style="text-align: center; color: var(--danger); padding: 30px;">Lỗi tải dữ liệu: ${escapeHtml(err.message)}</td></tr>`;
+            tbody.innerHTML = AlertBanner.rowHtml(7, {
+                title: 'Không tải được danh sách người dùng',
+                message: err.message
+            });
+            AlertBanner.bindRetry(tbody, () => this.fetchAndRender());
         }
     },
 
@@ -652,7 +656,11 @@ export const UsersView = {
             html += `</tbody></table></div>`;
             container.innerHTML = html;
         } catch (err) {
-            container.innerHTML = `<div style="color: var(--danger); text-align: center; padding: 20px;">Lỗi: ${escapeHtml(err.message)}</div>`;
+            AlertBanner.render(container, {
+                title: 'Không tải được nhật ký đăng nhập',
+                message: err.message,
+                onRetry: () => this.renderDrawerLogsTab(container, user)
+            });
         }
     },
 
@@ -702,7 +710,11 @@ export const UsersView = {
             html += `</tbody></table></div>`;
             container.innerHTML = html;
         } catch (err) {
-            container.innerHTML = `<div style="color: var(--danger); text-align: center; padding: 20px;">Lỗi: ${escapeHtml(err.message)}</div>`;
+            AlertBanner.render(container, {
+                title: 'Không tải được danh sách video',
+                message: err.message,
+                onRetry: () => this.renderDrawerJobsTab(container, user)
+            });
         }
     },
 

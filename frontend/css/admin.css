@@ -1792,6 +1792,62 @@ body {
     .topbar-title { font-size: 17px; }
     .admin-topbar { gap: 10px; }
     .topbar-right { gap: 8px; }
+
+    /* Breadcrumb: chỉ giữ nhóm hiện tại, bỏ mục gốc để không bị cắt chữ. */
+    .topbar-breadcrumb .crumb:not(.crumb-current),
+    .topbar-breadcrumb .crumb-sep { display: none; }
+}
+
+/* ==========================================================================
+   Alert banner — lỗi tải dữ liệu kèm nút thử lại (thay dòng chữ đỏ rời rạc)
+   ========================================================================== */
+.alert-banner {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    padding: 12px 14px;
+    border: 1px solid var(--line);
+    border-left: 3px solid var(--danger);
+    border-radius: var(--radius-md);
+    background: var(--card);
+    text-align: left;
+}
+
+.alert-banner-danger { background: var(--danger-soft); border-color: rgba(220, 38, 38, 0.28); border-left-color: var(--danger); }
+.alert-banner-warning { background: var(--warning-soft); border-color: rgba(180, 83, 9, 0.28); border-left-color: var(--warning); }
+
+.alert-banner-icon { flex: 0 0 18px; color: var(--danger); }
+.alert-banner-warning .alert-banner-icon { color: var(--warning); }
+
+.alert-banner-content { display: flex; flex-direction: column; gap: 2px; min-width: 0; flex: 1; }
+.alert-banner-title { font-size: 13px; font-weight: 700; color: var(--ink); }
+.alert-banner-message { font-size: 12.5px; color: var(--danger); word-break: break-word; }
+.alert-banner-warning .alert-banner-message { color: var(--warning); }
+
+.alert-banner-retry { flex: 0 0 auto; white-space: nowrap; }
+
+/* Banner nằm trong ô bảng: bỏ nền vùng chứa để banner nổi rõ. */
+.alert-banner-row > td { padding: 14px; }
+.admin-table tbody tr.alert-banner-row:hover { background: transparent; }
+
+/* ---------- breadcrumb trên topbar ---------- */
+.topbar-breadcrumb {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    font-size: 11.5px;
+    color: var(--muted);
+    min-width: 0;
+}
+
+.topbar-breadcrumb .crumb { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.topbar-breadcrumb .crumb-sep { color: var(--line-strong, var(--line)); }
+.topbar-breadcrumb .crumb-current { color: var(--ink); font-weight: 600; }
+
+@media (max-width: 640px) {
+    .alert-banner { flex-direction: column; align-items: stretch; }
+    .alert-banner-icon { display: none; }
+    .alert-banner-retry { align-self: flex-start; }
 }
 
 /* ===================================

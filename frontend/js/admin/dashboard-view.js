@@ -11,7 +11,7 @@
  */
 
 import { AdminApi } from './api.js';
-import { Toast } from './components.js';
+import { Toast, AlertBanner } from './components.js';
 
 const PERIODS = [
     { value: '7d', label: '7 ngày qua' },
@@ -154,6 +154,7 @@ export const DashboardView = {
     },
 
     renderLoading() {
+        const skeleton = '<span class="skeleton-box skeleton-text" style="width: 72%; height: 22px;"></span>';
         for (const id of [
             'dashboard-kpi-mrr',
             'dashboard-kpi-arr',
@@ -164,7 +165,9 @@ export const DashboardView = {
             'dashboard-kpi-signups',
         ]) {
             const el = this.containerEl.querySelector(`#${id}`);
-            if (el) el.textContent = '…';
+            if (el) el.innerHTML = skeleton;
+            const sub = this.containerEl.querySelector(`#${id}-sub`);
+            if (sub) sub.textContent = '';
         }
         const trend = this.containerEl.querySelector('#dashboard-signups-trend');
         if (trend) trend.innerHTML = '<div class="views-widget-loading">Đang tải số liệu...</div>';
@@ -173,7 +176,11 @@ export const DashboardView = {
     renderError(err) {
         const trend = this.containerEl.querySelector('#dashboard-signups-trend');
         if (trend) {
-            trend.innerHTML = `<div class="views-widget-empty" style="color: var(--danger);">Lỗi: ${escapeHtml(err.message || 'Không tải được số liệu')}</div>`;
+            AlertBanner.render(trend, {
+                title: 'Không tải được số liệu phân tích',
+                message: err.message || 'Vui lòng thử lại sau ít phút.',
+                onRetry: () => this.fetchAndRender()
+            });
         }
     },
 

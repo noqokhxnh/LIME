@@ -3,7 +3,7 @@
  */
 
 import { AdminApi } from './api.js';
-import { Toast, Drawer, ConfirmModal, Skeleton, EmptyState } from './components.js';
+import { Toast, Drawer, ConfirmModal, Skeleton, EmptyState, AlertBanner } from './components.js';
 
 export const JobsView = {
     containerEl: null,
@@ -144,7 +144,11 @@ export const JobsView = {
                 tbody.appendChild(tr);
             });
         } catch (err) {
-            tbody.innerHTML = `<tr><td colspan="7" style="text-align: center; color: var(--danger); padding: 30px;">Lỗi: ${escapeHtml(err.message)}</td></tr>`;
+            tbody.innerHTML = AlertBanner.rowHtml(7, {
+                title: 'Không tải được danh sách video jobs',
+                message: err.message
+            });
+            AlertBanner.bindRetry(tbody, () => this.fetchAndRender());
         }
     },
 

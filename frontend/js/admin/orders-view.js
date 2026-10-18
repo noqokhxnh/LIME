@@ -5,7 +5,7 @@
  */
 
 import { AdminApi } from './api.js';
-import { Toast, ConfirmModal, Pagination, Skeleton, EmptyState } from './components.js';
+import { Toast, ConfirmModal, Pagination, Skeleton, EmptyState, AlertBanner } from './components.js';
 
 const ORDER_STATUS_LABEL = {
     pending: 'Chờ thanh toán',
@@ -206,7 +206,11 @@ export const OrdersView = {
                 },
             });
         } catch (err) {
-            tbody.innerHTML = `<tr><td colspan="8" style="text-align: center; color: var(--danger); padding: 30px;">Lỗi: ${escapeHtml(err.message)}</td></tr>`;
+            tbody.innerHTML = AlertBanner.rowHtml(8, {
+                title: 'Không tải được danh sách đơn hàng',
+                message: err.message
+            });
+            AlertBanner.bindRetry(tbody, () => this.fetchAndRender());
         }
     },
 

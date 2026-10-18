@@ -162,6 +162,59 @@ export const EmptyState = {
     }
 };
 
+// 6b. INLINE ALERT BANNER — thay cho các dòng lỗi rải rác trong bảng/khối
+const escapeAlertHtml = (value) =>
+    String(value ?? '').replace(/[&<>"']/g, (ch) => (
+        { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[ch]
+    ));
+
+export const AlertBanner = {
+    iconPath(level) {
+        if (level === 'warning') {
+            return '<path d="M10.3 3.9 1.8 18a2 2 0 0 0 1.7 3h17a2 2 0 0 0 1.7-3L13.7 3.9a2 2 0 0 0-3.4 0Z"/><path d="M12 9v4M12 17h.01"/>';
+        }
+        return '<circle cx="12" cy="12" r="10"/><path d="M12 8v5M12 16h.01"/>';
+    },
+
+    markup({ title = '', message = '', level = 'danger', retryLabel = 'Thử lại', retryId = '' } = {}) {
+        const tone = level === 'warning' ? 'warning' : 'danger';
+        const action = retryLabel
+            ? `<button type="button" class="btn btn-secondary btn-sm alert-banner-retry"${retryId ? ` id="${escapeAlertHtml(retryId)}"` : ''}>${escapeAlertHtml(retryLabel)}</button>`
+            : '';
+        const heading = title ? `<div class="alert-banner-title">${escapeAlertHtml(title)}</div>` : '';
+        return `
+            <div class="alert-banner alert-banner-${tone}" role="alert">
+                <svg class="alert-banner-icon" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">${this.iconPath(level)}</svg>
+                <div class="alert-banner-content">
+                    ${heading}
+                    <div class="alert-banner-message">${escapeAlertHtml(message)}</div>
+                </div>
+                ${action}
+            </div>`;
+    },
+
+    /** Markup cho tải bảng thất bại: <tr><td colspan=N>…banner…</td></tr>. */
+    rowHtml(colspan, options = {}) {
+        const span = Number(colspan) || 1;
+        return `<tr class="alert-banner-row"><td colspan="${span}">${this.markup(options)}</td></tr>`;
+    },
+
+    /** Thay nội dung một khối bằng banner; gắn sẵn handler cho nút thử lại. */
+    render(container, options = {}) {
+        if (!container) return null;
+        container.innerHTML = this.markup(options);
+        return this.bindRetry(container, options.onRetry);
+    },
+
+    /** Gắn nút "Thử lại" trong một vùng vừa được ghi bằng rowHtml/render. */
+    bindRetry(scopeEl, onRetry) {
+        if (!scopeEl) return null;
+        const btn = scopeEl.querySelector('.alert-banner-retry');
+        if (btn && typeof onRetry === 'function') btn.addEventListener('click', onRetry);
+        return btn;
+    }
+};
+
 // 7. QUICK STATUS TOGGLE (SWITCH)
 export const SwitchToggle = {
     create({ checked = true, disabled = false, onChange }) {

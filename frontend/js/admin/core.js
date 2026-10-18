@@ -18,6 +18,20 @@ import { MaintenanceView } from './maintenance-view.js';
 import { AnnouncementsView } from './announcements-view.js';
 import { TicketsView } from './tickets-view.js';
 
+/** Nhóm điều hướng cho breadcrumb — khớp nhãn nhóm trong sidebar. */
+const TAB_GROUPS = {
+    dashboard: 'Quản lý nghiệp vụ',
+    users: 'Quản lý nghiệp vụ',
+    views: 'Quản lý nghiệp vụ',
+    maintenance: 'Quản lý nghiệp vụ',
+    announcements: 'Quản lý nghiệp vụ',
+    jobs: 'Quản lý nghiệp vụ',
+    orders: 'Quản lý nghiệp vụ',
+    'failed-payments': 'Quản lý nghiệp vụ',
+    settings: 'Hệ thống & An toàn',
+    logs: 'Hệ thống & An toàn',
+};
+
 export const AdminCore = {
     currentUser: null,
     currentView: null,
@@ -238,6 +252,7 @@ export const AdminCore = {
     },
 
     switchTab(tabName, updateState = true) {
+        const previousTab = this.activeTab;
         this.activeTab = tabName;
         const navItems = document.querySelectorAll('.nav-item[data-tab]');
         navItems.forEach((item) => {
@@ -317,6 +332,24 @@ export const AdminCore = {
                 this.currentView = DashboardView;
                 break;
         }
+
+        this.updateBreadcrumb(tabName);
+
+        // Only on a real tab change (not the first render): jump back to the
+        // top and move focus to the heading so keyboard/screen-reader users
+        // land on the new content instead of staying where they were.
+        if (previousTab && previousTab !== tabName) this.focusViewStart(titleEl);
+    },
+
+    updateBreadcrumb(tabName) {
+        const el = document.getElementById('topbar-crumb-group');
+        if (el) el.textContent = TAB_GROUPS[tabName] || 'Tổng quan';
+    },
+
+    focusViewStart(titleEl) {
+        const reduceMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+        window.scrollTo({ top: 0, behavior: reduceMotion ? 'auto' : 'smooth' });
+        if (titleEl) titleEl.focus({ preventScroll: true });
     }
 };
 

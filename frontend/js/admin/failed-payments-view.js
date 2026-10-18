@@ -5,7 +5,7 @@
  */
 
 import { AdminApi } from './api.js';
-import { Toast, ConfirmModal, Drawer, Skeleton, EmptyState, Pagination } from './components.js';
+import { Toast, ConfirmModal, Drawer, Skeleton, EmptyState, Pagination, AlertBanner } from './components.js';
 
 function escapeHtml(str) {
     if (!str) return '';
@@ -475,7 +475,11 @@ export const FailedPaymentsView = {
                 });
             }
         } catch (err) {
-            tbody.innerHTML = `<tr><td colspan="6" style="text-align: center; color: var(--danger); padding: 30px;">Lỗi: ${escapeHtml(err.message)}</td></tr>`;
+            tbody.innerHTML = AlertBanner.rowHtml(6, {
+                title: 'Không tải được danh sách giao dịch chưa khớp',
+                message: err.message
+            });
+            AlertBanner.bindRetry(tbody, () => this.fetchUnmatched());
         }
     },
 
@@ -678,7 +682,11 @@ export const FailedPaymentsView = {
                 });
             }
         } catch (err) {
-            tbody.innerHTML = `<tr><td colspan="7" style="text-align: center; color: var(--danger); padding: 30px;">Lỗi: ${escapeHtml(err.message)}</td></tr>`;
+            tbody.innerHTML = AlertBanner.rowHtml(7, {
+                title: 'Không tải được danh sách giao dịch trùng',
+                message: err.message
+            });
+            AlertBanner.bindRetry(tbody, () => this.fetchDuplicates());
         }
     },
 
@@ -750,7 +758,11 @@ export const FailedPaymentsView = {
                 });
             }
         } catch (err) {
-            tbody.innerHTML = `<tr><td colspan="7" style="text-align: center; color: var(--danger); padding: 30px;">Lỗi: ${escapeHtml(err.message)}</td></tr>`;
+            tbody.innerHTML = AlertBanner.rowHtml(7, {
+                title: 'Không tải được lịch sử hoàn tiền',
+                message: err.message
+            });
+            AlertBanner.bindRetry(tbody, () => this.fetchRefunds());
         }
     },
 };

@@ -5,7 +5,7 @@
 
 import { AdminApi } from './api.js';
 import { AdminState } from './state.js';
-import { Toast, Drawer, ConfirmModal, Pagination, Skeleton, EmptyState } from './components.js';
+import { Toast, Drawer, ConfirmModal, Pagination, Skeleton, EmptyState, AlertBanner } from './components.js';
 
 export const MaintenanceView = {
     containerEl: null,
@@ -320,7 +320,11 @@ export const MaintenanceView = {
             // Cập nhật lại số liệu thống kê sau khi danh sách được tải/đồng bộ
             this.fetchStats();
         } catch (err) {
-            tbody.innerHTML = `<tr><td colspan="7" class="text-center" style="padding: 30px; color: #ef4444;">${escapeHtml(err.message)}</td></tr>`;
+            tbody.innerHTML = AlertBanner.rowHtml(7, {
+                title: 'Không tải được danh sách khách bảo trì',
+                message: err.message
+            });
+            AlertBanner.bindRetry(tbody, () => this.fetchAndRender());
         }
     },
 
