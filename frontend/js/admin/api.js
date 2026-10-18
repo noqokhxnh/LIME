@@ -42,6 +42,10 @@ export const AdminApi = {
         return this.request('/api/auth/me');
     },
 
+    async logout() {
+        return this.request('/api/auth/logout', { method: 'POST' });
+    },
+
     // Dashboard Stats
     async getStats() {
         return this.request('/api/admin/stats');

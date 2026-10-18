@@ -5,7 +5,7 @@
 
 import { AdminApi } from './api.js';
 import { AdminState } from './state.js';
-import { Toast } from './components.js';
+import { Toast, ActionMenu, HealthDot } from './components.js';
 import { UsersView } from './users-view.js';
 import { DashboardView } from './dashboard-view.js';
 import { ViewsView } from './views-view.js';
@@ -49,6 +49,9 @@ export const AdminCore = {
         // 2. Bind Sidebar Navigation
         this.bindNavigation();
 
+        // 2b. Bind shell chrome: mobile nav drawer, sidebar collapse, account menu, API health
+        this.bindShell();
+
         // 3. Load stats for badge tags
         this.loadSidebarStats();
 
@@ -75,6 +78,109 @@ export const AdminCore = {
         if (avatarEl) {
             avatarEl.textContent = displayName.slice(0, 1).toUpperCase();
         }
+
+        const topbarAvatar = document.getElementById('topbar-user-avatar');
+        if (topbarAvatar) topbarAvatar.textContent = displayName.slice(0, 1).toUpperCase();
+    },
+
+    bindShell() {
+        this.bindMobileNav();
+        this.bindSidebarCollapse();
+        this.bindUserMenu();
+        HealthDot.mount(document.getElementById('admin-health-badge'));
+    },
+
+    /** Off-canvas navigation for viewports where the sidebar is hidden. */
+    bindMobileNav() {
+        const toggle = document.getElementById('admin-nav-toggle');
+        const sidebar = document.getElementById('admin-sidebar');
+        const backdrop = document.getElementById('admin-nav-backdrop');
+        if (!toggle || !sidebar || !backdrop) return;
+
+        const isOpen = () => sidebar.classList.contains('is-open');
+
+        const open = () => {
+            sidebar.classList.add('is-open');
+            backdrop.hidden = false;
+            requestAnimationFrame(() => backdrop.classList.add('show'));
+            toggle.setAttribute('aria-expanded', 'true');
+            const first = sidebar.querySelector('.nav-item');
+            if (first) first.focus();
+        };
+
+        const close = (returnFocus = false) => {
+            if (!isOpen()) return;
+            sidebar.classList.remove('is-open');
+            backdrop.classList.remove('show');
+            window.setTimeout(() => {
+                if (!isOpen()) backdrop.hidden = true;
+            }, 240);
+            toggle.setAttribute('aria-expanded', 'false');
+            if (returnFocus) toggle.focus();
+        };
+
+        this.closeMobileNav = close;
+
+        toggle.addEventListener('click', () => (isOpen() ? close() : open()));
+        backdrop.addEventListener('click', () => close());
+        document.addEventListener('keydown', (e) => {
+            if (e.key === 'Escape' && isOpen()) close(true);
+        });
+        window.addEventListener('resize', () => {
+            if (window.innerWidth > 960) close();
+        });
+    },
+
+    /** Desktop: collapse the sidebar to an icon rail; preference persisted. */
+    bindSidebarCollapse() {
+        const btn = document.getElementById('sidebar-collapse-btn');
+        const sidebar = document.getElementById('admin-sidebar');
+        if (!btn || !sidebar) return;
+
+        const KEY = 'admin_sidebar_collapsed';
+        let collapsed = false;
+        try { collapsed = localStorage.getItem(KEY) === '1'; } catch {}
+
+        const apply = (value) => {
+            sidebar.classList.toggle('collapsed', value);
+            btn.setAttribute('aria-expanded', String(!value));
+            btn.setAttribute('aria-label', value ? 'Mở rộng thanh điều hướng' : 'Thu gọn thanh điều hướng');
+            btn.title = value ? 'Mở rộng' : 'Thu gọn';
+        };
+
+        apply(collapsed);
+        btn.addEventListener('click', () => {
+            collapsed = !sidebar.classList.contains('collapsed');
+            apply(collapsed);
+            try { localStorage.setItem(KEY, collapsed ? '1' : '0'); } catch {}
+        });
+    },
+
+    bindUserMenu() {
+        const btn = document.getElementById('topbar-user-btn');
+        if (!btn) return;
+
+        btn.addEventListener('click', (e) => {
+            e.stopPropagation();
+            const user = this.currentUser || {};
+            const name = user.name || user.username || user.email || 'Quản trị viên';
+            const role = (user.role || 'admin').toUpperCase();
+            ActionMenu.open(btn, [
+                { label: `${name} · ${role}`, onClick: () => {} },
+                { divider: true },
+                { label: 'Vào Studio', onClick: () => { window.location.href = '/workspace'; } },
+                { label: 'Đăng xuất', danger: true, onClick: () => this.logout() }
+            ]);
+        });
+    },
+
+    async logout() {
+        try {
+            await AdminApi.logout();
+        } catch (e) {
+            console.warn('[Admin] Lỗi đăng xuất:', e);
+        }
+        window.location.replace('/');
     },
 
     async loadSidebarStats() {
@@ -136,6 +242,9 @@ export const AdminCore = {
         navItems.forEach((item) => {
             item.classList.toggle('active', item.dataset.tab === tabName);
         });
+
+        // Close the off-canvas nav after a tab is picked.
+        if (typeof this.closeMobileNav === 'function') this.closeMobileNav();
 
         const titleEl = document.getElementById('topbar-page-title');
         const container = document.getElementById('admin-view-container');

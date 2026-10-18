@@ -380,6 +380,57 @@ export const BulkBar = {
     }
 };
 
+// 9b. API HEALTH INDICATOR (sidebar/topbar badge)
+export const HealthDot = {
+    el: null,
+    timer: null,
+    intervalMs: 30000,
+
+    mount(el) {
+        this.el = el || document.getElementById('admin-health-badge');
+        if (!this.el) return;
+        this.el.classList.add('admin-health-badge');
+        this.check();
+        if (this.timer) clearInterval(this.timer);
+        this.timer = setInterval(() => this.check(), this.intervalMs);
+    },
+
+    async check() {
+        const el = this.el;
+        if (!el) return;
+
+        let ok = false;
+        let reason = '';
+        try {
+            const res = await fetch('/api/health', {
+                headers: { Accept: 'application/json' },
+                credentials: 'same-origin',
+                cache: 'no-store'
+            });
+            const data = await res.json().catch(() => ({}));
+            ok = res.ok && data.status === 'ok';
+            if (!ok) reason = `HTTP ${res.status}`;
+        } catch (err) {
+            reason = 'không kết nối được';
+        }
+
+        el.classList.toggle('badge-success', ok);
+        el.classList.toggle('badge-danger', !ok);
+        el.classList.toggle('badge-neutral', false);
+        el.title = ok
+            ? 'Máy chủ API hoạt động bình thường'
+            : `Máy chủ API không phản hồi (${reason || 'lỗi'})`;
+
+        const label = el.querySelector('.admin-health-label');
+        if (label) label.textContent = ok ? 'API Online' : 'API Offline';
+    },
+
+    stop() {
+        if (this.timer) clearInterval(this.timer);
+        this.timer = null;
+    }
+};
+
 // 10. GEO & ISP FORMATTERS
 const COUNTRY_MAP = {
     'vn': 'Việt Nam',
