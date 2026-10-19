@@ -321,8 +321,6 @@ function handleAuthError() {
 
 /* ================= STATE ================= */
 let pollInterval = null;
-let catalogBlocks = [];
-let selectedMotionBlockIds = new Set();
 let currentRatio = '16:9';
 let selectedClipIdx = -1;
 let currentPreviewJobId = null;
@@ -332,8 +330,8 @@ let previewPlayer = null;
  * Phong cách hiển thị hiện tại.
  *
  * Trước đây người dùng chọn style bằng card trong Inspector; giờ style do phương
- * án họ chọn quyết định (mỗi phương án gắn một style). Biến này chỉ còn dùng để
- * lọc thư viện motion block và làm fallback khi gọi API trực tiếp.
+ * án họ chọn quyết định (mỗi phương án gắn một style). Biến này chỉ còn là
+ * fallback khi gọi API trực tiếp (và khi nhận style từ trang chủ).
  */
 let activeStyle = 'modern';
 
@@ -370,10 +368,6 @@ const promptInput = document.getElementById('prompt-input');
 const promptCharCount = document.getElementById('prompt-char-count');
 const durationInput = document.getElementById('duration-input');
 const blueprintSelect = document.getElementById('blueprint-select');
-const catalogCategoryFilter = document.getElementById('catalog-category-filter');
-const motionLibrary = document.getElementById('motion-library');
-const motionBlocksCount = document.getElementById('motion-blocks-count');
-const selectedMotionChips = document.getElementById('selected-motion-chips');
 const voiceSelect = document.getElementById('voice-select');
 const primaryBtn = document.getElementById('btn-primary');
 const btnSpinner = document.getElementById('btn-spinner');
@@ -546,7 +540,7 @@ function renderTimeline() {
         const sel = i === selectedClipIdx ? ' sel' : '';
         return `<div class="clip v${sel}" data-clip="${i}" style="left:${left}%;width:${w}%">S${i + 1} · ${esc(sc.title || '')}</div>`;
     };
-    const emptyLane = `<div class="tl-empty">Chưa có phân cảnh — nhập prompt ở tab Kịch bản và bấm Tạo lại</div>`;
+    const emptyLane = `<div class="tl-empty">Chưa có phân cảnh — nhập prompt ở panel trái và bấm Tiếp tục</div>`;
     const voiceClip = n
         ? `<div class="clip a" style="left:0%;width:100%">${waveSvg()}<span style="position:relative">${esc(voiceSelect ? voiceSelect.value : 'Voiceover')} · Voiceover</span></div>`
         : emptyLane;
@@ -677,116 +671,20 @@ function providerForVoice(voice) {
     return /^vi-VN-/i.test(String(voice || '')) ? 'edge' : 'vieneu';
 }
 
-// Motion search (thư viện ngay trong Inspector)
-const motionSearch = document.getElementById('motion-search');
-if (motionSearch) motionSearch.addEventListener('input', renderMotionBlocks);
-
 function updateSummaryMeta() {
     const dur = durationInput ? (durationInput.value || 15) : 15;
     if (summaryMetaLine) summaryMetaLine.textContent = `${currentRatio} · ${dur}s`;
     if (statusEta) statusEta.textContent = `~${Math.max(1, Math.round(dur / 8))} phút render`;
 }
 
-/* ================= MOTION CATALOG ================= */
-function updateMotionCount() {
-    const count = selectedMotionBlockIds.size;
-    if (motionBlocksCount) motionBlocksCount.textContent = String(count);
-    renderSelectedChips();
-}
-
-function renderSelectedChips() {
-    if (!selectedMotionChips) return;
-    if (!selectedMotionBlockIds.size) {
-        selectedMotionChips.innerHTML = '<span class="insp-note">Chưa chọn block nào.</span>';
-        return;
-    }
-    selectedMotionChips.innerHTML = '';
-    catalogBlocks.filter(b => selectedMotionBlockIds.has(b.id)).forEach(block => {
-        const chip = document.createElement('span');
-        chip.className = 'mchip on';
-        chip.innerHTML = `${esc(block.name)}<button type="button" aria-label="Bỏ chọn">×</button>`;
-        chip.querySelector('button').addEventListener('click', (e) => {
-            e.stopPropagation();
-            selectedMotionBlockIds.delete(block.id);
-            renderMotionBlocks();
-            updateMotionCount();
-        });
-        selectedMotionChips.appendChild(chip);
-    });
-}
-
-function renderCategoryChips(categories) {
-    const wrap = document.getElementById('category-chips-list');
-    if (!wrap) return;
-    wrap.innerHTML = '';
-    categories.forEach(cat => {
-        const chip = document.createElement('button');
-        chip.type = 'button';
-        const isCurrent = (catalogCategoryFilter && catalogCategoryFilter.value === (cat === 'Tất cả' ? '' : cat));
-        chip.className = 'cat-filter-chip' + (isCurrent ? ' on' : '');
-        chip.textContent = cat;
-        chip.addEventListener('click', () => {
-            if (catalogCategoryFilter) catalogCategoryFilter.value = cat === 'Tất cả' ? '' : cat;
-            renderCategoryChips(categories);
-            renderMotionBlocks();
-        });
-        wrap.appendChild(chip);
-    });
-}
-
-function renderMotionBlocks() {
-    if (!motionLibrary) return;
-    const category = catalogCategoryFilter ? catalogCategoryFilter.value : '';
-    const style = activeStyle;
-    const q = motionSearch ? motionSearch.value.trim().toLowerCase() : '';
-    const filtered = catalogBlocks.filter((b) => {
-        const styleOk = !b.styleAffinity || b.styleAffinity.includes('any') || b.styleAffinity.includes(style);
-        const catOk = !category || b.category === category;
-        const qOk = !q || (b.name || '').toLowerCase().includes(q) || (b.category || '').toLowerCase().includes(q);
-        return styleOk && catOk && qOk;
-    });
-
-    const visibleIds = new Set(filtered.map((b) => b.id));
-    for (const id of [...selectedMotionBlockIds]) {
-        if (!visibleIds.has(id)) selectedMotionBlockIds.delete(id);
-    }
-
-    motionLibrary.innerHTML = '';
-    if (!filtered.length) {
-        motionLibrary.innerHTML = '<div class="empty-hint">Không tìm thấy block phù hợp.</div>';
-    }
-    filtered.forEach((block) => {
-        const isSelected = selectedMotionBlockIds.has(block.id);
-        const card = document.createElement('button');
-        card.type = 'button';
-        card.className = 'lib-card' + (isSelected ? ' selected' : '');
-        card.innerHTML = `<span class="th">${isSelected ? '✓' : esc((block.name || 'M')[0].toUpperCase())}</span>
-            <span class="nm">${esc(block.name)}${block.runtime ? ' ·core' : ''}</span>
-            <span class="du">${esc(block.category || '')}</span>`;
-        card.addEventListener('click', () => {
-            if (selectedMotionBlockIds.has(block.id)) {
-                selectedMotionBlockIds.delete(block.id);
-            } else {
-                if (selectedMotionBlockIds.size >= 8) {
-                    log('Chỉ chọn tối đa 8 motion blocks', 'error');
-                    return;
-                }
-                selectedMotionBlockIds.add(block.id);
-            }
-            renderMotionBlocks();
-            updateMotionCount();
-        });
-        motionLibrary.appendChild(card);
-    });
-    updateMotionCount();
-}
-
+/* ================= CATALOG ================= */
+// Thư viện motion block do AI tự chọn — UI không còn cho người dùng chọn tay,
+// chỉ cần blueprint cho Inspector.
 async function loadCatalog() {
     try {
         const res = await fetch(`${API_BASE}/api/catalog`);
         if (!res.ok) throw new Error('Không tải được catalog');
         const data = await res.json();
-        catalogBlocks = data.blocks || [];
         if (blueprintSelect) {
             const current = blueprintSelect.value;
             blueprintSelect.innerHTML = '<option value="">(Mặc định — 5-beat spine)</option>';
@@ -798,13 +696,8 @@ async function loadCatalog() {
             });
             if (current) blueprintSelect.value = current;
         }
-        const cats = ['Tất cả', ...new Set(catalogBlocks.map((b) => b.category).filter(Boolean))].sort();
-        renderCategoryChips(cats);
-        renderMotionBlocks();
-        log(`Đã tải catalog: ${catalogBlocks.length} blocks, ${(data.blueprints || []).length} blueprints`, 'info');
     } catch (err) {
         log(`Catalog: ${err.message}`, 'error');
-        if (motionLibrary) motionLibrary.innerHTML = '<div class="empty-hint">Không tải được thư viện.</div>';
     }
 }
 
@@ -939,7 +832,6 @@ function countWords(text) {
 /** Payload chung cho cả 3 bước: hỏi, sinh phương án, render. */
 function buildBasePayload(prompt) {
     const voice = voiceSelect ? voiceSelect.value : 'Minh Quân';
-    const motionBlockIds = [...selectedMotionBlockIds].slice(0, 8);
 
     let targetDurationSec = 15;
     if (durationInput) {
@@ -965,7 +857,6 @@ function buildBasePayload(prompt) {
     // quyết blueprint của nó (mỗi archetype đã gắn một blueprint riêng).
     const blueprintId = blueprintSelect && blueprintSelect.value ? blueprintSelect.value : undefined;
     if (blueprintId) payload.blueprintId = blueprintId;
-    if (motionBlockIds.length) payload.motionBlockIds = motionBlockIds;
     if (customStyleInput && customStyleInput.value.trim()) payload.customStyle = customStyleInput.value.trim();
     return payload;
 }
@@ -1953,10 +1844,7 @@ function restorePendingPrompt() {
             promptCharCount.classList.remove('warn');
         }
     }
-    if (data.style) {
-        activeStyle = data.style;
-        renderMotionBlocks();
-    }
+    if (data.style) activeStyle = data.style;
     if (data.ratio) {
         document.querySelectorAll('.ratio-btn').forEach(r => {
             const match = r.getAttribute('data-ratio') === data.ratio;
