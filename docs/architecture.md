@@ -86,6 +86,24 @@ Session-based auth (`src/auth/`). See [api.md § Authentication](api.md#authenti
 
 LIME supports both a two-phase draft flow and a direct one-shot generation flow.
 
+> **Trạng thái triển khai.** Luồng hai pha dưới đây là thiết kế ban đầu và **chưa**
+> được triển khai. Bản đang chạy là biến thể đồng bộ của cùng ý tưởng:
+>
+> ```
+> POST /api/script/clarify ──► 3 câu hỏi + confidence (câu ≥ 0.8 bị thu gọn)
+> POST /api/script/draft   ──► sinh 3 phương án SONG SONG (sync, không queue)
+>                              mỗi phương án = archetype + style + blueprint
+>                              dedupe palette/số cảnh, chấm score, trả recommended
+> [người dùng duyệt + sửa voiceOverText]
+> POST /api/pipeline { script } ──► validate tại route ──► render
+> ```
+>
+> Chế độ "Để AI quyết hết": `POST /api/pipeline { mode: "auto" }` — worker tự gọi
+> clarify, tự sinh 3 phương án, tự chọn theo `scoreDraft()` (độ khớp thời lượng +
+> ngân sách từ) rồi render trong cùng job, báo lại phương án đã chọn qua progress.
+> Không có job status `draft`, không có `draft_ready`, không có bảng `jobs`.
+> Trạng thái duyệt phía client lưu ở `localStorage` (key `lime.hitl.v1`).
+
 ### Two-Phase Flow (Draft → Edit/Confirm → Render)
 
 ```
