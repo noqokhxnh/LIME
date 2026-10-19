@@ -62,37 +62,23 @@
         <div class="panel" id="panel-left">
             <div class="p-head">
                 <span id="left-title">Kịch bản AI</span>
-                <button type="button" class="left-back" id="btn-back-compose" style="display:none">← Đổi hướng</button>
+                <div class="step-dots" id="step-dots">
+                    <button type="button" data-step="prompt" class="on" aria-label="Bước 1: Ý tưởng"></button>
+                    <button type="button" data-step="ask" aria-label="Bước 2: Hướng làm"></button>
+                    <button type="button" data-step="review" aria-label="Bước 3: Duyệt phương án"></button>
+                </div>
             </div>
             <div class="p-body">
-                <div id="compose-view">
+                <section class="step-view" id="step-prompt">
                     <div class="prompt-box">
                         <textarea id="prompt-input" placeholder="Mô tả video bạn muốn tạo…" rows="4"
                             maxlength="500"></textarea>
                         <div class="prompt-foot">
                             <span id="prompt-char-count">0/500 · tối thiểu 10</span>
-                            <button class="btn-lime-sm" id="generate-btn" type="button">
-                                <span id="btn-spinner" class="spinner" style="display:none"></span>
-                                <span id="btn-text">Tạo kịch bản</span>
-                            </button>
                         </div>
                     </div>
-
-                    <!-- HITL: 3 câu hỏi làm rõ. Chỉ hiện câu AI chưa chắc. -->
-                    <div class="hitl-block" id="hitl-block">
-                        <div class="hitl-head">
-                            <span>Hướng làm</span>
-                            <button type="button" class="linklike-sm" id="btn-clarify-refresh">AI gợi ý lại</button>
-                        </div>
-                        <div class="clarify-form" id="clarify-form">
-                            <div class="empty-hint">Nhập prompt rồi bấm <b>Tạo kịch bản</b> — AI sẽ hỏi đúng
-                                những gì còn mơ hồ.</div>
-                        </div>
-                        <button type="button" class="btn-auto-direct" id="btn-auto-direct">
-                            <b>Để AI quyết hết</b>
-                            <span>Tự chọn hướng, tự viết, render luôn — không cần duyệt</span>
-                        </button>
-                    </div>
+                    <p class="step-hint" id="prompt-hint">Bấm <b>Tiếp tục</b> — AI sẽ hỏi đúng những gì còn mơ hồ
+                        (thường 1–2 câu).</p>
 
                     <div class="scene-list">
                         <h4>Phân cảnh · <span id="scene-count">0</span></h4>
@@ -100,18 +86,32 @@
                             <div class="empty-hint">Chưa có phân cảnh. Tạo kịch bản để xem tại đây.</div>
                         </div>
                     </div>
-                </div>
+                </section>
 
-                <!-- Bước 2: duyệt phương án + sửa lời thoại -->
-                <div id="review-view" style="display:none">
-                    <div class="variant-rail" id="variant-rail"></div>
-                    <div class="review-meta" id="review-meta"></div>
-                    <div class="draft-scenes" id="draft-scene-list"></div>
-                    <div class="review-actions">
-                        <button type="button" class="btn-lime-sm" id="btn-approve-render">Duyệt &amp; Render</button>
-                        <button type="button" class="btn-ghost" id="btn-shuffle-variants">Đổi bộ phương án</button>
+                <section class="step-view" id="step-ask" hidden>
+                    <div class="ask-top">
+                        <span id="ask-counter">Câu 1/3</span>
+                        <div class="ask-bar"><i id="ask-bar-fill"></i></div>
+                        <button type="button" class="linklike-sm" id="btn-clarify-refresh"
+                            title="Phân tích lại prompt">↻</button>
                     </div>
+                    <div class="ask-auto-strip" id="ask-auto-strip" hidden></div>
+                    <div id="ask-body"></div>
+                </section>
+            </div>
+
+            <div class="left-foot" id="left-foot">
+                <div class="auto-row">
+                    <span id="auto-label">Để AI quyết định hết</span>
+                    <button type="button" class="switch" id="auto-decide" role="switch" aria-checked="false"
+                        aria-labelledby="auto-label"><span></span></button>
                 </div>
+                <p class="auto-note" id="auto-note">AI tự trả lời 3 câu, tự chọn phương án và render thẳng ra video.
+                </p>
+                <button type="button" class="btn-primary" id="btn-primary">
+                    <span id="btn-spinner" class="spinner" style="display:none"></span>
+                    <span id="btn-text">Tiếp tục</span>
+                </button>
             </div>
         </div>
 
@@ -271,6 +271,32 @@
         <span id="summary-meta-line" class="mono">16:9 · 15s</span>
         <div class="right"><span id="status-eta">~2 phút render</span><span>GPU OK</span></div>
     </footer>
+
+    <!-- ============ REVIEW BOARD: so sánh 3 phương án ============ -->
+    <div id="review-board" class="review-board" hidden>
+        <div class="rb-bar">
+            <button type="button" class="rb-back" id="rb-back">← Quay lại</button>
+            <div class="rb-heading">
+                <h2 id="rb-title">Chọn phương án</h2>
+                <div class="rb-answers">
+                    <span id="rb-answers-text"></span>
+                    <button type="button" id="rb-edit-answers">Sửa</button>
+                </div>
+            </div>
+            <button type="button" class="btn-ghost" id="rb-shuffle">↻ Đổi bộ</button>
+        </div>
+        <div class="rb-body">
+            <div class="rb-cards" id="rb-cards"></div>
+            <div class="rb-editor" id="rb-editor"></div>
+        </div>
+        <div class="rb-foot">
+            <span class="rb-foot-hint" id="rb-foot-hint">Chọn một phương án để duyệt</span>
+            <div class="rb-foot-actions">
+                <button type="button" class="btn-ghost" id="rb-auto">Để AI tự chọn</button>
+                <button type="button" class="btn-primary" id="rb-approve" disabled>Duyệt &amp; Render →</button>
+            </div>
+        </div>
+    </div>
 
     <!-- ============ LOGIN MODAL ============ -->
     <div id="login-modal" class="auth-modal">
