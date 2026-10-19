@@ -769,16 +769,25 @@ export async function buildApp(options: { logger?: boolean, queue?: IVideoQueue 
 
     app.get("/api/jobs", async () => {
         const jobs = await queue.getJobs();
-        return jobs.map((j) => ({
-            jobId: j.jobId,
-            status: j.status,
-            createdAt: j.createdAt,
-            updatedAt: j.updatedAt,
-            topic: j.request.prompt,
-            durationSec: j.result?.durationSec,
-            qaStatus: j.qaStatus ?? j.result?.qaStatus,
-            error: j.error,
-        }));
+        // Mới nhất trước. Không dựa vào thứ tự của queue: memory queue trả theo
+        // thứ tự chèn còn BullMQ trả theo từng state, nên client luôn nhận một
+        // danh sách đã sắp xếp thay vì phải tự đoán.
+        const timeOf = (j: { createdAt?: string; updatedAt?: string }) => {
+            const t = Date.parse(j.createdAt || j.updatedAt || "");
+            return Number.isFinite(t) ? t : 0;
+        };
+        return jobs
+            .map((j) => ({
+                jobId: j.jobId,
+                status: j.status,
+                createdAt: j.createdAt,
+                updatedAt: j.updatedAt,
+                topic: j.request.prompt,
+                durationSec: j.result?.durationSec,
+                qaStatus: j.qaStatus ?? j.result?.qaStatus,
+                error: j.error,
+            }))
+            .sort((a, b) => timeOf(b) - timeOf(a));
     });
 
     app.get("/api/jobs/:jobId", async (request: FastifyRequest<{ Params: { jobId: string } }>, reply: FastifyReply) => {
@@ -917,6 +926,21 @@ export async function buildApp(options: { logger?: boolean, queue?: IVideoQueue 
         const stat = statSync(videoPath);
         const fileSize = stat.size;
         const range = request.headers.range;
+        // Video của một job là bất biến, nhưng tệp có thể bị ghi đè khi render lại
+        // cùng thư mục. `no-cache` + ETag buộc trình duyệt hỏi lại: nếu tệp không
+        // đổi thì chỉ tốn một 304, còn nếu đổi thì không bao giờ phát video cũ.
+        const etag = `"v${fileSize.toString(16)}-${Math.floor(stat.mtimeMs).toString(16)}"`;
+        const cacheHeaders = {
+            'Cache-Control': 'private, no-cache',
+            'ETag': etag,
+            'Last-Modified': stat.mtime.toUTCString(),
+        };
+
+        if (!range && request.headers['if-none-match'] === etag) {
+            reply.raw.writeHead(304, cacheHeaders);
+            reply.raw.end();
+            return reply;
+        }
 
         if (range) {
             const parts = range.replace(/bytes=/, "").split("-");
@@ -925,6 +949,7 @@ export async function buildApp(options: { logger?: boolean, queue?: IVideoQueue 
             const chunkSize = (end - start) + 1;
             const file = createReadStream(videoPath, { start, end });
             reply.raw.writeHead(206, {
+                ...cacheHeaders,
                 'Content-Range': `bytes ${start}-${end}/${fileSize}`,
                 'Accept-Ranges': 'bytes',
                 'Content-Length': chunkSize,
@@ -934,6 +959,7 @@ export async function buildApp(options: { logger?: boolean, queue?: IVideoQueue 
             return reply;
         } else {
             reply.raw.writeHead(200, {
+                ...cacheHeaders,
                 'Content-Length': fileSize,
                 'Accept-Ranges': 'bytes',
                 'Content-Type': 'video/mp4',

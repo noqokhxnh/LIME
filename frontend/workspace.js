@@ -486,7 +486,7 @@ function applyProject(job, topic) {
     project.durationSec = res.durationSec || project.durationSec;
     project.resolution = res.resolution || '';
     if (topic) project.topic = topic;
-    if (projName && project.topic) projName.textContent = project.topic + ' ▾';
+    if (projName) setProjectName(project.topic);
     renderSceneList();
     renderTimeline();
     if (statusScenes) {
@@ -500,7 +500,7 @@ function renderSceneList() {
     if (!sceneList) return;
     if (sceneCount) sceneCount.textContent = String(project.scenes.length);
     if (!project.scenes.length) {
-        sceneList.innerHTML = '<div class="empty-hint">Nhập prompt rồi bấm <b>Tạo lại</b> — AI sẽ chia phân cảnh tại đây.</div>';
+        sceneList.innerHTML = '<div class="empty-hint">Nhập prompt rồi bấm <b>Tiếp tục</b> — AI sẽ chia phân cảnh tại đây.</div>';
         return;
     }
     const per = project.durationSec / project.scenes.length;
@@ -821,6 +821,105 @@ async function fetchJobs() {
         return [];
     }
 }
+
+/** Mốc thời gian của job để xếp mới nhất trước (server có thể trả theo thứ tự chèn). */
+function jobTime(job) {
+    const t = Date.parse(job && (job.updatedAt || job.createdAt) || '');
+    return Number.isFinite(t) ? t : 0;
+}
+
+/** Tên dự án trên topbar; bấm vào là tạo dự án mới. */
+function setProjectName(topic) {
+    if (!projName) return;
+    const text = String(topic || '').trim();
+    projName.textContent = text || 'Dự án mới';
+    projName.classList.toggle('is-empty', !text);
+    projName.title = text ? `${text} — bấm để tạo dự án mới` : 'Bắt đầu dự án mới';
+}
+
+/**
+ * Xoá sạch trạng thái của dự án hiện tại để bắt đầu video mới.
+ *
+ * Không đụng tới cấu hình Inspector (khung hình, thời lượng, giọng đọc) vì đó là
+ * lựa chọn mặc định của người dùng, không phải dữ liệu của dự án.
+ */
+function resetProject() {
+    if (hitlPersistTimer) {
+        clearTimeout(hitlPersistTimer);
+        hitlPersistTimer = null;
+    }
+    if (pollInterval) {
+        const proceed = window.confirm('Video đang render. Tạo dự án mới sẽ bỏ theo dõi job này (video vẫn chạy trên server). Tiếp tục?');
+        if (!proceed) return;
+        clearInterval(pollInterval);
+        pollInterval = null;
+    }
+
+    hitl.prompt = '';
+    hitl.questions = [];
+    hitl.answers = {};
+    hitl.confidence = {};
+    hitl.open.clear();
+    hitl.askIndex = 0;
+    hitl.drafts = [];
+    hitl.selectedKey = null;
+    hitl.recommended = null;
+    hitl.rotation = 0;
+    hitl.error = '';
+    closeBoard();
+    setStage('prompt');
+    if (askBody) askBody.innerHTML = '';
+    if (askAutoStrip) {
+        askAutoStrip.hidden = true;
+        askAutoStrip.innerHTML = '';
+    }
+    try { localStorage.removeItem(HITL_STORAGE_KEY); } catch (e) { }
+
+    if (promptInput) {
+        promptInput.value = '';
+        promptInput.focus();
+    }
+    if (promptCharCount) {
+        promptCharCount.textContent = '0/500 · tối thiểu 10';
+        promptCharCount.classList.remove('warn');
+    }
+
+    project.scenes = [];
+    project.topic = '';
+    project.jobId = null;
+    project.resolution = '';
+    selectedClipIdx = -1;
+    setProjectName('');
+
+    if (videoPlayer) {
+        videoPlayer.pause();
+        videoPlayer.removeAttribute('src');
+        videoPlayer.load();
+        videoPlayer.style.display = 'none';
+    }
+    if (videoEmpty) videoEmpty.style.display = '';
+    if (monitorBadge) monitorBadge.style.display = 'none';
+    if (monitorTc) monitorTc.textContent = '00:00:00:00';
+    if (btnDownload) {
+        btnDownload.style.display = 'none';
+        btnDownload.removeAttribute('href');
+    }
+    if (btnPreviewHtml) {
+        btnPreviewHtml.style.display = 'none';
+        btnPreviewHtml.removeAttribute('href');
+    }
+    if (btnLivePreview) btnLivePreview.style.display = 'none';
+    currentPreviewJobId = null;
+
+    renderSceneList();
+    renderTimeline();
+    updateSummaryMeta();
+    setProgress(0);
+    setStatus('Sẵn sàng', false);
+    if (statusScenes) statusScenes.textContent = 'Chưa có phân cảnh';
+    log('Đã tạo dự án mới.', 'info');
+}
+
 
 /* ================= GENERATE ================= */
 async function fetchJobDetail(jobId) {
@@ -1505,7 +1604,7 @@ async function requestDrafts(nextRotation) {
     setBusy(true, 'Đang viết 3 phương án…');
     setStatus('Đang tạo kịch bản', true);
     setProgress(10);
-    if (projName) projName.textContent = prompt.slice(0, 32) + ' ▾';
+    if (projName) setProjectName(prompt.slice(0, 40));
     project.topic = prompt.slice(0, 60);
     log(`Đang sinh 3 phương án cho: "${prompt}"`, 'info');
 
@@ -1787,6 +1886,8 @@ function startGenerate() {
 }
 // Nút "Xuất bản" trên topbar = tạo/render video (không còn tab xuất bản riêng).
 if (topbarExportBtn) topbarExportBtn.addEventListener('click', startGenerate);
+// Tên dự án trên topbar = bắt đầu dự án mới (trước đây chỉ là nhãn, bấm không có gì).
+if (projName) projName.addEventListener('click', resetProject);
 
 /* ================= INIT ================= */
 (async function init() {
@@ -1800,7 +1901,10 @@ if (topbarExportBtn) topbarExportBtn.addEventListener('click', startGenerate);
     renderTimeline();
 
     const jobs = await fetchJobs();
-    const completedJob = (jobs || []).find(j => j.status === 'completed');
+    // Server có thể trả theo thứ tự chèn (memory queue) — luôn lấy video mới nhất.
+    const completedJob = (jobs || [])
+        .filter(j => j && j.status === 'completed')
+        .sort((a, b) => jobTime(b) - jobTime(a))[0];
     if (completedJob) {
         log(`Đã tìm thấy video trước đó: ${completedJob.topic || completedJob.jobId}`, 'info');
         const full = await fetchJobDetail(completedJob.jobId);
