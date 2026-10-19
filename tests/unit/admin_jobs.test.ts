@@ -517,6 +517,17 @@ describe('Admin Jobs Management Test Suite', () => {
         const servingRes = await app.inject({ method: 'GET', url: `/api/jobs/${availableJob}/video` });
         assert.strictEqual(servingRes.statusCode, 200, servingRes.body);
         assert.strictEqual(servingRes.headers['content-type'], 'video/mp4');
+        // Trình duyệt không được giữ video cũ: phải revalidate bằng ETag.
+        assert.match(String(servingRes.headers['cache-control']), /no-cache/);
+        const etag = String(servingRes.headers['etag'] || '');
+        assert.ok(etag, 'Route video phải trả ETag');
+
+        const revalidated = await app.inject({
+            method: 'GET',
+            url: `/api/jobs/${availableJob}/video`,
+            headers: { 'if-none-match': etag },
+        });
+        assert.strictEqual(revalidated.statusCode, 304, 'ETag khớp phải trả 304 thay vì tải lại');
 
         await queue.removeJob(availableJob);
         await queue.removeJob(goneJob);
