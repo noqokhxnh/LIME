@@ -49,41 +49,41 @@ export class PreviewPlayer {
             </div>
         `;
         
-        this.iframe = this.container.querySelector(#pp-iframe);
-        this.audio = this.container.querySelector(#pp-audio);
-        this.playBtn = this.container.querySelector(#pp-play);
-        this.scrubber = this.container.querySelector(#pp-scrubber);
-        this.timeDisplay = this.container.querySelector(#pp-time);
-        
+        this.iframe = this.container.querySelector('#pp-iframe');
+        this.audio = this.container.querySelector('#pp-audio');
+        this.playBtn = this.container.querySelector('#pp-play');
+        this.scrubber = this.container.querySelector('#pp-scrubber');
+        this.timeDisplay = this.container.querySelector('#pp-time');
+
         this.bindEvents();
     }
-    
+
     bindEvents() {
-        this.playBtn.addEventListener(click, () => this.togglePlay());
-        this.container.querySelector(#pp-rewind).addEventListener(click, () => this.seek(0));
-        this.container.querySelector(#pp-prev-scene).addEventListener(click, () => this.prevScene());
-        this.container.querySelector(#pp-next-scene).addEventListener(click, () => this.nextScene());
-        
+        this.playBtn.addEventListener('click', () => this.togglePlay());
+        this.container.querySelector('#pp-rewind').addEventListener('click', () => this.seek(0));
+        this.container.querySelector('#pp-prev-scene').addEventListener('click', () => this.prevScene());
+        this.container.querySelector('#pp-next-scene').addEventListener('click', () => this.nextScene());
+
         // Scrubber: seek khi kéo
         let isScrubbing = false;
-        this.scrubber.addEventListener(input, (e) => {
+        this.scrubber.addEventListener('input', (e) => {
             isScrubbing = true;
             const t = (parseFloat(e.target.value) / 100) * this.duration;
             this.seek(t);
         });
-        this.scrubber.addEventListener(change, () => {
+        this.scrubber.addEventListener('change', () => {
             isScrubbing = false;
         });
-        
+
         // Audio events để đồng bộ
-        this.audio.addEventListener(timeupdate, () => {
+        this.audio.addEventListener('timeupdate', () => {
             if (!isScrubbing && this.isPlaying) {
                 this.currentTime = this.audio.currentTime;
                 this.updateUI();
             }
         });
-        
-        this.audio.addEventListener(ended, () => {
+
+        this.audio.addEventListener('ended', () => {
             this.pause();
         });
     }
@@ -115,12 +115,12 @@ export class PreviewPlayer {
             this.seek(0);
             
         } catch (err) {
-            console.error([PreviewPlayer] Load failed:, err);
+            console.error('[PreviewPlayer] Load failed:', err);
             this.showLoading(false);
             throw err;
         }
     }
-    
+
     waitForIframeReady(timeout = 15000) {
         return new Promise((resolve, reject) => {
             const start = Date.now();
@@ -130,7 +130,7 @@ export class PreviewPlayer {
                     if (win && win.__ready === true) {
                         resolve();
                     } else if (Date.now() - start > timeout) {
-                        reject(new Error(Iframe ready timeout));
+                        reject(new Error('Iframe ready timeout'));
                     } else {
                         setTimeout(check, 100);
                     }
@@ -142,7 +142,7 @@ export class PreviewPlayer {
             check();
         });
     }
-    
+
     async loadScenes() {
         try {
             const res = await fetch(`/api/jobs/${this.jobId}`);
@@ -150,24 +150,24 @@ export class PreviewPlayer {
             // Giả định job.result.scenes hoặc job.scenes chứa thông tin scene
             this.scenes = job.result?.scenes || job.scenes || [];
         } catch (err) {
-            console.warn([PreviewPlayer] Could not load scenes:, err);
+            console.warn('[PreviewPlayer] Could not load scenes:', err);
             this.scenes = [];
         }
     }
-    
+
     seek(timeSec) {
         timeSec = Math.max(0, Math.min(timeSec, this.duration));
         this.currentTime = timeSec;
-        
+
         try {
             const win = this.iframe.contentWindow;
             if (win && win.__seekTo) {
                 win.__seekTo(timeSec);
             }
         } catch (err) {
-            console.warn([PreviewPlayer] Seek failed:, err);
+            console.warn('[PreviewPlayer] Seek failed:', err);
         }
-        
+
         if (this.audio) {
             try {
                 this.audio.currentTime = timeSec;
@@ -175,30 +175,30 @@ export class PreviewPlayer {
                 // Audio chưa load xong, bỏ qua
             }
         }
-        
+
         this.updateUI();
     }
-    
+
     play() {
         if (this.isPlaying) return;
-        
+
         this.isPlaying = true;
-        this.playBtn.textContent = ⏸;
-        this.playBtn.title = Tạm dừng;
-        
+        this.playBtn.textContent = '⏸';
+        this.playBtn.title = 'Tạm dừng';
+
         // Phát audio
         this.audio.play().catch(err => {
-            console.warn([PreviewPlayer] Audio play failed:, err);
+            console.warn('[PreviewPlayer] Audio play failed:', err);
         });
-        
+
         // Cập nhật UI theo thời gian thực
         const startTime = this.currentTime;
         const startTimestamp = Date.now();
-        
+
         this.playInterval = setInterval(() => {
             const elapsed = (Date.now() - startTimestamp) / 1000;
             const t = startTime + elapsed;
-            
+
             if (t >= this.duration) {
                 this.pause();
                 this.seek(this.duration);
@@ -207,16 +207,16 @@ export class PreviewPlayer {
             }
         }, 50); // Cập nhật 20fps
     }
-    
+
     pause() {
         if (!this.isPlaying) return;
-        
+
         this.isPlaying = false;
-        this.playBtn.textContent = ▶;
-        this.playBtn.title = Phát;
-        
+        this.playBtn.textContent = '▶';
+        this.playBtn.title = 'Phát';
+
         this.audio.pause();
-        
+
         if (this.playInterval) {
             clearInterval(this.playInterval);
             this.playInterval = null;
@@ -278,29 +278,29 @@ export class PreviewPlayer {
     formatTime(sec) {
         const m = Math.floor(sec / 60);
         const s = Math.floor(sec % 60);
-        return `${String(m).padStart(2, 0)}:${String(s).padStart(2, 0)}`;
+        return `${String(m).padStart(2, '0')}:${String(s).padStart(2, '0')}`;
     }
-    
+
     showLoading(show) {
-        const loading = this.container.querySelector(.pp-loading);
+        const loading = this.container.querySelector('.pp-loading');
         if (loading) {
-            loading.style.display = show ? flex : none;
+            loading.style.display = show ? 'flex' : 'none';
         }
     }
-    
+
     destroy() {
         this.pause();
         if (this.audio) {
-            this.audio.src = ;
+            this.audio.src = '';
         }
         if (this.iframe) {
-            this.iframe.src = about:blank;
+            this.iframe.src = 'about:blank';
         }
-        this.container.innerHTML = ;
+        this.container.innerHTML = '';
     }
 }
 
 // Export cho sử dụng global
-if (typeof window !== undefined) {
+if (typeof window !== 'undefined') {
     window.PreviewPlayer = PreviewPlayer;
 }
