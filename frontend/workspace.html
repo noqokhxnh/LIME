@@ -195,18 +195,6 @@
                 </div>
 
                 <div class="insp-sec">
-                    <div class="insp-head"><span>Cấu trúc kịch bản</span><span class="sw"></span></div>
-                    <div class="insp-body">
-                        <div class="fld">
-                            <span>Blueprint</span>
-                            <select id="blueprint-select" class="mini-select">
-                                <option value="">(Mặc định — 5-beat spine)</option>
-                            </select>
-                        </div>
-                    </div>
-                </div>
-
-                <div class="insp-sec">
                     <div class="insp-head"><span>Nâng cao</span><span class="sw off"></span></div>
                     <div class="insp-body">
                         <label class="adv-label">Mô tả phong cách riêng
@@ -214,9 +202,10 @@
                                 placeholder="Ví dụ: đường nét mảnh, chuyển cảnh chậm…"></textarea>
                         </label>
                         <label class="adv-label">Kịch bản tự dựng (JSON)
-                            <textarea id="custom-script-json" class="adv-area mono"
-                                placeholder='{ "scenes": [] }'></textarea>
+                            <textarea id="custom-script-json" class="adv-area mono" rows="10"
+                                spellcheck="false"></textarea>
                         </label>
+                        <div class="insp-note">Mẫu tham khảo: sửa để render thẳng, xoá trắng để AI tự viết.</div>
                     </div>
                 </div>
             </div>
