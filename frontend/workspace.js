@@ -325,6 +325,8 @@ let catalogBlocks = [];
 let selectedMotionBlockIds = new Set();
 let currentRatio = '16:9';
 let selectedClipIdx = -1;
+let currentPreviewJobId = null;
+let previewPlayer = null;
 const project = { scenes: [], durationSec: 15, topic: '', jobId: null, resolution: '' };
 
 /* ================= ELEMENTS ================= */
@@ -350,6 +352,9 @@ const videoPlayer = document.getElementById('video-player');
 const videoEmpty = document.getElementById('video-empty');
 const btnDownload = document.getElementById('btn-download');
 const btnPreviewHtml = document.getElementById('btn-preview-html');
+const btnLivePreview = document.getElementById('btn-live-preview');
+const previewModal = document.getElementById('preview-modal');
+const previewModalClose = document.getElementById('preview-modal-close');
 const summaryMetaLine = document.getElementById('summary-meta-line');
 const customStyleInput = document.getElementById('custom-style-input');
 const customScriptJson = document.getElementById('custom-script-json');
@@ -550,7 +555,7 @@ function displayVideo(jobId) {
         btnPreviewHtml.href = `${API_BASE}/api/jobs/${jobId}/html`;
     }
     if (btnLivePreview) {
-        btnLivePreview.style.display = inline-flex;
+        btnLivePreview.style.display = 'inline-flex';
         currentPreviewJobId = jobId;
     }
 }
@@ -978,35 +983,35 @@ function restorePendingPrompt() {
 }
 
 // Issue #36: Live Preview Player modal
-if (typeof btnLivePreview !== undefined && btnLivePreview && typeof previewModal !== undefined && previewModal) {
-    btnLivePreview.addEventListener(click, async () => {
+if (btnLivePreview && previewModal) {
+    btnLivePreview.addEventListener('click', async () => {
         if (!currentPreviewJobId) return;
-        previewModal.style.display = flex;
+        previewModal.style.display = 'flex';
         try {
             if (!previewPlayer && window.PreviewPlayer) {
-                previewPlayer = new window.PreviewPlayer(preview-player-container);
+                previewPlayer = new window.PreviewPlayer('preview-player-container');
             }
             if (previewPlayer) {
                 await previewPlayer.load(currentPreviewJobId);
             }
         } catch (err) {
-            console.error(Preview load failed:, err);
-            alert(Không tải được preview:  + err.message);
+            console.error('Preview load failed:', err);
+            alert('Không tải được preview: ' + err.message);
         }
     });
 }
 
-if (typeof previewModalClose !== undefined && previewModalClose && typeof previewModal !== undefined && previewModal) {
-    previewModalClose.addEventListener(click, () => {
-        previewModal.style.display = none;
+if (previewModalClose && previewModal) {
+    previewModalClose.addEventListener('click', () => {
+        previewModal.style.display = 'none';
         if (previewPlayer) {
             previewPlayer.pause();
         }
     });
-    
-    previewModal.addEventListener(click, (e) => {
+
+    previewModal.addEventListener('click', (e) => {
         if (e.target === previewModal) {
-            previewModal.style.display = none;
+            previewModal.style.display = 'none';
             if (previewPlayer) {
                 previewPlayer.pause();
             }
