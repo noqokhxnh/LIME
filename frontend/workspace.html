@@ -60,23 +60,56 @@
     <!-- ============ WORKSPACE: KỊCH BẢN ============ -->
     <section class="ws-main on" id="ws-main-script">
         <div class="panel" id="panel-left">
-            <div class="p-head"><span>Kịch bản AI</span></div>
+            <div class="p-head">
+                <span id="left-title">Kịch bản AI</span>
+                <button type="button" class="left-back" id="btn-back-compose" style="display:none">← Đổi hướng</button>
+            </div>
             <div class="p-body">
-                <div class="prompt-box">
-                    <textarea id="prompt-input" placeholder="Mô tả video bạn muốn tạo…" rows="4"
-                        maxlength="500"></textarea>
-                    <div class="prompt-foot">
-                        <span id="prompt-char-count">0/500 · tối thiểu 10</span>
-                        <button class="btn-lime-sm" id="generate-btn" type="button">
-                            <span id="btn-spinner" class="spinner" style="display:none"></span>
-                            <span id="btn-text">Tạo lại</span>
+                <div id="compose-view">
+                    <div class="prompt-box">
+                        <textarea id="prompt-input" placeholder="Mô tả video bạn muốn tạo…" rows="4"
+                            maxlength="500"></textarea>
+                        <div class="prompt-foot">
+                            <span id="prompt-char-count">0/500 · tối thiểu 10</span>
+                            <button class="btn-lime-sm" id="generate-btn" type="button">
+                                <span id="btn-spinner" class="spinner" style="display:none"></span>
+                                <span id="btn-text">Tạo kịch bản</span>
+                            </button>
+                        </div>
+                    </div>
+
+                    <!-- HITL: 3 câu hỏi làm rõ. Chỉ hiện câu AI chưa chắc. -->
+                    <div class="hitl-block" id="hitl-block">
+                        <div class="hitl-head">
+                            <span>Hướng làm</span>
+                            <button type="button" class="linklike-sm" id="btn-clarify-refresh">AI gợi ý lại</button>
+                        </div>
+                        <div class="clarify-form" id="clarify-form">
+                            <div class="empty-hint">Nhập prompt rồi bấm <b>Tạo kịch bản</b> — AI sẽ hỏi đúng
+                                những gì còn mơ hồ.</div>
+                        </div>
+                        <button type="button" class="btn-auto-direct" id="btn-auto-direct">
+                            <b>Để AI quyết hết</b>
+                            <span>Tự chọn hướng, tự viết, render luôn — không cần duyệt</span>
                         </button>
                     </div>
+
+                    <div class="scene-list">
+                        <h4>Phân cảnh · <span id="scene-count">0</span></h4>
+                        <div id="scene-list">
+                            <div class="empty-hint">Chưa có phân cảnh. Tạo kịch bản để xem tại đây.</div>
+                        </div>
+                    </div>
                 </div>
-                <div class="scene-list">
-                    <h4>Phân cảnh · <span id="scene-count">0</span></h4>
-                    <div id="scene-list">
-                        <div class="empty-hint">Nhập prompt rồi bấm <b>Tạo lại</b> — AI sẽ chia phân cảnh tại đây.</div>
+
+                <!-- Bước 2: duyệt phương án + sửa lời thoại -->
+                <div id="review-view" style="display:none">
+                    <div class="variant-rail" id="variant-rail"></div>
+                    <div class="review-meta" id="review-meta"></div>
+                    <div class="draft-scenes" id="draft-scene-list"></div>
+                    <div class="review-actions">
+                        <button type="button" class="btn-lime-sm" id="btn-approve-render">Duyệt &amp; Render</button>
+                        <button type="button" class="btn-ghost" id="btn-shuffle-variants">Đổi bộ phương án</button>
                     </div>
                 </div>
             </div>
@@ -115,24 +148,6 @@
         <div class="panel" id="panel-right">
             <div class="p-head"><span>Inspector</span></div>
             <div class="p-body">
-                <div class="insp-sec">
-                    <div class="insp-head"><span>Phong cách hình ảnh</span><span class="sw"></span></div>
-                    <div class="insp-body">
-                        <div class="style-row">
-                            <button type="button" class="style-choice-card on" data-style="modern">Modern Tech</button>
-                            <button type="button" class="style-choice-card" data-style="classic">Editorial</button>
-                            <button type="button" class="style-choice-card" data-style="stickman">Người que</button>
-                            <button type="button" class="style-choice-card" data-style="minimal">Swiss Minimal</button>
-                        </div>
-                        <select id="style-select" style="display:none">
-                            <option value="modern" selected>Modern Tech</option>
-                            <option value="classic">Editorial / Documentary</option>
-                            <option value="stickman">Stickman Comic</option>
-                            <option value="minimal">Swiss Minimal</option>
-                        </select>
-                    </div>
-                </div>
-
                 <div class="insp-sec">
                     <div class="insp-head"><span>Khung hình &amp; thời lượng</span><span class="sw"></span></div>
                     <div class="insp-body">

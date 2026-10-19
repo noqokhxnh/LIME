@@ -456,3 +456,63 @@ body.ws .auth-modal{position:fixed}
     min-width: 110px;
     text-align: right;
 }
+
+/* ---------- HITL: hỏi hướng làm trước khi sinh ---------- */
+body.ws .left-back{border:1px solid var(--wline);background:transparent;color:var(--wmuted);
+  font-size:10.5px;font-weight:700;letter-spacing:.6px;padding:4px 9px;border-radius:6px;text-transform:none}
+body.ws .left-back:hover{color:var(--wtxt);border-color:var(--wdim)}
+body.ws .hitl-block{display:flex;flex-direction:column;gap:10px}
+body.ws .hitl-head{display:flex;align-items:center;justify-content:space-between;
+  font-size:11px;font-weight:700;letter-spacing:1.2px;text-transform:uppercase;color:var(--wdim)}
+body.ws .linklike-sm{border:none;background:transparent;color:var(--wlime);font-size:11px;font-weight:600;padding:0}
+body.ws .linklike-sm:disabled{opacity:.5}
+body.ws .clarify-form{display:flex;flex-direction:column;gap:10px}
+body.ws .cq{display:flex;flex-direction:column;gap:6px}
+body.ws .cq-label{font-size:12px;font-weight:600;color:var(--wtxt)}
+body.ws .cq-label em{font-style:normal;font-weight:400;font-size:10.5px;color:var(--wdim);margin-left:6px}
+body.ws .cq-opts{display:flex;flex-direction:column;gap:5px}
+body.ws .cq-opt{display:flex;flex-direction:column;gap:1px;text-align:left;width:100%;
+  border:1px solid var(--wline);border-radius:9px;background:var(--wpanel2);padding:7px 9px;color:var(--wtxt)}
+body.ws .cq-opt:hover{border-color:var(--wdim)}
+body.ws .cq-opt.on{border-color:var(--wdeep);box-shadow:0 0 0 1px var(--wdeep)}
+body.ws .cq-opt b{font-size:12px;font-weight:600}
+body.ws .cq-opt span{font-size:10.5px;color:var(--wdim);line-height:1.4}
+body.ws .cq-collapsed{display:flex;align-items:center;justify-content:space-between;gap:8px;
+  border:1px solid var(--wline);border-radius:9px;background:var(--wpanel2);padding:7px 9px;
+  font-size:11.5px;color:var(--wmuted)}
+body.ws .cq-collapsed b{color:var(--wtxt);font-weight:600}
+body.ws .cq-collapsed button{border:none;background:transparent;color:var(--wlime);font-size:11px;font-weight:600}
+body.ws .btn-auto-direct{display:flex;flex-direction:column;gap:2px;align-items:flex-start;width:100%;
+  border:1px dashed var(--wdeep);border-radius:10px;background:rgba(185,231,43,.06);
+  padding:9px 11px;color:var(--wtxt);text-align:left}
+body.ws .btn-auto-direct:hover{background:rgba(185,231,43,.13)}
+body.ws .btn-auto-direct b{font-size:12px;color:var(--wlime)}
+body.ws .btn-auto-direct span{font-size:10.5px;color:var(--wdim)}
+
+/* ---------- HITL: duyệt phương án ---------- */
+body.ws .variant-rail{display:flex;flex-direction:column;gap:7px}
+body.ws .variant-card{display:flex;flex-direction:column;gap:2px;width:100%;text-align:left;
+  border:1px solid var(--wline);border-radius:10px;background:var(--wpanel2);padding:8px 10px;color:var(--wtxt)}
+body.ws .variant-card:hover{border-color:var(--wdim)}
+body.ws .variant-card.on{border-color:var(--wdeep);box-shadow:0 0 0 1px var(--wdeep);background:rgba(185,231,43,.06)}
+body.ws .variant-card .vc-top{display:flex;align-items:center;justify-content:space-between;gap:8px}
+body.ws .variant-card b{font-size:12.5px;font-weight:700}
+body.ws .variant-card .vc-score{font-size:10px;font-family:ui-monospace,monospace;color:var(--wlime);white-space:nowrap}
+body.ws .variant-card span{font-size:10.5px;color:var(--wdim);line-height:1.4}
+body.ws .review-meta{font-size:11px;color:var(--wdim);font-family:ui-monospace,monospace;
+  border-left:2px solid var(--wdeep);padding-left:8px;line-height:1.5}
+body.ws .draft-scenes{display:flex;flex-direction:column;gap:8px}
+body.ws .draft-scene{border:1px solid var(--wline);border-radius:10px;background:var(--wpanel2);padding:9px 10px}
+body.ws .draft-scene .ds-head{display:flex;align-items:center;justify-content:space-between;gap:8px;margin-bottom:5px}
+body.ws .draft-scene .ds-head b{font-size:12px;font-weight:600}
+body.ws .draft-scene .ds-head span{font-size:10px;color:var(--wdim);font-family:ui-monospace,monospace}
+body.ws .draft-scene textarea{width:100%;min-height:52px;resize:vertical;background:var(--wbg);
+  border:1px solid var(--wline);border-radius:7px;color:var(--wtxt);font-family:'Inter';font-size:12px;
+  line-height:1.5;padding:7px 8px;outline:none}
+body.ws .draft-scene textarea:focus{border-color:var(--wdeep)}
+body.ws .draft-scene .ds-warn{font-size:10px;color:#FF9D5A;margin-top:4px}
+body.ws .review-actions{display:flex;flex-direction:column;gap:7px;padding-top:4px}
+body.ws .btn-ghost{border:1px solid var(--wline);background:transparent;color:var(--wmuted);
+  font-size:11.5px;font-weight:600;padding:8px 12px;border-radius:8px}
+body.ws .btn-ghost:hover{color:var(--wtxt);border-color:var(--wdim)}
+body.ws #review-view{display:none;flex-direction:column;gap:12px}
