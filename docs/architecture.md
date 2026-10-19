@@ -364,29 +364,21 @@ LIME integrates automated banking payment gateway support for the Vietnamese mar
 
 ## Frontend workspace architecture
 
-The web frontend (`frontend/`) is organized as a 3-panel studio workspace (`workspace.html`, `workspace.js`):
+The web frontend (`frontend/`) is organized as a 3-panel studio workspace (`workspace.html`, `workspace.js`, `workspace.css`):
 
-1. **Panel 1: Workspace Sidebar (Project History):**
-   - Displays previous jobs and drafts owned by the user (`Dự án` header with badge count).
-   - Card items show thumbnail previews, status pill, aspect ratio, scene count, duration, and last status message.
-   - Includes refresh button and empty/error states.
+1. **Left panel — Kịch bản AI.** Wizard 3 bước với footer cố định:
+   - **Bước 1 · prompt:** textarea (10–500 ký tự) và danh sách phân cảnh của video đã render.
+   - **Bước 2 · hướng làm:** mỗi lần một câu (người xem → mục đích → cấu trúc), chọn xong tự chuyển sau 240ms, có `← Quay lại`. Câu AI đã chắc (confidence ≥ 0.8) không thành màn riêng mà gom vào dải "Đã tự chọn" (vẫn bấm `Đổi` được). Hết câu thì hiện chip tóm tắt 3 câu trả lời.
+   - **Switch "Để AI quyết định hết":** bật thì bỏ qua wizard, CTA đổi thành `Tạo video ngay` và gửi `POST /api/pipeline { mode: "auto" }`; những câu đã trả lời vẫn được gửi kèm trong `answers`.
+   - Footer luôn hiện CTA chính: `Tiếp tục` → `Xem 3 phương án` → `Tạo video ngay`.
 
-2. **Panel 2: Center Workspace (Tabs):**
-   - **Tab *"Xem video"* (Monitor):** HTML5 video player, metadata spec cards (duration, scenes, resolution, status), direct MP4 download button, and copy-link button.
-   - **Tab *"Kịch bản"* (Script Editor & Review):**
-     - Stats bar: estimated duration, word count, scene count, visual style.
-     - Color palette swatches: visual representation of LLM-chosen theme colors (`primary`, `secondary`, `background`, `text`, `accent`).
-     - Scene cards: editable cards per scene with auto-growing textareas for `title` and `voiceoverText`.
-     - Diff tracking: compares current textarea values against the original draft to send only modified fields.
-     - Raw JSON viewer: collapsible JSON inspector and copy button.
-     - Confirmation CTA: *"Duyệt kịch bản & Tạo video"* button triggers `POST /api/generate` with `draftJobId` and `scriptEdits`.
-     - AI Revision Card: feedback textarea and *"Tạo lại theo phản hồi"* button triggers `POST /api/script/draft` with `{ draftJobId, feedback }`.
+2. **Center panel — Program monitor + timeline.** Video đã render, timeline phân cảnh, tải MP4 / xem HTML gốc / xem thử chuyển động.
 
-3. **Panel 3: Right Panel (Configuration & Progress):**
-   - Input configuration form: prompt textarea with character counter, quick inspiration chips, technical selects (aspect ratio, duration, language, style).
-   - Real-time progress box: phase-by-phase status bar and live log output connected via SSE.
+3. **Right panel — Inspector.** Khung hình & thời lượng, giọng đọc, motion blocks. Style không còn là lựa chọn riêng: phương án được duyệt quyết định style + blueprint.
 
-**Draft-First UX Flow:** By default, submitting the form calls `POST /api/script/draft`. When the SSE stream receives `draft_ready`, the UI activates the *Kịch bản* tab for review and adjustment.
+**Review board (HITL).** Sau khi trả lời đủ, `POST /api/script/draft` trả 3 phương án và một overlay toàn vùng nội dung mở ra 3 cột: mini-frame 16:9 dựng bằng CSS từ palette + font của từng phương án, hook, thanh khớp thời lượng so với mục tiêu, hai dòng lời thoại đầu. Chọn một phương án → sửa `voiceOverText` từng cảnh ngay bên dưới (textarea auto-grow) → `Duyệt & Render` gửi `script` + `style` + `blueprintId` lên `POST /api/pipeline`. `Đổi bộ` sinh lại với `variantRotation + 1`; `Để AI tự chọn` chọn phương án điểm cao nhất.
+
+**Persistence.** Trạng thái wizard (prompt, câu trả lời, confidence, câu đang hỏi, 3 phương án, phương án đang chọn, switch auto) lưu ở `localStorage` key `lime.hitl.v1`; reload khôi phục đúng màn đang làm. Đổi prompt thì reset toàn bộ trạng thái.
 
 Additional frontend pages:
 - `frontend/index.html` — Landing page and quick generation interface.

@@ -340,19 +340,25 @@ let activeStyle = 'modern';
 /**
  * Trạng thái bước duyệt kịch bản (HITL).
  *
- * `stage` đi theo thứ tự: idle → questions → drafts. Stage được lưu cùng
- * localStorage để reload không mất câu trả lời và 3 phương án đã sinh.
+ * `stage` đi theo thứ tự: prompt → ask → review. Mỗi lần chỉ hỏi một câu
+ * (`askIndex`), câu AI đã chắc thì gom vào `open` khi người dùng muốn sửa.
+ * Stage được lưu cùng localStorage để reload không mất câu trả lời và 3 phương án.
  */
 const hitl = {
-    stage: 'idle',
+    stage: 'prompt',
     prompt: '',
     questions: [],
     answers: {},
     confidence: {},
-    forceOpen: new Set(),
+    open: new Set(),
+    askIndex: 0,
     drafts: [],
     selectedKey: null,
+    recommended: null,
     rotation: 0,
+    auto: false,
+    loading: false,
+    error: '',
 };
 const HITL_STORAGE_KEY = 'lime.hitl.v1';
 const HITL_CONFIDENCE_THRESHOLD = 0.8;
@@ -369,7 +375,7 @@ const motionLibrary = document.getElementById('motion-library');
 const motionBlocksCount = document.getElementById('motion-blocks-count');
 const selectedMotionChips = document.getElementById('selected-motion-chips');
 const voiceSelect = document.getElementById('voice-select');
-const generateBtn = document.getElementById('generate-btn');
+const primaryBtn = document.getElementById('btn-primary');
 const btnSpinner = document.getElementById('btn-spinner');
 const btnText = document.getElementById('btn-text');
 const logViewer = document.getElementById('log-viewer');
@@ -387,18 +393,28 @@ const previewModalClose = document.getElementById('preview-modal-close');
 const summaryMetaLine = document.getElementById('summary-meta-line');
 const customStyleInput = document.getElementById('custom-style-input');
 const customScriptJson = document.getElementById('custom-script-json');
-const composeView = document.getElementById('compose-view');
-const reviewView = document.getElementById('review-view');
 const leftTitle = document.getElementById('left-title');
-const btnBackCompose = document.getElementById('btn-back-compose');
-const clarifyForm = document.getElementById('clarify-form');
+const stepDots = document.getElementById('step-dots');
+const stepPrompt = document.getElementById('step-prompt');
+const stepAsk = document.getElementById('step-ask');
+const askCounter = document.getElementById('ask-counter');
+const askBarFill = document.getElementById('ask-bar-fill');
+const askAutoStrip = document.getElementById('ask-auto-strip');
+const askBody = document.getElementById('ask-body');
 const btnClarifyRefresh = document.getElementById('btn-clarify-refresh');
-const btnAutoDirect = document.getElementById('btn-auto-direct');
-const variantRail = document.getElementById('variant-rail');
-const reviewMeta = document.getElementById('review-meta');
-const draftSceneList = document.getElementById('draft-scene-list');
-const btnApproveRender = document.getElementById('btn-approve-render');
-const btnShuffleVariants = document.getElementById('btn-shuffle-variants');
+const leftFoot = document.getElementById('left-foot');
+const autoDecide = document.getElementById('auto-decide');
+const autoNote = document.getElementById('auto-note');
+const reviewBoard = document.getElementById('review-board');
+const rbBack = document.getElementById('rb-back');
+const rbAnswersText = document.getElementById('rb-answers-text');
+const rbEditAnswers = document.getElementById('rb-edit-answers');
+const rbShuffle = document.getElementById('rb-shuffle');
+const rbCards = document.getElementById('rb-cards');
+const rbEditor = document.getElementById('rb-editor');
+const rbFootHint = document.getElementById('rb-foot-hint');
+const rbAuto = document.getElementById('rb-auto');
+const rbApprove = document.getElementById('rb-approve');
 const monitorBadge = document.getElementById('monitor-badge');
 const monitorTc = document.getElementById('monitor-tc');
 const transportPlay = document.getElementById('transport-play');
@@ -856,39 +872,237 @@ function buildBasePayload(prompt) {
 }
 
 function setBusy(busy, label) {
-    if (generateBtn) generateBtn.disabled = busy;
+    hitl.loading = !!busy;
+    if (primaryBtn) primaryBtn.disabled = busy;
     if (btnSpinner) btnSpinner.style.display = busy ? 'inline-block' : 'none';
-    if (busy) {
-        if (btnText) btnText.textContent = label || 'Đang xử lý…';
-    } else {
-        updatePrimaryButton();
+    if (btnText) {
+        if (busy && label) btnText.textContent = label;
+        else renderFooter();
     }
+    if (btnClarifyRefresh) btnClarifyRefresh.disabled = busy;
 }
 
-function updatePrimaryButton() {
-    if (!btnText) return;
-    if (hitl.stage === 'questions') btnText.textContent = 'Xem 3 phương án';
-    else if (hitl.stage === 'drafts') btnText.textContent = 'Xem phương án đã tạo';
-    else btnText.textContent = 'Tạo kịch bản';
+/* ================= HITL: prompt → câu hỏi → duyệt ================= */
+
+/** Câu AI chưa chắc (hoặc người dùng chủ động mở) mới thành màn hỏi. */
+function visibleQuestions() {
+    const all = hitl.questions || [];
+    return all.filter(q => (hitl.confidence[q.id] ?? q.confidence ?? 0) < HITL_CONFIDENCE_THRESHOLD
+        || hitl.open.has(q.id));
 }
 
-/* ================= HITL: hỏi → duyệt ================= */
-function showCompose() {
-    if (composeView) composeView.style.display = '';
-    if (reviewView) reviewView.style.display = 'none';
-    if (leftTitle) leftTitle.textContent = 'Kịch bản AI';
-    if (btnBackCompose) btnBackCompose.style.display = 'none';
+function answerLabel(question) {
+    const id = hitl.answers[question.id] ?? question.selected;
+    const opt = (question.options || []).find(o => o.id === id);
+    return opt ? opt.label : String(id || '');
 }
 
-function showReview() {
-    if (composeView) composeView.style.display = 'none';
-    if (reviewView) reviewView.style.display = 'flex';
-    if (leftTitle) leftTitle.textContent = 'Duyệt phương án';
-    if (btnBackCompose) btnBackCompose.style.display = '';
+function answerSummary() {
+    return (hitl.questions || []).map(q => answerLabel(q)).filter(Boolean).join(' · ');
 }
 
-function selectedDraft() {
-    return hitl.drafts.find(d => d.key === hitl.selectedKey) || hitl.drafts[0] || null;
+function targetDuration() {
+    const n = parseInt(durationInput && durationInput.value, 10);
+    return Number.isFinite(n) ? Math.min(300, Math.max(10, n)) : 15;
+}
+
+function setStage(stage) {
+    hitl.stage = stage;
+    if (stepPrompt) stepPrompt.hidden = stage !== 'prompt';
+    if (stepAsk) stepAsk.hidden = stage !== 'ask';
+    if (leftTitle) {
+        leftTitle.textContent = stage === 'ask' ? 'Hướng làm'
+            : stage === 'review' ? 'Phương án' : 'Kịch bản AI';
+    }
+    renderStepDots();
+    renderFooter();
+}
+
+function renderStepDots() {
+    if (!stepDots) return;
+    const reached = { prompt: true, ask: (hitl.questions || []).length > 0, review: (hitl.drafts || []).length > 0 };
+    stepDots.querySelectorAll('button').forEach(btn => {
+        const s = btn.dataset.step;
+        btn.classList.toggle('on', s === hitl.stage);
+        btn.classList.toggle('done', reached[s] && s !== hitl.stage);
+        btn.disabled = !reached[s] || s === hitl.stage;
+    });
+}
+
+function renderFooter() {
+    if (!leftFoot) return;
+    if (autoDecide) autoDecide.setAttribute('aria-checked', hitl.auto ? 'true' : 'false');
+    leftFoot.classList.toggle('auto-on', hitl.auto);
+
+    if (autoNote) {
+        const qs = visibleQuestions();
+        const answered = qs.filter(q => hitl.answers[q.id]).length;
+        autoNote.textContent = hitl.auto && qs.length && answered < qs.length
+            ? `Đã có ${answered}/${qs.length} câu — AI quyết định phần còn lại rồi render thẳng.`
+            : 'AI tự trả lời 3 câu, tự chọn phương án và render thẳng ra video.';
+    }
+
+    if (!btnText || hitl.loading) return;
+    let label = 'Tiếp tục';
+    if (hitl.auto) label = 'Tạo video ngay';
+    else if (hitl.stage === 'review') label = 'Xem 3 phương án';
+    else if (hitl.stage === 'ask') {
+        label = hitl.askIndex >= visibleQuestions().length ? 'Xem 3 phương án' : 'Tiếp tục';
+    }
+    btnText.textContent = label;
+}
+
+function renderAsk() {
+    if (!askBody) return;
+    const qs = visibleQuestions();
+    const total = qs.length;
+    const done = Math.min(hitl.askIndex, total);
+
+    if (askCounter) askCounter.textContent = total && done < total ? `Câu ${done + 1}/${total}` : 'Đã đủ hướng';
+    if (askBarFill) askBarFill.style.width = total ? `${Math.round((done / total) * 100)}%` : '100%';
+
+    renderAutoStrip(qs);
+
+    askBody.innerHTML = '';
+    if (hitl.error) {
+        const err = document.createElement('p');
+        err.className = 'ask-error';
+        err.textContent = hitl.error;
+        askBody.appendChild(err);
+    }
+
+    const question = qs[hitl.askIndex];
+    if (!question) {
+        askBody.appendChild(buildAskSummary());
+        return;
+    }
+
+    const wrap = document.createElement('div');
+    wrap.style.cssText = 'display:flex;flex-direction:column;gap:10px';
+
+    const head = document.createElement('p');
+    head.className = 'ask-q';
+    head.textContent = question.label;
+    const sub = document.createElement('p');
+    sub.className = 'ask-sub';
+    sub.textContent = 'Chọn một — AI dùng để viết cả 3 phương án.';
+    wrap.append(head, sub);
+
+    const list = document.createElement('div');
+    list.className = 'ask-opts';
+    const current = hitl.answers[question.id] ?? question.selected;
+    (question.options || []).forEach(option => {
+        const btn = document.createElement('button');
+        btn.type = 'button';
+        btn.className = 'ask-opt' + (option.id === current ? ' on' : '');
+        btn.innerHTML = `<span class="rd"></span><span><b>${esc(option.label)}</b><small>${esc(option.hint || '')}</small></span>`;
+        btn.addEventListener('click', () => chooseAnswer(question, option.id));
+        list.appendChild(btn);
+    });
+    wrap.appendChild(list);
+
+    const back = document.createElement('button');
+    back.type = 'button';
+    back.className = 'ask-back';
+    back.textContent = '← Quay lại';
+    back.addEventListener('click', () => {
+        if (hitl.askIndex > 0) {
+            hitl.askIndex -= 1;
+            renderAsk();
+            renderFooter();
+            persistHitl();
+        } else {
+            setStage('prompt');
+        }
+    });
+    wrap.appendChild(back);
+    askBody.appendChild(wrap);
+}
+
+/** Chọn xong thì tự sang câu kế tiếp sau một nhịp ngắn để kịp thấy dấu chọn. */
+function chooseAnswer(question, optionId) {
+    hitl.answers[question.id] = optionId;
+    hitl.open.add(question.id);
+    hitl.error = '';
+    persistHitl();
+    renderAsk();
+    renderFooter();
+
+    setTimeout(() => {
+        if (hitl.answers[question.id] !== optionId) return;
+        if (hitl.askIndex < visibleQuestions().length) {
+            hitl.askIndex += 1;
+            renderAsk();
+            renderFooter();
+            persistHitl();
+        }
+    }, 240);
+}
+
+/** Những câu AI đã tự quyết: gom thành dải mảnh, vẫn sửa được. */
+function renderAutoStrip(visible) {
+    if (!askAutoStrip) return;
+    const auto = (hitl.questions || []).filter(q => !visible.includes(q));
+    if (!auto.length) {
+        askAutoStrip.hidden = true;
+        askAutoStrip.innerHTML = '';
+        return;
+    }
+    askAutoStrip.hidden = false;
+    askAutoStrip.innerHTML = '';
+    auto.forEach(question => {
+        const row = document.createElement('div');
+        row.className = 'aa';
+        row.innerHTML = `<span class="tick">✓</span><span>${esc(question.label)} <b>${esc(answerLabel(question))}</b></span>`;
+        const btn = document.createElement('button');
+        btn.type = 'button';
+        btn.textContent = 'Đổi';
+        btn.addEventListener('click', () => {
+            hitl.open.add(question.id);
+            const idx = visibleQuestions().indexOf(question);
+            hitl.askIndex = idx >= 0 ? idx : 0;
+            renderAsk();
+            renderFooter();
+            persistHitl();
+        });
+        row.appendChild(btn);
+        askAutoStrip.appendChild(row);
+    });
+}
+
+function buildAskSummary() {
+    const box = document.createElement('div');
+    box.className = 'ask-done';
+
+    const title = document.createElement('div');
+    title.className = 'ask-done-title';
+    title.textContent = 'Đã đủ hướng làm';
+    box.appendChild(title);
+
+    const chips = document.createElement('div');
+    chips.className = 'ask-chips';
+    (hitl.questions || []).forEach(question => {
+        const chip = document.createElement('button');
+        chip.type = 'button';
+        chip.className = 'ask-chip';
+        chip.innerHTML = `<span>${esc(String(question.label || '').replace(/\?$/, ''))}</span><b>${esc(answerLabel(question))}</b>`;
+        chip.addEventListener('click', () => {
+            hitl.open.add(question.id);
+            const idx = visibleQuestions().indexOf(question);
+            hitl.askIndex = idx >= 0 ? idx : 0;
+            renderAsk();
+            renderFooter();
+            persistHitl();
+        });
+        chips.appendChild(chip);
+    });
+    box.appendChild(chips);
+
+    const hint = document.createElement('p');
+    hint.className = 'ask-sub';
+    hint.textContent = 'AI sẽ viết 3 phương án khác nhau hoàn toàn từ hướng này — bạn chọn một trước khi render.';
+    box.appendChild(hint);
+    return box;
 }
 
 let hitlPersistTimer = null;
@@ -910,8 +1124,12 @@ function persistHitl() {
         answers: hitl.answers,
         confidence: hitl.confidence,
         questions: hitl.questions,
+        open: [...hitl.open],
+        askIndex: hitl.askIndex,
+        auto: hitl.auto,
         drafts: hitl.drafts,
         selectedKey: hitl.selectedKey,
+        recommended: hitl.recommended,
         rotation: hitl.rotation,
         savedAt: Date.now(),
     };
@@ -952,32 +1170,34 @@ function restoreHitl() {
     hitl.answers = data.answers || {};
     hitl.confidence = data.confidence || {};
     hitl.questions = Array.isArray(data.questions) ? data.questions : [];
+    hitl.open = new Set(Array.isArray(data.open) ? data.open : []);
+    hitl.askIndex = Number(data.askIndex) || 0;
+    hitl.auto = !!data.auto;
+    hitl.recommended = data.recommended || null;
     hitl.rotation = Number(data.rotation) || 0;
 
     const draftsUsable = Array.isArray(data.drafts)
         && data.drafts.length > 0
         && data.drafts.every(d => d && d.script && Array.isArray(d.script.scenes));
 
-    if (data.stage === 'drafts' && draftsUsable) {
+    if ((data.stage === 'drafts' || data.stage === 'review') && draftsUsable) {
         hitl.drafts = data.drafts;
         hitl.selectedKey = data.selectedKey || data.drafts[0].key;
-        hitl.stage = 'drafts';
         activeStyle = selectedDraft()?.style || activeStyle;
-        showReview();
-        renderVariantRail();
-        renderDraftScenes();
+        setStage('review');
+        openBoard(false);
         log('Đã khôi phục bộ phương án đang duyệt.', 'info');
         return true;
     }
 
     if (hitl.questions.length) {
-        hitl.stage = 'questions';
-        renderClarifyForm();
-        updatePrimaryButton();
+        setStage('ask');
+        renderAsk();
         log('Đã khôi phục câu trả lời đang làm dở.', 'info');
         return true;
     }
 
+    setStage('prompt');
     return false;
 }
 
@@ -986,142 +1206,28 @@ function syncHitlWithPrompt() {
     const prompt = currentPrompt();
     if (prompt === hitl.prompt) return false;
     hitl.prompt = prompt;
-    hitl.stage = 'idle';
     hitl.questions = [];
     hitl.answers = {};
     hitl.confidence = {};
+    hitl.open.clear();
+    hitl.askIndex = 0;
     hitl.drafts = [];
     hitl.selectedKey = null;
+    hitl.recommended = null;
     hitl.rotation = 0;
-    hitl.forceOpen.clear();
-    if (clarifyForm) {
-        clarifyForm.innerHTML = '<div class="empty-hint">Bấm <b>Tạo kịch bản</b> để AI hỏi 3 câu về hướng làm.</div>';
+    hitl.error = '';
+    if (askBody) askBody.innerHTML = '';
+    if (askAutoStrip) {
+        askAutoStrip.hidden = true;
+        askAutoStrip.innerHTML = '';
     }
-    if (variantRail) variantRail.innerHTML = '';
-    if (draftSceneList) draftSceneList.innerHTML = '';
-    showCompose();
-    updatePrimaryButton();
+    closeBoard();
+    setStage('prompt');
     persistHitl();
     return true;
 }
 
-function renderClarifyForm() {
-    if (!clarifyForm) return;
-    if (!hitl.questions.length) {
-        clarifyForm.innerHTML = '<div class="empty-hint">Bấm <b>Tạo kịch bản</b> để AI hỏi 3 câu về hướng làm.</div>';
-        return;
-    }
-
-    clarifyForm.innerHTML = '';
-    hitl.questions.forEach(question => {
-        const selected = hitl.answers[question.id] || question.selected;
-        const confidence = hitl.confidence[question.id] ?? question.confidence ?? 0;
-        const visible = confidence < HITL_CONFIDENCE_THRESHOLD || hitl.forceOpen.has(question.id);
-
-        if (!visible) {
-            const option = question.options.find(o => o.id === selected);
-            const row = document.createElement('div');
-            row.className = 'cq-collapsed';
-            row.innerHTML = `<span>${esc(question.label)} <b>${esc(option ? option.label : String(selected || ''))}</b></span><button type="button">Đổi</button>`;
-            row.querySelector('button').addEventListener('click', () => {
-                hitl.forceOpen.add(question.id);
-                renderClarifyForm();
-            });
-            clarifyForm.appendChild(row);
-            return;
-        }
-
-        const block = document.createElement('div');
-        block.className = 'cq';
-        const head = document.createElement('div');
-        head.className = 'cq-label';
-        head.innerHTML = `${esc(question.label)}${confidence >= HITL_CONFIDENCE_THRESHOLD ? '<em>AI khá chắc</em>' : ''}`;
-        block.appendChild(head);
-
-        const opts = document.createElement('div');
-        opts.className = 'cq-opts';
-        question.options.forEach(option => {
-            const btn = document.createElement('button');
-            btn.type = 'button';
-            btn.className = 'cq-opt' + (option.id === selected ? ' on' : '');
-            btn.innerHTML = `<b>${esc(option.label)}</b><span>${esc(option.hint)}</span>`;
-            btn.addEventListener('click', () => {
-                hitl.answers[question.id] = option.id;
-                hitl.forceOpen.add(question.id);
-                persistHitl();
-                renderClarifyForm();
-            });
-            opts.appendChild(btn);
-        });
-        block.appendChild(opts);
-        clarifyForm.appendChild(block);
-    });
-}
-
-function renderVariantRail() {
-    if (!variantRail) return;
-    variantRail.innerHTML = '';
-    hitl.drafts.forEach(draft => {
-        const btn = document.createElement('button');
-        btn.type = 'button';
-        btn.className = 'variant-card' + (draft.key === hitl.selectedKey ? ' on' : '');
-        btn.innerHTML = `<span class="vc-top"><b>${esc(draft.label || draft.key)}</b><span class="vc-score">${esc(draft.reason || '')}</span></span><span>${esc(draft.hook || '')}</span>`;
-        btn.addEventListener('click', () => {
-            hitl.selectedKey = draft.key;
-            activeStyle = draft.style || activeStyle;
-            renderVariantRail();
-            renderDraftScenes();
-            persistHitl();
-        });
-        variantRail.appendChild(btn);
-    });
-
-    const draft = selectedDraft();
-    if (reviewMeta) {
-        reviewMeta.textContent = draft
-            ? `${draft.blueprintId || 'blueprint tự do'} · ${draft.estimated ? Number(draft.estimated.totalDurationSec).toFixed(1) : '?'}s · ${draft.estimated ? draft.estimated.words : '?'} từ · ${draft.style || ''}`
-            : '';
-    }
-}
-
-/**
- * Sửa lời thoại ngay trên phương án đã chọn.
- *
- * Chỉ cho sửa `voiceOverText`: tiêu đề và HTML đã được dựng theo style của
- * phương án; sửa tay phần đó sẽ phá layout mà không ai kiểm được.
- */
-function renderDraftScenes() {
-    if (!draftSceneList) return;
-    const draft = selectedDraft();
-    if (!draft || !draft.script) {
-        draftSceneList.innerHTML = '';
-        return;
-    }
-
-    draftSceneList.innerHTML = '';
-    (draft.script.scenes || []).forEach((scene, index) => {
-        const box = document.createElement('div');
-        box.className = 'draft-scene';
-
-        const head = document.createElement('div');
-        head.className = 'ds-head';
-        head.innerHTML = `<b>S${index + 1} · ${esc(scene.title || '')}</b><span>${countWords(scene.voiceOverText)} từ</span>`;
-        box.appendChild(head);
-
-        const textarea = document.createElement('textarea');
-        textarea.value = scene.voiceOverText || '';
-        textarea.addEventListener('input', () => {
-            scene.voiceOverText = textarea.value;
-            const counter = head.querySelector('span');
-            if (counter) counter.textContent = `${countWords(textarea.value)} từ`;
-            persistHitlDebounced();
-        });
-        box.appendChild(textarea);
-
-        draftSceneList.appendChild(box);
-    });
-}
-
+/* ---------- Bước 2: hỏi ---------- */
 async function requestClarify() {
     const prompt = currentPrompt();
     if (prompt.length < 10) {
@@ -1131,6 +1237,7 @@ async function requestClarify() {
     }
 
     setBusy(true, 'Đang đọc yêu cầu…');
+    hitl.error = '';
     try {
         const res = await fetch(`${API_BASE}/api/script/clarify`, {
             method: 'POST', credentials: 'include',
@@ -1144,27 +1251,244 @@ async function requestClarify() {
         hitl.questions = Array.isArray(data.questions) ? data.questions : [];
         hitl.answers = {};
         hitl.confidence = {};
-        hitl.forceOpen.clear();
+        hitl.open.clear();
+        hitl.askIndex = 0;
         hitl.drafts = [];
         hitl.selectedKey = null;
+        hitl.recommended = null;
         hitl.rotation = 0;
-        hitl.stage = 'questions';
         hitl.questions.forEach(question => {
             hitl.answers[question.id] = question.selected;
             hitl.confidence[question.id] = question.confidence;
         });
 
-        renderClarifyForm();
+        setStage('ask');
+        renderAsk();
         persistHitl();
         log(data.source === 'llm'
-            ? 'AI đã điền sẵn hướng làm — sửa nếu cần rồi bấm "Xem 3 phương án".'
+            ? 'AI đã điền sẵn hướng làm — trả lời từng câu rồi bấm "Xem 3 phương án".'
             : 'Không gọi được AI phân loại — mời bạn chọn hướng làm.',
             data.source === 'llm' ? 'info' : 'error');
     } catch (err) {
+        hitl.error = `Không phân tích được prompt: ${err.message}`;
+        renderAsk();
         log(`Lỗi: ${err.message}`, 'error');
     } finally {
         setBusy(false);
     }
+}
+
+/* ---------- Bước 3: duyệt 3 phương án ---------- */
+function selectedDraft() {
+    return hitl.drafts.find(d => d.key === hitl.selectedKey) || hitl.drafts[0] || null;
+}
+
+function firstNarration(draft) {
+    const scenes = (draft.script && draft.script.scenes) || [];
+    const text = scenes.map(s => s.voiceOverText).filter(Boolean)[0] || draft.hook || '';
+    return text.length > 150 ? `${text.slice(0, 147)}…` : text;
+}
+
+/**
+ * Khung xem trước 16:9 dựng bằng CSS từ palette + font của phương án.
+ *
+ * Không render HTML thật của cảnh (việc đó cần GSAP + assembler); mục đích ở đây
+ * là để ba phương án *trông* khác nhau ngay từ cái liếc đầu tiên.
+ */
+function miniFrame(draft) {
+    const s = draft.script || {};
+    const p = s.colorPalette || {};
+    const bg = p.background || '#0F1115';
+    const fg = p.text || '#F8FAFC';
+    const accent = p.accent || '#84CC16';
+    const primary = p.primary || accent;
+    const font = String(s.fontFamily || 'Inter').replace(/["'<>]/g, '');
+    const label = esc(String(draft.label || '').toUpperCase());
+    const base = `position:absolute;inset:0;background:${bg};color:${fg};font-family:'${font}',sans-serif;overflow:hidden`;
+    let art = '';
+
+    if (draft.key === 'data') {
+        art = `<div style="position:absolute;left:11%;top:13%;font-size:7.5px;letter-spacing:.22em;text-transform:uppercase;opacity:.5">${label}</div>
+            <div style="position:absolute;right:9%;top:10%;font-size:30px;font-weight:800;letter-spacing:-.04em;color:${accent};line-height:1">68<span style="font-size:14px">%</span></div>
+            <div style="position:absolute;left:11%;bottom:15%;display:flex;align-items:flex-end;gap:7%;width:46%;height:44%">
+                <i style="flex:1;height:34%;background:${primary};border-radius:2px 2px 0 0"></i>
+                <i style="flex:1;height:62%;background:${accent};border-radius:2px 2px 0 0"></i>
+                <i style="flex:1;height:96%;background:${primary};border-radius:2px 2px 0 0"></i>
+            </div>
+            <div style="position:absolute;right:9%;bottom:21%;width:26%;height:1px;background:${fg};opacity:.28"></div>
+            <div style="position:absolute;right:9%;bottom:16%;width:18%;height:1px;background:${fg};opacity:.2"></div>`;
+    } else if (draft.key === 'comic') {
+        art = `<div style="position:absolute;left:12%;top:17%;width:26px;height:26px;border:2px solid ${accent};border-radius:50%"></div>
+            <div style="position:absolute;left:25%;top:35%;width:17px;height:17px;border:2px solid ${primary};border-radius:50%"></div>
+            <div style="position:absolute;right:11%;top:18%;width:44%;padding:7px 9px;background:${fg};color:${bg};border-radius:8px;font-size:7.5px;font-weight:800;line-height:1.3">BÓNG MA<br>KHÔNG CÓ<br>KHỐI LƯỢNG</div>
+            <div style="position:absolute;right:24%;top:60%;width:0;height:0;border-left:7px solid ${fg};border-top:7px solid transparent;transform:rotate(16deg)"></div>`;
+    } else if (draft.key === 'swiss') {
+        art = `<div style="position:absolute;left:12%;top:7%;font-size:42px;font-weight:800;letter-spacing:-.05em;line-height:.95;color:${fg}">Aa</div>
+            <div style="position:absolute;left:12%;bottom:25%;width:50%;height:1.5px;background:${accent}"></div>
+            <div style="position:absolute;left:12%;bottom:15%;font-size:6.5px;letter-spacing:.2em;text-transform:uppercase;opacity:.5">${label}</div>
+            <div style="position:absolute;right:12%;top:15%;width:1px;height:58%;background:${fg};opacity:.18"></div>`;
+    } else {
+        art = `<div style="position:absolute;left:12%;top:15%;font-size:7px;letter-spacing:.2em;text-transform:uppercase;opacity:.5">${label}</div>
+            <div style="position:absolute;left:12%;top:31%;width:62%;height:3px;background:${fg};opacity:.85"></div>
+            <div style="position:absolute;left:12%;top:40%;width:54%;height:2px;background:${fg};opacity:.5"></div>
+            <div style="position:absolute;left:12%;top:48%;width:60%;height:2px;background:${fg};opacity:.32"></div>
+            <div style="position:absolute;left:12%;bottom:20%;width:5px;height:5px;border-radius:50%;background:${accent}"></div>
+            <div style="position:absolute;left:19%;bottom:21.5%;width:34%;height:1px;background:${fg};opacity:.3"></div>`;
+    }
+    return `<div class="mini" style="${base}">${art}</div>`;
+}
+
+function openBoard(loading) {
+    if (!reviewBoard) return;
+    reviewBoard.hidden = false;
+    document.body.classList.add('board-open');
+    if (rbAnswersText) rbAnswersText.textContent = answerSummary();
+    if (loading) {
+        if (rbCards) rbCards.innerHTML = '<div class="rb-skel"></div>'.repeat(3);
+        if (rbEditor) rbEditor.innerHTML = '';
+        if (rbApprove) rbApprove.disabled = true;
+        if (rbShuffle) rbShuffle.disabled = true;
+        if (rbAuto) rbAuto.disabled = true;
+        if (rbFootHint) rbFootHint.textContent = 'Đang viết 3 phương án khác nhau…';
+        return;
+    }
+    renderBoard();
+}
+
+function closeBoard() {
+    if (!reviewBoard) return;
+    reviewBoard.hidden = true;
+    document.body.classList.remove('board-open');
+}
+
+function buildCard(draft) {
+    const card = document.createElement('button');
+    card.type = 'button';
+    card.className = 'rb-card' + (draft.key === hitl.selectedKey ? ' on' : '');
+
+    const est = draft.estimated || {};
+    const dur = Number(est.totalDurationSec) || 0;
+    const target = targetDuration();
+    // Lệch ±25% vẫn coi là khớp; lệch nhiều hơn thì cảnh báo để người dùng cân nhắc.
+    const off = dur ? Math.abs(dur / target - 1) : 1;
+    const fit = Math.max(0, Math.min(1, 1 - off));
+    const fitClass = off <= 0.25 ? '' : off <= 0.5 ? ' warn' : ' bad';
+
+    const name = document.createElement('div');
+    name.className = 'rb-name';
+    name.innerHTML = `${esc(draft.label || draft.key)}${draft.key === hitl.recommended ? '<span class="rb-badge">gợi ý</span>' : ''}`;
+
+    const body = document.createElement('div');
+    body.className = 'rb-card-body';
+    body.appendChild(name);
+
+    const hook = document.createElement('div');
+    hook.className = 'rb-hook';
+    hook.textContent = draft.hook || '';
+    body.appendChild(hook);
+
+    const metrics = document.createElement('div');
+    metrics.className = 'rb-metrics';
+    metrics.innerHTML = `<span>${dur ? dur.toFixed(1) : '?'}s/${target}s</span>`
+        + `<span class="rb-fit${fitClass}"><i style="width:${Math.round(fit * 100)}%"></i></span>`
+        + `<span>${est.words || '?'} từ</span>`;
+    body.appendChild(metrics);
+
+    const quote = document.createElement('p');
+    quote.className = 'rb-quote';
+    quote.textContent = firstNarration(draft);
+    body.appendChild(quote);
+
+    const thumb = document.createElement('div');
+    thumb.className = 'rb-thumb';
+    thumb.innerHTML = miniFrame(draft);
+
+    card.append(thumb, body);
+    card.addEventListener('click', () => selectDraft(draft.key));
+    return card;
+}
+
+function selectDraft(key) {
+    hitl.selectedKey = key;
+    const draft = selectedDraft();
+    if (draft) activeStyle = draft.style || activeStyle;
+    renderBoard();
+    persistHitl();
+}
+
+function renderBoard() {
+    if (!rbCards) return;
+    if (rbShuffle) rbShuffle.disabled = false;
+    if (rbAuto) rbAuto.disabled = !hitl.drafts.length;
+
+    rbCards.innerHTML = '';
+    hitl.drafts.forEach(draft => rbCards.appendChild(buildCard(draft)));
+
+    const draft = selectedDraft();
+    if (rbApprove) rbApprove.disabled = !draft;
+    if (rbFootHint) {
+        rbFootHint.textContent = draft
+            ? `Đang chọn: ${draft.label || draft.key} · ${draft.estimated ? Number(draft.estimated.totalDurationSec).toFixed(1) : '?'}s`
+            : 'Chọn một phương án để duyệt';
+    }
+    renderBoardEditor();
+}
+
+function autoGrow(el) {
+    if (!el || !el.offsetParent) return;
+    el.style.height = 'auto';
+    el.style.height = `${el.scrollHeight}px`;
+}
+
+/**
+ * Sửa lời thoại ngay trên phương án đã chọn.
+ *
+ * Chỉ cho sửa `voiceOverText`: tiêu đề và HTML đã được dựng theo style của
+ * phương án; sửa tay phần đó sẽ phá layout mà không ai kiểm được.
+ */
+function renderBoardEditor() {
+    if (!rbEditor) return;
+    const draft = selectedDraft();
+    const scenes = (draft && draft.script && draft.script.scenes) || [];
+    rbEditor.innerHTML = '';
+    if (!scenes.length) return;
+
+    const head = document.createElement('div');
+    head.className = 'rb-editor-head';
+    const totalWords = () => scenes.reduce((n, s) => n + countWords(s.voiceOverText), 0);
+    const totalSpan = document.createElement('span');
+    const renderTotal = () => {
+        const est = draft.estimated ? ` · ${Number(draft.estimated.totalDurationSec).toFixed(1)}s` : '';
+        totalSpan.textContent = `${totalWords()} từ${est}`;
+    };
+    renderTotal();
+    head.append(document.createTextNode('Sửa lời thoại'), totalSpan);
+    rbEditor.appendChild(head);
+
+    scenes.forEach((scene, index) => {
+        const row = document.createElement('div');
+        row.className = 'rb-scene';
+
+        const sceneHead = document.createElement('div');
+        sceneHead.className = 'rb-scene-head';
+        sceneHead.innerHTML = `<b>S${index + 1} · ${esc(scene.title || 'Cảnh')}</b><span>${countWords(scene.voiceOverText)} từ</span>`;
+        const counter = sceneHead.querySelector('span');
+
+        const textarea = document.createElement('textarea');
+        textarea.value = scene.voiceOverText || '';
+        textarea.rows = 2;
+        textarea.addEventListener('input', () => {
+            scene.voiceOverText = textarea.value;
+            autoGrow(textarea);
+            counter.textContent = `${countWords(textarea.value)} từ`;
+            renderTotal();
+            persistHitlDebounced();
+        });
+
+        row.append(sceneHead, textarea);
+        rbEditor.appendChild(row);
+        requestAnimationFrame(() => autoGrow(textarea));
+    });
 }
 
 async function requestDrafts(nextRotation) {
@@ -1176,6 +1500,8 @@ async function requestDrafts(nextRotation) {
     }
     if (typeof nextRotation === 'number') hitl.rotation = nextRotation;
 
+    hitl.error = '';
+    openBoard(true);
     setBusy(true, 'Đang viết 3 phương án…');
     setStatus('Đang tạo kịch bản', true);
     setProgress(10);
@@ -1200,18 +1526,20 @@ async function requestDrafts(nextRotation) {
 
         hitl.prompt = prompt;
         hitl.drafts = Array.isArray(data.drafts) ? data.drafts : [];
-        hitl.selectedKey = data.recommended || hitl.drafts[0]?.key || null;
+        hitl.recommended = data.recommended || hitl.drafts[0]?.key || null;
+        hitl.selectedKey = hitl.recommended;
         hitl.answers = data.answers || hitl.answers;
-        hitl.stage = 'drafts';
         activeStyle = selectedDraft()?.style || activeStyle;
 
-        showReview();
-        renderVariantRail();
-        renderDraftScenes();
+        setStage('review');
+        renderBoard();
         persistHitl();
         setProgress(100);
         log(`Đã có ${hitl.drafts.length} phương án. Chọn một, sửa lời thoại nếu cần rồi bấm "Duyệt & Render".`, 'success');
     } catch (err) {
+        hitl.error = `Không tạo được phương án: ${err.message}`;
+        closeBoard();
+        renderAsk();
         log(`Lỗi: ${err.message}`, 'error');
         setProgress(0);
     } finally {
@@ -1237,14 +1565,14 @@ async function startAutoDirect() {
     if (samePrompt && hitl.answers) payload.answers = hitl.answers;
     if (samePrompt) payload.variantRotation = hitl.rotation;
 
-    log('Để AI quyết hết: tự chọn hướng, tự viết 3 phương án, tự chọn rồi render.', 'info');
+    log('Để AI quyết định: tự chọn hướng, tự viết 3 phương án, tự chọn rồi render.', 'info');
     await enqueueJob(payload, prompt);
 }
 
 /**
  * Đẩy một job render lên server rồi theo dõi tiến độ.
  *
- * Tách khỏi handler nút để cả đường "duyệt" và "để AI quyết hết" dùng chung một
+ * Tách khỏi handler nút để cả đường "duyệt" và "để AI quyết định" dùng chung một
  * vòng poll — trước đây khối poll nằm lẫn trong handler nên không tái sử dụng được.
  */
 async function enqueueJob(payload, prompt) {
@@ -1264,7 +1592,7 @@ async function enqueueJob(payload, prompt) {
         }
         const data = await res.json();
         log(`Đã khởi tạo công việc: ${data.jobId}`, 'info');
-        showCompose();
+        closeBoard();
         trackJob(data.jobId);
     } catch (err) {
         log(`Lỗi: ${err.message}`, 'error');
@@ -1295,6 +1623,7 @@ function trackJob(jobId) {
 
             if (job.status === 'completed') {
                 clearInterval(pollInterval);
+                pollInterval = null;
                 setProgress(100);
                 setStatus('Sẵn sàng', false);
                 log('Hoàn tất render video!', 'success');
@@ -1304,6 +1633,7 @@ function trackJob(jobId) {
                 setBusy(false);
             } else if (job.status === 'failed') {
                 clearInterval(pollInterval);
+                pollInterval = null;
                 setProgress(0);
                 setStatus('Sẵn sàng', false);
                 log(`Thất bại: ${job.error || 'Lỗi không xác định'}`, 'error');
@@ -1333,12 +1663,16 @@ async function approveAndRender() {
     await enqueueJob(payload, prompt);
 }
 
-if (generateBtn) {
-    generateBtn.addEventListener('click', async () => {
+if (primaryBtn) {
+    primaryBtn.addEventListener('click', async () => {
         const prompt = currentPrompt();
         if (prompt.length < 10) {
             alert('Vui lòng nhập prompt ít nhất 10 ký tự!');
             if (promptInput) promptInput.focus();
+            return;
+        }
+        if (pollInterval) {
+            log('Đang render — chờ video xong rồi tạo tiếp nhé.', 'info');
             return;
         }
         syncHitlWithPrompt();
@@ -1356,14 +1690,49 @@ if (generateBtn) {
             return;
         }
 
-        if (hitl.stage === 'questions') {
-            await requestDrafts();
-        } else if (hitl.stage === 'drafts') {
-            showReview();
-            updatePrimaryButton();
-        } else {
-            await requestClarify();
+        if (hitl.auto) {
+            await startAutoDirect();
+            return;
         }
+
+        if (hitl.stage === 'prompt') {
+            await requestClarify();
+            return;
+        }
+        if (hitl.stage === 'ask') {
+            if (hitl.askIndex < visibleQuestions().length) {
+                hitl.askIndex += 1;
+                renderAsk();
+                renderFooter();
+                persistHitl();
+            } else {
+                await requestDrafts();
+            }
+            return;
+        }
+        openBoard(false);
+    });
+}
+
+if (autoDecide) {
+    autoDecide.addEventListener('click', () => {
+        hitl.auto = !hitl.auto;
+        renderFooter();
+        persistHitl();
+    });
+}
+
+if (stepDots) {
+    stepDots.querySelectorAll('button').forEach(btn => {
+        btn.addEventListener('click', () => {
+            const step = btn.dataset.step;
+            if (step === 'review' && !hitl.drafts.length) return;
+            if (step === 'ask' && !hitl.questions.length) return;
+            if (step === 'review') openBoard(false);
+            else closeBoard();
+            setStage(step);
+            if (step === 'ask') renderAsk();
+        });
     });
 }
 
@@ -1371,23 +1740,38 @@ if (btnClarifyRefresh) {
     btnClarifyRefresh.addEventListener('click', requestClarify);
 }
 
-if (btnAutoDirect) {
-    btnAutoDirect.addEventListener('click', startAutoDirect);
-}
-
-if (btnApproveRender) {
-    btnApproveRender.addEventListener('click', approveAndRender);
-}
-
-if (btnShuffleVariants) {
-    btnShuffleVariants.addEventListener('click', () => requestDrafts(hitl.rotation + 1));
-}
-
-if (btnBackCompose) {
-    btnBackCompose.addEventListener('click', () => {
-        showCompose();
-        updatePrimaryButton();
+if (rbBack) {
+    rbBack.addEventListener('click', () => {
+        closeBoard();
+        setStage(hitl.questions.length ? 'ask' : 'prompt');
+        if (hitl.stage === 'ask') renderAsk();
     });
+}
+
+if (rbEditAnswers) {
+    rbEditAnswers.addEventListener('click', () => {
+        closeBoard();
+        setStage('ask');
+        renderAsk();
+    });
+}
+
+if (rbShuffle) {
+    rbShuffle.addEventListener('click', () => requestDrafts(hitl.rotation + 1));
+}
+
+if (rbAuto) {
+    rbAuto.addEventListener('click', async () => {
+        const draft = hitl.drafts.find(d => d.key === hitl.recommended) || selectedDraft();
+        if (!draft) return;
+        hitl.selectedKey = draft.key;
+        renderBoard();
+        await approveAndRender();
+    });
+}
+
+if (rbApprove) {
+    rbApprove.addEventListener('click', approveAndRender);
 }
 
 if (promptInput) {
@@ -1399,7 +1783,7 @@ if (promptInput) {
 }
 
 function startGenerate() {
-    if (generateBtn) generateBtn.click();
+    if (primaryBtn) primaryBtn.click();
 }
 // Nút "Xuất bản" trên topbar = tạo/render video (không còn tab xuất bản riêng).
 if (topbarExportBtn) topbarExportBtn.addEventListener('click', startGenerate);
