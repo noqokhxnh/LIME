@@ -1,0 +1,614 @@
+[
+  {
+    "slug": "archive-lighttable",
+    "name_en": "Archive Light Table",
+    "name_cn": "档案灯台",
+    "category_en": "Evidence Films",
+    "category_cn": "实证影像",
+    "uses": [
+      "Brand history & anniversaries",
+      "Documentary & archive explainers",
+      "Museum & collection stories"
+    ]
+  },
+  {
+    "slug": "art-deco",
+    "name_en": "Art Deco",
+    "name_cn": "装饰艺术",
+    "category_en": "Graphic & Type",
+    "category_cn": "图形与排版",
+    "uses": [
+      "Luxury & hospitality",
+      "Galas",
+      "Invitations"
+    ]
+  },
+  {
+    "slug": "ascii-crt",
+    "name_en": "ASCII / CRT Terminal",
+    "name_cn": "ASCII / CRT 终端",
+    "category_en": "Graphic & Type",
+    "category_cn": "图形与排版",
+    "uses": [
+      "Developer tools",
+      "Sci-fi",
+      "Tech brands"
+    ]
+  },
+  {
+    "slug": "backrooms",
+    "name_en": "Liminal Found Footage",
+    "name_cn": "后室 / 新怪谈",
+    "category_en": "Cinema & Eras",
+    "category_cn": "电影与时代",
+    "uses": [
+      "Horror",
+      "Mystery & ARG",
+      "Game teasers"
+    ]
+  },
+  {
+    "slug": "blueprint",
+    "name_en": "Blueprint",
+    "name_cn": "蓝图 / 工程制图",
+    "category_en": "Graphic & Type",
+    "category_cn": "图形与排版",
+    "uses": [
+      "Engineering",
+      "Hardware launches",
+      "Tech explainers"
+    ]
+  },
+  {
+    "slug": "brick-toy",
+    "name_en": "Brick Toy",
+    "name_cn": "积木玩具",
+    "category_en": "Materials & 3D",
+    "category_cn": "材质与 3D",
+    "uses": [
+      "Toys & kids",
+      "Product builds",
+      "Space"
+    ]
+  },
+  {
+    "slug": "briefing-board",
+    "name_en": "Engineering Briefing Board",
+    "name_cn": "工程简报板",
+    "category_en": "Evidence Films",
+    "category_cn": "实证影像",
+    "uses": [
+      "Engineering decisions",
+      "Option comparisons",
+      "Briefings & explainers"
+    ]
+  },
+  {
+    "slug": "cel-anime-80s",
+    "name_en": "80s Cel Anime",
+    "name_cn": "80 年代赛璐璐动画",
+    "category_en": "Cartoon & Anime",
+    "category_cn": "卡通与动画",
+    "uses": [
+      "Music videos",
+      "Game trailers",
+      "Nostalgia"
+    ]
+  },
+  {
+    "slug": "crayon-book",
+    "name_en": "Crayon Picture Book",
+    "name_cn": "蜡笔儿童绘本",
+    "category_en": "Hand-drawn & Painting",
+    "category_cn": "手绘与绘画",
+    "uses": [
+      "Picture books",
+      "Bedtime stories",
+      "Kids' learning"
+    ]
+  },
+  {
+    "slug": "dark-keynote",
+    "name_en": "Dark Tech Keynote",
+    "name_cn": "暗色科技发布",
+    "category_en": "Information & Keynote",
+    "category_cn": "信息与发布",
+    "uses": [
+      "Product launches",
+      "SaaS",
+      "Keynotes"
+    ]
+  },
+  {
+    "slug": "data-physical",
+    "name_en": "Data Physicalization",
+    "name_cn": "数据实物化",
+    "category_en": "Evidence Films",
+    "category_cn": "实证影像",
+    "uses": [
+      "Annual reports & ESG",
+      "Investor communications",
+      "Energy & climate statistics"
+    ]
+  },
+  {
+    "slug": "dataviz",
+    "name_en": "Data Storytelling",
+    "name_cn": "数据叙事",
+    "category_en": "Information & Keynote",
+    "category_cn": "信息与发布",
+    "uses": [
+      "Data journalism",
+      "Reports",
+      "Climate & science"
+    ]
+  },
+  {
+    "slug": "engraving",
+    "name_en": "Copperplate Engraving",
+    "name_cn": "铜版画",
+    "category_en": "Print & Printmaking",
+    "category_cn": "印刷与版画",
+    "uses": [
+      "Museum labels",
+      "Science explainers",
+      "Brand heritage"
+    ]
+  },
+  {
+    "slug": "game-show",
+    "name_en": "Game Show Flat",
+    "name_cn": "综艺节奏扁平",
+    "category_en": "Games",
+    "category_cn": "游戏",
+    "uses": [
+      "Tech timelines",
+      "Year in review",
+      "Variety shows"
+    ]
+  },
+  {
+    "slug": "glass-product",
+    "name_en": "Glass Product Render",
+    "name_cn": "玻璃质感产品",
+    "category_en": "Materials & 3D",
+    "category_cn": "材质与 3D",
+    "uses": [
+      "Product launches",
+      "Consumer tech",
+      "Beauty"
+    ]
+  },
+  {
+    "slug": "halftone-dossier",
+    "name_en": "Halftone Dossier",
+    "name_cn": "复古半调案卷",
+    "category_en": "Print & Printmaking",
+    "category_cn": "印刷与版画",
+    "uses": [
+      "Humour",
+      "Pet content",
+      "Social shorts"
+    ]
+  },
+  {
+    "slug": "hd-2d",
+    "name_en": "HD-2D",
+    "name_cn": "HD-2D",
+    "category_en": "Games",
+    "category_cn": "游戏",
+    "uses": [
+      "Game trailers",
+      "Fantasy",
+      "Story films"
+    ]
+  },
+  {
+    "slug": "hologram-hud",
+    "name_en": "Sci-fi Hologram HUD",
+    "name_cn": "科幻全息界面",
+    "category_en": "Information & Keynote",
+    "category_cn": "信息与发布",
+    "uses": [
+      "Product spec walkthroughs",
+      "Launch & crowdfunding videos",
+      "Trade-show screens"
+    ]
+  },
+  {
+    "slug": "impasto",
+    "name_en": "Impasto Oil Painting",
+    "name_cn": "油画厚涂",
+    "category_en": "Hand-drawn & Painting",
+    "category_cn": "手绘与绘画",
+    "uses": [
+      "Music videos",
+      "Art & culture",
+      "Emotional ads"
+    ]
+  },
+  {
+    "slug": "ink-wash",
+    "name_en": "Chinese Ink Wash",
+    "name_cn": "中国水墨",
+    "category_en": "Hand-drawn & Painting",
+    "category_cn": "手绘与绘画",
+    "uses": [
+      "Wuxia",
+      "Cultural brands",
+      "Poetry"
+    ]
+  },
+  {
+    "slug": "iso-infographic",
+    "name_en": "Isometric Infographic",
+    "name_cn": "等距信息图",
+    "category_en": "Information & Keynote",
+    "category_cn": "信息与发布",
+    "uses": [
+      "Process explainers",
+      "Supply chains",
+      "Annual reports"
+    ]
+  },
+  {
+    "slug": "lidar-survey",
+    "name_en": "LiDAR Survey",
+    "name_cn": "点云测绘",
+    "category_en": "Evidence Films",
+    "category_cn": "实证影像",
+    "uses": [
+      "Archaeology & heritage",
+      "Forestry & environment",
+      "Infrastructure & site surveys"
+    ]
+  },
+  {
+    "slug": "living-screencast",
+    "name_en": "Living Screencast",
+    "name_cn": "活体实机录屏",
+    "category_en": "Information & Keynote",
+    "category_cn": "信息与发布",
+    "uses": [
+      "Product tutorials",
+      "Feature launches",
+      "Onboarding"
+    ]
+  },
+  {
+    "slug": "lowpoly-island",
+    "name_en": "Low-poly Isometric Island",
+    "name_cn": "低多边形等距",
+    "category_en": "Materials & 3D",
+    "category_cn": "材质与 3D",
+    "uses": [
+      "Game trailers",
+      "World building",
+      "Calm content"
+    ]
+  },
+  {
+    "slug": "microgame",
+    "name_en": "Microgame Frenzy",
+    "name_cn": "微游戏快闪（瓦里奥制造式）",
+    "category_en": "Games",
+    "category_cn": "游戏",
+    "uses": [
+      "Game trailers",
+      "Onboarding",
+      "Social shorts"
+    ]
+  },
+  {
+    "slug": "microscope",
+    "name_en": "Microscope Story",
+    "name_cn": "显微叙事",
+    "category_en": "Evidence Films",
+    "category_cn": "实证影像",
+    "uses": [
+      "Biomedicine & pathology",
+      "Materials & surface science",
+      "Skincare & cosmetic science"
+    ]
+  },
+  {
+    "slug": "midcentury-toon",
+    "name_en": "Mid-century Cartoon",
+    "name_cn": "50s 扁平卡通",
+    "category_en": "Cartoon & Anime",
+    "category_cn": "卡通与动画",
+    "uses": [
+      "Product set-up guides",
+      "Help-centre explainers",
+      "How-to steps"
+    ]
+  },
+  {
+    "slug": "one-line",
+    "name_en": "One-line Drawing",
+    "name_cn": "一笔画",
+    "category_en": "Hand-drawn & Painting",
+    "category_cn": "手绘与绘画",
+    "uses": [
+      "Brand stories",
+      "Life milestones",
+      "Minimal ads"
+    ]
+  },
+  {
+    "slug": "paper-lantern",
+    "name_en": "Paper-cut Lightbox",
+    "name_cn": "纸雕灯影",
+    "category_en": "East Asian Traditions",
+    "category_cn": "东方传统",
+    "uses": [
+      "Festivals",
+      "Gift brands",
+      "Cultural stories"
+    ]
+  },
+  {
+    "slug": "paper-popup",
+    "name_en": "Paper Pop-up Book",
+    "name_cn": "纸片立体书",
+    "category_en": "Materials & 3D",
+    "category_cn": "材质与 3D",
+    "uses": [
+      "Children's books",
+      "Game trailers",
+      "Story films"
+    ]
+  },
+  {
+    "slug": "papercut-red",
+    "name_en": "Red Paper-cut",
+    "name_cn": "红色窗花剪纸",
+    "category_en": "East Asian Traditions",
+    "category_cn": "东方传统",
+    "uses": [
+      "Lunar New Year",
+      "Festive greetings",
+      "Folk tales"
+    ]
+  },
+  {
+    "slug": "pictogram-motion",
+    "name_en": "Pictogram Motion",
+    "name_cn": "象形运动图形",
+    "category_en": "Graphic & Type",
+    "category_cn": "图形与排版",
+    "uses": [
+      "Sports events",
+      "Visual identity",
+      "Event openers"
+    ]
+  },
+  {
+    "slug": "pixel-rpg",
+    "name_en": "16-bit Pixel RPG",
+    "name_cn": "16-bit 像素 RPG",
+    "category_en": "Games",
+    "category_cn": "游戏",
+    "uses": [
+      "Game trailers",
+      "Recaps",
+      "Nostalgia"
+    ]
+  },
+  {
+    "slug": "risograph",
+    "name_en": "Risograph Print",
+    "name_cn": "Risograph 丝网印刷",
+    "category_en": "Print & Printmaking",
+    "category_cn": "印刷与版画",
+    "uses": [
+      "Indie brands",
+      "Zines",
+      "Lifestyle"
+    ]
+  },
+  {
+    "slug": "rubber-hose",
+    "name_en": "1930s Rubber Hose Cartoon",
+    "name_cn": "1930s 橡皮管卡通",
+    "category_en": "Cartoon & Anime",
+    "category_cn": "卡通与动画",
+    "uses": [
+      "Food & drink",
+      "Retro ads",
+      "Kids"
+    ]
+  },
+  {
+    "slug": "satellite-briefing",
+    "name_en": "Satellite Briefing",
+    "name_cn": "卫星简报",
+    "category_en": "Evidence Films",
+    "category_cn": "实证影像",
+    "uses": [
+      "Climate & environment",
+      "Investigations & news explainers",
+      "Geography & history"
+    ]
+  },
+  {
+    "slug": "scifi-toon",
+    "name_en": "Sci-Fi Sitcom Toon",
+    "name_cn": "科幻情景喜剧卡通",
+    "category_en": "Cartoon & Anime",
+    "category_cn": "卡通与动画",
+    "uses": [
+      "Comedy",
+      "Tech brands",
+      "Social shorts"
+    ]
+  },
+  {
+    "slug": "shadow-puppet",
+    "name_en": "Shadow Puppetry",
+    "name_cn": "皮影戏",
+    "category_en": "East Asian Traditions",
+    "category_cn": "东方传统",
+    "uses": [
+      "Myths & folklore",
+      "Heritage",
+      "Festivals"
+    ]
+  },
+  {
+    "slug": "silent-film",
+    "name_en": "1920s Silent Film",
+    "name_cn": "1920s 默片",
+    "category_en": "Cinema & Eras",
+    "category_cn": "电影与时代",
+    "uses": [
+      "Comedy",
+      "Retro brands",
+      "Silent storytelling"
+    ]
+  },
+  {
+    "slug": "silkscreen-poster",
+    "name_en": "Silkscreen Travel Poster",
+    "name_cn": "丝印旅行海报",
+    "category_en": "Print & Printmaking",
+    "category_cn": "印刷与版画",
+    "uses": [
+      "Trail & destination guides",
+      "Tourism promos",
+      "Event posters"
+    ]
+  },
+  {
+    "slug": "spy-titles",
+    "name_en": "60s Spy Title Sequence",
+    "name_cn": "60s 间谍片头",
+    "category_en": "Graphic & Type",
+    "category_cn": "图形与排版",
+    "uses": [
+      "Title sequences",
+      "Event openers",
+      "Trailers"
+    ]
+  },
+  {
+    "slug": "stained-glass",
+    "name_en": "Stained Glass",
+    "name_cn": "彩色玻璃窗",
+    "category_en": "Graphic & Type",
+    "category_cn": "图形与排版",
+    "uses": [
+      "Legends",
+      "Heritage",
+      "Holiday stories"
+    ]
+  },
+  {
+    "slug": "swiss-motion",
+    "name_en": "Swiss Motion Graphics",
+    "name_cn": "瑞士动态排版",
+    "category_en": "Graphic & Type",
+    "category_cn": "图形与排版",
+    "uses": [
+      "Brand identity",
+      "Events",
+      "Design education"
+    ]
+  },
+  {
+    "slug": "teardown",
+    "name_en": "Exploded Teardown",
+    "name_cn": "产品拆解",
+    "category_en": "Evidence Films",
+    "category_cn": "实证影像",
+    "uses": [
+      "Hardware launches",
+      "E-commerce product pages",
+      "Technical marketing & spec explainers"
+    ]
+  },
+  {
+    "slug": "tilt-shift",
+    "name_en": "Tilt-Shift Miniature",
+    "name_cn": "移轴微缩",
+    "category_en": "Materials & 3D",
+    "category_cn": "材质与 3D",
+    "uses": [
+      "City promos",
+      "Real estate",
+      "Transport"
+    ]
+  },
+  {
+    "slug": "ukiyoe",
+    "name_en": "Ukiyo-e",
+    "name_cn": "浮世绘",
+    "category_en": "East Asian Traditions",
+    "category_cn": "东方传统",
+    "uses": [
+      "Travel",
+      "Japanese culture",
+      "Poetry"
+    ]
+  },
+  {
+    "slug": "urban-sketch",
+    "name_en": "Urban Sketch · Pen & Wash",
+    "name_cn": "钢笔淡彩",
+    "category_en": "Hand-drawn & Painting",
+    "category_cn": "手绘与绘画",
+    "uses": [
+      "City & travel",
+      "Architecture",
+      "Lifestyle brands"
+    ]
+  },
+  {
+    "slug": "watercolor",
+    "name_en": "Watercolor Brush",
+    "name_cn": "水彩笔刷",
+    "category_en": "Hand-drawn & Painting",
+    "category_cn": "手绘与绘画",
+    "uses": [
+      "Nature documentary",
+      "Travel",
+      "Science explainers"
+    ]
+  },
+  {
+    "slug": "white-model",
+    "name_en": "Projection on White Model",
+    "name_cn": "白模投影",
+    "category_en": "Evidence Films",
+    "category_cn": "实证影像",
+    "uses": [
+      "Urban planning & real estate",
+      "Exhibitions & showrooms",
+      "City data & history"
+    ]
+  },
+  {
+    "slug": "whiteboard",
+    "name_en": "Whiteboard Explainer",
+    "name_cn": "白板讲解",
+    "category_en": "Hand-drawn & Painting",
+    "category_cn": "手绘与绘画",
+    "uses": [
+      "Explainers",
+      "Online courses",
+      "Science"
+    ]
+  },
+  {
+    "slug": "woodcut",
+    "name_en": "Woodcut Print",
+    "name_cn": "木刻版画",
+    "category_en": "Print & Printmaking",
+    "category_cn": "印刷与版画",
+    "uses": [
+      "Folk tales",
+      "Craft brands",
+      "Book trailers"
+    ]
+  }
+]
