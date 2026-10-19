@@ -265,30 +265,7 @@ body.ws .dur-input{width:64px;background:var(--wpanel2);border:1px solid var(--w
 body.ws .mini-select{background:var(--wpanel2);border:1px solid var(--wline);border-radius:7px;color:var(--wtxt);
   font-size:12px;padding:7px 8px;max-width:170px;outline:none;font-family:'Inter'}
 body.ws .chips{display:flex;gap:6px;flex-wrap:wrap}
-body.ws .mchip{font-size:11px;font-weight:600;padding:6px 11px;border-radius:99px;border:1px solid var(--wline);
-  color:var(--wmuted);background:transparent}
-body.ws .mchip.on{background:rgba(185,231,43,.14);border-color:var(--wdeep);color:var(--wlime)}
-body.ws .mchip button{background:none;border:none;color:inherit;font-size:12px;margin-left:4px;padding:0}
 body.ws .insp-note{font-size:11px;color:var(--wdim);line-height:1.5}
-
-/* ---------- motion library (trong Inspector) ---------- */
-body.ws .search{background:var(--wbg);border:1px solid var(--wline);border-radius:9px;padding:9px 12px;
-  font-size:12px;color:var(--wtxt);outline:none;width:100%;font-family:'Inter'}
-body.ws .search::placeholder{color:var(--wdim)}
-body.ws .cat-filter-chip{font-size:11px;font-weight:600;padding:6px 12px;border-radius:99px;
-  border:1px solid var(--wline);color:var(--wmuted);background:transparent}
-body.ws .cat-filter-chip.on{background:rgba(185,231,43,.14);border-color:var(--wdeep);color:var(--wlime)}
-body.ws .lib-grid{display:grid;grid-template-columns:1fr 1fr;gap:10px;align-content:start}
-body.ws .lib-card{background:var(--wpanel2);border:1px solid var(--wline);border-radius:10px;overflow:hidden;
-  cursor:pointer;padding:0;text-align:left;color:var(--wtxt);display:flex;flex-direction:column}
-body.ws .lib-card:hover{border-color:var(--wdim)}
-body.ws .lib-card.selected{border-color:var(--wdeep);box-shadow:0 0 0 1px var(--wdeep)}
-body.ws .lib-card .th{height:56px;background-color:#EFF2E9;background-image:var(--wcaro);background-size:16px 16px;
-  display:flex;align-items:center;justify-content:center;font-weight:700;font-size:13px;color:var(--wdeep)}
-body.ws .lib-card.selected .th{color:var(--wlime)}
-body.ws .lib-card .nm{padding:8px 10px 2px;font-size:11.5px;font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
-body.ws .lib-card .du{padding:0 10px 9px;font-size:10.5px;color:var(--wdim)}
-body.ws .lib-card .sel-mark{position:absolute}
 
 /* ---------- advanced fields ---------- */
 body.ws .adv-label{font-size:11px;font-weight:600;color:var(--wmuted);display:flex;flex-direction:column;gap:6px}
