@@ -1,5 +1,5 @@
 export interface IRateLimiter {
-    checkRpm(id: string, maxRpm?: number): boolean;
+    checkRpm(id: string, maxRpm?: number, cost?: number): boolean;
     acquireConcurrentJob(id: string, maxConcurrent?: number): boolean;
     releaseConcurrentJob(id: string): void;
     checkAndIncrementDailyQuota(id: string, maxDaily?: number): boolean;
@@ -28,7 +28,14 @@ export class InMemoryRateLimiter implements IRateLimiter {
         }
     }
 
-    public checkRpm(id: string, maxRpm = 20): boolean {
+    /**
+     * Tiêu `cost` lượt trong cửa sổ 1 phút.
+     *
+     * Một request sinh 3 phương án gọi LLM 3 lần (cộng 1 lần phân loại), nên
+     * tính theo lượt gọi thật thay vì theo request — nếu không, người dùng có
+     * thể nhân chi phí LLM lên 3 lần mà vẫn nằm trong hạn mức.
+     */
+    public checkRpm(id: string, maxRpm = 20, cost = 1): boolean {
         const now = Date.now();
         let record = this.rpmMap.get(id);
         
@@ -37,11 +44,12 @@ export class InMemoryRateLimiter implements IRateLimiter {
             this.rpmMap.set(id, record);
         }
         
-        if (record.count >= maxRpm) {
+        const amount = Math.max(1, Math.floor(cost));
+        if (record.count + amount > maxRpm) {
             return false;
         }
         
-        record.count++;
+        record.count += amount;
         return true;
     }
 

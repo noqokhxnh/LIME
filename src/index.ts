@@ -7,8 +7,19 @@ import { join } from "node:path";
 import { v4 } from "uuid";
 import { getConfig } from "./config.js";
 import { getCurrentUser } from "./auth/session.js";
-import { videoRequestSchema, watermarkConfigSchema, type videoRequest, type videoScript } from "./llm/schema.js";
+import { videoRequestSchema, videoScriptSchema, watermarkConfigSchema, type videoRequest, type videoScript } from "./llm/schema.js";
 import { generateScript } from "./pipeline/scriptGenerator.js";
+import { estimateDuration } from "./pipeline/estimateDuration.js";
+import {
+    CLARIFY_QUESTIONS,
+    DEFAULT_ANSWERS,
+    buildAnswerDirectives,
+    buildQuestionViews,
+    clarifyAnswersSchema,
+    inferAnswers,
+    mergeAnswers,
+} from "./pipeline/clarify.js";
+import { dedupeVariants, pickVariants, scoreDraft } from "./pipeline/scriptVariants.js";
 import { initDatabase } from "./database/index.js";
 import fastifyCookie from "@fastify/cookie";
 import { authRoutes } from "./auth/routes.js";
@@ -125,6 +136,7 @@ export async function buildApp(options: { logger?: boolean, queue?: IVideoQueue 
 
         if (
             url.startsWith("/api/script/draft") ||
+            url.startsWith("/api/script/clarify") ||
             url.startsWith("/api/pipeline") ||
             url.startsWith("/api/generate") ||
             url.startsWith("/api/source/") ||
@@ -132,12 +144,25 @@ export async function buildApp(options: { logger?: boolean, queue?: IVideoQueue 
             url.startsWith("/api/user/brand-kit")
         ) {
             const ip = request.ip || '127.0.0.1';
-            if (!rateLimiter.checkRpm(ip)) {
+            const body = request.body as any;
+
+            // /api/script/draft gọi LLM song song cho từng phương án, cộng thêm một
+            // lần phân loại nếu client chưa gửi answers. Tính RPM theo lượt gọi thật
+            // để không ai nhân chi phí LLM lên 3 lần mà vẫn trong hạn mức.
+            let rpmCost = 1;
+            if (path === '/api/script/draft') {
+                const requested = Number(body?.variantCount ?? 1);
+                const variants = Number.isFinite(requested)
+                    ? Math.min(3, Math.max(1, Math.floor(requested)))
+                    : 1;
+                rpmCost = variants + (body?.answers ? 0 : 1);
+            }
+
+            if (!rateLimiter.checkRpm(ip, 20, rpmCost)) {
                 reply.status(429).send({ error: "Too Many Requests (RPM exceeded)" });
                 return reply;
             }
 
-            const body = request.body as any;
             const promptCandidate = body?.prompt ?? body?.text ?? body?.topic;
             if (typeof promptCandidate === 'string') {
                 const check = validatePrompt(promptCandidate);
@@ -452,13 +477,113 @@ export async function buildApp(options: { logger?: boolean, queue?: IVideoQueue 
     };
 
     app.post("/api/script/draft", async (request: FastifyRequest, reply: FastifyReply) => {
+        const body = (request.body as any) ?? {};
         try {
-            const normalized = normalizeVideoRequestBody(request.body);
-            const reqData = videoRequestSchema.parse(normalized);
-            const script = await generateScript(reqData);
+            const normalized = normalizeVideoRequestBody(body);
+            // Route nháp không bắt buộc style vì người dùng chọn phong cách bằng
+            // cách chọn phương án; body thiếu style thì tạm dùng 'modern'.
+            const reqData = videoRequestSchema.parse({ ...normalized, style: normalized.style ?? 'modern' });
+
+            const requestedCount = Number(body.variantCount ?? 1);
+            const variantCount = Number.isFinite(requestedCount)
+                ? Math.min(3, Math.max(1, Math.floor(requestedCount)))
+                : 1;
+            const requestedRotation = Number(body.variantRotation ?? 0);
+            const rotation = Number.isFinite(requestedRotation) ? Math.max(0, Math.floor(requestedRotation)) : 0;
+
+            let provided: ReturnType<typeof clarifyAnswersSchema.parse> = {};
+            try {
+                provided = clarifyAnswersSchema.parse(body.answers ?? {});
+            } catch {
+                provided = {};
+            }
+
+            // UI đã hỏi người dùng rồi thì không gọi LLM phân loại lần nữa.
+            const needsInference = !(provided.audience && provided.purpose && provided.structure);
+            const inference = needsInference ? await inferAnswers(reqData.prompt) : null;
+            const answers = mergeAnswers(inference?.answers ?? DEFAULT_ANSWERS, provided);
+            const confidence = {
+                audience: provided.audience ? 1 : (inference?.confidence.audience ?? 0),
+                purpose: provided.purpose ? 1 : (inference?.confidence.purpose ?? 0),
+                structure: provided.structure ? 1 : (inference?.confidence.structure ?? 0),
+            };
+
+            const directives = buildAnswerDirectives(answers);
+            const variants = pickVariants(reqData.prompt, {
+                purpose: answers.purpose,
+                rotation,
+                count: variantCount,
+            });
+
+            const settled = await Promise.allSettled(
+                variants.map(variant => generateScript(reqData, undefined, undefined, variant, directives))
+            );
+
+            const drafts = settled.flatMap((entry, index) => {
+                if (entry.status !== 'fulfilled') return [];
+                const variant = variants[index];
+                const script = entry.value;
+                const estimated = estimateDuration(script, { language: reqData.language });
+                const words = script.scenes.reduce(
+                    (sum, scene) => sum + (scene.voiceOverText?.trim().split(/\s+/).filter(Boolean).length ?? 0),
+                    0
+                );
+                const { score, reason } = scoreDraft(script, reqData);
+                return [{
+                    key: variant.key,
+                    label: variant.label,
+                    hook: variant.hook,
+                    style: variant.style,
+                    blueprintId: variant.blueprintId,
+                    script,
+                    estimated: { totalDurationSec: estimated.totalDurationSec, words },
+                    score,
+                    reason,
+                }];
+            });
+
+            const unique = dedupeVariants(drafts)
+                .sort((a, b) => b.score - a.score)
+                .slice(0, variantCount);
+
+            // Một phương án là đủ cho chế độ cũ; ba phương án phải còn ít nhất 2
+            // để người dùng thực sự có lựa chọn.
+            const requiredSuccesses = Math.min(2, variantCount);
+            if (unique.length < requiredSuccesses) {
+                const details = settled
+                    .filter((entry): entry is PromiseRejectedResult => entry.status === 'rejected')
+                    .map(entry => entry.reason?.message ?? String(entry.reason))
+                    .slice(0, 3)
+                    .join(' | ');
+                reply.status(502);
+                return {
+                    success: false,
+                    error: 'Không sinh đủ phương án khác nhau. Vui lòng thử lại.',
+                    details: details.slice(0, 2000),
+                };
+            }
+
+            const recommended = unique[0].key;
+
+            if (variantCount === 1) {
+                // Giữ nguyên shape cũ cho client chưa nâng cấp.
+                return {
+                    success: true,
+                    script: unique[0].script,
+                    estimated: unique[0].estimated,
+                    answers,
+                    confidence,
+                    recommended,
+                };
+            }
+
             return {
                 success: true,
-                script,
+                drafts: unique,
+                answers,
+                confidence,
+                recommended,
+                clarifySource: inference?.source ?? 'provided',
             };
         } catch (err: any) {
             reply.status(400);
@@ -468,6 +593,36 @@ export async function buildApp(options: { logger?: boolean, queue?: IVideoQueue 
             };
         }
     });
+
+    /**
+     * Hỏi 3 câu làm rõ cho một prompt.
+     *
+     * Tách khỏi /api/script/draft để UI hiện form ngay sau ~1-2s thay vì chờ
+     * sinh xong 3 phương án mới biết cần hỏi gì.
+     */
+    app.post("/api/script/clarify", async (request: FastifyRequest, reply: FastifyReply) => {
+        const body = (request.body as any) ?? {};
+        const prompt = String(body.prompt ?? body.text ?? body.topic ?? '').trim();
+        if (prompt.length < 10) {
+            reply.status(400);
+            return { success: false, error: 'Prompt phải có ít nhất 10 ký tự' };
+        }
+
+        const result = await inferAnswers(prompt);
+        return {
+            success: true,
+            source: result.source,
+            answers: result.answers,
+            confidence: result.confidence,
+            questions: buildQuestionViews(result),
+            error: result.error,
+        };
+    });
+
+    app.get("/api/script/clarify/questions", async () => ({
+        success: true,
+        questions: CLARIFY_QUESTIONS,
+    }));
 
     const handlePipelineRequest = async (request: FastifyRequest, reply: FastifyReply) => {
         const body = (request.body as any) || {};
@@ -482,6 +637,33 @@ export async function buildApp(options: { logger?: boolean, queue?: IVideoQueue 
             return { error: "Invalid video request", details: err.message };
         }
 
+        // Kịch bản do client gửi lên phải được kiểm ngay tại route: nếu để worker
+        // phát hiện thì người dùng đã bị trừ quota và nhận job failed vô nghĩa.
+        let inputScript: videoScript | undefined;
+        if (body.script !== undefined && body.script !== null) {
+            const parsed = videoScriptSchema.safeParse(body.script);
+            if (!parsed.success) {
+                reply.status(400);
+                return {
+                    error: "Invalid script",
+                    details: parsed.error.issues
+                        .map(issue => `${issue.path.join('.') || '(root)'}: ${issue.message}`)
+                        .slice(0, 5)
+                        .join('; '),
+                };
+            }
+            inputScript = parsed.data;
+
+            const estimated = estimateDuration(inputScript, { language: reqData.language });
+            if (estimated.totalDurationSec > reqData.targetDurationSec * 1.5) {
+                reply.status(400);
+                return {
+                    error: "Script too long",
+                    details: `Kịch bản ước lượng ${estimated.totalDurationSec.toFixed(1)}s, vượt quá 150% mục tiêu ${reqData.targetDurationSec}s.`,
+                };
+            }
+        }
+
         const ip = request.ip || '127.0.0.1';
         if (!rateLimiter.checkAndIncrementDailyQuota(ip)) {
             reply.status(429);
@@ -492,7 +674,6 @@ export async function buildApp(options: { logger?: boolean, queue?: IVideoQueue 
             return { error: "Concurrency limit exceeded" };
         }
 
-        const inputScript = body.script as videoScript | undefined;
         const bgmPath = body.bgmPath as string | undefined;
         const skipPreview = Boolean(body.skipPreview);
         const jobId = body.jobId || v4();
