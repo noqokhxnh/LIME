@@ -21,8 +21,12 @@ body.ws .topbar{height:52px;flex:none;display:flex;align-items:center;justify-co
 body.ws .proj{display:flex;align-items:center;gap:12px}
 body.ws .logo{font-family:'Space Grotesk',sans-serif;font-weight:700;font-size:19px;color:var(--wtxt);text-decoration:none}
 body.ws .logo i{font-style:normal;color:var(--wdeep)}
-body.ws .proj-name{font-size:13px;color:var(--wmuted);border:1px solid var(--wline);border-radius:8px;
-  padding:7px 12px;background:var(--wpanel2);max-width:280px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+body.ws .proj-name{font-family:inherit;font-size:13px;color:var(--wmuted);border:1px solid var(--wline);border-radius:8px;
+  padding:7px 12px;background:var(--wpanel2);max-width:280px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;
+  cursor:pointer;transition:color .14s,border-color .14s,background .14s}
+body.ws .proj-name:hover{color:var(--wtxt);border-color:var(--wdim);background:var(--wpanel)}
+body.ws .proj-name:focus-visible{outline:2px solid var(--wlime);outline-offset:2px}
+body.ws .proj-name.is-empty::after{content:"＋";margin-left:8px;font-weight:700;color:var(--wlime)}
 body.ws .ws-tabs{display:flex;gap:4px;background:var(--wbg);border:1px solid var(--wline);border-radius:10px;padding:4px}
 body.ws .ws-tab{background:none;border:none;font-size:12.5px;font-weight:600;color:var(--wmuted);
   padding:8px 18px;border-radius:7px}
