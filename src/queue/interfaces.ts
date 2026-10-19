@@ -1,6 +1,7 @@
 import { type videoRequest, type videoScript } from "../llm/schema.js";
 import { type fullPipelineResult } from "../pipeline/orchestrator.js";
 import { type QAReport } from "../pipeline/oracleQa.js";
+import { type PartialClarifyAnswers } from "../pipeline/clarify.js";
 
 export interface JobProgress {
     phase: string;
@@ -19,6 +20,15 @@ export interface JobData {
     userId?: string;
     request: videoRequest;
     script?: videoScript;
+    /**
+     * Chế độ "Để AI quyết hết": worker tự trả lời 3 câu làm rõ, tự sinh 3 phương
+     * án, tự chọn phương án khớp thời lượng nhất rồi render — không qua bước duyệt.
+     */
+    autoDirect?: boolean;
+    /** Câu trả lời người dùng đã chọn cho chế độ auto; thiếu thì worker tự suy ra. */
+    autoAnswers?: PartialClarifyAnswers;
+    /** Xoay bộ phương án khi người dùng bấm "Đổi bộ" trước khi giao cho AI. */
+    variantRotation?: number;
     bgmPath?: string;
     skipPreview?: boolean;
     outputDir: string;

@@ -156,6 +156,9 @@ export async function buildApp(options: { logger?: boolean, queue?: IVideoQueue 
                     ? Math.min(3, Math.max(1, Math.floor(requested)))
                     : 1;
                 rpmCost = variants + (body?.answers ? 0 : 1);
+            } else if (path === '/api/pipeline' && (body?.autoDirect || body?.mode === 'auto')) {
+                // autoDirect = 1 lần phân loại + 3 lần sinh phương án.
+                rpmCost = 4;
             }
 
             if (!rateLimiter.checkRpm(ip, 20, rpmCost)) {
@@ -676,6 +679,10 @@ export async function buildApp(options: { logger?: boolean, queue?: IVideoQueue 
 
         const bgmPath = body.bgmPath as string | undefined;
         const skipPreview = Boolean(body.skipPreview);
+        const autoDirect = Boolean(body.autoDirect || body.mode === 'auto');
+        const autoAnswers = body.answers;
+        const requestedRotation = Number(body.variantRotation ?? 0);
+        const variantRotation = Number.isFinite(requestedRotation) ? Math.max(0, Math.floor(requestedRotation)) : 0;
         const jobId = body.jobId || v4();
         const defaultSeed = hashString32(jobId);
         const seed = parseSeedSafe(reqData.seed ?? body.seed, defaultSeed);
@@ -693,6 +700,9 @@ export async function buildApp(options: { logger?: boolean, queue?: IVideoQueue 
                 userId,
                 request: reqData,
                 script: inputScript,
+                autoDirect,
+                autoAnswers,
+                variantRotation,
                 bgmPath,
                 skipPreview,
                 outputDir,
@@ -716,6 +726,9 @@ export async function buildApp(options: { logger?: boolean, queue?: IVideoQueue 
                     userId,
                     request: reqData,
                     script: inputScript,
+                    autoDirect,
+                    autoAnswers,
+                    variantRotation,
                     bgmPath,
                     skipPreview,
                     outputDir,
