@@ -161,7 +161,8 @@ export async function generateScript(
     request: videoRequest,
     onProgress?: (msg: string) => void,
     qaFeedback?: string,
-    variant?: ScriptVariantSpec
+    variant?: ScriptVariantSpec,
+    directives?: string
 ): Promise<videoScript> {
     const llm = getLLMClient();
     const systemPrompt = readFileSync(SYSTEM_prompt_PATH, 'utf-8');
@@ -174,6 +175,9 @@ export async function generateScript(
 
     const preset = VIDEO_PRESETS[effectiveRequest.aspectRatio];
     let basePrompt = buildUserPrompt(effectiveRequest, preset);
+    if (directives) {
+        basePrompt += `\n\n${directives}\n`;
+    }
     if (variant) {
         basePrompt += `\n\n${variant.brief}\n`;
     }
