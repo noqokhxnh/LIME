@@ -374,7 +374,7 @@ The web frontend (`frontend/`) is organized as a 3-panel studio workspace (`work
 
 2. **Center panel — Program monitor + timeline.** Video đã render, timeline phân cảnh, tải MP4 / xem HTML gốc / xem thử chuyển động.
 
-3. **Right panel — Inspector.** Khung hình & thời lượng, giọng đọc, blueprint (tùy chọn) và các trường nâng cao. Motion block do AI tự chọn từ catalog theo style/blueprint — không còn UI chọn tay. Style cũng không còn là lựa chọn riêng: phương án được duyệt quyết định style + blueprint.
+3. **Right panel — Inspector.** Khung hình & thời lượng, giọng đọc và các trường nâng cao (mô tả phong cách, kịch bản JSON tự dựng). Ô JSON có sẵn kịch bản mẫu hợp lệ: sửa để render thẳng, xoá trắng để AI tự viết. Motion block và blueprint đều do AI tự chọn — không còn UI chọn tay. Style cũng không còn là lựa chọn riêng: phương án được duyệt quyết định style + blueprint.
 
 **Review board (HITL).** Sau khi trả lời đủ, `POST /api/script/draft` trả 3 phương án và một overlay toàn vùng nội dung mở ra 3 cột: mini-frame 16:9 dựng bằng CSS từ palette + font của từng phương án, hook, thanh khớp thời lượng so với mục tiêu, hai dòng lời thoại đầu. Chọn một phương án → sửa `voiceOverText` từng cảnh ngay bên dưới (textarea auto-grow) → `Duyệt & Render` gửi `script` + `style` + `blueprintId` lên `POST /api/pipeline`. `Đổi bộ` sinh lại với `variantRotation + 1`; `Để AI tự chọn` chọn phương án điểm cao nhất.
 

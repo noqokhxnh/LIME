@@ -367,7 +367,6 @@ const project = { scenes: [], durationSec: 15, topic: '', jobId: null, resolutio
 const promptInput = document.getElementById('prompt-input');
 const promptCharCount = document.getElementById('prompt-char-count');
 const durationInput = document.getElementById('duration-input');
-const blueprintSelect = document.getElementById('blueprint-select');
 const voiceSelect = document.getElementById('voice-select');
 const primaryBtn = document.getElementById('btn-primary');
 const btnSpinner = document.getElementById('btn-spinner');
@@ -387,6 +386,52 @@ const previewModalClose = document.getElementById('preview-modal-close');
 const summaryMetaLine = document.getElementById('summary-meta-line');
 const customStyleInput = document.getElementById('custom-style-input');
 const customScriptJson = document.getElementById('custom-script-json');
+/**
+ * Kịch bản JSON mẫu điền sẵn trong "Kịch bản tự dựng".
+ *
+ * Đây là mẫu hợp lệ theo `videoScriptSchema` (2 cảnh + 1 boundary). Để nguyên
+ * thì luồng AI chạy bình thường; sửa một ký tự là box được dùng làm kịch bản
+ * thật. Nhờ vậy người dùng thấy ngay cấu trúc mà không cần tài liệu riêng.
+ */
+const SAMPLE_SCRIPT_JSON = `{
+  "id": "demo",
+  "title": "Video mẫu",
+  "description": "Một video mẫu để xem cấu trúc JSON.",
+  "globalStyles": "body{margin:0;background:#0B0F0A;color:#F7FEE7;font-family:Inter,sans-serif}",
+  "globalSetupJs": "",
+  "scenes": [
+    {
+      "id": "s1",
+      "title": "Mở đầu",
+      "voiceOverText": "Xin chào, đây là video mẫu.",
+      "visualDescription": "Tiêu đề lớn giữa màn hình",
+      "htmlCode": "<h1 class=\\"title\\">Xin chào</h1>",
+      "cssCode": ".title{font-size:9vw;text-align:center}",
+      "jsCode": "",
+      "transition": "fade",
+      "backgroundColor": "#0B0F0A"
+    },
+    {
+      "id": "s2",
+      "title": "Kết",
+      "voiceOverText": "Hết.",
+      "visualDescription": "Chữ nhỏ dần",
+      "htmlCode": "<p class=\\"end\\">Hết</p>",
+      "cssCode": ".end{font-size:3vw;text-align:center}",
+      "jsCode": "",
+      "transition": "fade",
+      "backgroundColor": "#0B0F0A"
+    }
+  ],
+  "boundaries": [
+    { "id": "b1", "fromScene": "s1", "toScene": "s2", "carry": { "element": "title", "mechanism": "morph" } }
+  ],
+  "colorPalette": { "primary": "#84CC16", "secondary": "#4D7C0F", "accent": "#FACC15", "background": "#0B0F0A", "text": "#F7FEE7" },
+  "fontFamily": "Inter"
+}`;
+
+if (customScriptJson) customScriptJson.value = SAMPLE_SCRIPT_JSON;
+
 const leftTitle = document.getElementById('left-title');
 const stepDots = document.getElementById('step-dots');
 const stepPrompt = document.getElementById('step-prompt');
@@ -677,30 +722,6 @@ function updateSummaryMeta() {
     if (statusEta) statusEta.textContent = `~${Math.max(1, Math.round(dur / 8))} phút render`;
 }
 
-/* ================= CATALOG ================= */
-// Thư viện motion block do AI tự chọn — UI không còn cho người dùng chọn tay,
-// chỉ cần blueprint cho Inspector.
-async function loadCatalog() {
-    try {
-        const res = await fetch(`${API_BASE}/api/catalog`);
-        if (!res.ok) throw new Error('Không tải được catalog');
-        const data = await res.json();
-        if (blueprintSelect) {
-            const current = blueprintSelect.value;
-            blueprintSelect.innerHTML = '<option value="">(Mặc định — 5-beat spine)</option>';
-            (data.blueprints || []).forEach((bp) => {
-                const opt = document.createElement('option');
-                opt.value = bp.id;
-                opt.textContent = bp.name;
-                blueprintSelect.appendChild(opt);
-            });
-            if (current) blueprintSelect.value = current;
-        }
-    } catch (err) {
-        log(`Catalog: ${err.message}`, 'error');
-    }
-}
-
 /* ================= JOBS ================= */
 // Danh sách job gần đây — dùng để khôi phục video hoàn tất gần nhất khi mở workspace.
 async function fetchJobs() {
@@ -776,6 +797,7 @@ function resetProject() {
         promptCharCount.textContent = '0/500 · tối thiểu 10';
         promptCharCount.classList.remove('warn');
     }
+    if (customScriptJson) customScriptJson.value = SAMPLE_SCRIPT_JSON;
 
     project.scenes = [];
     project.topic = '';
@@ -853,10 +875,6 @@ function buildBasePayload(prompt) {
         ttsProvider: providerForVoice(voice),
         voice,
     };
-    // Blueprint chỉ gửi khi người dùng chủ động chọn; nếu không, phương án tự
-    // quyết blueprint của nó (mỗi archetype đã gắn một blueprint riêng).
-    const blueprintId = blueprintSelect && blueprintSelect.value ? blueprintSelect.value : undefined;
-    if (blueprintId) payload.blueprintId = blueprintId;
     if (customStyleInput && customStyleInput.value.trim()) payload.customStyle = customStyleInput.value.trim();
     return payload;
 }
@@ -1642,8 +1660,8 @@ async function approveAndRender() {
     const prompt = hitl.prompt || currentPrompt();
     const payload = {
         ...buildBasePayload(prompt),
-        // Phương án đã chọn quyết định style + blueprint, kể cả khi Inspector còn
-        // giữ lựa chọn cũ.
+        // Phương án đã chọn quyết định style + blueprint — Inspector không còn
+        // chỗ chọn hai thứ này nên không thể ghi đè.
         style: draft.style || activeStyle,
         blueprintId: draft.blueprintId,
         script: draft.script,
@@ -1667,11 +1685,13 @@ if (primaryBtn) {
         }
         syncHitlWithPrompt();
 
-        // Escape hatch cũ: dán JSON kịch bản tự dựng thì render thẳng, bỏ qua HITL.
-        if (customScriptJson && customScriptJson.value.trim()) {
+        // Escape hatch: JSON tự dựng thì render thẳng, bỏ qua HITL. Box có sẵn
+        // kịch bản mẫu nên chỉ coi là "tự dựng" khi người dùng đã sửa hoặc thay nó.
+        const rawScriptJson = customScriptJson ? customScriptJson.value.trim() : '';
+        if (rawScriptJson && rawScriptJson !== SAMPLE_SCRIPT_JSON.trim()) {
             let script;
             try {
-                script = JSON.parse(customScriptJson.value.trim());
+                script = JSON.parse(rawScriptJson);
             } catch (e) {
                 log('JSON kịch bản tự dựng không hợp lệ.', 'error');
                 return;
@@ -1785,7 +1805,6 @@ if (projName) projName.addEventListener('click', resetProject);
     handleAuthError();
     await checkAuthConfig();
     await checkCurrentUser();
-    await loadCatalog();
     updateSummaryMeta();
     restorePendingPrompt();
     restoreHitl();
