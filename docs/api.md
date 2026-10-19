@@ -360,7 +360,35 @@ conversation state is returned in full.
 
 ### `POST /api/script/draft` 🔒
 
-Generates or regenerates a video script draft (Phase 1) without initiating downstream rendering or allocating render quotas. Backed by the `script-draft` BullMQ queue.
+> **Trạng thái triển khai (MVP 3 phương án).** Endpoint này chạy **đồng bộ** và
+> **không** dùng `script-draft` queue: không có trạng thái job `draft`, không có
+> SSE `draft_ready`. Phần mô tả queue/hai pha bên dưới là thiết kế ban đầu, **chưa**
+> được triển khai — giữ lại để tham chiếu.
+>
+> Hợp đồng đang chạy:
+>
+> | Field | Type | Ghi chú |
+> |---|---|---|
+> | `variantCount` | number | 1–3, mặc định `1` (1 = shape cũ) |
+> | `variantRotation` | number | ≥ 0; mỗi lần bấm "Đổi bộ" tăng 1 |
+> | `answers` | object | `{audience?, purpose?, structure?, cta?}` — thiếu thì server tự suy ra |
+>
+> - `variantCount ≥ 2` → `200 { success, drafts: [{ key, label, hook, style, blueprintId, script, estimated, score, reason }], answers, confidence, recommended }`
+> - `variantCount = 1` → `200 { success, script, estimated }` (tương thích client cũ)
+> - Ba phương án sinh **song song**, dedupe theo palette + số cảnh; nếu còn dưới 2
+>   phương án khác nhau thì trả `502`.
+> - Tiêu thụ RPM theo số lượt gọi LLM thật (`variantCount` + 1 lần phân loại nếu
+>   client chưa gửi `answers`).
+>
+> Endpoint liên quan:
+> - `POST /api/script/clarify` → `{ success, source, answers, confidence, questions: [{ id, label, options, selected, confidence, visible }] }`. Câu nào `confidence ≥ 0.8` thì `visible = false` để UI thu gọn.
+> - `GET /api/script/clarify/questions` → danh sách 3 câu hỏi tĩnh (4 phương án mỗi câu).
+> - `POST /api/pipeline` với `mode: "auto"` (hoặc `autoDirect: true`) → worker tự trả lời, tự sinh 3 phương án, chấm điểm rồi chọn và render; không qua bước duyệt.
+>
+> `POST /api/pipeline` cũng đã validate `body.script` tại route (`videoScriptSchema`
+> + trần 150% `targetDurationSec`) và trả `400` thay vì để job `failed`.
+
+Generates a video script draft for human review before rendering. Backed by the `script-draft` BullMQ queue in the original design (not implemented — see the note above).
 
 This endpoint supports two modes:
 
