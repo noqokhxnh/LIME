@@ -13,6 +13,8 @@ import {
 import { allocateBeats } from "../templates/storySpine.js";
 import { sleep } from "./retry.js";
 
+import type { ScriptVariantSpec } from "./scriptVariants.js";
+
 import { readFileSync } from "node:fs";
 import { join, dirname } from "node:path";
 import { fileURLToPath } from "node:url";
@@ -158,13 +160,27 @@ export function stripMarkdownJson(responseText: string): string {
 export async function generateScript(
     request: videoRequest,
     onProgress?: (msg: string) => void,
-    qaFeedback?: string
+    qaFeedback?: string,
+    variant?: ScriptVariantSpec,
+    directives?: string
 ): Promise<videoScript> {
     const llm = getLLMClient();
     const systemPrompt = readFileSync(SYSTEM_prompt_PATH, 'utf-8');
 
-    const preset = VIDEO_PRESETS[request.aspectRatio];
-    let basePrompt = buildUserPrompt(request, preset);
+    // Mỗi phương án có style + blueprint riêng. Ép ở đây thay vì để LLM tự chọn
+    // để ba phương án không hội tụ về cùng một phong cách.
+    const effectiveRequest: videoRequest = variant
+        ? { ...request, style: variant.style, blueprintId: variant.blueprintId }
+        : request;
+
+    const preset = VIDEO_PRESETS[effectiveRequest.aspectRatio];
+    let basePrompt = buildUserPrompt(effectiveRequest, preset);
+    if (directives) {
+        basePrompt += `\n\n${directives}\n`;
+    }
+    if (variant) {
+        basePrompt += `\n\n${variant.brief}\n`;
+    }
     if (qaFeedback) {
         basePrompt += `\n\n--- LƯU Ý ĐẶC BIỆT TỪ ORACLE QA (Lần thử trước bị từ chối, hãy sửa triệt để các lỗi sau) ---\n${qaFeedback}\n`;
     }
