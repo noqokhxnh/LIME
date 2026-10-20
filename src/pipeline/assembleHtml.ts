@@ -56,6 +56,51 @@ export const GSAP_TEXT_PLUGIN_CDN = "https://cdnjs.cloudflare.com/ajax/libs/gsap
 export const GSAP_MOTION_PATH_PLUGIN_CDN = "https://cdnjs.cloudflare.com/ajax/libs/gsap/3.12.5/MotionPathPlugin.min.js";
 
 /**
+ * SVG attribute setter shim (#109): LLM hay viết tween GSAP set TRỰC TIẾP thuộc tính
+ * hình học trên phần tử SVG (line.y2, circle.cx, path.d…) nhưng Chromium expose
+ * chỉ-getter ⇒ `Cannot set property y2 of SVGLineElement which has only a getter`
+ * làm CRASH cả timeline render (job "đại hồng thủy" 524ed0e1). Shim biến setter thành
+ * setAttribute — animation chạy đúng thay vì phá vỡ toàn bộ video. Phải chạy TRƯỚC
+ * mọi jsCode của scene (đặt ngay sau phần đăng ký plugin GSAP).
+ */
+export const SVG_ATTR_SHIM_JS = `
+;(function svgAttrShim() {
+    var targets = {
+        SVGLineElement:    ['x1','y1','x2','y2'],
+        SVGRectElement:    ['x','y','width','height','rx','ry'],
+        SVGCircleElement:  ['cx','cy','r'],
+        SVGEllipseElement: ['cx','cy','rx','ry'],
+        SVGPolylineElement:['points'],
+        SVGPolygonElement: ['points'],
+        SVGPathElement:    ['d'],
+        SVGRadialGradientElement: ['cx','cy','r','fx','fy'],
+        SVGLinearGradientElement: ['x1','y1','x2','y2'],
+    };
+    var proto, attrs, i, desc;
+    function shimAttr(proto, attr) {
+        try {
+            desc = Object.getOwnPropertyDescriptor(proto, attr);
+            if (desc && desc.set) return; // đã có setter (SVG2 reflection đầy đủ) thì thôi
+            Object.defineProperty(proto, attr, {
+                get: (desc && desc.get)
+                    ? desc.get
+                    : function () { return this.getAttribute(attr); },
+                set: function (v) { this.setAttribute(attr, v == null ? '' : String(v)); },
+                configurable: true,
+            });
+        } catch (e) { /* tuyệt đối không để shim làm hỏng render */ }
+    }
+    for (var name in targets) {
+        if (!Object.prototype.hasOwnProperty.call(targets, name)) continue;
+        proto = window[name] && window[name].prototype;
+        if (!proto) continue;
+        attrs = targets[name];
+        for (i = 0; i < attrs.length; i++) shimAttr(proto, attrs[i]); // shimAttr nhận attr theo giá trị — không dính closure loop
+    }
+})();
+`;
+
+/**
  * Stickman va FX helpers ho tro ve nhan vat va hieu ung comic
  */
 export const STICKMAN_HELPERS_JS = `
@@ -393,6 +438,9 @@ ${safeAreaGuideHtml}
             if (typeof TextPlugin !== 'undefined') gsap.registerPlugin(TextPlugin);
             if (typeof MotionPathPlugin !== 'undefined') gsap.registerPlugin(MotionPathPlugin);
         }
+
+        // SVG attribute setter shim (#109) — phải TRƯỚC mọi jsCode của scene
+        ${SVG_ATTR_SHIM_JS}
 
         // Spec B Deterministic PRNG & Hash Runtime
         ${DETERMINISTIC_RUNTIME_JS}

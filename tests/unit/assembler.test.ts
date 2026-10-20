@@ -262,6 +262,23 @@ describe('Module 6: HTML & GSAP Packaging (src/pipeline/assembleHtml.ts)', () =>
         });
     });
 
+    describe('TC-ASM-008: SVG attribute setter shim (#109)', () => {
+        it('phải nhúng SVG_ATTR_SHIM_JS TRƯỚC phần chạy jsCode của scene (chặn crash getter-only)', async () => {
+            const result = await assembleHTML(mockScript, sampleDurations, 1920, 1080, testTempDir);
+            const content = result.htmlContent;
+
+            assert.ok(content.includes('svgAttrShim()'), 'HTML phải chứa IIFE svgAttrShim');
+            assert.ok(content.includes('SVGRectElement'), 'shim phải xử lý cả rect');
+            assert.ok(content.includes('SVGPathElement'), 'shim phải xử lý cả path d');
+
+            // Trật tự bootstrap: shim (trong phần runtime) phải chạy TRƯỚC khối
+            // "Scene Timeline Executions" nơi jsCode của scene bắt đầu tween SVG.
+            const shimPosition = content.indexOf('svgAttrShim()');
+            const scenesPosition = content.indexOf('// Scene Timeline Executions');
+            assert.ok(shimPosition > -1 && scenesPosition > shimPosition, 'shim nằm trước khối jsCode scene');
+        });
+    });
+
     describe('TC-ASM-007: Xuất file HTML độc lập vào thư mục làm việc (WorkDir)', () => {
         it('phải ghi file index.html vật lý ra đĩa với kích thước lớn hơn 0 bytes', async () => {
             const progressLogs: string[] = [];
