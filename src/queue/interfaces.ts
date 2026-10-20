@@ -96,7 +96,12 @@ export interface JobRecord {
     /** ID người dùng sở hữu job (nếu đã đăng nhập). */
     userId?: string;
     status: 'queued' | 'running' | 'completed' | 'failed' | 'qa_failed' | 'cancelled';
-    request: videoRequest;
+    /**
+     * Request sinh video. TUỲ CHỌN vì các job BullMQ legacy còn nằm lại Redis
+     * (job test cũ / job chỉ chứa {script} lẫn {enableStoryboard,...}) không có
+     * trường này — nếu bắt buộc thì GET /api/jobs liệt kê toàn bộ sẽ 500 oan.
+     */
+    request?: videoRequest;
     /** Kịch bản gắn với job (nếu có) để admin xem/sửa trước khi chạy lại. */
     script?: videoScript;
     createdAt: string;
@@ -107,4 +112,6 @@ export interface JobRecord {
     seed?: number;
     qaStatus?: 'pass' | 'warn' | 'fail' | 'skipped' | 'qa_failed';
     qaReport?: QAReport;
+    /** Tiêu đề rời (chỉ có ở job legacy được tạo từ trang admin cũ). */
+    topic?: string;
 }

@@ -97,6 +97,9 @@ export class MemoryQueue implements IVideoQueue {
 
         this.cancelRequested.delete(jobId);
         data.cancelled = false;
+        // Chỉ chạy lại được khi job có request hợp lệ — job legacy thiếu request
+        // (dữ liệu cũ trong Redis) sẽ ném lỗi ở handler.
+        if (!record.request) return false;
         // Đồng bộ dữ liệu chạy lại với những gì admin đã sửa.
         data.request = record.request;
         data.script = record.script;
@@ -127,7 +130,7 @@ export class MemoryQueue implements IVideoQueue {
         const record = this.store.get(jobId);
         if (!record) return null;
 
-        if (patch.targetDurationSec !== undefined) {
+        if (patch.targetDurationSec !== undefined && record.request) {
             record.request = { ...record.request, targetDurationSec: patch.targetDurationSec };
         }
         if (patch.script !== undefined) {
@@ -138,7 +141,7 @@ export class MemoryQueue implements IVideoQueue {
 
         const data = this.dataStore.get(jobId);
         if (data) {
-            data.request = record.request;
+            if (record.request) data.request = record.request;
             data.script = record.script;
         }
         return record;

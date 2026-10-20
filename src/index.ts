@@ -782,7 +782,7 @@ export async function buildApp(options: { logger?: boolean, queue?: IVideoQueue 
                 status: j.status,
                 createdAt: j.createdAt,
                 updatedAt: j.updatedAt,
-                topic: j.request.prompt,
+                topic: j.request?.prompt ?? j.topic ?? '(job cũ thiếu thông tin yêu cầu)',
                 durationSec: j.result?.durationSec,
                 qaStatus: j.qaStatus ?? j.result?.qaStatus,
                 error: j.error,
