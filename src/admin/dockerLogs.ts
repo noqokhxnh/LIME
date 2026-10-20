@@ -399,24 +399,46 @@ function streamViaCli(
 
 /**
  * Tải toàn bộ log dưới dạng một chuỗi văn bản (dùng cho tải file .txt).
+ *
+ * Luôn resolve (không reject): nếu Docker không truy cập được hoặc container không tồn tại,
+ * nội dung file sẽ chứa dòng chú thích lỗi thay vì trả HTTP 500 — hành vi khớp với
+ * nhánh timeout (resolve placeholder) để endpoint download luôn tải được file text.
  */
 export function getDockerLogsSnapshot(container: AllowedContainer, tail: number = 1000): Promise<string> {
-    return new Promise((resolve, reject) => {
+    return new Promise((resolve) => {
         let output = '';
+        let settled = false;
+
+        const settle = (value: string) => {
+            if (settled) return;
+            settled = true;
+            if (timer) clearTimeout(timer);
+            resolve(value);
+        };
+
+        let timer: NodeJS.Timeout | undefined;
         const handle = streamDockerLogs(
             container,
             { tail, follow: false },
             {
                 onData: (text) => (output += text),
-                onError: (err) => reject(err),
-                onEnd: () => resolve(output),
+                onError: (err) => {
+                    // Giữ phần log đã nhận được (nếu có), kèm chú thích lỗi — thay vì reject làm route trả 500.
+                    handle.abort();
+                    settle(
+                        (output ? output + '\n' : '') +
+                            `(Không thể lấy log docker cho container ${container}: ${err.message})`
+                    );
+                },
+                onEnd: () => settle(output),
             }
         );
 
-        // Timeout an toàn 15 giây
-        setTimeout(() => {
+        // Timeout an toàn 15 giây (unref để không giữ tiến trình test sống thêm 15s)
+        timer = setTimeout(() => {
             handle.abort();
-            resolve(output || `(Không nhận được phản hồi log sau 15 giây)`);
+            settle(output || `(Không nhận được phản hồi log sau 15 giây)`);
         }, 15000);
+        if (typeof timer.unref === 'function') timer.unref();
     });
 }
