@@ -258,6 +258,8 @@ export const videoScriptSchema = z
             text: z.string(),
         }),
         fontFamily: z.string().default('Inter'),
+        /** Trace style preset opuscar đã dùng (AI pick hoặc user chọn) — pipeline đóng dấu sau khi detect */
+        styleSlug: z.string().optional(),
     })
     .superRefine((data, ctx) => {
         const scenes = data.scenes || [];
@@ -391,6 +393,8 @@ export const videoRequestSchema = z.object({
     targetDurationSec: z.coerce.number().min(10).max(300),
     language: z.string().default('vi'),
     style: z.enum(['modern', 'classic', 'stickman', 'minimal']),  // string hoac enum
+    /** Slug style preset opuscar (51 style): user ghim sẵn, nếu không có thì AI tự pick theo brief */
+    styleSlug: z.string().max(80).optional(),
     customStyle: z.string().max(5000).optional(),
     voice: z.string().optional(),
     ttsProvider: z.enum(['edge', 'elevenlabs', 'openai', 'google', 'vieneu']).optional(),

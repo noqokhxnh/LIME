@@ -567,7 +567,8 @@ describe('Workstream WS-C (Spec C): Oracle QA Pipeline & Auto Validation', () =>
 
         class MockFailOnceThenPassLLM implements LLMClient {
             readonly provider = 'mock-retry-llm';
-            public callCount = 0;
+            public pickCalls = 0;
+            public scriptCalls = 0;
             public receivedPrompts: string[] = [];
 
             constructor(
@@ -576,10 +577,16 @@ describe('Workstream WS-C (Spec C): Oracle QA Pipeline & Auto Validation', () =>
             ) {}
 
             async generate(_sys: string, userPrompt: string): Promise<string> {
-                this.callCount++;
+                // Lượt "pick style preset" (issue #105) là lượt gọi RẺ TIỀN riêng, không
+                // phải lượt sinh script — mock trả slug hợp lệ và đếm riêng.
+                if (userPrompt.includes('Style preset menu')) {
+                    this.pickCalls++;
+                    return 'swiss-motion';
+                }
+                this.scriptCalls++;
                 this.receivedPrompts.push(userPrompt);
-                // Lần đầu trả về badScript (uniform cadence), lần 2 trả về goodScript (đạt chuẩn)
-                if (this.callCount === 1) {
+                // Lượt script đầu tiên trả về badScript (uniform cadence), các lượt sau trả về goodScript (đạt chuẩn)
+                if (this.scriptCalls === 1) {
                     return JSON.stringify(this.badScript);
                 }
                 return JSON.stringify(this.goodScript);
@@ -725,14 +732,19 @@ describe('Workstream WS-C (Spec C): Oracle QA Pipeline & Auto Validation', () =>
                 audioAnalyzer: mockAudioAnalyzer,
             });
 
-            // 1. LLM phải được gọi ít nhất 2 lần
-            assert.strictEqual(llm.callCount, 2, 'LLM phải được gọi lại lần 2 sau khi QA fail lần 1');
+            // 1. LLM phải được gọi: 2 lượt pick style (mỗi lần generateScript 1 lượt) + 2 lượt sinh script
+            assert.strictEqual(llm.pickCalls, 2, 'Mỗi lần generateScript phải có đúng 1 lượt pick style preset');
+            assert.strictEqual(
+                llm.scriptCalls,
+                2,
+                'LLM phải được gọi lại lần 2 (reroll) sau khi QA fail lần 1'
+            );
 
-            // 2. Lần gọi thứ 2 phải chứa phản hồi lỗi từ Oracle QA
+            // 2. Lượt sinh script thứ 2 phải chứa phản hồi lỗi từ Oracle QA
             const secondPrompt = llm.receivedPrompts[1];
             assert.ok(
                 secondPrompt.includes('LƯU Ý ĐẶC BIỆT TỪ ORACLE QA'),
-                'Prompt gửi tới LLM lần 2 phải chứa thông tin phản hồi từ Oracle QA'
+                'Prompt gửi tới LLM ở lần reroll phải chứa thông tin phản hồi từ Oracle QA'
             );
 
             // 3. Kết quả cuối cùng đạt qaStatus: 'pass' hoặc 'warn'
@@ -746,9 +758,14 @@ describe('Workstream WS-C (Spec C): Oracle QA Pipeline & Auto Validation', () =>
         it('phải báo cáo qaStatus: fail và vẫn render bản suy giảm (degraded) khi hết số lần thử tối đa', async () => {
             class AlwaysFailLLM implements LLMClient {
                 readonly provider = 'always-fail-llm';
-                public callCount = 0;
-                async generate(): Promise<string> {
-                    this.callCount++;
+                public pickCalls = 0;
+                public scriptCalls = 0;
+                async generate(_sys: string, userPrompt: string): Promise<string> {
+                    if (userPrompt.includes('Style preset menu')) {
+                        this.pickCalls++;
+                        return 'swiss-motion';
+                    }
+                    this.scriptCalls++;
                     return JSON.stringify(badScript);
                 }
             }
@@ -797,7 +814,9 @@ describe('Workstream WS-C (Spec C): Oracle QA Pipeline & Auto Validation', () =>
                 audioAnalyzer: mockAudioAnalyzer,
             });
 
-            assert.strictEqual(failLLM.callCount, 2);
+            // 1 lượt pick style cho mỗi lần generateScript (x2 lần reroll) + 2 lượt sinh script
+            assert.strictEqual(failLLM.pickCalls, 2);
+            assert.strictEqual(failLLM.scriptCalls, 2);
 
             // 1. Kết luận QA phải trung thực: vẫn là 'fail' sau khi hết lượt thử.
             assert.strictEqual(result.qaStatus, 'fail');

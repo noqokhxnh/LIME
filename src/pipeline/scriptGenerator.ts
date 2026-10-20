@@ -1,5 +1,5 @@
 import { Config } from "@/config";
-import { getLLMClient } from "@/llm/client";
+import { getLLMClient, type LLMClient } from "@/llm/client";
 import { videoRequest, videoScript, videoScriptSchema } from "@/llm/schema";
 import { estimateDuration, wordsPerMinute } from "./estimateDuration";
 import { validateScript } from "./scriptValidator.js";
@@ -11,6 +11,11 @@ import {
     formatStorySpinePrompt,
 } from "../templates/prompt.js";
 import { allocateBeats } from "../templates/storySpine.js";
+import {
+    formatStyleMenuForPrompt,
+    formatStyleSpecForPrompt,
+    isValidStyleSlug,
+} from "../templates/styles/index.js";
 import { sleep } from "./retry.js";
 
 import type { ScriptVariantSpec } from "./scriptVariants.js";
@@ -92,6 +97,9 @@ export function narrationWordBudget(targetDurationSec: number, language?: string
 
 export function buildUserPrompt(request: videoRequest, preset: string): string {
     const styleDetails = formatStylePrompt(request.style, request.customStyle);
+    // Opuscar style layer (issue #105): nếu có styleSlug (user ghim hoặc AI đã pick),
+    // inject nguyên văn STYLE.md tương ứng làm lớp veneer thống trị!
+    const opuscarLayer = request.styleSlug ? formatStyleSpecForPrompt(request.styleSlug) : '';
     const storySpine = formatStorySpinePrompt(request.targetDurationSec);
     const toolkit = formatBlocksToolkitPrompt(request.style);
     const selected = formatSelectedCatalogPrompt({
@@ -118,7 +126,7 @@ ${request.motionBlockIds?.length ? `Motion Blocks: ${request.motionBlockIds.join
 
 --- STYLE & ART DIRECTION SPECIFICATIONS ---
 ${styleDetails}
-
+${opuscarLayer ? `\n${opuscarLayer}\n` : ''}
 ${storySpine}
 
 ${toolkit}
@@ -157,6 +165,58 @@ export function stripMarkdownJson(responseText: string): string {
     return jsonText.trim();
 }
 
+/**
+ * System prompt cho lượt gọi LLM rẻ tiền (output ~ vài token) nhằm để AI TỰ CHỌN
+ * slug style preset opuscar phù hợp với brief — triết lý giống narrationMode/voice
+ * casting: AI tự quyết dựa trên menu metadata, user vẫn có thể ghim sẵn ở schema.
+ */
+const STYLE_PICK_SYSTEM_PROMPT = [
+    'You are the visual style director of a video generation pipeline.',
+    'Read the video brief and pick the ONE preset from the menu whose look, mood and use-case fit the topic best.',
+    'Reply with ONLY the slug (lowercase, no quotes, no explanation).',
+].join(' ');
+
+/**
+ * Gọi LLM chọn 1 slug style preset cho brief. Trả về null khi LLM không trả lời được
+ * slug hợp lệ — caller phải tiếp tục pipeline WITHOUT style layer, tuyệt đối không throw.
+ */
+export async function pickStyleSlug(
+    brief: string,
+    llm: LLMClient,
+    onProgress?: (msg: string) => void
+): Promise<string | null> {
+    try {
+        const prompt = [
+            `Video brief:`,
+            `"""`,
+            brief,
+            `"""`,
+            ``,
+            `Style preset menu (slug — name (category) — uses):`,
+            formatStyleMenuForPrompt(),
+            ``,
+            `Reply with ONLY the single best-fitting slug.`,
+        ].join('\n');
+
+        const raw = (await llm.generate(STYLE_PICK_SYSTEM_PROMPT, prompt)) || '';
+        const text = raw.toLowerCase();
+        // Lấy mọi token dạng từ/slug khả dĩ rồi đối chiếu với index.json — chịu được
+        // các biến thể trả lời kiểu: `"dark-keynote"`, `slug: dark-keynote.`, câu đầy đủ.
+        const tokens = text.match(/[a-z0-9]+(?:-[a-z0-9]+)*/g) || [];
+        for (const token of tokens) {
+            if (isValidStyleSlug(token)) {
+                onProgress?.(`[Script] AI chọn style preset: ${token}`);
+                return token;
+            }
+        }
+        onProgress?.('[Script] LLM không trả về slug hợp lệ — bỏ qua opuscar style layer.');
+        return null;
+    } catch (err: any) {
+        console.warn(`[Script] Pick styleSlug thất bại (${err.message}) — bỏ qua opuscar style layer.`);
+        return null;
+    }
+}
+
 export async function generateScript(
     request: videoRequest,
     onProgress?: (msg: string) => void,
@@ -167,11 +227,30 @@ export async function generateScript(
     const llm = getLLMClient();
     const systemPrompt = readFileSync(SYSTEM_prompt_PATH, 'utf-8');
 
+    // === Resolve opuscar styleSlug (issue #105) ==================================
+    // Ưu tiên 1: user ghim sẵn request.styleSlug (HITL draft review có thể đổi).
+    // Ưu tiên 2: một lượt gọi LLM RẺ TIỀN tự chọn slug theo brief từ menu metadata.
+    // Slug lỗi/không pick được ⇒ null, pipeline vẫn chạy bình thường mà không có
+    // lớp style, tuyệt đối không throw làm hỏng job.
+    // LƯU Ý: KHÔNG mutate request đầu vào — luôn build effectiveRequest mới để
+    // tránh dính side-effect giữa các lần gọi (QA reroll / variant / test).
+    let resolvedStyleSlug: string | null = null;
+    if (request.styleSlug && isValidStyleSlug(request.styleSlug)) {
+        resolvedStyleSlug = request.styleSlug;
+        onProgress?.(`[Script] Dùng style preset ghim sẵn: ${resolvedStyleSlug}`);
+    } else {
+        onProgress?.('[Script] Đang nhờ AI chọn style preset (opuscar)...');
+        resolvedStyleSlug = await pickStyleSlug(request.prompt, llm, onProgress);
+    }
+    // ==============================================================================
+
     // Mỗi phương án có style + blueprint riêng. Ép ở đây thay vì để LLM tự chọn
     // để ba phương án không hội tụ về cùng một phong cách.
-    const effectiveRequest: videoRequest = variant
-        ? { ...request, style: variant.style, blueprintId: variant.blueprintId }
-        : request;
+    const effectiveRequest: videoRequest = {
+        ...request,
+        ...(variant ? { style: variant.style, blueprintId: variant.blueprintId } : {}),
+        ...(resolvedStyleSlug ? { styleSlug: resolvedStyleSlug } : {}),
+    };
 
     const preset = VIDEO_PRESETS[effectiveRequest.aspectRatio];
     let basePrompt = buildUserPrompt(effectiveRequest, preset);
@@ -225,6 +304,11 @@ export async function generateScript(
                 throw new Error(validation.formattedErrorMessage || validation.errors.join('\n'));
             }
             const script = validation.data;
+
+            // Đóng dấu trace: kịch bản được sinh bằng style preset nào (AI pick hoặc user ghim).
+            if (resolvedStyleSlug && !script.styleSlug) {
+                script.styleSlug = resolvedStyleSlug;
+            }
 
             // Guard ngay trong vòng retry: kịch bản vượt quá 150% target thì coi như
             // attempt thất bại để LLM tự rút gọn narration ở lần thử sau,
