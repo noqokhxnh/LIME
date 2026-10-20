@@ -177,13 +177,51 @@ const STYLE_PICK_SYSTEM_PROMPT = [
 ].join(' ');
 
 /**
+ * Timeout cho từng lượt gọi LLM (ms). Provider 9router có lúc upstream treo hoặc
+ * sinh cực chậm (6KB output đã mất ~31 giây) — nếu không có AbortSignal thì 1 lượt
+ * kẹt giữ UI treo vĩnh viễn ở "Đang viết 3 phương án…". Giorns dư sức cho output
+ * lớn (kịch bản 8-10 scene ~ 100KB output) nhưng vẫn cắt được kết nối chết.
+ */
+export const STYLE_PICK_TIMEOUT_MS = 45_000;
+export const SCRIPT_GENERATE_TIMEOUT_MS = 420_000;
+
+export class LLMTimedOutError extends Error {
+    constructor(ms: number) {
+        super(`LLM call timed out after ${ms}ms`);
+        this.name = 'LLMTimedOutError';
+    }
+}
+
+/**
+ * Bọc lượt gọi LLM với AbortSignal.timeout(ms): fetch thật sẽ tự hủy kết nối
+ * (không giữ socket treo), lỗi TimeoutError/AbortError được quy về LLMTimedOutError
+ * để caller phân biệt với lỗi mạng thường.
+ */
+async function llmGenerateWithTimeout(
+    llm: LLMClient,
+    systemPrompt: string,
+    userPrompt: string,
+    ms: number
+): Promise<string> {
+    try {
+        return await llm.generate(systemPrompt, userPrompt, AbortSignal.timeout(ms));
+    } catch (err: any) {
+        if (err?.name === 'TimeoutError' || err?.name === 'AbortError') {
+            throw new LLMTimedOutError(ms);
+        }
+        throw err;
+    }
+}
+
+/**
  * Gọi LLM chọn 1 slug style preset cho brief. Trả về null khi LLM không trả lời được
  * slug hợp lệ — caller phải tiếp tục pipeline WITHOUT style layer, tuyệt đối không throw.
  */
 export async function pickStyleSlug(
     brief: string,
     llm: LLMClient,
-    onProgress?: (msg: string) => void
+    onProgress?: (msg: string) => void,
+    timeoutMs: number = STYLE_PICK_TIMEOUT_MS
 ): Promise<string | null> {
     try {
         const prompt = [
@@ -198,7 +236,7 @@ export async function pickStyleSlug(
             `Reply with ONLY the single best-fitting slug.`,
         ].join('\n');
 
-        const raw = (await llm.generate(STYLE_PICK_SYSTEM_PROMPT, prompt)) || '';
+        const raw = (await llmGenerateWithTimeout(llm, STYLE_PICK_SYSTEM_PROMPT, prompt, timeoutMs)) || '';
         const text = raw.toLowerCase();
         // Lấy mọi token dạng từ/slug khả dĩ rồi đối chiếu với index.json — chịu được
         // các biến thể trả lời kiểu: `"dark-keynote"`, `slug: dark-keynote.`, câu đầy đủ.
@@ -222,7 +260,8 @@ export async function generateScript(
     onProgress?: (msg: string) => void,
     qaFeedback?: string,
     variant?: ScriptVariantSpec,
-    directives?: string
+    directives?: string,
+    opts?: { scriptTimeoutMs?: number; pickTimeoutMs?: number }
 ): Promise<videoScript> {
     const llm = getLLMClient();
     const systemPrompt = readFileSync(SYSTEM_prompt_PATH, 'utf-8');
@@ -240,7 +279,7 @@ export async function generateScript(
         onProgress?.(`[Script] Dùng style preset ghim sẵn: ${resolvedStyleSlug}`);
     } else {
         onProgress?.('[Script] Đang nhờ AI chọn style preset (opuscar)...');
-        resolvedStyleSlug = await pickStyleSlug(request.prompt, llm, onProgress);
+        resolvedStyleSlug = await pickStyleSlug(request.prompt, llm, onProgress, opts?.pickTimeoutMs);
     }
     // ==============================================================================
 
@@ -273,7 +312,12 @@ export async function generateScript(
                 ? basePrompt
                 : `${basePrompt}\n\nLần trước bị lỗi, hãy sửa lỗi sau:\n${lastError?.message}`;
 
-            const responseText = await llm.generate(systemPrompt, promptToSend);
+            const responseText = await llmGenerateWithTimeout(
+                llm,
+                systemPrompt,
+                promptToSend,
+                opts?.scriptTimeoutMs ?? SCRIPT_GENERATE_TIMEOUT_MS
+            );
 
             const jsonText = stripMarkdownJson(responseText);
 
@@ -339,6 +383,13 @@ export async function generateScript(
             lastError = error;
             console.error(`[Script] Attempt ${attempt} failed:`, error.message);
             onProgress?.(`[Script] Attempt ${attempt} failed: ${error.message}`);
+            // Timeout nhà cung cấp gần như không tự hết trong một lượt retry ngắn
+            // (upstream vẫn đang chậm/treo) — retry 3 lần chỉ kéo màn hình spin thêm
+            // ~20 phút. Ném ngay để caller quyết định (route draft báo lỗi,
+            // orchestrator đánh job failed) thay vì đốt thời gian.
+            if (error?.name === 'LLMTimedOutError') {
+                throw error;
+            }
             if (attempt < 3) {
                 const isTest = process.env.NODE_ENV === "test";
                 const delay = (isTest ? 10 : 500) * Math.pow(2, attempt - 1);

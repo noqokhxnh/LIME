@@ -265,7 +265,10 @@ export async function inferAnswers(prompt: string, signal?: AbortSignal): Promis
     const fallback = heuristicAnswers(prompt);
     try {
         const llm = getLLMClient();
-        const raw = await llm.generate(CLASSIFY_SYSTEM_PROMPT, buildClassifyPrompt(prompt), signal);
+        // Lớp phân loại chỉ output JSON ngắn — caller không truyền signal thì tự
+        // đặt timeout 3 phút để không treo vĩnh viễn khi upstream chậm (lỗi về fallback).
+        const effectiveSignal = signal ?? AbortSignal.timeout(180_000);
+        const raw = await llm.generate(CLASSIFY_SYSTEM_PROMPT, buildClassifyPrompt(prompt), effectiveSignal);
         const parsed = JSON.parse(stripMarkdownJson(raw)) as any;
 
         const answers: ClarifyAnswers = {

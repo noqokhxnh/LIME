@@ -69,6 +69,7 @@ export const FAST: string[] = [
     'tests/unit/templates.test.ts',
     'tests/unit/styles_presets.test.ts',
     'tests/unit/style_preset_wiring.test.ts',
+    'tests/unit/llm_call_timeout.test.ts',
     'tests/unit/uploadGuard.test.ts',
     'tests/unit/vieneuVoice.test.ts',
     'tests/unit/watermarkFilter.test.ts',
