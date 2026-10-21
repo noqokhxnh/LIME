@@ -22,3 +22,5 @@ pyrightconfig.json
 reuseforge/
 videos/
 data/*
+# OpenCode local state
+.opencode/
