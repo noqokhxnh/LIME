@@ -102,6 +102,7 @@ export interface RhythmResult {
     hasNearStill: boolean;
 }
 
+
 /**
  * Kiểm tra các ràng buộc nhịp điệu (rhythm) trên danh sách scenes:
  * 1. Tỉ số shot dài nhất / ngắn nhất >= 4 (max/min >= 4 khi scenes >= 2)

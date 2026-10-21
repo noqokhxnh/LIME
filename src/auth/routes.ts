@@ -18,6 +18,7 @@ function freeCreditsForNewUser(): number {
     return Number.isFinite(value) && value >= 0 ? value : 20;
 }
 
+
 const registerSchema = z.object({
     username: z.string().trim().regex(/^[a-zA-Z0-9_]{3,30}$/),
     email: z.string().trim().email(),

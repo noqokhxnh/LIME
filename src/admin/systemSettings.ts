@@ -154,6 +154,7 @@ export function validateSettingsPatch(partial: any): string | null {
     return null;
 }
 
+
 export const systemSettings = {
     get(): SystemSettings {
         if (cachedSettings) return cachedSettings;

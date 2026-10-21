@@ -5,7 +5,9 @@
  */
 
 import { AdminApi } from './api.js';
+
 import { Toast, ConfirmModal, Drawer, Skeleton, EmptyState, Pagination, AlertBanner } from './components.js';
+
 
 function escapeHtml(str) {
     if (!str) return '';
@@ -53,6 +55,7 @@ const UNMATCHED_STATUS_LABEL = {
 export const FailedPaymentsView = {
     containerEl: null,
     unmatchedFilter: 'pending',
+
     unmatchedPage: 1,
     unmatchedLimit: 25,
     unmatchedSearch: '',
@@ -70,6 +73,7 @@ export const FailedPaymentsView = {
     refundsFrom: '',
     refundsTo: '',
     searchDebounceTimer: null,
+
 
     init(container) {
         this.containerEl = container;
@@ -103,6 +107,7 @@ export const FailedPaymentsView = {
                         </select>
                     </div>
                 </div>
+
                 <div class="filter-row-bottom" style="margin-top: 8px;">
                     <div class="filter-groups">
                         <div class="search-input-wrapper">
@@ -121,6 +126,7 @@ export const FailedPaymentsView = {
                         </div>
                     </div>
                 </div>
+
                 <div class="table-panel">
                     <div class="table-wrapper">
                         <table class="admin-table">
@@ -138,12 +144,15 @@ export const FailedPaymentsView = {
                         </table>
                     </div>
                     <div id="unmatched-empty-container"></div>
+
                     <div id="unmatched-pagination-container"></div>
+
                 </div>
             </div>
 
             <div class="drawer-section" style="margin-bottom: 20px;">
                 <div class="drawer-section-title">Giao dịch trùng lặp (Duplicate)</div>
+
                 <div class="filter-row-bottom" style="margin-top: 8px;">
                     <div class="filter-groups">
                         <div class="search-input-wrapper">
@@ -162,6 +171,7 @@ export const FailedPaymentsView = {
                         </div>
                     </div>
                 </div>
+
                 <div class="table-panel">
                     <div class="table-wrapper">
                         <table class="admin-table">
@@ -180,12 +190,15 @@ export const FailedPaymentsView = {
                         </table>
                     </div>
                     <div id="duplicates-empty-container"></div>
+
                     <div id="duplicates-pagination-container"></div>
+
                 </div>
             </div>
 
             <div class="drawer-section">
                 <div class="drawer-section-title">Lịch sử hoàn tiền</div>
+
                 <div class="filter-row-bottom" style="margin-top: 8px;">
                     <div class="filter-groups">
                         <div class="search-input-wrapper">
@@ -212,6 +225,7 @@ export const FailedPaymentsView = {
                         </div>
                     </div>
                 </div>
+
                 <div class="table-panel">
                     <div class="table-wrapper">
                         <table class="admin-table">
@@ -230,7 +244,9 @@ export const FailedPaymentsView = {
                         </table>
                     </div>
                     <div id="refunds-empty-container"></div>
+
                     <div id="refunds-pagination-container"></div>
+
                 </div>
             </div>
         `;
@@ -245,6 +261,7 @@ export const FailedPaymentsView = {
             filter.value = this.unmatchedFilter;
             filter.onchange = () => {
                 this.unmatchedFilter = filter.value;
+
                 this.unmatchedPage = 1;
                 this.fetchUnmatched();
             };
@@ -371,6 +388,7 @@ export const FailedPaymentsView = {
             if (!Number.isNaN(d.getTime())) range.to = d.toISOString();
         }
         return range;
+
     },
 
     fetchAll() {
@@ -398,6 +416,7 @@ export const FailedPaymentsView = {
     async fetchUnmatched() {
         const tbody = this.containerEl.querySelector('#unmatched-table-body');
         const emptyContainer = this.containerEl.querySelector('#unmatched-empty-container');
+
         const paginationContainer = this.containerEl.querySelector('#unmatched-pagination-container');
         if (!tbody) return;
         emptyContainer.innerHTML = '';
@@ -414,6 +433,7 @@ export const FailedPaymentsView = {
             });
             const items = res.unmatched || [];
             const total = Number(res.total ?? items.length);
+
             tbody.innerHTML = '';
 
             if (items.length === 0) {
@@ -457,6 +477,7 @@ export const FailedPaymentsView = {
                 tbody.appendChild(tr);
             });
 
+
             if (paginationContainer) {
                 Pagination.render({
                     container: paginationContainer,
@@ -480,6 +501,7 @@ export const FailedPaymentsView = {
                 message: err.message
             });
             AlertBanner.bindRetry(tbody, () => this.fetchUnmatched());
+
         }
     },
 
@@ -614,6 +636,7 @@ export const FailedPaymentsView = {
     async fetchDuplicates() {
         const tbody = this.containerEl.querySelector('#duplicates-table-body');
         const emptyContainer = this.containerEl.querySelector('#duplicates-empty-container');
+
         const paginationContainer = this.containerEl.querySelector('#duplicates-pagination-container');
         if (!tbody) return;
         emptyContainer.innerHTML = '';
@@ -629,6 +652,7 @@ export const FailedPaymentsView = {
             });
             const items = res.duplicates || [];
             const total = Number(res.total ?? items.length);
+
             tbody.innerHTML = '';
 
             if (items.length === 0) {
@@ -664,6 +688,7 @@ export const FailedPaymentsView = {
                 tbody.appendChild(tr);
             });
 
+
             if (paginationContainer) {
                 Pagination.render({
                     container: paginationContainer,
@@ -687,6 +712,7 @@ export const FailedPaymentsView = {
                 message: err.message
             });
             AlertBanner.bindRetry(tbody, () => this.fetchDuplicates());
+
         }
     },
 
@@ -696,6 +722,7 @@ export const FailedPaymentsView = {
     async fetchRefunds() {
         const tbody = this.containerEl.querySelector('#refunds-table-body');
         const emptyContainer = this.containerEl.querySelector('#refunds-empty-container');
+
         const paginationContainer = this.containerEl.querySelector('#refunds-pagination-container');
         if (!tbody) return;
         emptyContainer.innerHTML = '';
@@ -712,6 +739,7 @@ export const FailedPaymentsView = {
             });
             const items = res.refunds || [];
             const total = Number(res.total ?? items.length);
+
             tbody.innerHTML = '';
 
             if (items.length === 0) {
@@ -740,6 +768,7 @@ export const FailedPaymentsView = {
                 tbody.appendChild(tr);
             });
 
+
             if (paginationContainer) {
                 Pagination.render({
                     container: paginationContainer,
@@ -763,6 +792,7 @@ export const FailedPaymentsView = {
                 message: err.message
             });
             AlertBanner.bindRetry(tbody, () => this.fetchRefunds());
+
         }
     },
 };

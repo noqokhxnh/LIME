@@ -604,19 +604,7 @@ export class PostgresBillingStorage implements IBillingStorage {
         if (!isUuid(id)) return null;
         const res = await db.query('SELECT * FROM unmatched_payments WHERE id = $1 LIMIT 1', [id]);
         if (res.rows.length === 0) return null;
-        const r = res.rows[0];
-        return {
-            id: r.id,
-            sepay_ref: r.sepay_ref,
-            amount_vnd: r.amount_vnd,
-            content: r.content,
-            raw: r.raw,
-            status: r.status,
-            admin_note: r.admin_note,
-            resolved_by: r.resolved_by,
-            resolved_at: r.resolved_at ? new Date(r.resolved_at).toISOString() : null,
-            created_at: new Date(r.created_at).toISOString(),
-        };
+        return this.mapUnmatched(res.rows[0]);
     }
 
     async findPaymentById(id: string): Promise<Payment | null> {

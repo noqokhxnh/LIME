@@ -279,6 +279,7 @@ describe('Module 6: HTML & GSAP Packaging (src/pipeline/assembleHtml.ts)', () =>
         });
     });
 
+
     describe('TC-ASM-007: Xuất file HTML độc lập vào thư mục làm việc (WorkDir)', () => {
         it('phải ghi file index.html vật lý ra đĩa với kích thước lớn hơn 0 bytes', async () => {
             const progressLogs: string[] = [];

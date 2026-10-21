@@ -42,19 +42,23 @@ export const AdminApi = {
         return this.request('/api/auth/me');
     },
 
+
     async logout() {
         return this.request('/api/auth/logout', { method: 'POST' });
     },
+
 
     // Dashboard Stats
     async getStats() {
         return this.request('/api/admin/stats');
     },
 
+
     // Dashboard Analytics (SaaS metrics: MRR/ARR, ARPU, LTV, churn, conversion, signups, feature usage)
     async getAnalytics(period = '30d') {
         return this.request(`/api/admin/analytics?period=${encodeURIComponent(period)}`);
     },
+
 
     // Users
     async getUsers(params = {}) {
@@ -101,6 +105,7 @@ export const AdminApi = {
         });
     },
 
+
     async resetPassword(userId, newPassword) {
         return this.request(`/api/admin/users/${encodeURIComponent(userId)}/reset-password`, {
             method: 'POST',
@@ -140,6 +145,7 @@ export const AdminApi = {
         };
     },
 
+
     // Video Jobs
     async getJobs(params = {}) {
         const qs = new URLSearchParams(params);
@@ -176,6 +182,7 @@ export const AdminApi = {
     },
 
     // Orders
+
     async getOrders(params = {}) {
         const qs = new URLSearchParams();
         Object.entries(params).forEach(([key, val]) => {
@@ -185,6 +192,7 @@ export const AdminApi = {
         });
         const suffix = qs.toString();
         return this.request(`/api/admin/orders${suffix ? `?${suffix}` : ''}`);
+
     },
 
     async fulfillOrder(orderId) {
@@ -200,6 +208,7 @@ export const AdminApi = {
     },
 
     // Failed Payments & Refunds
+
     async getUnmatched(params = {}) {
         // Cho phép gọi cũ dạng chuỗi trạng thái: getUnmatched('pending').
         const query = typeof params === 'string' ? { status: params } : params;
@@ -218,6 +227,7 @@ export const AdminApi = {
         });
         const suffix = qs.toString();
         return this.request(`/api/admin/payments/duplicates${suffix ? `?${suffix}` : ''}`);
+
     },
 
     async resolveUnmatched(id, data) {
@@ -241,6 +251,7 @@ export const AdminApi = {
         });
     },
 
+
     async getRefunds(params = {}) {
         const qs = new URLSearchParams();
         Object.entries(params).forEach(([key, val]) => {
@@ -248,6 +259,7 @@ export const AdminApi = {
         });
         const suffix = qs.toString();
         return this.request(`/api/admin/refunds${suffix ? `?${suffix}` : ''}`);
+
     },
 
     // System Settings
@@ -270,6 +282,7 @@ export const AdminApi = {
     },
 
     // Audit Logs
+
     async getAuditLogs(params = {}) {
         const qs = new URLSearchParams();
         Object.entries(params).forEach(([key, val]) => {
@@ -279,6 +292,7 @@ export const AdminApi = {
         });
         const suffix = qs.toString();
         return this.request(`/api/admin/audit-logs${suffix ? `?${suffix}` : ''}`);
+
     },
 
     async clearAuditLogs() {
@@ -333,6 +347,7 @@ export const AdminApi = {
         return this.request('/api/admin/maintenance', {
             method: 'DELETE'
         });
+
     },
 
     // System Broadcast Banner (Announcements)
@@ -433,5 +448,6 @@ export const AdminApi = {
             method: 'PATCH',
             body: JSON.stringify(data)
         });
+
     }
 };

@@ -659,6 +659,7 @@ export async function adminRoutes(app: FastifyInstance, opts?: { queue?: IVideoQ
         // Số lượng video job chỉ cần cho các dòng đang hiển thị (queue nằm trong bộ nhớ).
         const queue = getQueue();
         const allJobs = queue ? await queue.getJobs() : [];
+
         const jobCountByUser = new Map<string, number>();
         for (const job of allJobs) {
             const uid = (job as any).userId;

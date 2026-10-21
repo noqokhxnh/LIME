@@ -5,9 +5,11 @@
 
 import { AdminApi } from './api.js';
 import { AdminState } from './state.js';
+
 import { Toast, ActionMenu, HealthDot, EnhanceTable, TableDensity } from './components.js';
 import { UsersView } from './users-view.js';
 import { DashboardView } from './dashboard-view.js';
+
 import { ViewsView } from './views-view.js';
 import { JobsView } from './jobs-view.js';
 import { OrdersView } from './orders-view.js';
@@ -15,6 +17,7 @@ import { FailedPaymentsView } from './failed-payments-view.js';
 import { SettingsView } from './settings-view.js';
 import { LogsView } from './logs-view.js';
 import { MaintenanceView } from './maintenance-view.js';
+
 import { AnnouncementsView } from './announcements-view.js';
 import { TicketsView } from './tickets-view.js';
 import { DockerLogsView } from './docker-logs-view.js';
@@ -36,6 +39,7 @@ const TAB_GROUPS = {
     logs: 'Hệ thống & An toàn',
     'docker-logs': 'Hệ thống & An toàn',
 };
+
 
 export const AdminCore = {
     currentUser: null,
@@ -69,8 +73,10 @@ export const AdminCore = {
         // 2. Bind Sidebar Navigation
         this.bindNavigation();
 
+
         // 2b. Bind shell chrome: mobile nav drawer, sidebar collapse, account menu, API health
         this.bindShell();
+
 
         // 3. Load stats for badge tags
         this.loadSidebarStats();
@@ -84,7 +90,9 @@ export const AdminCore = {
 
         // 5. Initial Tab Load
         const initialParams = AdminState.getParamsFromUrl();
+
         this.switchTab(initialParams.tab || 'dashboard', false);
+
     },
 
     renderUserProfile(user) {
@@ -98,6 +106,7 @@ export const AdminCore = {
         if (avatarEl) {
             avatarEl.textContent = displayName.slice(0, 1).toUpperCase();
         }
+
 
         const topbarAvatar = document.getElementById('topbar-user-avatar');
         if (topbarAvatar) topbarAvatar.textContent = displayName.slice(0, 1).toUpperCase();
@@ -224,6 +233,7 @@ export const AdminCore = {
             console.warn('[Admin] Lỗi đăng xuất:', e);
         }
         window.location.replace('/');
+
     },
 
     async loadSidebarStats() {
@@ -236,7 +246,9 @@ export const AdminCore = {
                 const maintTag = document.getElementById('nav-tag-maintenance');
                 const jobsTag = document.getElementById('nav-tag-jobs');
                 const ordersTag = document.getElementById('nav-tag-orders');
+
                 const annTag = document.getElementById('nav-tag-announcements');
+
 
                 if (usersTag && s.totalUsers !== undefined) usersTag.textContent = s.totalUsers;
                 if (viewsTag && s.views?.total !== undefined) viewsTag.textContent = s.views.total;
@@ -254,6 +266,7 @@ export const AdminCore = {
                     }
                 }
 
+
                 if (annTag) {
                     try {
                         const ann = await AdminApi.getAnnouncements({ limit: 1 });
@@ -262,6 +275,7 @@ export const AdminCore = {
                         annTag.textContent = '-';
                     }
                 }
+
             }
         } catch (e) {
             console.warn('[Admin] Lỗi lấy số liệu sidebar:', e);
@@ -280,19 +294,24 @@ export const AdminCore = {
     },
 
     switchTab(tabName, updateState = true) {
+
         const previousTab = this.activeTab;
+
         this.activeTab = tabName;
         const navItems = document.querySelectorAll('.nav-item[data-tab]');
         navItems.forEach((item) => {
             item.classList.toggle('active', item.dataset.tab === tabName);
         });
 
+
         // Close the off-canvas nav after a tab is picked.
         if (typeof this.closeMobileNav === 'function') this.closeMobileNav();
+
 
         const titleEl = document.getElementById('topbar-page-title');
         const container = document.getElementById('admin-view-container');
         if (!container) return;
+
 
         if (this.currentView && typeof this.currentView.destroy === 'function') {
             try {
@@ -302,16 +321,19 @@ export const AdminCore = {
             }
         }
 
+
         if (updateState) {
             AdminState.setParams({ tab: tabName });
         }
 
         switch (tabName) {
+
             case 'dashboard':
                 if (titleEl) titleEl.textContent = 'Bảng điều khiển & Phân tích';
                 DashboardView.init(container);
                 this.currentView = DashboardView;
                 break;
+
             case 'users':
                 if (titleEl) titleEl.textContent = 'Quản lý người dùng';
                 UsersView.init(container);
@@ -327,6 +349,7 @@ export const AdminCore = {
                 MaintenanceView.init(container);
                 this.currentView = MaintenanceView;
                 break;
+
             case 'announcements':
                 if (titleEl) titleEl.textContent = 'Thông báo toàn hệ thống (Broadcast Banner)';
                 AnnouncementsView.init(container);
@@ -342,6 +365,7 @@ export const AdminCore = {
                 RefundsView.init(container);
                 this.currentView = RefundsView;
                 break;
+
             case 'jobs':
                 if (titleEl) titleEl.textContent = 'Quản lý Video Jobs';
                 JobsView.init(container);
@@ -367,6 +391,7 @@ export const AdminCore = {
                 LogsView.init(container);
                 this.currentView = LogsView;
                 break;
+
             case 'docker-logs':
                 if (titleEl) titleEl.textContent = 'Docker Logs (Nhật ký Containers)';
                 DockerLogsView.init(container);
@@ -396,6 +421,7 @@ export const AdminCore = {
         const reduceMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
         window.scrollTo({ top: 0, behavior: reduceMotion ? 'auto' : 'smooth' });
         if (titleEl) titleEl.focus({ preventScroll: true });
+
     }
 };
 

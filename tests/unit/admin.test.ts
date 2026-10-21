@@ -306,6 +306,7 @@ describe('Admin, Profile, and Settings Test Suite', () => {
             assert.strictEqual(res.statusCode, 403);
         });
 
+
         it('Super Admin gọi GET /api/admin/users phải trả về danh sách người dùng', async () => {
             const res = await app.inject({
                 method: 'GET',

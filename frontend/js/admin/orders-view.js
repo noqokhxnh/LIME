@@ -1,5 +1,6 @@
 /**
  * Orders Management View
+
  * Quản lý giao dịch nạp credits & đăng ký gói: tìm kiếm, lọc trạng thái,
  * phân trang phía server, duyệt nạp và hủy đơn.
  */
@@ -39,10 +40,12 @@ export const OrdersView = {
         this.filters = { search: '', status: 'all', page: 1, limit: 25 };
         this.renderStructure();
         this.bindEvents();
+
         this.fetchAndRender();
     },
 
     renderStructure() {
+
         const { search, status } = this.filters;
 
         this.containerEl.innerHTML = `
@@ -72,6 +75,7 @@ export const OrdersView = {
                             </select>
                         </div>
                         <span class="filter-label" id="orders-total-label"></span>
+
                     </div>
                     <div class="filter-actions">
                         <button class="btn btn-secondary" id="btn-refresh-orders">Làm mới</button>
@@ -88,7 +92,9 @@ export const OrdersView = {
                                 <th>Khách hàng</th>
                                 <th>Gói cước</th>
                                 <th>Số tiền (VNĐ)</th>
+
                                 <th>Hạn mức</th>
+
                                 <th>Thời gian</th>
                                 <th>Trạng thái</th>
                                 <th style="text-align: center;">Thao tác</th>
@@ -98,6 +104,7 @@ export const OrdersView = {
                     </table>
                 </div>
                 <div id="orders-empty-container"></div>
+
                 <div id="orders-pagination-container"></div>
             </div>
         `;
@@ -138,11 +145,13 @@ export const OrdersView = {
             this.fetchAndRender();
             Toast.info('Đang làm mới danh sách đơn hàng...');
         };
+
     },
 
     async fetchAndRender() {
         const tbody = this.containerEl.querySelector('#orders-table-body');
         const emptyContainer = this.containerEl.querySelector('#orders-empty-container');
+
         const paginationContainer = this.containerEl.querySelector('#orders-pagination-container');
         const totalLabel = this.containerEl.querySelector('#orders-total-label');
 
@@ -183,10 +192,12 @@ export const OrdersView = {
                                 this.fetchAndRender();
                             }
                             : null,
+
                     })
                 );
                 return;
             }
+
 
             this.renderTableRows(tbody, orders);
 
@@ -275,6 +286,7 @@ export const OrdersView = {
         ConfirmModal.show({
             title: 'Duyệt thanh toán đơn hàng',
             message: `Xác nhận duyệt nạp <strong>${escapeHtml(amount)}</strong> cho đơn <strong>${escapeHtml(order.payCode || orderId)}</strong>?<br>Hệ thống sẽ cộng <strong>${escapeHtml(quota)}</strong> cho khách hàng.`,
+
             confirmText: 'Duyệt đơn ngay',
             onConfirm: async () => {
                 try {
@@ -284,6 +296,7 @@ export const OrdersView = {
                 } catch (err) {
                     Toast.error(`Lỗi: ${err.message}`);
                 }
+
             },
         });
     },
@@ -293,6 +306,7 @@ export const OrdersView = {
         ConfirmModal.show({
             title: 'Hủy đơn hàng',
             message: `Xác nhận hủy đơn hàng <strong>${escapeHtml(order.payCode || orderId)}</strong>? Khách hàng sẽ không thể thanh toán đơn này nữa.`,
+
             confirmText: 'Hủy đơn',
             isDanger: true,
             onConfirm: async () => {
@@ -303,6 +317,7 @@ export const OrdersView = {
                 } catch (err) {
                     Toast.error(`Lỗi: ${err.message}`);
                 }
+
             },
         });
     },
@@ -318,6 +333,7 @@ function formatTime(iso) {
 
 function escapeHtml(str) {
     if (str === null || str === undefined) return '';
+
     return String(str)
         .replace(/&/g, '&amp;')
         .replace(/</g, '&lt;')

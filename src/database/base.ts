@@ -81,6 +81,7 @@ CREATE TABLE IF NOT EXISTS audit_logs (
 ALTER TABLE audit_logs ADD COLUMN IF NOT EXISTS actor_id UUID;
 ALTER TABLE audit_logs ADD COLUMN IF NOT EXISTS actor_email VARCHAR(255);
 
+
 CREATE INDEX IF NOT EXISTS idx_audit_logs_created_at ON audit_logs(created_at DESC);
 CREATE INDEX IF NOT EXISTS idx_audit_logs_action ON audit_logs(action);
 `;

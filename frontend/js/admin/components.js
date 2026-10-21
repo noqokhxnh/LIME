@@ -144,6 +144,7 @@ export const EmptyState = {
     /** Markup HTML — dùng khi cần nhúng vào innerHTML (ví dụ một hàng của bảng). */
     markup({ title = 'Không tìm thấy dữ liệu', description = 'Thử thay đổi bộ lọc hoặc từ khóa tìm kiếm.', actionText = 'Đặt lại bộ lọc' } = {}) {
         return `
+
             <div class="empty-state-icon">
                 <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.3-4.3"/></svg>
             </div>
@@ -551,6 +552,7 @@ export const DonutChart = {
                 <ul class="donut-chart-legend">${legend}</ul>
             </div>
         `;
+
     }
 };
 
@@ -627,6 +629,7 @@ export const ActionMenu = {
             const trigger = this.activeTrigger;
             this.close();
             trigger?.focus?.();
+
         });
     },
 
@@ -673,6 +676,7 @@ export const ActionMenu = {
                 const trigger = this.activeTrigger;
                 this.close();
                 trigger?.focus?.();
+
                 if (typeof item.onClick === 'function') {
                     item.onClick();
                 }
@@ -988,6 +992,7 @@ export const HealthDot = {
         this.timer = null;
     }
 };
+
 
 // 10. GEO & ISP FORMATTERS
 const COUNTRY_MAP = {

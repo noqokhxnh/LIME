@@ -122,6 +122,7 @@ export async function revokeUserSessions(userId: string): Promise<number> {
     return removed;
 }
 
+
 export async function getCurrentUser(
     request: FastifyRequest): Promise<AuthUser | null> {
     const token = request.cookies[SESSION_COOKIE];

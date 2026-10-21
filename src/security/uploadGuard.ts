@@ -443,6 +443,7 @@ export function writeFileSyncInTickets(targetPath: string, content: Buffer | str
     writeFileSync(targetPath, content);
 }
 
+
 /**
  * Chuẩn hoá và kiểm tra đường dẫn logo do client cung cấp.
  *

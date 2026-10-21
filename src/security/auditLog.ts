@@ -261,6 +261,7 @@ export const auditLog = {
     async recordAndPersist(entry: Omit<AuditLogEntry, "id" | "timestamp">): Promise<AuditLogEntry> {
         const item = storeLocally(entry);
         await trackWrite(persistToDb(item));
+
         return item;
     },
 

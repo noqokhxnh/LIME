@@ -105,6 +105,7 @@ export interface AdminRefundPage {
     total: number;
 }
 
+
 export type PaymentResult = 'matched' | 'duplicate' | 'underpaid' | 'overpaid' | 'unmatched';
 
 export interface Payment {

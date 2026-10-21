@@ -397,6 +397,7 @@ export function getLLMClientFactory(): (provider: string, config: Config) => LLM
 export function getLLMClient(): LLMClient {
     if (!_client) {
         _client = createLLMClientForProvider(getConfig().LLM_Provider);
+
         console.log(`Using LLM: ${_client.provider}`);
     }
     return _client;

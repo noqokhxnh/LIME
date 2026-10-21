@@ -1,5 +1,6 @@
 /**
  * Audit Logs View
+
  *
  * Nhật ký kiểm toán bảo mật & lịch sử thao tác của Admin.
  * Hỗ trợ tìm kiếm, lọc theo trạng thái/hành động/khoảng thời gian và phân trang.
@@ -36,14 +37,18 @@ export const LogsView = {
     containerEl: null,
     searchDebounceTimer: null,
 
+
     init(container) {
         this.containerEl = container;
         this.renderStructure();
+
         this.bindEvents();
+
         this.fetchAndRender();
     },
 
     renderStructure() {
+
         const state = AdminState.getParamsFromUrl();
 
         this.containerEl.innerHTML = `
@@ -85,6 +90,7 @@ export const LogsView = {
                     </div>
                     <div class="filter-actions">
                         <button class="btn btn-secondary" id="btn-reset-logs">Đặt lại</button>
+
                         <button class="btn btn-secondary" id="btn-refresh-logs">Làm mới</button>
                         <button class="btn btn-danger" id="btn-clear-logs">Xóa nhật ký</button>
                     </div>
@@ -99,16 +105,19 @@ export const LogsView = {
                                 <th>Thời gian</th>
                                 <th>Hành động (Action)</th>
                                 <th>Người thực hiện</th>
+
                                 <th>IP</th>
                                 <th>Đối tượng</th>
                                 <th style="width: 110px;">Trạng thái</th>
                                 <th style="width: 120px;">Chi tiết</th>
+
                             </tr>
                         </thead>
                         <tbody id="logs-table-body"></tbody>
                     </table>
                 </div>
                 <div id="logs-empty-container"></div>
+
                 <div id="logs-pagination-container"></div>
             </div>
         `;
@@ -223,10 +232,12 @@ export const LogsView = {
                             this.bindEvents();
                             this.fetchAndRender();
                         }
+
                     })
                 );
                 return;
             }
+
 
             this.renderTableRows(tbody, logs);
 
@@ -284,6 +295,7 @@ export const LogsView = {
     openLogDrawer(log) {
         const timestamp = log.timestamp || log.createdAt;
         const formattedTime = timestamp ? new Date(timestamp).toLocaleString('vi-VN') : 'N/A';
+
         const rawLog = JSON.stringify(log, null, 2) || '{}';
 
         Drawer.open({
@@ -293,8 +305,10 @@ export const LogsView = {
                 <div class="detail-grid">
                     <div class="detail-item"><span class="detail-label">Thời gian</span><span class="detail-value">${escapeHtml(formattedTime)}</span></div>
                     <div class="detail-item"><span class="detail-label">Trạng thái</span><span class="detail-value">${escapeHtml(log.status || 'success')}</span></div>
+
                     <div class="detail-item"><span class="detail-label">Người thực hiện</span><span class="detail-value">${escapeHtml(actorOf(log))}</span></div>
                     <div class="detail-item"><span class="detail-label">Đối tượng</span><span class="detail-value">${escapeHtml(targetOf(log))}</span></div>
+
                     <div class="detail-item"><span class="detail-label">IP</span><span class="detail-value">${escapeHtml(log.ip || '—')}</span></div>
                     <div class="detail-item"><span class="detail-label">Log ID</span><span class="detail-value">${escapeHtml(log.id || '—')}</span></div>
                 </div>
@@ -330,7 +344,9 @@ export const LogsView = {
 };
 
 function escapeHtml(str) {
+
     if (str === null || str === undefined) return '';
+
     return String(str)
         .replace(/&/g, '&amp;')
         .replace(/</g, '&lt;')

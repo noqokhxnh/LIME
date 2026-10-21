@@ -175,6 +175,7 @@ export class MemoryQueue implements IVideoQueue {
             return;
         }
 
+
         this.activeJobs++;
         this.runJob(data).finally(() => {
             this.activeJobs--;
