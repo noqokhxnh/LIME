@@ -5,6 +5,9 @@ import { getConfig } from '../config.js';
 import { getCurrentUser } from '../auth/session.js';
 import { db } from '../database/index.js';
 import { billingStorage } from './storage.js';
+import { SUPPORTED_BANKS } from './banks.js';
+import { helpdeskStore } from '../helpdesk/store.js';
+
 import { vietQrBillingService } from './vietqrService.js';
 import { getBillingWebhookQueue } from './queue.js';
 import { SEPAY_OFFICIAL_IPS } from './constants.js';
@@ -157,6 +160,65 @@ export async function billingRoutes(app: FastifyInstance): Promise<void> {
         return {
             success: true,
             plans,
+        };
+    });
+
+    // 1b. Danh mục ngân hàng hỗ trợ nhận tiền hoàn (nguồn dữ liệu cho ô chọn ngân hàng).
+    app.get('/api/billing/banks', async () => {
+        return { success: true, banks: SUPPORTED_BANKS };
+    });
+
+    /**
+     * 1c. Lịch sử thanh toán của chính người dùng đang đăng nhập.
+     *
+     * Mỗi đơn kèm trạng thái yêu cầu hoàn tiền hiện có và cờ `refundable`.
+     * Quy tắc nghiệp vụ: **chỉ giao dịch lỗi / chưa được xử lý mới hoàn tiền được**.
+     * Đơn đã thanh toán thành công (`status = 'paid'` — tiền vào và gói đã kích
+     * hoạt) bị đánh dấu không thể hoàn tiền; máy chủ chặn lần nữa khi tạo yêu cầu.
+     */
+    app.get('/api/billing/orders', async (request: FastifyRequest, reply: FastifyReply) => {
+        const user = await getCurrentUser(request);
+        if (!user) {
+            return reply.status(401).send({ error: 'UNAUTHORIZED', message: 'Vui lòng đăng nhập để xem lịch sử thanh toán.' });
+        }
+
+        const query = (request.query as any) || {};
+        const statusFilter = String(query.status || 'all');
+        const ALLOWED = ['all', 'pending', 'claimed', 'paid', 'expired', 'cancelled'];
+        if (!ALLOWED.includes(statusFilter)) {
+            return reply.status(400).send({
+                error: 'INVALID_STATUS',
+                message: `Trạng thái không hợp lệ. Chỉ chấp nhận: ${ALLOWED.join(', ')}.`,
+            });
+        }
+
+        const orders = await billingStorage.listOrders({
+            userId: user.id,
+            status: statusFilter === 'all' ? undefined : statusFilter,
+        });
+        const refundMap = await helpdeskStore.mapRefundRequestsByOrder(user.id);
+        const plans = await billingStorage.getPlans();
+        const planNameById = new Map(plans.map((p) => [p.id, p.name]));
+
+        return {
+            success: true,
+            orders: orders.map((order) => {
+                const refundStatus = refundMap.get(order.id) ?? null;
+                return {
+                    id: order.id,
+                    payCode: order.pay_code,
+                    planId: order.plan_id,
+                    planName: planNameById.get(order.plan_id) ?? null,
+                    amountVnd: order.amount_vnd,
+                    status: order.status,
+                    claimedAt: order.claimed_at ?? null,
+                    paidAt: order.paid_at ?? null,
+                    expiresAt: order.expires_at,
+                    createdAt: order.created_at,
+                    refundStatus,
+                    refundable: order.status !== 'paid' && (!refundStatus || refundStatus === 'rejected'),
+                };
+            }),
         };
     });
 

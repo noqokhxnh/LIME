@@ -59,6 +59,8 @@ body {
 
 /* ---------- sidebar ---------- */
 .admin-sidebar {
+    /* Padding dọc tách thành biến để trừ đúng khỏi chiều cao bên dưới. */
+    --sidebar-pad-y: 20px;
     width: 252px;
     flex: 0 0 252px;
     background: var(--card);
@@ -66,10 +68,51 @@ body {
     display: flex;
     flex-direction: column;
     justify-content: space-between;
-    padding: 20px 14px;
+    padding: var(--sidebar-pad-y) 14px;
     position: sticky;
     top: 0;
-    height: 100vh;
+    /*
+     * Dự án không có reset `box-sizing: border-box` toàn cục, nên phần tử ở đây
+     * vẫn là `content-box`: phải trừ padding dọc khỏi chiều cao khung nhìn, nếu
+     * không sidebar cao hơn màn hình đúng 2 × 20px và khối tài khoản + "Quay lại
+     * Studio" bị đẩy ra ngoài vùng nhìn thấy.
+     * `dvh` theo chiều cao thật của khung nhìn (thanh địa chỉ mobile ẩn/hiện).
+     */
+    height: calc(100vh - (var(--sidebar-pad-y) * 2));
+    height: calc(100dvh - (var(--sidebar-pad-y) * 2));
+    /* Cho phép vùng giữa co lại để footer không bị đẩy ra ngoài màn hình. */
+    min-height: 0;
+}
+
+/*
+ * Vùng giữa (thương hiệu + điều hướng). Trên desktop phần này tự cuộn còn khối
+ * tài khoản ở `.sidebar-footer` luôn nằm trong màn hình — trước đây sidebar không
+ * cuộn được nên khi danh sách dài hơn khung nhìn thì "Quay lại Studio" bị đẩy ra
+ * ngoài và không thể cuộn tới.
+ */
+.sidebar-main {
+    display: flex;
+    flex-direction: column;
+    /* Mặc định không co lại: trên mobile cả sidebar cuộn như một khối. */
+    flex: 0 0 auto;
+    min-height: 0;
+}
+
+@media (min-width: 961px) {
+    .sidebar-main {
+        flex: 1 1 auto;
+        overflow-y: auto;
+        overscroll-behavior: contain;
+        scrollbar-width: thin;
+    }
+
+    /* Thương hiệu dán trên cùng để không bị cuộn mất khi danh sách dài. */
+    .sidebar-brand {
+        position: sticky;
+        top: 0;
+        z-index: 1;
+        background: var(--card);
+    }
 }
 
 .sidebar-brand {
@@ -179,6 +222,8 @@ body {
     gap: 12px;
     padding-top: 14px;
     border-top: 1px solid var(--line);
+    /* Không co lại theo vùng cuộn phía trên. */
+    flex: 0 0 auto;
 }
 
 .admin-user-profile {
@@ -1421,6 +1466,60 @@ body {
     transition: width 0.5s var(--ease);
 }
 
+/* ---------- dashboard: signups trend chart ---------- */
+.dash-trend {
+    display: flex;
+    align-items: flex-end;
+    gap: 4px;
+    height: 180px;
+    padding-top: 8px;
+    overflow-x: auto;
+}
+
+.dash-trend-col {
+    flex: 1 1 0;
+    min-width: 14px;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 4px;
+    height: 100%;
+}
+
+.dash-trend-bar-track {
+    flex: 1;
+    width: 100%;
+    display: flex;
+    align-items: flex-end;
+    justify-content: center;
+}
+
+.dash-trend-bar {
+    width: 70%;
+    max-width: 22px;
+    min-height: 2px;
+    border-radius: 4px;
+    background: linear-gradient(180deg, var(--lime), var(--lime-deep));
+    transition: height 0.4s var(--ease);
+}
+
+.dash-trend-value {
+    font-family: var(--font-mono);
+    font-size: 10.5px;
+    font-weight: 600;
+    color: var(--muted);
+    height: 12px;
+    line-height: 12px;
+}
+
+.dash-trend-label {
+    font-size: 10px;
+    color: var(--muted);
+    white-space: nowrap;
+    height: 12px;
+    line-height: 12px;
+}
+
 /* ---------- action menu ---------- */
 .action-menu-container { position: relative; display: inline-block; }
 
@@ -1559,8 +1658,32 @@ body {
 }
 
 /* ---------- responsive ---------- */
+/* ≤960px: the sidebar becomes an off-canvas drawer (no nav markup duplication). */
 @media (max-width: 960px) {
-    .admin-sidebar { display: none; }
+    .admin-sidebar {
+        position: fixed;
+        top: 0;
+        left: 0;
+        bottom: 0;
+        /*
+         * Không đặt `height` ở đây: `top: 0; bottom: 0` đã cho chiều cao đúng bằng
+         * khung nhìn (padding nằm bên trong), tránh lặp lại lỗi cộng thêm padding.
+         */
+        height: auto;
+        width: min(300px, 84vw);
+        flex: 0 0 auto;
+        z-index: 70;
+        transform: translateX(-102%);
+        transition: transform 0.24s var(--ease);
+        box-shadow: 0 18px 48px rgba(20, 22, 15, 0.2);
+        overflow-y: auto;
+        will-change: transform;
+    }
+
+    .admin-sidebar.is-open { transform: translateX(0); }
+    .sidebar-collapse-btn { display: none; }
+    .topbar-nav-toggle { display: inline-flex; }
+
     .admin-body { padding: 16px; }
     .admin-topbar { padding: 14px 18px; }
 }
@@ -1589,4 +1712,1297 @@ body {
         animation-iteration-count: 1 !important;
         transition-duration: 0.01ms !important;
     }
+}
+
+/* ==========================================================================
+   System Broadcast Banner — form tạo/sửa thông báo trong Drawer
+   ========================================================================== */
+.ann-form { display: flex; flex-direction: column; }
+.ann-form-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 0 14px; }
+.ann-checkbox-row { display: flex; flex-direction: column; gap: 8px; padding-top: 6px; }
+.ann-checkbox {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    font-size: 13px;
+    color: var(--ink);
+    cursor: pointer;
+}
+.ann-checkbox input { width: 15px; height: 15px; accent-color: var(--lime); cursor: pointer; }
+.ann-form textarea.form-input { resize: vertical; min-height: 84px; line-height: 1.5; }
+
+@media (max-width: 640px) {
+    .ann-form-grid { grid-template-columns: 1fr; }
+}
+
+/* ==========================================================================
+   Admin Shell — mobile nav drawer, collapsible sidebar, account menu, health
+   ========================================================================== */
+.admin-nav-backdrop {
+    position: fixed;
+    inset: 0;
+    z-index: 60;
+    background: rgba(20, 22, 15, 0.42);
+    backdrop-filter: blur(2px);
+    opacity: 0;
+    transition: opacity 0.24s var(--ease);
+}
+
+.admin-nav-backdrop.show { opacity: 1; }
+.admin-nav-backdrop[hidden] { display: none; }
+
+.topbar-nav-toggle {
+    flex: 0 0 auto;
+    width: 36px;
+    height: 36px;
+}
+
+.topbar-left {
+    flex-direction: row;
+    align-items: center;
+    gap: 12px;
+}
+
+.topbar-heading {
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+    min-width: 0;
+}
+
+.topbar-title:focus { outline: none; }
+
+.nav-item-icon {
+    flex: 0 0 16px;
+    color: currentColor;
+    opacity: 0.72;
+}
+
+.nav-item.active .nav-item-icon { opacity: 1; }
+
+.topbar-user-btn {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    padding: 2px;
+    border: 1px solid var(--line);
+    border-radius: 50%;
+    background: var(--card);
+    cursor: pointer;
+    transition: border-color 0.18s var(--ease), transform 0.18s var(--ease);
+}
+
+.topbar-user-btn:hover { border-color: var(--lime); transform: translateY(-1px); }
+.topbar-user-btn .user-avatar-sm { width: 30px; height: 30px; flex: 0 0 30px; font-size: 12px; }
+
+.sidebar-collapse-btn { margin-left: auto; flex: 0 0 auto; }
+.admin-sidebar.collapsed .sidebar-collapse-btn svg { transform: rotate(180deg); }
+
+.admin-health-badge { font-size: 11px; white-space: nowrap; }
+.admin-health-badge.badge-danger .badge-dot { animation: admin-health-pulse 1.4s ease-in-out infinite; }
+
+@keyframes admin-health-pulse {
+    50% { opacity: 0.3; }
+}
+
+/* Desktop-only: icon-rail collapse (drawer rules above own the mobile layout). */
+@media (min-width: 961px) {    .admin-nav-backdrop { display: none !important; }
+    .topbar-nav-toggle { display: none; }
+
+    .admin-sidebar.collapsed {
+        width: 76px;
+        flex-basis: 76px;
+        padding-left: 10px;
+        padding-right: 10px;
+    }
+
+    .admin-sidebar.collapsed .brand-text,
+    .admin-sidebar.collapsed .nav-section-label,
+    .admin-sidebar.collapsed .nav-item-content > span,
+    .admin-sidebar.collapsed .nav-item-tag,
+    .admin-sidebar.collapsed .user-meta-sm,
+    .admin-sidebar.collapsed .btn-back-studio span:last-child {
+        display: none;
+    }
+
+    .admin-sidebar.collapsed .sidebar-brand { justify-content: center; padding-left: 0; padding-right: 0; }
+    .admin-sidebar.collapsed .sidebar-collapse-btn { margin-left: 0; }
+
+    .admin-sidebar.collapsed .nav-item { justify-content: center; gap: 0; padding: 10px; }
+    .admin-sidebar.collapsed .nav-item-content { gap: 0; justify-content: center; }
+
+    .admin-sidebar.collapsed .admin-user-profile { justify-content: center; }
+    .admin-sidebar.collapsed .btn-back-studio { padding: 9px 0; }
+}
+
+/* Small phones: tighten the topbar so title + health + account fit one row. */
+@media (max-width: 640px) {
+    .topbar-subtitle { display: none; }
+    .topbar-title { font-size: 17px; }
+    .admin-topbar { gap: 10px; }
+    .topbar-right { gap: 8px; }
+
+    /* Breadcrumb: chỉ giữ nhóm hiện tại, bỏ mục gốc để không bị cắt chữ. */
+    .topbar-breadcrumb .crumb:not(.crumb-current),
+    .topbar-breadcrumb .crumb-sep { display: none; }
+}
+
+/* ==========================================================================
+   Alert banner — lỗi tải dữ liệu kèm nút thử lại (thay dòng chữ đỏ rời rạc)
+   ========================================================================== */
+.alert-banner {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    padding: 12px 14px;
+    border: 1px solid var(--line);
+    border-left: 3px solid var(--danger);
+    border-radius: var(--radius-md);
+    background: var(--card);
+    text-align: left;
+}
+
+.alert-banner-danger { background: var(--danger-soft); border-color: rgba(220, 38, 38, 0.28); border-left-color: var(--danger); }
+.alert-banner-warning { background: var(--warning-soft); border-color: rgba(180, 83, 9, 0.28); border-left-color: var(--warning); }
+
+.alert-banner-icon { flex: 0 0 18px; color: var(--danger); }
+.alert-banner-warning .alert-banner-icon { color: var(--warning); }
+
+.alert-banner-content { display: flex; flex-direction: column; gap: 2px; min-width: 0; flex: 1; }
+.alert-banner-title { font-size: 13px; font-weight: 700; color: var(--ink); }
+.alert-banner-message { font-size: 12.5px; color: var(--danger); word-break: break-word; }
+.alert-banner-warning .alert-banner-message { color: var(--warning); }
+
+.alert-banner-retry { flex: 0 0 auto; white-space: nowrap; }
+
+/* Banner nằm trong ô bảng: bỏ nền vùng chứa để banner nổi rõ. */
+.alert-banner-row > td { padding: 14px; }
+.admin-table tbody tr.alert-banner-row:hover { background: transparent; }
+
+/* ---------- breadcrumb trên topbar ---------- */
+.topbar-breadcrumb {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    font-size: 11.5px;
+    color: var(--muted);
+    min-width: 0;
+}
+
+.topbar-breadcrumb .crumb { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.topbar-breadcrumb .crumb-sep { color: var(--line-strong, var(--line)); }
+.topbar-breadcrumb .crumb-current { color: var(--ink); font-weight: 600; }
+
+@media (max-width: 640px) {
+    .alert-banner { flex-direction: column; align-items: stretch; }
+    .alert-banner-icon { display: none; }
+    .alert-banner-retry { align-self: flex-start; }
+}
+
+/* ===================================
+   17. Helpdesk / Ticketing (Trang Yêu cầu hỗ trợ)
+   =================================== */
+.tk-detail-meta { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; margin-bottom: 14px; }
+.tk-controls-row { display: flex; gap: 8px; flex-wrap: wrap; align-items: center; }
+.tk-controls-row .select-custom { min-width: 150px; }
+
+.tk-thread { display: flex; flex-direction: column; gap: 10px; margin-bottom: 18px; max-height: 320px; overflow-y: auto; padding: 12px; border: 1px solid var(--border); border-radius: 10px; background: #fafafa; }
+.tk-msg { max-width: 88%; }
+.tk-msg--user { margin-left: auto; text-align: right; }
+.tk-msg-meta { font-size: 10.5px; color: #94a3b8; margin-bottom: 3px; }
+.tk-bubble { padding: 9px 12px; border-radius: 12px; font-size: 13px; line-height: 1.5; word-break: break-word; }
+.tk-bubble--user { background: var(--lime, #16a34a); color: #ffffff; border-bottom-right-radius: 4px; text-align: left; }
+.tk-bubble--admin { background: #eff6ff; color: #1e3a8a; border: 1px solid rgba(37, 99, 235, 0.16); border-bottom-left-radius: 4px; }
+.tk-bubble--system { background: #f1f5f9; color: #64748b; border: 1px dashed #cbd5e1; }
+.tk-msg-attachments { display: flex; gap: 6px; flex-wrap: wrap; justify-content: flex-end; margin-top: 6px; }
+
+.tk-reply-box { display: flex; flex-direction: column; gap: 8px; width: 100%; }
+.tk-reply-box textarea.form-input { resize: vertical; min-height: 70px; line-height: 1.5; }
+.tk-reply-actions { display: flex; align-items: center; gap: 10px; }
+.tk-internal-note { display: inline-flex; align-items: center; gap: 6px; font-size: 12px; color: #475569; cursor: pointer; }
+.tk-internal-note input { width: 15px; height: 15px; accent-color: var(--lime); cursor: pointer; }
+
+/* ==========================================================================
+   Bảng dữ liệu — sticky header/cột thao tác, zebra, mật độ, card view mobile
+   ========================================================================== */
+:root {
+    /* Chiều cao topbar (JS cập nhật) — mốc dán của header bảng. */
+    --admin-topbar-h: 77px;
+    --zebra: #FAF9F4;
+}
+
+/* `.table-panel` phải bỏ `overflow: hidden`, nếu không nó trở thành scroll
+   container và header sticky sẽ đứng yên tại chỗ thay vì dán theo trang. */
+.table-panel { overflow: visible; }
+.table-wrapper { border-radius: var(--radius-lg) var(--radius-lg) 0 0; }
+
+/*
+ * `overflow-x: auto` khiến `.table-wrapper` trở thành scroll container ở CẢ hai
+ * trục (trục còn lại từ `visible` tự chuyển thành `auto`). Vì vậy `top` của
+ * header sticky phải là 0 — mốc dán là scrollport của chính wrapper, không phải
+ * topbar. Chiều cao tối đa dùng `--admin-topbar-h` (JS đo) để chừa chỗ cho
+ * topbar + pagination.
+ */
+.admin-table thead th {
+    position: sticky;
+    top: 0;
+    z-index: 3;
+}
+
+@media (min-width: 769px) {
+    .table-wrapper {
+        overflow: auto;
+        max-height: max(320px, calc(100dvh - var(--admin-topbar-h) - 140px));
+    }
+}
+
+.admin-table tbody tr:nth-child(even) { background: var(--zebra); }
+.admin-table tbody tr:hover,
+.admin-table tbody tr:nth-child(even):hover { background: var(--paper); }
+.admin-table tbody tr.row-selected,
+.admin-table tbody tr.row-selected:nth-child(even) { background: var(--soft); }
+
+/* Cột thao tác dán bên phải (khi cuộn ngang). Class do EnhanceTable gắn. */
+.admin-table th.col-actions,
+.admin-table td.col-actions {
+    position: sticky;
+    right: 0;
+    z-index: 2;
+    background: var(--card);
+    box-shadow: inset 1px 0 0 var(--line);
+}
+
+.admin-table thead th.col-actions { background: var(--paper); z-index: 4; }
+.admin-table tbody tr:nth-child(even) td.col-actions { background: var(--zebra); }
+.admin-table tbody tr:hover td.col-actions,
+.admin-table tbody tr:nth-child(even):hover td.col-actions { background: var(--paper); }
+.admin-table tbody tr.row-selected td.col-actions { background: var(--soft); }
+
+/* Hàng đặc biệt (rỗng / báo lỗi) không được dán. */
+.admin-table tr.alert-banner-row > td,
+.admin-table tr.empty-state-row > td { position: static; box-shadow: none; }
+
+/* ---------- mật độ bảng (nút trên topbar) ---------- */
+html[data-density="compact"] .admin-table th,
+html[data-density="compact"] .admin-table td { padding: 7px 12px; }
+html[data-density="compact"] .admin-table { font-size: 12.5px; }
+html[data-density="compact"] .user-avatar-sm { width: 28px; height: 28px; flex-basis: 28px; }
+
+/* ---------- mobile: bảng chuyển thành danh sách card ---------- */
+@media (max-width: 768px) {
+    .admin-table { border-collapse: separate; border-spacing: 0; font-size: 13px; }
+    .admin-table thead { display: none; }
+
+    /* Card không cần cuộn ngang: cho phép nội dung xuống dòng. */
+    .table-wrapper { overflow: visible; border-radius: var(--radius-lg); }
+
+    .admin-table tbody tr {
+        display: block;
+        border: 1px solid var(--line);
+        border-radius: var(--radius-md);
+        background: var(--card);
+        margin-bottom: 10px;
+        padding: 4px 12px;
+    }
+
+    .admin-table tbody tr:nth-child(even),
+    .admin-table tbody tr.row-selected { background: var(--card); }
+
+    .admin-table tbody td {
+        display: flex;
+        flex-wrap: wrap;
+        align-items: center;
+        justify-content: space-between;
+        gap: 4px 14px;
+        padding: 8px 0;
+        border: 0;
+        border-bottom: 1px dashed var(--line);
+        text-align: right;
+        position: static;
+        box-shadow: none;
+        min-width: 0;
+        /* `anywhere` (khác `break-word`) mới thu được min-content của flex item
+           ẩn danh, nhờ đó email/IP dài xuống dòng thay vì tràn khỏi card. */
+        overflow-wrap: anywhere;
+    }
+
+    .admin-table tbody td > * { min-width: 0; max-width: 100%; }
+
+    /* Bỏ nowrap của các thành phần vốn dành cho bảng ngang. */
+    .admin-table tbody td .user-name-line,
+    .admin-table tbody td .user-email-line {
+        white-space: normal;
+        overflow: visible;
+        text-overflow: clip;
+        word-break: break-word;
+    }
+
+    .admin-table tbody td .user-cell { justify-content: flex-end; }
+
+    .admin-table tbody td:last-child { border-bottom: 0; }
+
+    .admin-table tbody td::before {
+        content: attr(data-label);
+        flex: 0 0 auto;
+        font-size: 11px;
+        font-weight: 700;
+        letter-spacing: 0.05em;
+        text-transform: uppercase;
+        color: var(--muted);
+        text-align: left;
+    }
+
+    .admin-table tbody td:not([data-label])::before { content: none; }
+    .admin-table tbody td.col-actions { justify-content: flex-end; }
+
+    /* Hàng rỗng / báo lỗi giữ nguyên khối, không bọc card. */
+    .admin-table tbody tr.alert-banner-row,
+    .admin-table tbody tr.empty-state-row {
+        border: 0;
+        padding: 0;
+        margin: 0;
+        background: transparent;
+    }
+
+    .admin-table tbody tr.alert-banner-row > td,
+    .admin-table tbody tr.empty-state-row > td {
+        display: block;
+        padding: 0;
+        border: 0;
+        text-align: left;
+    }
+}
+
+/* Nút mật độ trên topbar */
+.topbar-density-toggle.is-active {
+    background: var(--soft);
+    border-color: var(--lime);
+    color: var(--lime-ink);
+}
+
+/* Card view mobile: nút thao tác gọn lại */
+@media (max-width: 768px) {
+    .admin-table td.col-actions .action-menu-container { margin: 0; }
+}
+
+/* ---------- dashboard: bố cục xu hướng + cơ cấu gói cước ---------- */
+.dash-split {
+    display: grid;
+    grid-template-columns: minmax(0, 2fr) minmax(0, 1fr);
+    gap: 16px;
+    margin-top: 16px;
+}
+
+@media (max-width: 960px) {
+    .dash-split { grid-template-columns: minmax(0, 1fr); }
+}
+
+/* ---------- dashboard: mức tăng/giảm so với kỳ trước ---------- */
+.metric-delta {
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    align-self: flex-start;
+    padding: 2px 8px;
+    border-radius: var(--radius-full);
+    border: 1px solid var(--line);
+    background: var(--paper);
+    font-family: var(--font-mono);
+    font-size: 11.5px;
+    font-weight: 700;
+    line-height: 1.5;
+    color: var(--muted);
+    cursor: help;
+}
+
+.metric-delta-icon { flex: 0 0 auto; }
+
+/* Tăng là tốt (doanh thu, đăng ký, chuyển đổi) */
+.metric-delta.is-good { color: #4C7A0B; background: var(--success-soft); border-color: rgba(101, 163, 13, 0.35); }
+/* Tăng là xấu (churn rate) */
+.metric-delta.is-bad { color: var(--danger); background: var(--danger-soft); border-color: rgba(220, 38, 38, 0.3); }
+.metric-delta.is-flat,
+.metric-delta.is-new { color: var(--muted); background: var(--soft); }
+
+.metric-delta:empty { display: none; }
+
+/* ---------- dashboard: donut cơ cấu gói cước ---------- */
+.donut-chart {
+    display: flex;
+    align-items: center;
+    gap: 20px;
+    flex-wrap: wrap;
+}
+
+.donut-chart-figure {
+    position: relative;
+    flex: 0 0 auto;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+.donut-segment { transition: opacity 0.18s var(--ease); }
+.donut-segment:hover { opacity: 0.82; }
+
+.donut-chart-center {
+    position: absolute;
+    inset: 0;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 2px;
+    pointer-events: none;
+}
+
+.donut-chart-center-value {
+    font-family: var(--font-display);
+    font-size: 26px;
+    font-weight: 700;
+    line-height: 1;
+    color: var(--ink);
+}
+
+.donut-chart-center-label {
+    font-size: 10.5px;
+    text-transform: uppercase;
+    letter-spacing: 0.06em;
+    color: var(--muted);
+}
+
+.donut-chart-legend {
+    list-style: none;
+    margin: 0;
+    padding: 0;
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    flex: 1 1 170px;
+    min-width: 0;
+}
+
+.donut-legend-item {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    font-size: 12.5px;
+}
+
+.donut-legend-dot { width: 10px; height: 10px; border-radius: 3px; flex: 0 0 auto; }
+
+.donut-legend-name { flex: 1 1 auto; min-width: 0; color: var(--ink); }
+
+.donut-legend-value {
+    font-family: var(--font-mono);
+    font-size: 11.5px;
+    font-weight: 700;
+    color: var(--ink);
+    white-space: nowrap;
+}
+
+.donut-legend-pct { color: var(--muted); font-weight: 500; }
+
+/* ---------- dashboard: số KPI vừa một dòng ----------
+   Lưới 7 thẻ nên mỗi thẻ chỉ rộng ~200px; cỡ 30px làm "57.420.000 ₫" rớt
+   ký hiệu ₫ xuống dòng. Thu nhỏ theo bề rộng màn hình, chỉ áp dụng cho dashboard
+   để không đổi giao diện trang "Lượt truy cập". */
+#dashboard-kpi-grid .views-kpi-value {
+    font-size: clamp(21px, 1.7vw, 30px);
+    letter-spacing: -0.03em;
+    white-space: nowrap;
+}
+
+/* ---------- video jobs: cửa sổ xem video đã hoàn thành ----------
+   Dùng route sẵn có /api/jobs/:jobId/video + /download. Đặt trên drawer chi tiết
+   job (10991) nhưng dưới hộp thoại xác nhận (11990) và toast (12000). */
+.video-preview-backdrop {
+    position: fixed;
+    z-index: 11980;
+    inset: 0;
+    display: grid;
+    place-items: center;
+    padding: 18px;
+    background: rgba(20, 22, 15, 0.55);
+    opacity: 0;
+    transition: opacity 0.18s var(--ease);
+}
+
+.video-preview-backdrop[hidden] { display: none; }
+.video-preview-backdrop.is-open { opacity: 1; }
+
+.video-preview-dialog {
+    /* Dự án không có reset `box-sizing` toàn cục → phải tự đặt để padding/border
+       không cộng thêm ngoài `width: min(920px, 100%)` (nếu không sẽ tràn ngang
+       trên màn hình hẹp ~390px). */
+    box-sizing: border-box;
+    width: min(920px, 100%);
+    max-height: calc(100dvh - 36px);
+    display: flex;
+    flex-direction: column;
+    gap: 14px;
+    padding: 18px;
+    background: var(--card);
+    border: 1px solid var(--line);
+    border-radius: var(--radius-xl);
+    box-shadow: var(--shadow-pop);
+    transform: translateY(6px) scale(0.99);
+    transition: transform 0.18s var(--ease);
+}
+
+.video-preview-backdrop.is-open .video-preview-dialog { transform: none; }
+
+.video-preview-header {
+    display: flex;
+    align-items: flex-start;
+    justify-content: space-between;
+    gap: 12px;
+}
+
+.video-preview-heading { min-width: 0; }
+
+.video-preview-title {
+    margin: 0;
+    font-family: var(--font-display);
+    font-size: 16px;
+    font-weight: 700;
+    color: var(--ink);
+    line-height: 1.35;
+    overflow-wrap: anywhere;
+}
+
+.video-preview-subtitle {
+    margin-top: 3px;
+    font-size: 12px;
+    color: var(--muted);
+    overflow-wrap: anywhere;
+}
+
+.video-preview-stage {
+    position: relative;
+    background: var(--dark);
+    border-radius: var(--radius-md);
+    overflow: hidden;
+    aspect-ratio: 16 / 9;
+    min-height: 0;
+}
+
+.video-preview-player {
+    width: 100%;
+    height: 100%;
+    display: block;
+    background: var(--dark);
+    object-fit: contain;
+}
+
+.video-preview-status {
+    position: absolute;
+    inset: auto 0 0 0;
+    padding: 8px 12px;
+    font-size: 12px;
+    line-height: 1.5;
+    color: #F6F5F0;
+    background: rgba(20, 22, 15, 0.82);
+}
+
+.video-preview-status[hidden] { display: none; }
+
+.video-preview-footer {
+    display: flex;
+    justify-content: flex-end;
+    gap: 8px;
+    flex-wrap: wrap;
+}
+
+.video-preview-footer .btn { text-decoration: none; }
+
+/* Nút hành động trong mục "Kết quả" của drawer chi tiết job. */
+.job-result-actions {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+    margin-top: 10px;
+}
+
+.job-result-actions .btn { text-decoration: none; }
+
+@media (max-width: 640px) {
+    .video-preview-backdrop { padding: 10px; }
+    .video-preview-dialog { padding: 14px; gap: 12px; border-radius: var(--radius-lg); }
+    .video-preview-footer { justify-content: stretch; }
+    .video-preview-footer .btn { flex: 1 1 auto; }
+}
+
+/* ============================================================
+   Docker Logs Real-time Streaming View
+   ============================================================ */
+.docker-logs-view {
+    display: flex;
+    flex-direction: column;
+    gap: 16px;
+    width: 100%;
+}
+
+.docker-logs-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: flex-start;
+    gap: 16px;
+    background: var(--card);
+    border: 1px solid var(--line);
+    border-radius: var(--radius-xl);
+    padding: 18px 24px;
+    box-shadow: var(--shadow-card);
+}
+
+.docker-logs-title-group {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+}
+
+.docker-logs-title {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+}
+
+.docker-logs-title h2 {
+    font-size: 18px;
+    font-weight: 700;
+    color: var(--ink);
+    margin: 0;
+}
+
+.docker-logs-icon {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 32px;
+    height: 32px;
+    border-radius: var(--radius-md);
+    background: var(--soft);
+    color: var(--lime-ink);
+}
+
+.docker-logs-subtitle {
+    font-size: 13px;
+    color: var(--muted);
+    margin: 0;
+}
+
+/* Live Badge */
+.docker-live-badge-wrapper {
+    display: flex;
+    align-items: center;
+    flex-shrink: 0;
+}
+
+.docker-live-badge {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    padding: 6px 14px;
+    border-radius: var(--radius-full);
+    font-size: 12px;
+    font-weight: 600;
+    letter-spacing: 0.02em;
+    border: 1px solid transparent;
+    transition: all 0.2s var(--ease);
+}
+
+.docker-live-badge.status-live {
+    background: rgba(101, 163, 13, 0.12);
+    color: #4d7c0f;
+    border-color: rgba(101, 163, 13, 0.25);
+}
+
+.docker-live-badge.status-live .live-dot {
+    background: #65a30d;
+    box-shadow: 0 0 0 0 rgba(101, 163, 13, 0.7);
+    animation: livePulse 1.8s infinite;
+}
+
+.docker-live-badge.status-connecting {
+    background: rgba(29, 78, 216, 0.10);
+    color: #1d4ed8;
+    border-color: rgba(29, 78, 216, 0.20);
+}
+
+.docker-live-badge.status-connecting .live-dot {
+    background: #2563eb;
+    animation: livePulse 1.2s infinite;
+}
+
+.docker-live-badge.status-paused {
+    background: rgba(180, 83, 9, 0.12);
+    color: #b45309;
+    border-color: rgba(180, 83, 9, 0.25);
+}
+
+.docker-live-badge.status-paused .live-dot {
+    background: #d97706;
+}
+
+.docker-live-badge.status-error,
+.docker-live-badge.status-closed {
+    background: rgba(220, 38, 38, 0.10);
+    color: #dc2626;
+    border-color: rgba(220, 38, 38, 0.20);
+}
+
+.docker-live-badge.status-error .live-dot,
+.docker-live-badge.status-closed .live-dot {
+    background: #dc2626;
+}
+
+.live-dot {
+    width: 8px;
+    height: 8px;
+    border-radius: 50%;
+    flex-shrink: 0;
+}
+
+@keyframes livePulse {
+    0% {
+        transform: scale(0.95);
+        box-shadow: 0 0 0 0 rgba(101, 163, 13, 0.7);
+    }
+    70% {
+        transform: scale(1);
+        box-shadow: 0 0 0 6px rgba(101, 163, 13, 0);
+    }
+    100% {
+        transform: scale(0.95);
+        box-shadow: 0 0 0 0 rgba(101, 163, 13, 0);
+    }
+}
+
+/* Container Tabs */
+.docker-tabs-bar {
+    display: flex;
+    gap: 8px;
+    overflow-x: auto;
+    padding-bottom: 2px;
+}
+
+.docker-tab-btn {
+    display: inline-flex;
+    align-items: center;
+    gap: 10px;
+    padding: 10px 16px;
+    background: var(--card);
+    border: 1px solid var(--line);
+    border-radius: var(--radius-lg);
+    cursor: pointer;
+    transition: all 0.18s var(--ease);
+    text-align: left;
+    white-space: nowrap;
+    user-select: none;
+    box-shadow: 0 1px 3px rgba(20, 22, 15, 0.04);
+}
+
+.docker-tab-btn:hover {
+    background: var(--paper);
+    border-color: #d1cfc7;
+    transform: translateY(-1px);
+}
+
+.docker-tab-btn.active {
+    background: var(--soft);
+    border-color: var(--lime-deep);
+    box-shadow: 0 2px 8px rgba(185, 231, 43, 0.25);
+}
+
+.tab-status-dot {
+    width: 9px;
+    height: 9px;
+    border-radius: 50%;
+    flex-shrink: 0;
+}
+
+.tab-status-dot.dot-running { background: #65a30d; }
+.tab-status-dot.dot-stopped { background: #dc2626; }
+.tab-status-dot.dot-unknown { background: #9ca3af; }
+
+.tab-btn-content {
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+}
+
+.tab-btn-name {
+    font-family: var(--font-mono);
+    font-size: 13px;
+    font-weight: 700;
+    color: var(--ink);
+}
+
+.docker-tab-btn.active .tab-btn-name {
+    color: var(--lime-ink);
+}
+
+.tab-btn-desc {
+    font-size: 11px;
+    color: var(--muted);
+}
+
+/* Toolbar */
+.docker-toolbar {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    flex-wrap: wrap;
+    gap: 12px;
+    background: var(--card);
+    border: 1px solid var(--line);
+    border-radius: var(--radius-lg);
+    padding: 10px 16px;
+}
+
+.docker-toolbar-left,
+.docker-toolbar-right {
+    display: flex;
+    align-items: center;
+    flex-wrap: wrap;
+    gap: 10px;
+}
+
+.docker-search-box {
+    position: relative;
+    display: flex;
+    align-items: center;
+}
+
+.docker-search-box svg {
+    position: absolute;
+    left: 10px;
+    color: var(--muted);
+    pointer-events: none;
+}
+
+.docker-search-box input {
+    height: 34px;
+    width: 240px;
+    padding: 0 28px 0 32px;
+    background: var(--paper);
+    border: 1px solid var(--line);
+    border-radius: var(--radius-md);
+    font-family: var(--font-body);
+    font-size: 13px;
+    color: var(--ink);
+    outline: none;
+    transition: all 0.15s ease;
+}
+
+.docker-search-box input:focus {
+    border-color: var(--lime-deep);
+    background: #fff;
+    box-shadow: 0 0 0 3px rgba(185, 231, 43, 0.2);
+}
+
+.docker-search-clear-btn {
+    position: absolute;
+    right: 8px;
+    background: none;
+    border: none;
+    cursor: pointer;
+    color: var(--muted);
+    padding: 2px;
+    display: flex;
+    align-items: center;
+}
+
+.docker-search-clear-btn:hover { color: var(--ink); }
+
+.docker-tail-select-wrapper {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    font-size: 12px;
+    color: var(--muted);
+}
+
+.docker-tail-select-wrapper select {
+    height: 34px;
+    padding: 0 10px;
+    font-size: 12px;
+    background: var(--paper);
+    border: 1px solid var(--line);
+    border-radius: var(--radius-md);
+    color: var(--ink);
+}
+
+.docker-toggle-label {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    font-size: 13px;
+    font-weight: 500;
+    color: var(--ink);
+    cursor: pointer;
+    user-select: none;
+}
+
+.docker-toggle-label input[type="checkbox"] {
+    accent-color: var(--lime-deep);
+    width: 15px;
+    height: 15px;
+    cursor: pointer;
+}
+
+/* Terminal Window */
+.docker-terminal-card {
+    background: #0d1117;
+    border: 1px solid #30363d;
+    border-radius: var(--radius-xl);
+    overflow: hidden;
+    box-shadow: 0 8px 32px rgba(0, 0, 0, 0.25);
+    display: flex;
+    flex-direction: column;
+}
+
+.docker-terminal-titlebar {
+    background: #161b22;
+    border-bottom: 1px solid #30363d;
+    padding: 10px 16px;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    user-select: none;
+}
+
+.terminal-dots {
+    display: flex;
+    align-items: center;
+    gap: 7px;
+}
+
+.terminal-dots .dot {
+    width: 11px;
+    height: 11px;
+    border-radius: 50%;
+}
+
+.terminal-dots .dot-red { background: #ff5f56; }
+.terminal-dots .dot-yellow { background: #ffbd2e; }
+.terminal-dots .dot-green { background: #27c93f; }
+
+.terminal-title {
+    font-family: var(--font-mono);
+    font-size: 12px;
+    font-weight: 600;
+    color: #8b949e;
+    letter-spacing: 0.02em;
+}
+
+.terminal-meta {
+    font-family: var(--font-mono);
+    font-size: 11px;
+    color: #6e7681;
+}
+
+.docker-terminal-body {
+    background: #0d1117;
+    color: #c9d1d9;
+    font-family: var(--font-mono);
+    font-size: 12.5px;
+    line-height: 1.6;
+    padding: 14px 16px;
+    height: calc(100vh - 380px);
+    min-height: 480px;
+    overflow-y: auto;
+    overflow-x: auto;
+    scroll-behavior: smooth;
+}
+
+.terminal-content {
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+}
+
+.terminal-row {
+    display: flex;
+    align-items: flex-start;
+    gap: 12px;
+    padding: 2px 4px;
+    border-radius: 4px;
+    transition: background 0.1s ease;
+}
+
+.terminal-row:hover {
+    background: rgba(255, 255, 255, 0.04);
+}
+
+.terminal-row .row-num {
+    font-size: 11px;
+    color: #484f58;
+    min-width: 38px;
+    text-align: right;
+    user-select: none;
+    flex-shrink: 0;
+    padding-top: 1px;
+}
+
+.terminal-row .row-text {
+    flex: 1;
+    white-space: pre-wrap;
+    word-break: break-all;
+}
+
+/* Syntax and Log Highlighting */
+.terminal-row.stream-stderr {
+    background: rgba(248, 113, 113, 0.06);
+}
+
+.terminal-row.log-level-error .row-text {
+    color: #f87171;
+    font-weight: 600;
+}
+
+.terminal-row.log-level-warn .row-text {
+    color: #fbbf24;
+}
+
+.terminal-row.log-level-info .row-text {
+    color: #e6edf3;
+}
+
+.badge-http-method {
+    display: inline-block;
+    padding: 1px 5px;
+    font-size: 10.5px;
+    font-weight: 700;
+    border-radius: 3px;
+    background: rgba(56, 189, 248, 0.15);
+    color: #38bdf8;
+    margin-right: 4px;
+}
+
+.log-time-prefix {
+    color: #6e7681;
+    font-size: 11.5px;
+    margin-right: 6px;
+}
+
+.log-highlight {
+    background: #fef08a;
+    color: #854d0e;
+    font-weight: 700;
+    padding: 0 3px;
+    border-radius: 2px;
+}
+
+.terminal-placeholder {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 10px;
+    padding: 60px 20px;
+    color: #6e7681;
+    font-size: 13px;
+    text-align: center;
+}
+
+.terminal-placeholder code {
+    color: #58a6ff;
+    background: rgba(110, 118, 129, 0.2);
+    padding: 2px 6px;
+    border-radius: 4px;
+}
+
+.spinner-inline {
+    width: 14px;
+    height: 14px;
+    border: 2px solid #30363d;
+    border-top-color: #58a6ff;
+    border-radius: 50%;
+    animation: spin 0.8s linear infinite;
+    display: inline-block;
+}
+
+@keyframes spin {
+    to { transform: rotate(360deg); }
+}
+
+@media (max-width: 960px) {
+    .docker-logs-header {
+        flex-direction: column;
+        align-items: flex-start;
+    }
+    .docker-toolbar {
+        flex-direction: column;
+        align-items: stretch;
+    }
+    .docker-toolbar-left,
+    .docker-toolbar-right {
+        justify-content: space-between;
+        width: 100%;
+    }
+    .docker-search-box {
+        flex: 1;
+    }
+    .docker-search-box input {
+        width: 100%;
+    }
+    .docker-terminal-body {
+        height: 400px;
+        min-height: 350px;
+    }
+}
+
+/* ---------- Yêu cầu hoàn tiền (RefundsView) ---------- */
+.rf-grid {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 12px;
+    margin-bottom: 18px;
+}
+
+.rf-card {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    padding: 14px;
+    border: 1px solid var(--line);
+    border-radius: 12px;
+    background: var(--paper);
+}
+
+.rf-card-title {
+    font-size: 11px;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.08em;
+    color: var(--muted);
+}
+
+.rf-row {
+    display: flex;
+    align-items: baseline;
+    justify-content: space-between;
+    gap: 10px;
+    font-size: 12.5px;
+    color: var(--muted);
+}
+
+.rf-row strong {
+    font-weight: 600;
+    color: var(--ink);
+    text-align: right;
+    word-break: break-word;
+}
+
+.rf-reason {
+    padding: 10px 12px;
+    border: 1px solid var(--line);
+    border-radius: 10px;
+    background: var(--paper);
+    font-size: 13px;
+    line-height: 1.55;
+    color: var(--ink);
+    white-space: pre-wrap;
+}
+
+.rf-shots {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+    margin-top: 10px;
+}
+
+.rf-shot {
+    max-width: 180px;
+    border: 1px solid var(--line);
+    border-radius: 10px;
+    cursor: zoom-in;
+}
+
+.rf-review {
+    margin-top: 12px;
+    font-size: 12px;
+    color: var(--muted);
+}
+
+.rf-review code,
+.rf-mono {
+    font-family: var(--font-mono);
+    font-size: 0.95em;
+}
+
+/* Khối quét mã chuyển tiền hoàn */
+.rf-qr {
+    display: flex;
+    align-items: flex-start;
+    gap: 16px;
+    padding: 14px;
+    border: 1px solid var(--line);
+    border-radius: 12px;
+    background: var(--soft);
+}
+
+.rf-qr-img {
+    flex-shrink: 0;
+    width: 168px;
+    height: 168px;
+    border-radius: 10px;
+    background: #fff;
+    object-fit: contain;
+}
+
+.rf-qr-info {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+    min-width: 0;
+}
+
+.rf-qr-amount {
+    font-family: var(--font-display);
+    font-size: 20px;
+    font-weight: 700;
+    color: var(--lime-ink);
+}
+
+.rf-qr-line {
+    font-size: 12.5px;
+    color: var(--ink);
+    word-break: break-word;
+}
+
+.rf-qr-actions {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+    margin-top: 4px;
+}
+
+.rf-qr-hint {
+    margin: 4px 0 0;
+    font-size: 11.5px;
+    line-height: 1.45;
+    color: var(--muted);
+}
+
+/* Chân drawer xử lý */
+.rf-footer {
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+    width: 100%;
+}
+
+.rf-actions {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    flex-wrap: wrap;
+}
+
+@media (max-width: 640px) {
+    .rf-grid { grid-template-columns: minmax(0, 1fr); }
+    .rf-qr { flex-direction: column; align-items: center; }
+    .rf-qr-info { width: 100%; }
+    .rf-actions .btn { flex: 1 1 auto; }
 }

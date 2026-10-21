@@ -302,7 +302,9 @@ describe('Module 9: Fastify API Server & Health Endpoint (src/index.ts)', () => 
             assert.strictEqual(response.statusCode, 200);
             assert.ok(response.headers['content-type']?.includes('text/html'));
             assert.ok(response.body.includes('prompt-input'));
-            assert.ok(response.body.includes('generate-btn'));
+            // Workspace v2 (redesign 352a742): nút "Sinh video" cũ (generate-btn) đã được
+            // thay bằng luồng wizard + nút export trên topbar.
+            assert.ok(response.body.includes('topbar-export-btn'));
             assert.ok(response.body.includes('log-viewer'));
             assert.ok(response.body.includes('video-player'));
         });

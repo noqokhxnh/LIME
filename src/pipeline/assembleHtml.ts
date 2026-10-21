@@ -1,15 +1,38 @@
 import { existsSync, mkdirSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
-import { videoScript, scene, durationMap } from "../llm/schema.js";
+import { videoScript, scene, durationMap, CharacterActionItem } from "../llm/schema.js";
 import { BLOCK_HELPERS_JS } from "../templates/runtime/blockHelpers.js";
 import { DETERMINISTIC_RUNTIME_JS, hashString32, RNG, getSceneSeed } from "./rng.js";
 import { assertDeterministicScript } from "./compLinter.js";
 import { subsetFontsForHtml } from "./fontSubset.js";
+import { CHARACTER_RUNTIME_JS } from "./character/runtime.js";
+import { KINETIC_TYPOGRAPHY_JS } from "./kineticTypography.js";
+import {
+    KaraokeConfig,
+    buildKaraokeTimeline,
+    renderKaraokeHtml,
+    renderKaraokeCss,
+    renderKaraokeJs,
+    getSafeAreaBounds,
+    isBoxWithinSafeArea,
+    getKaraokeLayerBounds,
+} from "./karaoke.js";
+import { WordTiming } from "./wordTiming.js";
 
-export { BLOCK_HELPERS_JS };
+export {
+    BLOCK_HELPERS_JS,
+    CHARACTER_RUNTIME_JS,
+    getSafeAreaBounds,
+    isBoxWithinSafeArea,
+    getKaraokeLayerBounds,
+};
 
 export interface assembleOptions {
     imageMap?: Record<string, string[]>;
+    wordTimings?: Record<string, WordTiming[]>;
+    karaoke?: boolean | KaraokeConfig;
+    safeArea?: boolean;
+    format?: 'vertical' | 'horizontal';
     customCdn?: {
         gsap?: string;
         textPlugin?: string;
@@ -31,6 +54,51 @@ export const DEFAULT_TRANSPARENT_GIF = "data:image/gif;base64,R0lGODlhAQABAIAAAA
 export const GSAP_CDN = "https://cdnjs.cloudflare.com/ajax/libs/gsap/3.12.5/gsap.min.js";
 export const GSAP_TEXT_PLUGIN_CDN = "https://cdnjs.cloudflare.com/ajax/libs/gsap/3.12.5/TextPlugin.min.js";
 export const GSAP_MOTION_PATH_PLUGIN_CDN = "https://cdnjs.cloudflare.com/ajax/libs/gsap/3.12.5/MotionPathPlugin.min.js";
+
+/**
+ * SVG attribute setter shim (#109): LLM hay viết tween GSAP set TRỰC TIẾP thuộc tính
+ * hình học trên phần tử SVG (line.y2, circle.cx, path.d…) nhưng Chromium expose
+ * chỉ-getter ⇒ `Cannot set property y2 of SVGLineElement which has only a getter`
+ * làm CRASH cả timeline render (job "đại hồng thủy" 524ed0e1). Shim biến setter thành
+ * setAttribute — animation chạy đúng thay vì phá vỡ toàn bộ video. Phải chạy TRƯỚC
+ * mọi jsCode của scene (đặt ngay sau phần đăng ký plugin GSAP).
+ */
+export const SVG_ATTR_SHIM_JS = `
+;(function svgAttrShim() {
+    var targets = {
+        SVGLineElement:    ['x1','y1','x2','y2'],
+        SVGRectElement:    ['x','y','width','height','rx','ry'],
+        SVGCircleElement:  ['cx','cy','r'],
+        SVGEllipseElement: ['cx','cy','rx','ry'],
+        SVGPolylineElement:['points'],
+        SVGPolygonElement: ['points'],
+        SVGPathElement:    ['d'],
+        SVGRadialGradientElement: ['cx','cy','r','fx','fy'],
+        SVGLinearGradientElement: ['x1','y1','x2','y2'],
+    };
+    var proto, attrs, i, desc;
+    function shimAttr(proto, attr) {
+        try {
+            desc = Object.getOwnPropertyDescriptor(proto, attr);
+            if (desc && desc.set) return; // đã có setter (SVG2 reflection đầy đủ) thì thôi
+            Object.defineProperty(proto, attr, {
+                get: (desc && desc.get)
+                    ? desc.get
+                    : function () { return this.getAttribute(attr); },
+                set: function (v) { this.setAttribute(attr, v == null ? '' : String(v)); },
+                configurable: true,
+            });
+        } catch (e) { /* tuyệt đối không để shim làm hỏng render */ }
+    }
+    for (var name in targets) {
+        if (!Object.prototype.hasOwnProperty.call(targets, name)) continue;
+        proto = window[name] && window[name].prototype;
+        if (!proto) continue;
+        attrs = targets[name];
+        for (i = 0; i < attrs.length; i++) shimAttr(proto, attrs[i]); // shimAttr nhận attr theo giá trị — không dính closure loop
+    }
+})();
+`;
 
 /**
  * Stickman va FX helpers ho tro ve nhan vat va hieu ung comic
@@ -160,24 +228,75 @@ export async function assembleHTML(
         : (options?.jobId ? hashString32(options.jobId) : (hashString32(script.id || script.title || "vidtml-seed") >>> 0));
 
     const imageMap = options?.imageMap || {};
-    const processedScenes: { id: string; html: string; css: string; js: string; duration: number }[] = [];
+    const processedScenes: { id: string; html: string; css: string; js: string; duration: number; characterActions?: CharacterActionItem[] }[] = [];
 
     for (const scene of script.scenes) {
         const sceneDur = durations[scene.id] ?? 3.0;
         const images = imageMap[scene.id] || [];
         const processed = processSceneCode(scene, sceneDur, images);
 
+        let sceneHtml = processed.html;
+        const safeId = scene.id.replace(/[^a-zA-Z0-9_]/g, "_");
+        if (scene.characterActions && scene.characterActions.length > 0) {
+            const canvasTag = `<canvas class="character-canvas" id="char_canvas_${safeId}" width="${width}" height="${height}" style="position:absolute;inset:0;width:100%;height:100%;pointer-events:none;z-index:15;"></canvas>`;
+            if (sceneHtml.includes(`id="${scene.id}"`) || sceneHtml.includes(`id='${scene.id}'`)) {
+                sceneHtml = sceneHtml.replace(/(<\/div>\s*)$/, `${canvasTag}\n$1`);
+            } else {
+                sceneHtml += `\n${canvasTag}`;
+            }
+        }
+
         processedScenes.push({
             id: scene.id,
-            html: processed.html,
+            html: sceneHtml,
             css: processed.css,
             js: processed.js,
             duration: sceneDur,
+            characterActions: scene.characterActions,
         });
     }
 
     const allScenesHtml = processedScenes.map((s) => s.html).join("\n\n");
     const allScenesCss = processedScenes.map((s) => s.css).join("\n\n");
+
+    const karaokeEnabled = options?.karaoke !== false;
+    const karaokeConfig = typeof options?.karaoke === "object" ? options.karaoke : { enabled: karaokeEnabled };
+    const karaokeCues = karaokeEnabled ? buildKaraokeTimeline(script, durations, options?.wordTimings) : [];
+    const karaokeHtml = karaokeEnabled ? renderKaraokeHtml(karaokeCues, karaokeConfig) : "";
+    const karaokeCss = karaokeEnabled ? renderKaraokeCss(karaokeConfig) : "";
+    const karaokeJs = karaokeEnabled ? renderKaraokeJs() : "";
+
+    const safeAreaGuideHtml = options?.safeArea
+        ? `\n    <!-- Safe Area Debug Overlay (QA Guide) -->\n    <div id="lime-safe-area-guide" class="lime-safe-area-guide" aria-hidden="true">\n        <div class="safe-area-label">SAFE AREA 80% (10% V / 10% H)</div>\n    </div>`
+        : "";
+
+    const safeAreaGuideCss = options?.safeArea
+        ? `
+/* Safe Area Debug Overlay (QA Guide) */
+.lime-safe-area-guide {
+    position: absolute;
+    top: 10%;
+    left: 10%;
+    width: 80%;
+    height: 80%;
+    border: 2px dashed rgba(255, 69, 58, 0.75);
+    box-sizing: border-box;
+    pointer-events: none;
+    z-index: 99999;
+}
+.lime-safe-area-guide .safe-area-label {
+    position: absolute;
+    top: 6px;
+    left: 8px;
+    font-size: 12px;
+    font-family: monospace;
+    font-weight: 700;
+    color: rgba(255, 69, 58, 0.9);
+    letter-spacing: 0.5px;
+    text-transform: uppercase;
+}
+`
+        : "";
 
     const allScenesJs = processedScenes
         .map(
@@ -185,10 +304,12 @@ export async function assembleHTML(
                 const safeId = s.id.replace(/[^a-zA-Z0-9_]/g, "_");
                 const sceneSeed = getSceneSeed(options?.jobId || String(seed), s.id);
                 const sceneIdLiteral = JSON.stringify(s.id);
+                const characterActionsLiteral = JSON.stringify(s.characterActions || []);
                 return `
 // --- Scene: ${s.id} (Duration: ${s.duration}s, Seed: ${sceneSeed}) ---
 try {
     window.__sceneSeeds[${sceneIdLiteral}] = ${sceneSeed};
+    window.__sceneCharacterActions[${sceneIdLiteral}] = ${characterActionsLiteral};
     let __capturedSceneTl_${safeId} = null;
     const __origTimeline_${safeId} = gsap.timeline;
     gsap.timeline = function(...args) {
@@ -297,11 +418,18 @@ ${s.js}
 
         /* Per-Scene Styles */
         ${allScenesCss}
+
+        /* Karaoke Subtitles Styles */
+        ${karaokeCss}
+
+        ${safeAreaGuideCss}
     </style>
 </head>
 <body>
     <div id="viewport">
 ${allScenesHtml}
+${karaokeHtml}
+${safeAreaGuideHtml}
     </div>
 
     <script>
@@ -310,6 +438,9 @@ ${allScenesHtml}
             if (typeof TextPlugin !== 'undefined') gsap.registerPlugin(TextPlugin);
             if (typeof MotionPathPlugin !== 'undefined') gsap.registerPlugin(MotionPathPlugin);
         }
+
+        // SVG attribute setter shim (#109) — phải TRƯỚC mọi jsCode của scene
+        ${SVG_ATTR_SHIM_JS}
 
         // Spec B Deterministic PRNG & Hash Runtime
         ${DETERMINISTIC_RUNTIME_JS}
@@ -320,7 +451,16 @@ ${allScenesHtml}
         window.__sceneTimelines = {};
         window.__sceneDurations = {};
         window.__sceneSeeds = {};
+        window.__sceneCharacterActions = {};
         window.__totalDuration = 0;
+
+        if (window.__masterTimeline) {
+            window.__masterTimeline.eventCallback('onUpdate', function() {
+                if (typeof window.__renderCharacters === 'function') {
+                    window.__renderCharacters(window.__masterTimeline.time());
+                }
+            });
+        }
 
         // Deterministic Seed & PRNG Contract (Spec B)
         window.__renderSeed = ${seed};
@@ -331,6 +471,14 @@ ${allScenesHtml}
             if (max === undefined) return val * min;
             return min + val * (max - min);
         };
+
+        // Spec D: Comp Motion API contract
+        if (typeof window.__motion === 'undefined') {
+            window.__motion = null;
+        }
+        if (typeof window.__hasShutterBlur === 'undefined') {
+            window.__hasShutterBlur = false;
+        }
 
         window.__registerScene = function(sceneId, tl, duration) {
             if (!tl) return;
@@ -352,10 +500,28 @@ ${allScenesHtml}
             if (window.__masterTimeline) {
                 window.__masterTimeline.seek(timeInSec, false);
             }
+            if (typeof window.__renderCharacters === 'function') {
+                window.__renderCharacters(timeInSec);
+            }
+            if (typeof window.__updateKaraoke === 'function') {
+                window.__updateKaraoke(timeInSec);
+            }
         };
 
         window.__getTotalDuration = function() {
             return window.__totalDuration || window.__masterTimeline.duration();
+        };
+
+        // Spec E: Sound from Timeline Events API Contract
+        window.__timelineEvents = [];
+        window.__events = function() {
+            return window.__timelineEvents;
+        };
+        window.__addEvent = function(evt) {
+            if (!window.__timelineEvents) window.__timelineEvents = [];
+            if (evt && typeof evt.t === 'number' && evt.material) {
+                window.__timelineEvents.push(evt);
+            }
         };
 
         // Cross-fade helper between scenes with customizable blend mode
@@ -424,8 +590,23 @@ ${allScenesHtml}
             .replace(/window\.__registerScene\s*=[^;]+;/g, "/* sanitized __registerScene */")
             .replace(/window\.__masterTimeline\s*=[^;]+;/g, "/* sanitized __masterTimeline */")}
 
+        // Procedural Character Runtime (Spec F)
+        ${CHARACTER_RUNTIME_JS}
+
+        // Kinetic Typography Presets (Issue #31)
+        ${KINETIC_TYPOGRAPHY_JS}
+
         // Scene Timeline Executions
         ${allScenesJs}
+
+        // Karaoke Subtitles Runtime
+        ${karaokeJs}
+        if (typeof window.__renderCharacters === 'function') {
+            window.__renderCharacters(0);
+        }
+        if (typeof window.__updateKaraoke === 'function') {
+            window.__updateKaraoke(0);
+        }
 
         // Page Ready Signal for Headless Browser Renderer
         window.__ready = true;

@@ -5,7 +5,9 @@
 
 import { AdminApi } from './api.js';
 import { AdminState } from './state.js';
-import { Toast, Drawer, ConfirmModal, Pagination, Skeleton, EmptyState } from './components.js';
+
+import { Toast, Drawer, ConfirmModal, Pagination, Skeleton, EmptyState, AlertBanner } from './components.js';
+
 
 export const MaintenanceView = {
     containerEl: null,
@@ -305,7 +307,9 @@ export const MaintenanceView = {
 
         const state = AdminState.getParamsFromUrl();
         const page = parseInt(state.page, 10) || 1;
-        const limit = 25;
+
+        const limit = parseInt(state.limit, 10) || 25;
+
         const search = state.search || '';
 
         try {
@@ -320,7 +324,13 @@ export const MaintenanceView = {
             // Cập nhật lại số liệu thống kê sau khi danh sách được tải/đồng bộ
             this.fetchStats();
         } catch (err) {
-            tbody.innerHTML = `<tr><td colspan="7" class="text-center" style="padding: 30px; color: #ef4444;">${escapeHtml(err.message)}</td></tr>`;
+
+            tbody.innerHTML = AlertBanner.rowHtml(7, {
+                title: 'Không tải được danh sách khách bảo trì',
+                message: err.message
+            });
+            AlertBanner.bindRetry(tbody, () => this.fetchAndRender());
+
         }
     },
 
@@ -329,10 +339,12 @@ export const MaintenanceView = {
         if (!tbody) return;
 
         if (!items || items.length === 0) {
-            tbody.innerHTML = `<tr><td colspan="7">${EmptyState.render({
+
+            tbody.innerHTML = EmptyState.rowHtml(7, {
                 title: 'Không có nhật ký nào',
-                message: 'Chưa có lượt truy cập nào trong thời gian máy chủ tắt hoặc bảo trì.',
-            })}</td></tr>`;
+                description: 'Chưa có lượt truy cập nào trong thời gian máy chủ tắt hoặc bảo trì.',
+            });
+
             return;
         }
 
@@ -385,15 +397,24 @@ export const MaintenanceView = {
         const container = document.getElementById('maint-pagination-container');
         if (!container) return;
 
+        const state = AdminState.getParamsFromUrl();
+
         Pagination.render({
             container,
-            currentPage,
-            totalPages,
-            totalItems,
+            page: currentPage,
+            total: totalItems,
+            limit: parseInt(state.limit, 10) || 25,
+
             onPageChange: (newPage) => {
                 AdminState.setParams({ page: newPage });
                 this.fetchAndRender();
             },
+
+            onLimitChange: (newLimit) => {
+                AdminState.setParams({ limit: newLimit, page: 1 });
+                this.fetchAndRender();
+            },
+
         });
     },
 

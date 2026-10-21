@@ -1,4 +1,6 @@
 import { z } from 'zod';
+import type { WordTiming } from '../pipeline/wordTiming.js';
+export type { WordTiming };
 
 export const mechanismSchema = z.enum([
     'morph',
@@ -32,6 +34,18 @@ export const boundarySchema = z
     );
 export type Boundary = z.infer<typeof boundarySchema>;
 
+export const characterActionItemSchema = z.object({
+    characterId: z.string(),
+    action: z.enum(['enter', 'walk', 'run', 'idle', 'emote', 'exit']),
+    tStart: z.number().min(0),
+    tEnd: z.number().min(0),
+    emote: z.enum(['happy', 'sad', 'surprised', 'angry', 'thinking']).optional(),
+    position: z.object({ x: z.number(), y: z.number() }).optional(),
+    scale: z.number().optional(),
+    direction: z.enum(['left', 'right']).optional(),
+});
+export type CharacterActionItem = z.infer<typeof characterActionItemSchema>;
+
 export const sceneSchema = z.object({
     id: z.string(),
     title: z.string(),
@@ -50,9 +64,31 @@ export const sceneSchema = z.object({
         })
         .optional(),
     subject: z.string().optional(),
+    characterActions: z.array(characterActionItemSchema).optional(),
 });
 
 export type scene = z.infer<typeof sceneSchema>;
+
+// ============================================================================
+// SPEC E: SOUND FROM TIMELINE EVENTS CONTRACT
+// ============================================================================
+
+export const timelineMaterialSchema = z.enum([
+    'air',
+    'wood',
+    'glass',
+    'sub',
+    'bubble',
+]);
+export type TimelineMaterial = z.infer<typeof timelineMaterialSchema>;
+
+export const timelineEventSchema = z.object({
+    t: z.number().min(0, 'Thời điểm t (giây) phải >= 0'),
+    material: timelineMaterialSchema,
+    intensity: z.number().min(0).max(1),
+    pan: z.number().min(-1).max(1).optional(),
+});
+export type TimelineEvent = z.infer<typeof timelineEventSchema>;
 
 export interface RhythmResult {
     valid: boolean;
@@ -65,6 +101,7 @@ export interface RhythmResult {
     cv: number;
     hasNearStill: boolean;
 }
+
 
 /**
  * Kiểm tra các ràng buộc nhịp điệu (rhythm) trên danh sách scenes:
@@ -222,6 +259,8 @@ export const videoScriptSchema = z
             text: z.string(),
         }),
         fontFamily: z.string().default('Inter'),
+        /** Trace style preset opuscar đã dùng (AI pick hoặc user chọn) — pipeline đóng dấu sau khi detect */
+        styleSlug: z.string().optional(),
     })
     .superRefine((data, ctx) => {
         const scenes = data.scenes || [];
@@ -349,10 +388,14 @@ export type WatermarkConfig = z.infer<typeof watermarkConfigSchema>;
 
 export const videoRequestSchema = z.object({
     prompt: z.string().min(10).max(5000),
-    aspectRatio: z.enum(['16:9', '9:16', '1:1', '4:3']),
+    aspectRatio: z.enum(['16:9', '9:16', '1:1', '4:3']).optional().default('16:9'),
+    /** Format khung hình chuẩn: vertical (9:16, 720x1280) hoặc horizontal (16:9, 1920x1080) */
+    format: z.enum(['vertical', 'horizontal']).optional(),
     targetDurationSec: z.coerce.number().min(10).max(300),
     language: z.string().default('vi'),
     style: z.enum(['modern', 'classic', 'stickman', 'minimal']),  // string hoac enum
+    /** Slug style preset opuscar (51 style): user ghim sẵn, nếu không có thì AI tự pick theo brief */
+    styleSlug: z.string().max(80).optional(),
     customStyle: z.string().max(5000).optional(),
     voice: z.string().optional(),
     ttsProvider: z.enum(['edge', 'elevenlabs', 'openai', 'google', 'vieneu']).optional(),
@@ -364,7 +407,16 @@ export const videoRequestSchema = z.object({
     watermark: watermarkConfigSchema.optional(),
     /** Deterministic seed for PRNG and reproducible rendering (Spec B) */
     seed: z.number().int().optional(),
-})
+    /** Hiển thị khung viền Safe Area (80% frame) phục vụ QA */
+    safeArea: z.boolean().optional(),
+    /** Cấu hình phụ đề karaoke highlight */
+    karaoke: z.union([z.boolean(), z.record(z.string(), z.any())]).optional(),
+}).transform((data) => {
+    if (data.format === 'vertical' && (!data.aspectRatio || data.aspectRatio === '16:9')) {
+        return { ...data, aspectRatio: '9:16' as const };
+    }
+    return data;
+});
 export type videoRequest = z.infer<typeof videoRequestSchema>
 
 
@@ -382,7 +434,14 @@ export interface AudioResult {
     audioFiles: Record<string, string>,
     totalDurationSec: number,
     mixAudioPath: string,
-
+    wordTimings?: Record<string, WordTiming[]>,
+    sfxPath?: string,
+    hasSfx?: boolean,
+    loudness?: {
+        integratedLufs: number;
+        truePeakDbtp: number;
+        lra: number;
+    },
 }
 
 export interface renderOptions {

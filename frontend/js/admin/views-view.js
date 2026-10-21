@@ -5,7 +5,7 @@
 
 import { AdminApi } from './api.js';
 import { AdminState } from './state.js';
-import { Toast, Drawer, ConfirmModal, Pagination, Skeleton, EmptyState, formatLocation, formatIsp } from './components.js';
+import { Toast, Drawer, ConfirmModal, Pagination, Skeleton, EmptyState, AlertBanner, formatLocation, formatIsp } from './components.js';
 
 export const ViewsView = {
     containerEl: null,
@@ -498,7 +498,11 @@ export const ViewsView = {
             });
 
         } catch (err) {
-            tbody.innerHTML = `<tr><td colspan="7" style="text-align: center; color: var(--danger); padding: 30px;">Lỗi: ${escapeHtml(err.message)}</td></tr>`;
+            tbody.innerHTML = AlertBanner.rowHtml(7, {
+                title: 'Không tải được lượt truy cập',
+                message: err.message
+            });
+            AlertBanner.bindRetry(tbody, () => this.fetchAndRender());
         }
     },
 

@@ -46,11 +46,28 @@ def synthesize(req: TTSRequest):
         raise HTTPException(status_code=400, detail="Văn bản không được để trống")
 
     engine = get_tts()
-    available_voices = {name for name, _ in getattr(engine, "available_voices", [])}
+    # Nguồn sự thật là list_preset_voices() -> [(label, id), ...]. Trước đây dùng
+    # getattr(engine, "available_voices", []) nhưng Vieneu v3nano KHÔNG có thuộc
+    # tính này, nên set luôn rỗng và mọi request bị ép về giọng mặc định.
+    preset_pairs = engine.list_preset_voices()
+    available_voices = {name for _, name in preset_pairs}
+    ordered_names = [name for _, name in preset_pairs]
+    engine_default = getattr(engine, "_default_voice", None)
+    if engine_default in available_voices:
+        default_voice = engine_default
+    else:
+        default_voice = ordered_names[0] if ordered_names else "Minh Quân"
+
     req_voice = (req.voice or "").strip()
-    voice_to_use = req_voice if req_voice in available_voices else "Minh Quân"
-    if req_voice and req_voice not in available_voices:
-        print(f"[VieNeu-TTS] Cảnh báo: Giọng '{req_voice}' không tồn tại trong danh sách. Tự động chuyển về '{voice_to_use}'.")
+    if req_voice and req_voice in available_voices:
+        voice_to_use = req_voice
+    else:
+        voice_to_use = default_voice
+        if req_voice:
+            print(
+                f"[VieNeu-TTS] Cảnh báo: giọng '{req_voice}' không có trong danh sách "
+                f"{sorted(available_voices)}. Tự động chuyển về '{voice_to_use}'."
+            )
 
     t0 = time.time()
     try:

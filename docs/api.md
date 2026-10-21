@@ -1,8 +1,8 @@
-# VidTML API Reference
+# LIME API Reference
 
 Base URL: `http://localhost:3000` (see `PORT` in [README](../README.md#server--storage))
 
-The API server is a Fastify app in `src/index.ts`. All endpoints are JSON unless noted. The web UI at `/` talks to this same API.
+The API server is a Fastify app in `src/index.ts`. All endpoints are JSON unless noted. The web UI at `/` and `/workspace` talks to this same API.
 
 ## Conventions
 
@@ -23,14 +23,27 @@ The API server is a Fastify app in `src/index.ts`. All endpoints are JSON unless
 | GET | `/api/auth/config` | — | Auth configuration (Google OAuth status) |
 | GET | `/api/auth/google` | — | Start Google OAuth sign-in flow (redirects to Google) |
 | GET | `/api/auth/google/callback` | — | Google OAuth callback handler |
-| GET | `/api/health` | — | Health + DB/Redis diagnostics |
+| GET | `/api/health` | — | Health + runtime diagnostics |
 | GET | `/api/settings` | 🔒 | Provider list + user's current selection |
 | PUT | `/api/settings` | 🔒 | Switch LLM/TTS provider at runtime (scoped to current user) |
+| GET | `/api/announcements` | — | Active system broadcast banners (public, guests included) |
+| POST | `/api/support/tickets` | 🔒 | Create a support ticket (max 5 per user per hour) |
+| GET | `/api/support/tickets` | 🔒 | List the current user's support tickets |
+| GET | `/api/support/tickets/:id` | 🔒 | Ticket thread (owner or admin; internal notes hidden) |
+| POST | `/api/support/tickets/:id/messages` | 🔒 | Reply to own ticket |
+| POST | `/api/support/tickets/:id/close` | 🔒 | Close own ticket |
+| POST | `/api/support/attachments` | 🔒 | Upload a ticket attachment image (PNG/JPEG/SVG/WebP, ≤5MB) |
 | POST | `/api/script/draft` | 🔒 | Generate or regenerate a video script draft (Phase 1) |
 | POST | `/api/generate` | 🔒 | Create a video generation job (direct or from confirmed draft) |
 | POST | `/api/brand-kit/upload` | 🔒 | Upload brand logo (PNG, JPEG, SVG, WebP with XSS/XXE sanitization) |
 | GET | `/api/user/brand-kit` | 🔒 | Get current user's brand kit & watermark settings |
 | PUT | `/api/user/brand-kit` | 🔒 | Save/upsert user's brand kit & watermark settings |
+| GET | `/api/billing/plans` | — | Available subscription plans (`creator`, `pro`, `max`) |
+| POST | `/api/billing/vietqr/order` | 🔒 | Create a VietQR payment order |
+| GET | `/api/billing/vietqr/order/:id` | 🔒 | Get VietQR order status |
+| POST | `/api/billing/vietqr/order/:id/claimed` | 🔒 | Confirm payment transfer ("Tôi đã chuyển khoản") |
+| POST | `/api/billing/vietqr/webhook` | — | SePay payment webhook receiver (and `/api/billing/webhook`) |
+| POST | `/api/billing/admin/simulate-test-webhook` | 🔒 | Simulate SePay webhook for sandbox testing |
 | GET | `/api/jobs` | 🔒 | List recent jobs (scoped to current user) |
 | GET | `/api/jobs/:jobId` | 🔒 | Job status + progress logs + result + script |
 | GET | `/api/jobs/:jobId/events` | 🔒 | Realtime SSE progress stream |
@@ -42,7 +55,7 @@ The API server is a Fastify app in `src/index.ts`. All endpoints are JSON unless
 
 ## Authentication
 
-Session-based auth using HttpOnly cookies. Tokens are 32 random bytes; only the SHA-256 hash is stored in SQLite. The raw token lives in the `vidtml_session` cookie.
+Session-based auth using HttpOnly cookies. Tokens are 32 random bytes; only the SHA-256 hash is stored in PostgreSQL (`sessions` table). The raw token lives in the `vidtml_session` cookie.
 
 - **Session TTL:** 7 days
 - **Cookie flags:** `HttpOnly`, `SameSite=Lax`, `Secure` in production
@@ -94,7 +107,7 @@ Responses:
 
 ### `POST /api/auth/logout`
 
-Clears the session cookie and deletes the session row from SQLite. Works even without a valid session (idempotent).
+Clears the session cookie and deletes the session row from PostgreSQL. Works even without a valid session (idempotent).
 
 - `200` → `{ "ok": true }`
 
@@ -164,38 +177,40 @@ Responses:
 ```json
 {
   "status": "ok",
-  "database": "sqlite_connected",
-  "redis": "connected",
-  "timestamp": "2026-08-21T10:00:00.000Z"
+  "llmProvider": "gemini",
+  "ttsProvider": "edge",
+  "timestamp": "2026-10-14T10:00:00.000Z"
 }
 ```
 
-`redis` is `connected` or `disconnected` — the server still serves the UI and answers status queries without Redis; only queueing/SSE degrade.
+Returns system health status and active default LLM/TTS provider configurations.
 
 ## Settings
 
-Provider selection is stored per user in the SQLite `settings` table (survives restarts) and takes precedence over env vars. API keys always come from `.env` — never sent over the wire.
+Provider selection is stored per user in PostgreSQL (`users.preferences` JSONB / `system_settings`) and takes precedence over env vars. API keys always come from `.env` — never sent over the wire.
 
 ### `GET /api/settings` 🔒
 
 ```json
 {
-  "llm": {
-    "provider": "deepseek",
-    "available": [
-      { "id": "openai", "label": "OpenAI (GPT)", "keyConfigured": true, "model": "gpt-4o" },
-      { "id": "gemini", "label": "Google Gemini", "keyConfigured": false, "model": "gemini-2.5-pro" },
-      { "id": "claude", "label": "Anthropic Claude", "keyConfigured": false, "model": "claude-sonnet-4-20250514" },
-      { "id": "deepseek", "label": "DeepSeek", "keyConfigured": true, "model": "deepseek-chat" }
-    ]
+  "settings": {
+    "llmProvider": "deepseek",
+    "llmModel": "deepseek-chat",
+    "ttsProvider": "vieneu",
+    "ttsVoice": "vi-VN-HoaiMyNeural",
+    "elevenlabsApiKey": "",
+    "maintenanceMode": false,
+    "systemNotice": "",
+    "maxConcurrentJobs": 3,
+    "allowSandboxPayments": true
   },
-  "tts": {
-    "provider": "edge",
-    "available": [
-      { "id": "edge", "label": "Edge TTS (miễn phí)", "keyConfigured": true, "model": null },
-      { "id": "openai", "label": "OpenAI", "keyConfigured": true, "model": null },
-      { "id": "google", "label": "Google", "keyConfigured": false, "model": null },
-      { "id": "elevenlabs", "label": "ElevenLabs", "keyConfigured": false, "model": null }
+  "userPreferences": {},
+  "providers": {
+    "llm": ["deepseek", "gemini", "claude", "openai", "9router"],
+    "tts": ["edge", "vieneu", "openai", "google", "elevenlabs"]
+  }
+}
+```
     ]
   }
 }
@@ -215,11 +230,165 @@ Request body (either or both fields):
 - `400` → `{ "error": "Unknown LLM provider: xyz" }` when the id isn't recognized
 - `401` → not authenticated
 
+## System Broadcast Banner (Announcements)
+
+Banners shown big in the middle of the screen (modal-like overlay with backdrop)
+on every storefront page (index, workspace, profile, settings, legal) for **all
+visitors**, signed in or not. Managed from the Admin
+portal → **Thông báo**. Each announcement has a type (`info` / `feature` /
+`warning` / `maintenance`), an optional schedule (`startsAt` / `endsAt`), a
+priority, an audience (`all` / `users` / `guests`) and a dismissible flag.
+
+### `GET /api/announcements`
+
+Public. Returns only announcements that are currently live (active, inside their
+schedule window and matching the caller's audience). Response:
+
+```json
+{
+  "announcements": [
+    {
+      "id": "uuid",
+      "title": "Bảo trì hệ thống định kỳ",
+      "body": "Hệ thống sẽ bảo trì từ 23:00 đến 00:00.",
+      "kind": "maintenance",
+      "priority": 10,
+      "isActive": true,
+      "startsAt": null,
+      "endsAt": null,
+      "dismissible": false,
+      "linkUrl": "/workspace",
+      "linkLabel": "Xem chi tiết",
+      "audience": "all",
+      "createdAt": "2026-01-01T00:00:00.000Z",
+      "updatedAt": "2026-01-01T00:00:00.000Z"
+    }
+  ],
+  "legacyNotice": "",
+  "maintenanceMode": false,
+  "viewer": "guest"
+}
+```
+
+- `legacyNotice` mirrors the old `systemNotice` setting so existing installs keep working.
+- `maintenanceMode` lets the client render a fallback maintenance banner even without an explicit announcement.
+- Remains reachable while `maintenanceMode` is on (allowlisted), so users still see the maintenance notice.
+- Responses are sent with `Cache-Control: no-store`.
+
+### Admin endpoints 🔒 (super admin only)
+
+| Method | Path | Description |
+|---|---|---|
+| GET | `/api/admin/announcements` | List with filters `status` (`all`/`active`/`scheduled`/`expired`/`draft`), `kind`, `search`, `page`, `limit` + `stats` |
+| POST | `/api/admin/announcements` | Create a banner |
+| PATCH | `/api/admin/announcements/:id` | Update fields (partial) |
+| POST | `/api/admin/announcements/:id/toggle` | Flip `isActive` |
+| DELETE | `/api/admin/announcements/:id` | Delete a banner |
+
+Create/update body: `title` (≤160), `body` (≤2000), `kind`, `priority` (0–1000),
+`isActive`, `dismissible`, `startsAt` / `endsAt` (ISO 8601 or `null`), `linkUrl`
+(http(s) or a leading `/`), `linkLabel` (≤80), `audience`. `endsAt` must be after
+`startsAt`. All admin actions are written to the audit log.
+
+## Support & Ticketing (Helpdesk)
+
+Floating "Hỗ trợ" widget on every storefront page (index, workspace, profile,
+settings, legal). Signed-in users create bug reports / support requests with up
+to 3 screenshot attachments, follow the conversation thread and reply in place.
+Admins manage everything from the Admin portal → **Hỗ trợ**. Data lives in the
+`tickets` + `ticket_messages` tables (JSON fallback `data/tickets.json`), store
+in `src/helpdesk/store.ts`, routes in `src/helpdesk/routes.ts`. Reaches the
+server even while `maintenanceMode` is on (allowlisted) so outages can be
+reported.
+
+Ticket fields: `code` (`LIME-T-XXXXXX`), `subject` (5–200), `category`
+(`bug` / `feature_request` / `billing` / `account` / `render` / `other`),
+`priority` (`low` / `normal` / `high` / `urgent`), `status`
+(`open` / `in_progress` / `waiting_user` / `resolved` / `closed`), `context`
+(the page `url` + browser family sent by the widget).
+
+Automatic status transitions:
+- Admin thread reply (non-internal note) on an `open` ticket → `in_progress`.
+- User reply on a `waiting_user` ticket → back to `open`.
+
+Other rules:
+- Guests get 401; every ticket API is scoped to the owning user (another
+  user's ticket returns 404).
+- Max 5 ticket creations per user per hour (429 afterwards).
+- Internal notes (`isInternal`) are visible only to admins — the user-facing
+  detail APIs filter them out.
+- Closed tickets accept no further replies (409, also for admins until reopened).
+- Attachments must reference `/uploads/tickets/...` URLs returned by the upload
+  endpoint; uploads go through the same security guard as brand logos
+  (magic bytes + SVG sanitize) and are served with a `sandbox` CSP.
+
+### `POST /api/support/attachments` 🔒
+
+Multipart/form-data with the image in field `file` (PNG/JPEG/SVG/WebP, ≤5MB).
+Returns `{ "success": true, "url": "/uploads/tickets/<uuid>.png" }`.
+
+### `POST /api/support/tickets` 🔒
+
+Body: `subject`, `body` (5–5000), `category`, `priority` (optional, default
+`normal`), `attachments` (optional array of `{ url, name }`, ≤3), `context`
+(optional `{ url }`; the widget adds it automatically). Returns the created
+ticket including its first `messages` entry.
+
+### `GET /api/support/tickets` 🔒
+
+`page` / `limit` (default 20). Returns `{ items, total, page, limit, totalPages }`
+sorted by last activity, scoped to the current user.
+
+### `GET /api/support/tickets/:id` 🔒 / `POST /api/support/tickets/:id/messages` 🔒 /
+`POST /api/support/tickets/:id/close` 🔒
+
+Owner (or admin) reads the full thread — internal notes filtered out; replies
+with `body` (1–5000) + `attachments`; closing sets `status: closed`. True
+conversation state is returned in full.
+
+### Admin endpoints 🔒 (super admin only)
+
+| Method | Path | Description |
+|---|---|---|
+| GET | `/api/admin/tickets` | List with filters `status`, `category`, `priority`, `search` (code/subject/email), `page`, `limit` + `stats` counts per status |
+| GET | `/api/admin/tickets/stats` | Counts per status |
+| GET | `/api/admin/tickets/:id` | Full thread incl. internal notes |
+| POST | `/api/admin/tickets/:id/messages` | Reply (`body`, `isInternal?`) — audit-logged |
+| PATCH | `/api/admin/tickets/:id` | Update `status` and/or `priority` — audit-logged |
+
 ## Jobs
 
 ### `POST /api/script/draft` 🔒
 
-Generates or regenerates a video script draft (Phase 1) without initiating downstream rendering or allocating render quotas. Backed by the `script-draft` BullMQ queue.
+> **Trạng thái triển khai (MVP 3 phương án).** Endpoint này chạy **đồng bộ** và
+> **không** dùng `script-draft` queue: không có trạng thái job `draft`, không có
+> SSE `draft_ready`. Phần mô tả queue/hai pha bên dưới là thiết kế ban đầu, **chưa**
+> được triển khai — giữ lại để tham chiếu.
+>
+> Hợp đồng đang chạy:
+>
+> | Field | Type | Ghi chú |
+> |---|---|---|
+> | `variantCount` | number | 1–3, mặc định `1` (1 = shape cũ) |
+> | `variantRotation` | number | ≥ 0; mỗi lần bấm "Đổi bộ" tăng 1 |
+> | `answers` | object | `{audience?, purpose?, structure?, cta?}` — thiếu thì server tự suy ra |
+>
+> - `variantCount ≥ 2` → `200 { success, drafts: [{ key, label, hook, style, blueprintId, script, estimated, score, reason }], answers, confidence, recommended }`
+> - `variantCount = 1` → `200 { success, script, estimated }` (tương thích client cũ)
+> - Ba phương án sinh **song song**, dedupe theo palette + số cảnh; nếu còn dưới 2
+>   phương án khác nhau thì trả `502`.
+> - Tiêu thụ RPM theo số lượt gọi LLM thật (`variantCount` + 1 lần phân loại nếu
+>   client chưa gửi `answers`).
+>
+> Endpoint liên quan:
+> - `POST /api/script/clarify` → `{ success, source, answers, confidence, questions: [{ id, label, options, selected, confidence, visible }] }`. Câu nào `confidence ≥ 0.8` thì `visible = false` để UI thu gọn.
+> - `GET /api/script/clarify/questions` → danh sách 3 câu hỏi tĩnh (4 phương án mỗi câu).
+> - `POST /api/pipeline` với `mode: "auto"` (hoặc `autoDirect: true`) → worker tự trả lời, tự sinh 3 phương án, chấm điểm rồi chọn và render; không qua bước duyệt.
+>
+> `POST /api/pipeline` cũng đã validate `body.script` tại route (`videoScriptSchema`
+> + trần 150% `targetDurationSec`) và trả `400` thay vì để job `failed`.
+
+Generates a video script draft for human review before rendering. Backed by the `script-draft` BullMQ queue in the original design (not implemented — see the note above).
 
 This endpoint supports two modes:
 
@@ -290,7 +459,7 @@ Response `202 Accepted`:
 #### Draft behavior & status codes:
 - **Rate limiting:** shares the `30 requests per minute per user` limit (`rl:generate`) with `/api/generate`. Returns `429` when exceeded.
 - **Quota:** draft creation does **not** reserve video generation quota slots/budget.
-- **Lifecycle:** `queued` → `running` → `draft` (or `failed`). Upon successful generation, the worker updates the status to `draft`, stores the script in SQLite, and emits the `draft_ready` SSE event.
+- **Lifecycle:** `queued` → `running` → `draft` (or `failed`). Upon successful generation, the worker updates the status to `draft`, stores the script in the job record, and emits the `draft_ready` SSE event.
 - `202` → Draft creation or regeneration queued.
 - `400` → Invalid request payload (e.g. prompt too short, or feedback < 3 chars).
 - `401` → Not authenticated.
@@ -596,7 +765,7 @@ Full job state: status, up to the last 15 progress logs, script (when present), 
 
 ### `GET /api/jobs/:jobId/events` 🔒
 
-Server-Sent Events stream. **Ownership check:** the handler verifies the job belongs to the authenticated user (returns `404` otherwise, no existence leak). On connect it replays the current state (one `status` event + up to 100 historical `progress` events from SQLite), then streams live events via Redis pub/sub. Heartbeat comments (`: heartbeat`) every 15 s. The stream closes 500 ms after `completed`/`failed`.
+Server-Sent Events stream. **Ownership check:** the handler verifies the job belongs to the authenticated user (returns `404` otherwise, no existence leak). On connect it replays the current state (one `status` event + up to 100 historical `progress` events from the job log), then streams live events via Redis pub/sub. Heartbeat comments (`: heartbeat`) every 15 s. The stream closes 500 ms after `completed`/`failed`.
 
 Event types:
 
@@ -621,7 +790,7 @@ data: {"error":"<failure message>"}
 - `draft_ready` — emitted by `draftWorker` when Phase 1 script generation finishes and the draft is ready for review.
 - `404` if the job doesn't exist or is not owned by the current user.
 - If the job is already `completed`/`failed` when the client connects, the stream sends the terminal event and closes immediately.
-- **Reconnection:** there is no `Last-Event-ID` support. On reconnect, the full history is replayed from SQLite (up to 100 events). If no heartbeat is received for >15 s, the client should reconnect.
+- **Reconnection:** there is no `Last-Event-ID` support. On reconnect, the full history is replayed from the job log (up to 100 events). If no heartbeat is received for >15 s, the client should reconnect.
 
 ---
 
@@ -724,7 +893,7 @@ DRAFT_ID=$(echo $DRAFT_RESP | jq -r .jobId)
 # 2. Follow draft generation in realtime (wait for "draft_ready" event)
 curl -N localhost:3000/api/jobs/$DRAFT_ID/events -b cookies.txt
 
-# 3. (Optional) Review draft script from SQLite
+# 3. (Optional) Review draft script from API
 curl -s localhost:3000/api/jobs/$DRAFT_ID -b cookies.txt | jq .script
 
 # 4. (Optional) Regenerate draft with AI feedback

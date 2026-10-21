@@ -435,7 +435,19 @@ export async function resolveHostWanGeo(): Promise<GeoLocationInfo | null> {
     return null;
 }
 
-export async function resolveIpGeo(ip: string, request?: FastifyRequest): Promise<GeoLocationInfo> {
+/**
+ * Phân giải IP → vị trí/nhà mạng.
+ *
+ * @param options.allowRemote Cho phép gọi dịch vụ GeoIP bên ngoài. Truyền `false`
+ *   để chỉ dùng thông tin có sẵn (header Cloudflare) hoặc phân loại nội bộ —
+ *   hữu ích cho môi trường test / offline để không bị chậm bởi network timeout.
+ */
+export async function resolveIpGeo(
+    ip: string,
+    request?: FastifyRequest,
+    options?: { allowRemote?: boolean }
+): Promise<GeoLocationInfo> {
+    const allowRemote = options?.allowRemote !== false;
     const rawIp = (ip || "127.0.0.1").trim().replace(/^::ffff:/, "");
 
     // 1. Check Cloudflare / Proxy headers if request is passed
@@ -451,7 +463,12 @@ export async function resolveIpGeo(ip: string, request?: FastifyRequest): Promis
             let isp = formatIspName(cfOrg || "Cloudflare");
 
             // If Cloudflare Free proxy omits city and ISP, enrich via fast remote lookup on public IP
-            if (!city && (!cfOrg || cfOrg.toLowerCase().includes("cloudflare")) && !isLocalOrPrivateIp(rawIp)) {
+            if (
+                allowRemote &&
+                !city &&
+                (!cfOrg || cfOrg.toLowerCase().includes("cloudflare")) &&
+                !isLocalOrPrivateIp(rawIp)
+            ) {
                 try {
                     const cached = geoCache.get(rawIp);
                     if (cached && cached.expiresAt > Date.now()) {
@@ -490,15 +507,17 @@ export async function resolveIpGeo(ip: string, request?: FastifyRequest): Promis
 
     // 2. Local / Private Network check with Smart WAN Auto-Detection
     if (isLocalOrPrivateIp(rawIp)) {
-        const hostWan = await resolveHostWanGeo();
-        if (hostWan) {
-            return {
-                ip: rawIp,
-                location: hostWan.location,
-                isp: hostWan.isp,
-                city: hostWan.city,
-                country: hostWan.country,
-            };
+        if (allowRemote) {
+            const hostWan = await resolveHostWanGeo();
+            if (hostWan) {
+                return {
+                    ip: rawIp,
+                    location: hostWan.location,
+                    isp: hostWan.isp,
+                    city: hostWan.city,
+                    country: hostWan.country,
+                };
+            }
         }
         return {
             ip: rawIp,
@@ -511,6 +530,14 @@ export async function resolveIpGeo(ip: string, request?: FastifyRequest): Promis
     const cached = geoCache.get(rawIp);
     if (cached && cached.expiresAt > Date.now()) {
         return cached.info;
+    }
+
+    if (!allowRemote) {
+        return {
+            ip: rawIp,
+            location: "Không xác định",
+            isp: "Không xác định",
+        };
     }
 
     // 4. Remote lookup with fast timeout (ip-api.com)

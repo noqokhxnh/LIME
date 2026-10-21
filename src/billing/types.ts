@@ -23,6 +23,89 @@ export interface Order {
     created_at: string;
 }
 
+/**
+ * Bộ lọc + phân trang cho danh sách đơn hàng ở cổng quản trị.
+ *
+ * `search` khớp theo mã đơn (pay_code), ID đơn, ID người dùng và (khi có DB)
+ * cả email người dùng. `page`/`limit` dùng để phân trang phía server.
+ */
+export interface AdminOrderQuery {
+    status?: string;
+    search?: string;
+    page?: number;
+    limit?: number;
+}
+
+/** Kết quả phân trang của danh sách đơn hàng dành cho admin. */
+export interface AdminOrderPage {
+    orders: Order[];
+    total: number;
+}
+
+/**
+ * Bộ lọc + phân trang cho danh sách giao dịch chưa khớp đơn (unmatched).
+ *
+ * `search` khớp mã giao dịch SePay, nội dung chuyển khoản, ghi chú và số tiền.
+ * `from`/`to` là ISO timestamp lọc theo `created_at`.
+ */
+export interface AdminUnmatchedQuery {
+    status?: string;
+    search?: string;
+    from?: string;
+    to?: string;
+    page?: number;
+    limit?: number;
+}
+
+/** Kết quả phân trang của danh sách giao dịch chưa khớp. */
+export interface AdminUnmatchedPage {
+    unmatched: UnmatchedPayment[];
+    total: number;
+}
+
+/**
+ * Bộ lọc + phân trang cho danh sách giao dịch trùng lặp (duplicate).
+ *
+ * `search` khớp mã giao dịch SePay, mã đơn gốc (pay_code) và số tiền.
+ * `from`/`to` là ISO timestamp lọc theo `received_at`.
+ */
+export interface AdminDuplicateQuery {
+    search?: string;
+    from?: string;
+    to?: string;
+    page?: number;
+    limit?: number;
+}
+
+/** Kết quả phân trang của danh sách giao dịch trùng lặp. */
+export interface AdminDuplicatePage {
+    duplicates: Payment[];
+    total: number;
+}
+
+/**
+ * Bộ lọc + phân trang cho lịch sử hoàn tiền thủ công.
+ *
+ * `search` khớp mã giao dịch SePay, số tài khoản, ngân hàng, người duyệt, ghi chú
+ * và số tiền. `from`/`to` là ISO timestamp lọc theo `created_at`.
+ */
+export interface AdminRefundQuery {
+    search?: string;
+    /** 'unmatched' | 'duplicate'. */
+    sourceType?: string;
+    from?: string;
+    to?: string;
+    page?: number;
+    limit?: number;
+}
+
+/** Kết quả phân trang của lịch sử hoàn tiền. */
+export interface AdminRefundPage {
+    refunds: Refund[];
+    total: number;
+}
+
+
 export type PaymentResult = 'matched' | 'duplicate' | 'underpaid' | 'overpaid' | 'unmatched';
 
 export interface Payment {
@@ -106,7 +189,14 @@ export interface OrderStatusResponse {
     plan_expires_at?: string | null;
 }
 
-export type RefundSourceType = 'unmatched' | 'duplicate';
+/**
+ * Nguồn của một bút toán hoàn tiền:
+ *  - `unmatched`: giao dịch chuyển khoản không khớp đơn nào;
+ *  - `duplicate`: giao dịch trùng lặp (khách chuyển 2 lần);
+ *  - `refund_request`: hoàn theo yêu cầu người dùng gửi từ widget Hỗ trợ
+ *    (`source_id` là ID ticket, không phải ID giao dịch).
+ */
+export type RefundSourceType = 'unmatched' | 'duplicate' | 'refund_request';
 
 export interface Refund {
     id: string;

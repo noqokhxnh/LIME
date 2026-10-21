@@ -92,6 +92,37 @@ export async function deleteSession(
     });
 }
 
+/**
+ * Thu hồi toàn bộ phiên đang mở của một người dùng (bộ nhớ + PostgreSQL).
+ *
+ * Dùng khi admin đặt lại mật khẩu: mật khẩu mới phải có hiệu lực ngay, kể cả với
+ * người đang giữ phiên đăng nhập cũ.
+ *
+ * @returns Số phiên đã bị thu hồi.
+ */
+export async function revokeUserSessions(userId: string): Promise<number> {
+    let removed = 0;
+    for (const [tokenHash, session] of inMemorySessions) {
+        if (session.userId === userId) {
+            inMemorySessions.delete(tokenHash);
+            removed++;
+        }
+    }
+
+    const config = getConfig();
+    if (config.DATABASE_URL) {
+        try {
+            const res = await db.query('DELETE FROM sessions WHERE user_id = $1', [userId]);
+            removed += res.rowCount ?? 0;
+        } catch (err) {
+            console.error('[Session] Error revoking sessions:', err);
+        }
+    }
+
+    return removed;
+}
+
+
 export async function getCurrentUser(
     request: FastifyRequest): Promise<AuthUser | null> {
     const token = request.cookies[SESSION_COOKIE];

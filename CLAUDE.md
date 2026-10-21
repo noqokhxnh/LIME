@@ -4,62 +4,64 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Overview
 
-VidTML is an AI-powered video generator: a user prompt → LLM generates a structured "video script" (HTML/CSS/GSAP per scene + voiceover text) → TTS voices each scene → the assembled HTML is rendered frame-by-frame in headless Chromium → ffmpeg muxes the frames with the audio into an MP4. The web UI (Vietnamese) is served by the same Fastify server.
+LIME (formerly VidTML / html-to-vid) is an AI-powered video generator: a user prompt → LLM generates a structured "video script" (HTML/CSS/GSAP per scene + voiceover text) → TTS voices each scene (VieNeu-TTS / Edge / OpenAI / ElevenLabs / Google) → the assembled HTML is rendered frame-by-frame in headless Chromium → ffmpeg muxes the frames with the audio into an MP4. The web UI (Vietnamese) is served from `frontend/` by the Fastify server.
 
-The system is actively developed and still missing planned features (tests, BGM UI). See `docs/architecture.md` (roadmap section) and `docs/api.md` for the full picture; this file is the working summary.
+See `docs/architecture.md`, `docs/api.md`, and `docs/dac-ta-thanh-toan-vietqr.pdf` for the full technical picture; this file is the working summary.
 
 ## Github
 
 - Each pull request must focus on a single feature or change; do not bundle multiple features into one PR.
 - Whenever you commit code, never add Claude or any another LLM Agents as a co-author; just list me as the sole author.
 
-
 ## Commands
 
 - `npm run dev` — API server with hot reload (`tsx watch src/index.ts`)
-- `npm run worker` — background video worker (`tsx watch src/worker.ts`)
-- `npm run dev:all` — `start.sh`: starts Redis if needed, then server + worker together
-- `npm start` — run server without watch
+- `npm run worker` — background video & billing worker (`tsx watch src/worker.ts`)
+- `npm start` — run server without watch (`tsx src/index.ts`)
 - `npm run build` — typecheck and emit to `dist/` (`tsc`)
-- `npm test` — runs `tests/integration/pipeline.test.ts` via tsx (note: `tests/` is currently empty; unit/integration suites don't exist yet)
+- `npm run test:unit` — runs all unit test suites (`tsx --test tests/unit/*.test.ts`) covering 19+ suites (690+ assertions): Stickman IK, BeatSync, CDP frame deduplication, Three.js/Canvas2D time-driver, Admin portal, Billing/Refunds, Watermark/Brand Kit, Security upload guards, etc.
+- `npm test` — runs integration tests (`tests/integration/`)
+- `npm run cli` — run CLI video generation (`tsx src/cli.ts`)
 
-System dependencies (not in package.json): Redis (queue + pub/sub), `ffmpeg`/`ffprobe` on PATH (audio probing, concat, BGM mix, muxing), and `npx playwright install chromium` once (renderer/previewer).
+System dependencies (not in package.json): PostgreSQL 13+ (`DATABASE_URL`), Redis 7+ (`REDIS_URL`), `ffmpeg`/`ffprobe` on PATH (audio probing, concat, BGM mix, muxing), Playwright Chromium (`npx playwright install chromium`), and optional `vieneu-tts` microservice (port 7860).
 
 ## Configuration
 
-All config is env-driven via `src/config.ts` (zod-validated, `.env` supported). Provider selection is a single env var each, but the web UI can override it at runtime — the selection stored per user in the SQLite `settings` table (`src/db/settings.ts`) **takes precedence over the env vars**; API keys always stay in `.env`. Endpoints: `GET /api/settings`, `PUT /api/settings`.
+All config is env-driven via `src/config.ts` (zod-validated, `.env` supported). Provider selection is a single env var each, but the web UI can override it at runtime — the selection stored per user in PostgreSQL (`users.preferences` JSONB or `system_settings`) **takes precedence over the env vars**; API keys always stay in `.env`. Endpoints: `GET /api/settings`, `PUT /api/settings`.
 
-- LLM: `LLM_PROVIDER=openai|gemini|claude|deepseek` (+ matching `*_API_KEY`, `*_MODEL`)
-- TTS: `TTS_PROVIDER=edge|openai|google|elevenlabs` (+ keys; edge is free, `TTS_VOICE` picks the voice)
+- Database: PostgreSQL 13+ via `DATABASE_URL=postgresql://lime:lime_secret_password@postgres:5432/lime_db` (`src/database/index.ts` with `pg` Pool). Core DDL tables in `src/database/base.ts`: `users`, `sessions`, `system_settings`, `audit_logs`, `brand_kits`, `plans`, `orders`, `payments`, `unmatched_payments`, `refunds`, `announcements`, `tickets`, `ticket_messages`.
+- LLM: `LLM_PROVIDER=openai|gemini|claude|deepseek|9router` (+ matching `*_API_KEY`, `*_MODEL`, with `LLM_AUTO_SWITCH=true` fallback support)
+- TTS: `TTS_PROVIDER=edge|vieneu|openai|google|elevenlabs` (`edge` is free; `vieneu` provides high-quality Vietnamese neural TTS connecting to microservice `VIENEU_TTS_URL=http://vieneu-tts:7860` in Docker or `http://127.0.0.1:7860` locally)
+- Brand Kit & Watermark: Logo upload with strict XSS/XXE validation (`src/security/uploadGuard.ts`), stored in `brand_kits` table, overlay applied via `src/pipeline/watermarkFilter.ts`
+- VietQR & SePay Billing: `SEPAY_API_KEY`, `SEPAY_WEBHOOK_SECRET`, `BANK_ACCOUNT`, `BANK_CODE`, `BANK_BIN`, `BANK_NAME`, `BANK_ACCOUNT_NAME`, `PAY_CODE_PREFIX=LIME`, `ORDER_TTL_MINUTES=15`, `CLAIMED_EXTEND_MINUTES=30`. Webhook processed via BullMQ `sepay-webhooks` queue (`src/billing/queue.ts`). Specification in `docs/dac-ta-thanh-toan-vietqr.pdf`.
 - Google OAuth: `GOOGLE_CLIENT_ID`, `GOOGLE_CLIENT_SECRET`, `GOOGLE_REDIRECT_URI` (optional, leave empty to disable Google sign-in)
-- Redis/queue: `REDIS_HOST`, `REDIS_PORT`, `REDIS_PASSWORD`, `WORKER_CONCURRENCY` (2, jobs per worker), `RENDER_MAX_CONCURRENCY` (4, Chromium/ffmpeg processes per job), `RENDER_ALLOW_NO_SANDBOX` (`1` = run render/preview Chromium without OS sandbox — default sandboxed, see `docs/architecture.md` "Security model")
-- Storage: `DB_PATH` (`tmp/vidtml.sqlite`)
+- Redis/queue: `REDIS_URL`, `QUEUE_TYPE=redis|memory`, `WORKER_CONCURRENCY` (2, jobs per worker), `RENDER_MAX_CONCURRENCY` (4, Chromium/ffmpeg processes per job), `RENDER_ALLOW_NO_SANDBOX` (`1` = run render/preview Chromium without OS sandbox — default sandboxed, see `docs/architecture.md` "Security model")
+- Storage: Persistent data in PostgreSQL, temporary scratch workdirs in `tmp/<uuid>`
 - Usage tracking: `USAGE_LOG_ENABLED`, `USAGE_LOG_PATH` (`tmp/usage.jsonl`), `USAGE_PRICE_OVERRIDES`
 - Quotas & rate limiting: `QUOTA_MAX_CONCURRENT_JOBS` (3, active concurrent jobs), `QUOTA_MAX_DAILY_JOBS` (20, per UTC day), `QUOTA_DAILY_BUDGET_USD` (optional daily cost cap enforced via atomic credit hold/reconcile), `TRUST_PROXY` (`'1'` = trust `X-Forwarded-For`, required behind a reverse proxy; keep `0` when exposed directly to the internet — also enables Fastify's `trustProxy`)
 - Images: `IMAGE_CACHE_TTL_DAYS` (7), `IMAGE_MAX_QUERIES_PER_JOB` (10) — per-scene photos from Wikimedia Commons (`src/image/client.ts`, no key required)
-- `VIDEO_PRESETS` in `src/config.ts` maps aspect-ratio keys (`16:9`, `9:16`, `1:1`, `4:3`) to pixel dimensions
-- Gotcha: `DEFAULT_FPS`/`DEFAULT_WIDTH`/`DEFAULT_HEIGHT` are validated but **not wired into the pipeline** — render is hardcoded to 30 fps and dimensions come from `VIDEO_PRESETS`
+- `videoPreset` in `src/config.ts` maps aspect-ratio keys (`16:9`, `9:16`, `1:1`, `4:3`) to pixel dimensions
 
 ## Process architecture
 
-Two processes, both stateless enough to run separately; `start.sh` runs both:
+Two processes, both stateless enough to run separately; `docker-compose.yml` runs Redis, Postgres, VieNeu-TTS, Server, and Worker together:
 
-1. **API server** (`src/index.ts`, Fastify) — REST endpoints, SSE, serves `web/`. Never runs the pipeline.
-2. **Worker** (`src/worker.ts`, BullMQ) — polls the Redis queue `video-generation`, runs the pipeline, persists status/logs to SQLite, publishes progress to Redis pub/sub (`job-events:<jobId>`), which the SSE handler (`src/sse.ts`) streams to browsers. Also runs a TTL cleaner every 30 min (deletes jobs + workdirs older than 24 h).
+1. **API server** (`src/index.ts`, Fastify) — REST endpoints, SSE, serves static assets and pages from `frontend/` (`index.html`, `workspace.html`, `profile.html`, `settings.html`, `admin.html`, `legal.html`). Never runs the heavy video pipeline.
+2. **Worker** (`src/worker.ts`, BullMQ) — polls Redis queues `video-generation` and `sepay-webhooks` (`src/billing/queue.ts`), runs the video pipeline, publishes progress to Redis pub/sub (`job-events:<jobId>`), which the SSE handler (`src/sse.ts`) streams to browsers. Also runs a TTL cleaner every 30 min (deletes scratch workdirs older than 24 h).
 
-Jobs are persisted in SQLite (`src/db/jobsRepository.ts`, tables `jobs` + `job_logs`, schema applied idempotently in `src/db/schema.ts`), so the queue survives server restarts. Job lifecycle: `queued → running → completed | failed` (`attempts: 1`, no auto-retry).
+Job lifecycle: `queued → running → completed | failed` (`attempts: 1`, no auto-retry).
 
 ## Pipeline architecture
 
-`src/pipeline/orchestrator.ts` (`runPipeline`) drives the pipeline phases, each writing artifacts into a per-job workdir under `tmp/<uuid>` and reporting progress through an `onProgress` callback (persisted to `job_logs` + published to Redis):
+`src/pipeline/orchestrator.ts` (`runPipeline`) drives the pipeline phases, each writing artifacts into a per-job workdir under `tmp/<uuid>` and reporting progress through an `onProgress` callback (published to Redis pub/sub):
 
 1. **scriptGenerator.ts** — calls the LLM with the system prompt in `src/llm/prompts/system.txt`, validates output against `VideoScriptSchema` (zod) and enforces the full HTML↔renderer contract fail-fast via `src/pipeline/scriptValidator.ts` (unique scene IDs, DOM IDs, `globalSetupJs` runtime globals, JS syntax, `{{SCENE_DURATION}}` placeholders, `__registerScene` calls, timers, security); retries up to 3× with the exact validation error appended to the prompt for LLM self-correction.
-2a. **audioSynth.ts** — TTS per scene (sequential, to avoid rate limits), probes each file with ffprobe for duration, concatenates, optionally mixes BGM at low volume. Produces `sceneDurations` map — the source of truth for animation timing. Runs in parallel with 2b.
-2b. **imageGenerator.ts** — Wikimedia Commons image search (`src/image/client.ts`) for every photo the LLM requested: 0–3 per scene, total across the video unconstrained. Downloads into `html/images/`, returns a sceneId → path-array map (index = token order). Scenes without an `imagePrompt` are skipped (no query spent); failures fall back to a transparent GIF data URI so layouts hold. Search results are cached in SQLite (`image_search_cache`, `src/db/imageCache.ts`; empty results are never cached); per-job query cap `IMAGE_MAX_QUERIES_PER_JOB`. Commons search is strict — queries with no results retry with trailing words dropped ("Hồ Gươm cổ kính" → "Hồ Gươm").
+2a. **audioSynth.ts** — TTS per scene (sequential, to avoid rate limits), probes each file with ffprobe for duration, concatenates, optionally mixes BGM at low volume. Supports `edge`, `vieneu` (local microservice), `openai`, `google`, and `elevenlabs`. Produces `sceneDurations` map — the source of truth for animation timing. Runs in parallel with 2b.
+2b. **imageGenerator.ts** — Wikimedia Commons image search (`src/image/client.ts`) for every photo the LLM requested: 0–3 per scene, total across the video unconstrained. Downloads into `html/images/`, returns a sceneId → path-array map (index = token order). Scenes without an `imagePrompt` are skipped (no query spent); failures fall back to a transparent GIF data URI so layouts hold. Commons search is strict — queries with no results retry with trailing words dropped ("Hồ Gươm cổ kính" → "Hồ Gươm").
 3. **codeAssembler.ts** — replaces `{{SCENE_DURATION}}` placeholders in each scene's `jsCode` with the real TTS-measured duration (sec) and the numbered `{{SCENE_IMAGE}}`/`{{SCENE_IMAGE_2}}`/`{{SCENE_IMAGE_3}}` tokens in htmlCode/cssCode with the downloaded photo paths in index order (missing index → transparent GIF), performs final fail-closed contract & JS syntax validation with real durations (`src/pipeline/scriptValidator.ts`), and assembles one self-contained HTML file (fails closed on syntax/contract errors).
 4. **previewer.ts** — Playwright: seeks the GSAP timeline to each scene's midpoint, saves WebP thumbnails.
-5. **parallelRenderer.ts** — the active render path: splits the timeline into per-scene chunks, renders them in parallel across isolated Chromium instances (≤ `RENDER_MAX_CONCURRENCY`; browsers launch OS-sandboxed via `src/pipeline/browser.ts` — untrusted LLM code runs in a sandbox by default, see "Security model" in docs), each chunk piping PNGs into an ffmpeg `image2pipe` (libx264), then concatenates chunks with the ffmpeg concat demuxer without re-encoding. (`renderer.ts` is the old single-process renderer, no longer imported — delete when confident.)
-6. **muxer.ts** — ffmpeg: muxes raw video + mixed audio (`-shortest`, AAC, `+faststart`) into the final MP4.
+5. **parallelRenderer.ts** — the active render path: splits the timeline into per-scene chunks, renders them in parallel across isolated Chromium instances (≤ `RENDER_MAX_CONCURRENCY`; browsers launch OS-sandboxed via `src/pipeline/browser.ts` — untrusted LLM code runs in a sandbox by default, see "Security model" in docs), each chunk piping PNGs into an ffmpeg `image2pipe` (libx264), then concatenates chunks with the ffmpeg concat demuxer without re-encoding.
+6. **muxer.ts** — ffmpeg: muxes raw video + mixed audio (`-shortest`, AAC, `+faststart`) into the final MP4. Applies brand watermark overlay if configured.
 
 Cancellation is cooperative: every phase takes an optional `AbortSignal` (worker wires it to the Redis `job-cancelled:<jobId>` flag via `watchJobCancellation`, polling ~0.4 s) and uses `src/pipeline/cancel.ts` (`throwIfAborted`/`raceWithAbort`) so LLM/TTS fetches, image downloads, Playwright, and ffmpeg subprocesses stop in-flight — `DELETE /api/jobs/:id` on a running job reports "cancellation requested", not a synchronous stop.
 
@@ -84,11 +86,25 @@ Gotcha: DeepSeek model names from the Anthropic-compatible endpoint (`deepseek-v
 
 ## Server / API
 
-`src/index.ts` is a Fastify app that also statically serves `web/` (vanilla JS, Vietnamese UI). Endpoints: auth (`POST /api/auth/register`, `POST /api/auth/login`, `POST /api/auth/logout`, `GET /api/auth/me`, `GET /api/auth/config`, `GET /api/auth/google`, `GET /api/auth/google/callback`), `POST /api/script/draft`, `POST /api/generate` (validates with zod, rate-limits 30/min per user, atomically reserves per-user quotas — concurrent/daily/budget, see config — with `429`, then persists to SQLite and enqueues; returns the real UUID immediately with `202`), `GET /api/jobs`, `GET /api/jobs/:id` (status + last 15 logs + result), `GET /api/jobs/:id/events` (SSE), `GET /api/jobs/:id/video` (range-supported stream), `GET /api/jobs/:id/download`, `GET /api/jobs/:id/preview/:sceneId`, `DELETE /api/jobs/:id` (also removes the workdir and reconciles quota reservation), `GET /api/settings`, `PUT /api/settings`, `GET /api/usage`, `GET /api/health` (DB + Redis diagnostics). Full reference in `docs/api.md`. The download/video/preview endpoints return 410 when the file has been cleaned up (job deleted or TTL-expired).
+`src/index.ts` is a Fastify app that also statically serves `frontend/` (vanilla JS, Vietnamese UI: `index.html`, `workspace.html`, `profile.html`, `settings.html`, `admin.html`, `legal.html`).
+
+Key Endpoints:
+- **Auth**: `POST /api/auth/register`, `POST /api/auth/login`, `POST /api/auth/logout`, `GET /api/auth/me`, `GET /api/auth/config`, `GET /api/auth/google`, `GET /api/auth/google/callback`
+- **Video Pipeline**: `POST /api/script/draft`, `POST /api/generate` (validates with zod, rate-limits 30/min per user, atomically reserves per-user quotas with `429`, returns UUID with `202`), `GET /api/jobs`, `GET /api/jobs/:id` (status + logs + result), `GET /api/jobs/:id/events` (SSE), `GET /api/jobs/:id/video` (range-supported stream), `GET /api/jobs/:id/download`, `GET /api/jobs/:id/preview/:sceneId`, `DELETE /api/jobs/:id`
+- **Brand Kit / Watermark**: `POST /api/brand-kit/upload` 🔒, `GET /api/user/brand-kit` 🔒, `PUT /api/user/brand-kit` 🔒
+- **VietQR Billing**: `GET /api/billing/plans`, `POST /api/billing/vietqr/order` 🔒, `GET /api/billing/vietqr/order/:id` 🔒, `POST /api/billing/vietqr/order/:id/claimed` 🔒, `POST /api/billing/vietqr/webhook` (and `/api/billing/webhook`), `POST /api/billing/admin/simulate-test-webhook` 🔒
+- **Admin Portal**: `GET /admin`, `/api/admin/stats`, `/api/admin/analytics` (dashboard SaaS metrics: MRR/ARR, ARPU, LTV, churn, trial→paid, signups, feature usage), `/api/admin/users`, `/api/admin/orders`, `/api/admin/unmatched`, `/api/admin/refunds`, `/api/admin/settings`, `/api/admin/announcements`, `/api/admin/tickets`
+- **System Broadcast Banner**: `GET /api/announcements` (public — active banners for all visitors, shown big in the middle of the screen) + `/api/admin/announcements` CRUD (store in `src/admin/announcements.ts`, rendered by `frontend/js/broadcast.js` on every storefront page; stays reachable while `maintenanceMode` is on)
+- **Helpdesk / Ticketing**: floating support widget (`frontend/js/support-widget.js`) on every storefront page → `GET/POST /api/support/tickets` 🔒, `GET /api/support/tickets/:id` 🔒, `POST /api/support/tickets/:id/messages` 🔒, `POST /api/support/tickets/:id/close` 🔒, `POST /api/support/attachments` 🔒 (image upload) + admin `GET /api/admin/tickets` (list/stats/detail), `POST /api/admin/tickets/:id/messages` (with internal notes), `PATCH /api/admin/tickets/:id` (store in `src/helpdesk/store.ts`)
+- **User Settings & Health**: `GET /api/settings`, `PUT /api/settings`, `GET /api/usage`, `GET /api/health`
+
+Full reference in `docs/api.md`. The download/video/preview endpoints return 410 when the file has been cleaned up (job deleted or TTL-expired).
 
 ## Conventions
 
 - ESM throughout (`"type": "module"`); source files import with `.js` extension (e.g. `from './config.js'`). Path alias `@/*` exists in tsconfig but the code uses relative imports.
-- `tests/` is split into `unit/` and `integration/`; both are empty. The test script references `tests/integration/pipeline.test.ts`, which doesn't exist yet.
-- `tmp/` holds job workdirs (gitignored); `npm test`/integration runs create artifacts there.
-- Docs live in `README.md`, `docs/architecture.md`, `docs/api.md` — keep them in sync when architecture or endpoints change.
+- `tests/` contains `unit/` (test đơn vị), `integration/` (`billing_vietqr.test.ts`, `watermark.test.ts`) và `manual/` (`*.manual.ts` — kiểm tra tay, không phải test tự động). Mọi file test phải được khai báo trong `scripts/test-groups.ts`; nếu không, `scripts/run-unit-tests.ts` sẽ dừng và báo "test mồ côi" (lỗi đã từng xảy ra: test viết xong nhưng không script nào chạy).
+- Nhóm test và lệnh chạy: `npm run test:unit` (fast + heavy), `test:unit:fast` (mọi PR), `test:unit:heavy` (theo lát), `test:unit:pr`, `test:integration`, `test:e2e`, `test:frontend`, `test:redis`, `test:coverage` (toàn bộ, cổng chất lượng 70% dòng), `test:coverage:pr` (cổng 68%). Ngưỡng đặt tại `scripts/coverage-thresholds.json`.
+- CI: `pr-test.yml` chạy nhóm `pr` kèm cổng độ phủ ở mọi PR; `pipeline-tests.yml` chạy lại nhóm đó trên PostgreSQL thật và chạy nhóm `redis` trên Redis thật (kèm cổng độ phủ) theo lịch đêm; `heavy-tests.yml` chạy nhóm nặng hằng tuần — nhóm nặng không nằm trong đường chạy thường ngày vì `security.test.ts` chạy pipeline thật 10 lần, mất hơn 30 phút trên runner CI.
+- `tmp/` holds job scratch workdirs (gitignored); integration runs create artifacts there.
+- Docs live in `README.md`, `docs/architecture.md`, `docs/api.md`, `docs/redis.md`, `docs/dac-ta-thanh-toan-vietqr.pdf` — keep them in sync when architecture or endpoints change.

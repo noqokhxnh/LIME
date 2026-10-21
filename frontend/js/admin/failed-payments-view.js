@@ -5,7 +5,9 @@
  */
 
 import { AdminApi } from './api.js';
-import { Toast, ConfirmModal, Drawer, Skeleton, EmptyState } from './components.js';
+
+import { Toast, ConfirmModal, Drawer, Skeleton, EmptyState, Pagination, AlertBanner } from './components.js';
+
 
 function escapeHtml(str) {
     if (!str) return '';
@@ -54,6 +56,25 @@ export const FailedPaymentsView = {
     containerEl: null,
     unmatchedFilter: 'pending',
 
+    unmatchedPage: 1,
+    unmatchedLimit: 25,
+    unmatchedSearch: '',
+    unmatchedFrom: '',
+    unmatchedTo: '',
+    duplicatesPage: 1,
+    duplicatesLimit: 25,
+    duplicatesSearch: '',
+    duplicatesFrom: '',
+    duplicatesTo: '',
+    refundsPage: 1,
+    refundsLimit: 25,
+    refundsSearch: '',
+    refundsSource: 'all',
+    refundsFrom: '',
+    refundsTo: '',
+    searchDebounceTimer: null,
+
+
     init(container) {
         this.containerEl = container;
         this.renderStructure();
@@ -86,6 +107,26 @@ export const FailedPaymentsView = {
                         </select>
                     </div>
                 </div>
+
+                <div class="filter-row-bottom" style="margin-top: 8px;">
+                    <div class="filter-groups">
+                        <div class="search-input-wrapper">
+                            <span class="search-icon-prefix">
+                                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.3-4.3"/></svg>
+                            </span>
+                            <input type="text" class="search-input" id="unmatched-search-input" placeholder="Tìm theo mã SePay, nội dung CK, số tiền...">
+                        </div>
+                        <div class="filter-select-wrapper">
+                            <span class="filter-label">Từ ngày:</span>
+                            <input type="date" class="select-custom" id="unmatched-from">
+                        </div>
+                        <div class="filter-select-wrapper">
+                            <span class="filter-label">Đến ngày:</span>
+                            <input type="date" class="select-custom" id="unmatched-to">
+                        </div>
+                    </div>
+                </div>
+
                 <div class="table-panel">
                     <div class="table-wrapper">
                         <table class="admin-table">
@@ -103,11 +144,34 @@ export const FailedPaymentsView = {
                         </table>
                     </div>
                     <div id="unmatched-empty-container"></div>
+
+                    <div id="unmatched-pagination-container"></div>
+
                 </div>
             </div>
 
             <div class="drawer-section" style="margin-bottom: 20px;">
                 <div class="drawer-section-title">Giao dịch trùng lặp (Duplicate)</div>
+
+                <div class="filter-row-bottom" style="margin-top: 8px;">
+                    <div class="filter-groups">
+                        <div class="search-input-wrapper">
+                            <span class="search-icon-prefix">
+                                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.3-4.3"/></svg>
+                            </span>
+                            <input type="text" class="search-input" id="duplicates-search-input" placeholder="Tìm theo mã SePay, mã đơn gốc, số tiền...">
+                        </div>
+                        <div class="filter-select-wrapper">
+                            <span class="filter-label">Từ ngày:</span>
+                            <input type="date" class="select-custom" id="duplicates-from">
+                        </div>
+                        <div class="filter-select-wrapper">
+                            <span class="filter-label">Đến ngày:</span>
+                            <input type="date" class="select-custom" id="duplicates-to">
+                        </div>
+                    </div>
+                </div>
+
                 <div class="table-panel">
                     <div class="table-wrapper">
                         <table class="admin-table">
@@ -126,11 +190,42 @@ export const FailedPaymentsView = {
                         </table>
                     </div>
                     <div id="duplicates-empty-container"></div>
+
+                    <div id="duplicates-pagination-container"></div>
+
                 </div>
             </div>
 
             <div class="drawer-section">
                 <div class="drawer-section-title">Lịch sử hoàn tiền</div>
+
+                <div class="filter-row-bottom" style="margin-top: 8px;">
+                    <div class="filter-groups">
+                        <div class="search-input-wrapper">
+                            <span class="search-icon-prefix">
+                                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.3-4.3"/></svg>
+                            </span>
+                            <input type="text" class="search-input" id="refunds-search-input" placeholder="Tìm theo mã SePay, STK, ngân hàng, người duyệt...">
+                        </div>
+                        <div class="filter-select-wrapper">
+                            <span class="filter-label">Loại nguồn:</span>
+                            <select class="select-custom" id="refunds-source-filter">
+                                <option value="all">Tất cả</option>
+                                <option value="unmatched">Không khớp đơn</option>
+                                <option value="duplicate">Trùng lặp</option>
+                            </select>
+                        </div>
+                        <div class="filter-select-wrapper">
+                            <span class="filter-label">Từ ngày:</span>
+                            <input type="date" class="select-custom" id="refunds-from">
+                        </div>
+                        <div class="filter-select-wrapper">
+                            <span class="filter-label">Đến ngày:</span>
+                            <input type="date" class="select-custom" id="refunds-to">
+                        </div>
+                    </div>
+                </div>
+
                 <div class="table-panel">
                     <div class="table-wrapper">
                         <table class="admin-table">
@@ -149,6 +244,9 @@ export const FailedPaymentsView = {
                         </table>
                     </div>
                     <div id="refunds-empty-container"></div>
+
+                    <div id="refunds-pagination-container"></div>
+
                 </div>
             </div>
         `;
@@ -163,9 +261,134 @@ export const FailedPaymentsView = {
             filter.value = this.unmatchedFilter;
             filter.onchange = () => {
                 this.unmatchedFilter = filter.value;
+
+                this.unmatchedPage = 1;
                 this.fetchUnmatched();
             };
         }
+
+        // Bộ lọc + phân trang cho danh sách unmatched.
+        const unmatchedSearch = this.containerEl.querySelector('#unmatched-search-input');
+        if (unmatchedSearch) {
+            unmatchedSearch.value = this.unmatchedSearch;
+            unmatchedSearch.oninput = () => {
+                clearTimeout(this.searchDebounceTimer);
+                this.searchDebounceTimer = setTimeout(() => {
+                    this.unmatchedSearch = unmatchedSearch.value.trim();
+                    this.unmatchedPage = 1;
+                    this.fetchUnmatched();
+                }, 300);
+            };
+        }
+        const unmatchedFrom = this.containerEl.querySelector('#unmatched-from');
+        if (unmatchedFrom) {
+            unmatchedFrom.value = this.unmatchedFrom;
+            unmatchedFrom.onchange = () => {
+                this.unmatchedFrom = unmatchedFrom.value;
+                this.unmatchedPage = 1;
+                this.fetchUnmatched();
+            };
+        }
+        const unmatchedTo = this.containerEl.querySelector('#unmatched-to');
+        if (unmatchedTo) {
+            unmatchedTo.value = this.unmatchedTo;
+            unmatchedTo.onchange = () => {
+                this.unmatchedTo = unmatchedTo.value;
+                this.unmatchedPage = 1;
+                this.fetchUnmatched();
+            };
+        }
+
+        // Bộ lọc + phân trang cho danh sách duplicates.
+        const duplicatesSearch = this.containerEl.querySelector('#duplicates-search-input');
+        if (duplicatesSearch) {
+            duplicatesSearch.value = this.duplicatesSearch;
+            duplicatesSearch.oninput = () => {
+                clearTimeout(this.searchDebounceTimer);
+                this.searchDebounceTimer = setTimeout(() => {
+                    this.duplicatesSearch = duplicatesSearch.value.trim();
+                    this.duplicatesPage = 1;
+                    this.fetchDuplicates();
+                }, 300);
+            };
+        }
+        const duplicatesFrom = this.containerEl.querySelector('#duplicates-from');
+        if (duplicatesFrom) {
+            duplicatesFrom.value = this.duplicatesFrom;
+            duplicatesFrom.onchange = () => {
+                this.duplicatesFrom = duplicatesFrom.value;
+                this.duplicatesPage = 1;
+                this.fetchDuplicates();
+            };
+        }
+        const duplicatesTo = this.containerEl.querySelector('#duplicates-to');
+        if (duplicatesTo) {
+            duplicatesTo.value = this.duplicatesTo;
+            duplicatesTo.onchange = () => {
+                this.duplicatesTo = duplicatesTo.value;
+                this.duplicatesPage = 1;
+                this.fetchDuplicates();
+            };
+        }
+
+        // Bộ lọc + phân trang cho lịch sử hoàn tiền.
+        const refundsSearch = this.containerEl.querySelector('#refunds-search-input');
+        if (refundsSearch) {
+            refundsSearch.value = this.refundsSearch;
+            refundsSearch.oninput = () => {
+                clearTimeout(this.searchDebounceTimer);
+                this.searchDebounceTimer = setTimeout(() => {
+                    this.refundsSearch = refundsSearch.value.trim();
+                    this.refundsPage = 1;
+                    this.fetchRefunds();
+                }, 300);
+            };
+        }
+        const refundsSource = this.containerEl.querySelector('#refunds-source-filter');
+        if (refundsSource) {
+            refundsSource.value = this.refundsSource;
+            refundsSource.onchange = () => {
+                this.refundsSource = refundsSource.value;
+                this.refundsPage = 1;
+                this.fetchRefunds();
+            };
+        }
+        const refundsFrom = this.containerEl.querySelector('#refunds-from');
+        if (refundsFrom) {
+            refundsFrom.value = this.refundsFrom;
+            refundsFrom.onchange = () => {
+                this.refundsFrom = refundsFrom.value;
+                this.refundsPage = 1;
+                this.fetchRefunds();
+            };
+        }
+        const refundsTo = this.containerEl.querySelector('#refunds-to');
+        if (refundsTo) {
+            refundsTo.value = this.refundsTo;
+            refundsTo.onchange = () => {
+                this.refundsTo = refundsTo.value;
+                this.refundsPage = 1;
+                this.fetchRefunds();
+            };
+        }
+    },
+
+    /**
+     * Chuyển ngày (YYYY-MM-DD) thành ISO bao trùm cả ngày theo giờ máy người dùng,
+     * để "đến ngày X" vẫn bao gồm các bản ghi trong ngày X.
+     */
+    dayRangeToIso(from, to) {
+        const range = {};
+        if (from) {
+            const d = new Date(`${from}T00:00:00`);
+            if (!Number.isNaN(d.getTime())) range.from = d.toISOString();
+        }
+        if (to) {
+            const d = new Date(`${to}T23:59:59.999`);
+            if (!Number.isNaN(d.getTime())) range.to = d.toISOString();
+        }
+        return range;
+
     },
 
     fetchAll() {
@@ -193,13 +416,24 @@ export const FailedPaymentsView = {
     async fetchUnmatched() {
         const tbody = this.containerEl.querySelector('#unmatched-table-body');
         const emptyContainer = this.containerEl.querySelector('#unmatched-empty-container');
+
+        const paginationContainer = this.containerEl.querySelector('#unmatched-pagination-container');
         if (!tbody) return;
         emptyContainer.innerHTML = '';
+        if (paginationContainer) paginationContainer.innerHTML = '';
         Skeleton.renderTableRows(tbody, 4, 6);
 
         try {
-            const res = await AdminApi.getUnmatched(this.unmatchedFilter);
+            const res = await AdminApi.getUnmatched({
+                status: this.unmatchedFilter,
+                search: this.unmatchedSearch || undefined,
+                ...this.dayRangeToIso(this.unmatchedFrom, this.unmatchedTo),
+                limit: this.unmatchedLimit,
+                page: this.unmatchedPage,
+            });
             const items = res.unmatched || [];
+            const total = Number(res.total ?? items.length);
+
             tbody.innerHTML = '';
 
             if (items.length === 0) {
@@ -242,8 +476,32 @@ export const FailedPaymentsView = {
 
                 tbody.appendChild(tr);
             });
+
+
+            if (paginationContainer) {
+                Pagination.render({
+                    container: paginationContainer,
+                    page: this.unmatchedPage,
+                    limit: this.unmatchedLimit,
+                    total,
+                    onPageChange: (newPage) => {
+                        this.unmatchedPage = newPage;
+                        this.fetchUnmatched();
+                    },
+                    onLimitChange: (newLimit) => {
+                        this.unmatchedLimit = newLimit;
+                        this.unmatchedPage = 1;
+                        this.fetchUnmatched();
+                    },
+                });
+            }
         } catch (err) {
-            tbody.innerHTML = `<tr><td colspan="6" style="text-align: center; color: var(--danger); padding: 30px;">Lỗi: ${escapeHtml(err.message)}</td></tr>`;
+            tbody.innerHTML = AlertBanner.rowHtml(6, {
+                title: 'Không tải được danh sách giao dịch chưa khớp',
+                message: err.message
+            });
+            AlertBanner.bindRetry(tbody, () => this.fetchUnmatched());
+
         }
     },
 
@@ -378,13 +636,23 @@ export const FailedPaymentsView = {
     async fetchDuplicates() {
         const tbody = this.containerEl.querySelector('#duplicates-table-body');
         const emptyContainer = this.containerEl.querySelector('#duplicates-empty-container');
+
+        const paginationContainer = this.containerEl.querySelector('#duplicates-pagination-container');
         if (!tbody) return;
         emptyContainer.innerHTML = '';
+        if (paginationContainer) paginationContainer.innerHTML = '';
         Skeleton.renderTableRows(tbody, 4, 7);
 
         try {
-            const res = await AdminApi.getDuplicatePayments();
+            const res = await AdminApi.getDuplicatePayments({
+                search: this.duplicatesSearch || undefined,
+                ...this.dayRangeToIso(this.duplicatesFrom, this.duplicatesTo),
+                limit: this.duplicatesLimit,
+                page: this.duplicatesPage,
+            });
             const items = res.duplicates || [];
+            const total = Number(res.total ?? items.length);
+
             tbody.innerHTML = '';
 
             if (items.length === 0) {
@@ -419,8 +687,32 @@ export const FailedPaymentsView = {
                 if (refundBtn) refundBtn.onclick = () => this.openRefundDrawer('duplicate', p);
                 tbody.appendChild(tr);
             });
+
+
+            if (paginationContainer) {
+                Pagination.render({
+                    container: paginationContainer,
+                    page: this.duplicatesPage,
+                    limit: this.duplicatesLimit,
+                    total,
+                    onPageChange: (newPage) => {
+                        this.duplicatesPage = newPage;
+                        this.fetchDuplicates();
+                    },
+                    onLimitChange: (newLimit) => {
+                        this.duplicatesLimit = newLimit;
+                        this.duplicatesPage = 1;
+                        this.fetchDuplicates();
+                    },
+                });
+            }
         } catch (err) {
-            tbody.innerHTML = `<tr><td colspan="7" style="text-align: center; color: var(--danger); padding: 30px;">Lỗi: ${escapeHtml(err.message)}</td></tr>`;
+            tbody.innerHTML = AlertBanner.rowHtml(7, {
+                title: 'Không tải được danh sách giao dịch trùng',
+                message: err.message
+            });
+            AlertBanner.bindRetry(tbody, () => this.fetchDuplicates());
+
         }
     },
 
@@ -430,13 +722,24 @@ export const FailedPaymentsView = {
     async fetchRefunds() {
         const tbody = this.containerEl.querySelector('#refunds-table-body');
         const emptyContainer = this.containerEl.querySelector('#refunds-empty-container');
+
+        const paginationContainer = this.containerEl.querySelector('#refunds-pagination-container');
         if (!tbody) return;
         emptyContainer.innerHTML = '';
+        if (paginationContainer) paginationContainer.innerHTML = '';
         Skeleton.renderTableRows(tbody, 4, 7);
 
         try {
-            const res = await AdminApi.getRefunds();
+            const res = await AdminApi.getRefunds({
+                search: this.refundsSearch || undefined,
+                sourceType: this.refundsSource && this.refundsSource !== 'all' ? this.refundsSource : undefined,
+                ...this.dayRangeToIso(this.refundsFrom, this.refundsTo),
+                limit: this.refundsLimit,
+                page: this.refundsPage,
+            });
             const items = res.refunds || [];
+            const total = Number(res.total ?? items.length);
+
             tbody.innerHTML = '';
 
             if (items.length === 0) {
@@ -464,8 +767,32 @@ export const FailedPaymentsView = {
                 `;
                 tbody.appendChild(tr);
             });
+
+
+            if (paginationContainer) {
+                Pagination.render({
+                    container: paginationContainer,
+                    page: this.refundsPage,
+                    limit: this.refundsLimit,
+                    total,
+                    onPageChange: (newPage) => {
+                        this.refundsPage = newPage;
+                        this.fetchRefunds();
+                    },
+                    onLimitChange: (newLimit) => {
+                        this.refundsLimit = newLimit;
+                        this.refundsPage = 1;
+                        this.fetchRefunds();
+                    },
+                });
+            }
         } catch (err) {
-            tbody.innerHTML = `<tr><td colspan="7" style="text-align: center; color: var(--danger); padding: 30px;">Lỗi: ${escapeHtml(err.message)}</td></tr>`;
+            tbody.innerHTML = AlertBanner.rowHtml(7, {
+                title: 'Không tải được lịch sử hoàn tiền',
+                message: err.message
+            });
+            AlertBanner.bindRetry(tbody, () => this.fetchRefunds());
+
         }
     },
 };

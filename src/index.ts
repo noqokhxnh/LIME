@@ -7,8 +7,19 @@ import { join } from "node:path";
 import { v4 } from "uuid";
 import { getConfig } from "./config.js";
 import { getCurrentUser } from "./auth/session.js";
-import { videoRequestSchema, watermarkConfigSchema, type videoRequest, type videoScript } from "./llm/schema.js";
+import { videoRequestSchema, videoScriptSchema, watermarkConfigSchema, type videoRequest, type videoScript } from "./llm/schema.js";
 import { generateScript } from "./pipeline/scriptGenerator.js";
+import { estimateDuration } from "./pipeline/estimateDuration.js";
+import {
+    CLARIFY_QUESTIONS,
+    DEFAULT_ANSWERS,
+    buildAnswerDirectives,
+    buildQuestionViews,
+    clarifyAnswersSchema,
+    inferAnswers,
+    mergeAnswers,
+} from "./pipeline/clarify.js";
+import { dedupeVariants, pickVariants, scoreDraft } from "./pipeline/scriptVariants.js";
 import { initDatabase } from "./database/index.js";
 import fastifyCookie from "@fastify/cookie";
 import { authRoutes } from "./auth/routes.js";
@@ -17,13 +28,16 @@ import { startBillingCron, stopBillingCron } from "./billing/cron.js";
 import { getQueue } from "./queue/index.js";
 import { processVideoJob } from "./queue/handler.js";
 import { IVideoQueue } from "./queue/interfaces.js";
+import { resolveJobVideoPath } from "./queue/jobVideo.js";
 import { validatePrompt } from "./security/promptGuard.js";
 import { rateLimiter } from "./security/rateLimiter.js";
 import { validateUploadedFile, generateSafeFilePath } from "./security/uploadGuard.js";
 import { getBrandKitByUserId, upsertBrandKit } from "./database/brandKit.js";
 import { getCatalog, listBlueprints, listMotionBlocks } from "./templates/index.js";
 import { adminRoutes } from "./admin/routes.js";
+import { supportRoutes } from "./helpdesk/routes.js";
 import { systemSettings } from "./admin/systemSettings.js";
+import { announcementsStore } from "./admin/announcements.js";
 import { pageViewTracker } from "./security/pageViewTracker.js";
 import { db } from "./database/index.js";
 import { hashString32, parseSeedSafe } from "./pipeline/rng.js";
@@ -39,18 +53,24 @@ export async function buildApp(options: { logger?: boolean, queue?: IVideoQueue 
 
     await app.register(fastifyCors, { origin: true , credentials: true });
     await app.register(fastifyCookie);
-    await app.register(authRoutes);
-    await app.register(billingRoutes);
-    await app.register(adminRoutes, { queue });
 
     // Đăng ký plugin xử lý upload file (multipart/form-data).
     // Giới hạn kích thước mỗi file tối đa 5MB để tránh tấn công DoS bằng file lớn.
+    // LƯU Ý: phải đăng ký TRƯỚC mọi plugin chứa route dùng `request.file()`
+    // (@fastify/multipart thêm content-type parser ở scope nơi nó boot — đăng ký
+    // sau sẽ làm các scope route đã tồn tại không thấy parser và trả 415).
     await app.register(fastifyMultipart, {
         limits: {
             fileSize: 5 * 1024 * 1024, // 5MB
             files: 1,                  // Chỉ chấp nhận 1 file mỗi request
         },
     });
+
+    await app.register(authRoutes);
+    await app.register(billingRoutes);
+    await app.register(adminRoutes, { queue });
+    // Helpdesk / Ticketing: widget "Hỗ trợ" phía người dùng (sau admin để nhất quán cấu trúc)
+    await app.register(supportRoutes);
 
     const frontendDir = join(process.cwd(), "frontend");
     if (existsSync(frontendDir)) {
@@ -75,10 +95,48 @@ export async function buildApp(options: { logger?: boolean, queue?: IVideoQueue 
         },
     });
 
+    // Đăng ký phục vụ tệp tĩnh ảnh đính kèm ticket từ thư mục tmp/uploads/tickets
+    // (headers bảo mật giống thư mục logos: sandbox CSP — vẫn thấy ảnh nhưng không chạy script)
+    const ticketsDir = join(process.cwd(), "tmp", "uploads", "tickets");
+    mkdirSync(ticketsDir, { recursive: true });
+    await app.register(fastifyStatic, {
+        root: ticketsDir,
+        prefix: "/uploads/tickets/",
+        decorateReply: false,
+        setHeaders: (res) => {
+            res.header("Content-Security-Policy", "default-src 'none'; style-src 'unsafe-inline'; sandbox");
+            res.header("X-Content-Type-Options", "nosniff");
+            res.header("X-Frame-Options", "DENY");
+        },
+    });
+
     app.addHook("preHandler", async (request, reply) => {
         const url = request.url;
+        const path = url.split("?")[0];
+
+        // Chế độ bảo trì: chặn API của người dùng thường nhưng vẫn cho phép admin
+        // đăng nhập/quản trị để có thể tắt bảo trì. Trước đây cờ maintenanceMode
+        // chỉ được lưu mà không hề được áp dụng.
+        if (systemSettings.get().maintenanceMode && path.startsWith("/api/")) {
+            const alwaysAllowed =
+                path.startsWith("/api/admin") ||
+                path.startsWith("/api/auth") ||
+                path === "/api/settings" ||
+                path === "/api/announcements" ||
+                // Helpdesk phải dùng được cả khi bảo trì để báo lỗi giữa chuyến
+                path.startsWith("/api/support");
+            if (!alwaysAllowed) {
+                const user = await getCurrentUser(request);
+                if (user?.role !== "admin") {
+                    reply.status(503).send({ error: "Hệ thống đang bảo trì. Vui lòng thử lại sau." });
+                    return reply;
+                }
+            }
+        }
+
         if (
             url.startsWith("/api/script/draft") ||
+            url.startsWith("/api/script/clarify") ||
             url.startsWith("/api/pipeline") ||
             url.startsWith("/api/generate") ||
             url.startsWith("/api/source/") ||
@@ -86,12 +144,28 @@ export async function buildApp(options: { logger?: boolean, queue?: IVideoQueue 
             url.startsWith("/api/user/brand-kit")
         ) {
             const ip = request.ip || '127.0.0.1';
-            if (!rateLimiter.checkRpm(ip)) {
+            const body = request.body as any;
+
+            // /api/script/draft gọi LLM song song cho từng phương án, cộng thêm một
+            // lần phân loại nếu client chưa gửi answers. Tính RPM theo lượt gọi thật
+            // để không ai nhân chi phí LLM lên 3 lần mà vẫn trong hạn mức.
+            let rpmCost = 1;
+            if (path === '/api/script/draft') {
+                const requested = Number(body?.variantCount ?? 1);
+                const variants = Number.isFinite(requested)
+                    ? Math.min(3, Math.max(1, Math.floor(requested)))
+                    : 1;
+                rpmCost = variants + (body?.answers ? 0 : 1);
+            } else if (path === '/api/pipeline' && (body?.autoDirect || body?.mode === 'auto')) {
+                // autoDirect = 1 lần phân loại + 3 lần sinh phương án.
+                rpmCost = 4;
+            }
+
+            if (!rateLimiter.checkRpm(ip, 20, rpmCost)) {
                 reply.status(429).send({ error: "Too Many Requests (RPM exceeded)" });
                 return reply;
             }
 
-            const body = request.body as any;
             const promptCandidate = body?.prompt ?? body?.text ?? body?.topic;
             if (typeof promptCandidate === 'string') {
                 const check = validatePrompt(promptCandidate);
@@ -107,21 +181,18 @@ export async function buildApp(options: { logger?: boolean, queue?: IVideoQueue 
         queue.process(processVideoJob);
     }
 
-    queue.events.on('completed', (args: any) => {
-        const ip = jobIpMap.get(args.jobId);
+    // Giải phóng suất chạy song song của IP khi job kết thúc (thành công/thất bại/bị hủy).
+    const releaseJobSlot = (args: any) => {
+        const ip = jobIpMap.get(args?.jobId);
         if (ip) {
             rateLimiter.releaseConcurrentJob(ip);
             jobIpMap.delete(args.jobId);
         }
-    });
+    };
 
-    queue.events.on('failed', (args: any) => {
-        const ip = jobIpMap.get(args.jobId);
-        if (ip) {
-            rateLimiter.releaseConcurrentJob(ip);
-            jobIpMap.delete(args.jobId);
-        }
-    });
+    queue.events.on('completed', releaseJobSlot);
+    queue.events.on('failed', releaseJobSlot);
+    queue.events.on('cancelled', releaseJobSlot);
     app.get("/", async (request: FastifyRequest, reply: FastifyReply) => {
         const accept = request.headers.accept || "";
         if (accept.startsWith("text/html")) {
@@ -236,6 +307,27 @@ export async function buildApp(options: { logger?: boolean, queue?: IVideoQueue 
                 llm: ["deepseek", "gemini", "claude", "openai", "9router"],
                 tts: ["edge", "vieneu", "openai", "google", "elevenlabs"],
             },
+        };
+    });
+
+    /**
+     * Banner thông báo toàn hệ thống — công khai cho cả khách chưa đăng nhập.
+     *
+     * Trả về các thông báo đang hiệu lực (đúng đối tượng người xem), kèm cờ
+     * `maintenanceMode` và `systemNotice` cũ để giao diện hiển thị banner bảo trì
+     * ngay cả khi admin bật chế độ bảo trì mà chưa tạo thông báo riêng.
+     */
+    app.get("/api/announcements", async (request: FastifyRequest, reply: FastifyReply) => {
+        const user = await getCurrentUser(request);
+        const sys = systemSettings.get();
+        const announcements = await announcementsStore.listPublic(user ? "user" : "guest");
+
+        reply.header("Cache-Control", "no-store");
+        return {
+            announcements,
+            legacyNotice: sys.systemNotice || "",
+            maintenanceMode: sys.maintenanceMode,
+            viewer: user ? "user" : "guest",
         };
     });
 
@@ -388,13 +480,113 @@ export async function buildApp(options: { logger?: boolean, queue?: IVideoQueue 
     };
 
     app.post("/api/script/draft", async (request: FastifyRequest, reply: FastifyReply) => {
+        const body = (request.body as any) ?? {};
         try {
-            const normalized = normalizeVideoRequestBody(request.body);
-            const reqData = videoRequestSchema.parse(normalized);
-            const script = await generateScript(reqData);
+            const normalized = normalizeVideoRequestBody(body);
+            // Route nháp không bắt buộc style vì người dùng chọn phong cách bằng
+            // cách chọn phương án; body thiếu style thì tạm dùng 'modern'.
+            const reqData = videoRequestSchema.parse({ ...normalized, style: normalized.style ?? 'modern' });
+
+            const requestedCount = Number(body.variantCount ?? 1);
+            const variantCount = Number.isFinite(requestedCount)
+                ? Math.min(3, Math.max(1, Math.floor(requestedCount)))
+                : 1;
+            const requestedRotation = Number(body.variantRotation ?? 0);
+            const rotation = Number.isFinite(requestedRotation) ? Math.max(0, Math.floor(requestedRotation)) : 0;
+
+            let provided: ReturnType<typeof clarifyAnswersSchema.parse> = {};
+            try {
+                provided = clarifyAnswersSchema.parse(body.answers ?? {});
+            } catch {
+                provided = {};
+            }
+
+            // UI đã hỏi người dùng rồi thì không gọi LLM phân loại lần nữa.
+            const needsInference = !(provided.audience && provided.purpose && provided.structure);
+            const inference = needsInference ? await inferAnswers(reqData.prompt) : null;
+            const answers = mergeAnswers(inference?.answers ?? DEFAULT_ANSWERS, provided);
+            const confidence = {
+                audience: provided.audience ? 1 : (inference?.confidence.audience ?? 0),
+                purpose: provided.purpose ? 1 : (inference?.confidence.purpose ?? 0),
+                structure: provided.structure ? 1 : (inference?.confidence.structure ?? 0),
+            };
+
+            const directives = buildAnswerDirectives(answers);
+            const variants = pickVariants(reqData.prompt, {
+                purpose: answers.purpose,
+                rotation,
+                count: variantCount,
+            });
+
+            const settled = await Promise.allSettled(
+                variants.map(variant => generateScript(reqData, undefined, undefined, variant, directives))
+            );
+
+            const drafts = settled.flatMap((entry, index) => {
+                if (entry.status !== 'fulfilled') return [];
+                const variant = variants[index];
+                const script = entry.value;
+                const estimated = estimateDuration(script, { language: reqData.language });
+                const words = script.scenes.reduce(
+                    (sum, scene) => sum + (scene.voiceOverText?.trim().split(/\s+/).filter(Boolean).length ?? 0),
+                    0
+                );
+                const { score, reason } = scoreDraft(script, reqData);
+                return [{
+                    key: variant.key,
+                    label: variant.label,
+                    hook: variant.hook,
+                    style: variant.style,
+                    blueprintId: variant.blueprintId,
+                    script,
+                    estimated: { totalDurationSec: estimated.totalDurationSec, words },
+                    score,
+                    reason,
+                }];
+            });
+
+            const unique = dedupeVariants(drafts)
+                .sort((a, b) => b.score - a.score)
+                .slice(0, variantCount);
+
+            // Một phương án là đủ cho chế độ cũ; ba phương án phải còn ít nhất 2
+            // để người dùng thực sự có lựa chọn.
+            const requiredSuccesses = Math.min(2, variantCount);
+            if (unique.length < requiredSuccesses) {
+                const details = settled
+                    .filter((entry): entry is PromiseRejectedResult => entry.status === 'rejected')
+                    .map(entry => entry.reason?.message ?? String(entry.reason))
+                    .slice(0, 3)
+                    .join(' | ');
+                reply.status(502);
+                return {
+                    success: false,
+                    error: 'Không sinh đủ phương án khác nhau. Vui lòng thử lại.',
+                    details: details.slice(0, 2000),
+                };
+            }
+
+            const recommended = unique[0].key;
+
+            if (variantCount === 1) {
+                // Giữ nguyên shape cũ cho client chưa nâng cấp.
+                return {
+                    success: true,
+                    script: unique[0].script,
+                    estimated: unique[0].estimated,
+                    answers,
+                    confidence,
+                    recommended,
+                };
+            }
+
             return {
                 success: true,
-                script,
+                drafts: unique,
+                answers,
+                confidence,
+                recommended,
+                clarifySource: inference?.source ?? 'provided',
             };
         } catch (err: any) {
             reply.status(400);
@@ -404,6 +596,36 @@ export async function buildApp(options: { logger?: boolean, queue?: IVideoQueue 
             };
         }
     });
+
+    /**
+     * Hỏi 3 câu làm rõ cho một prompt.
+     *
+     * Tách khỏi /api/script/draft để UI hiện form ngay sau ~1-2s thay vì chờ
+     * sinh xong 3 phương án mới biết cần hỏi gì.
+     */
+    app.post("/api/script/clarify", async (request: FastifyRequest, reply: FastifyReply) => {
+        const body = (request.body as any) ?? {};
+        const prompt = String(body.prompt ?? body.text ?? body.topic ?? '').trim();
+        if (prompt.length < 10) {
+            reply.status(400);
+            return { success: false, error: 'Prompt phải có ít nhất 10 ký tự' };
+        }
+
+        const result = await inferAnswers(prompt);
+        return {
+            success: true,
+            source: result.source,
+            answers: result.answers,
+            confidence: result.confidence,
+            questions: buildQuestionViews(result),
+            error: result.error,
+        };
+    });
+
+    app.get("/api/script/clarify/questions", async () => ({
+        success: true,
+        questions: CLARIFY_QUESTIONS,
+    }));
 
     const handlePipelineRequest = async (request: FastifyRequest, reply: FastifyReply) => {
         const body = (request.body as any) || {};
@@ -418,6 +640,33 @@ export async function buildApp(options: { logger?: boolean, queue?: IVideoQueue 
             return { error: "Invalid video request", details: err.message };
         }
 
+        // Kịch bản do client gửi lên phải được kiểm ngay tại route: nếu để worker
+        // phát hiện thì người dùng đã bị trừ quota và nhận job failed vô nghĩa.
+        let inputScript: videoScript | undefined;
+        if (body.script !== undefined && body.script !== null) {
+            const parsed = videoScriptSchema.safeParse(body.script);
+            if (!parsed.success) {
+                reply.status(400);
+                return {
+                    error: "Invalid script",
+                    details: parsed.error.issues
+                        .map(issue => `${issue.path.join('.') || '(root)'}: ${issue.message}`)
+                        .slice(0, 5)
+                        .join('; '),
+                };
+            }
+            inputScript = parsed.data;
+
+            const estimated = estimateDuration(inputScript, { language: reqData.language });
+            if (estimated.totalDurationSec > reqData.targetDurationSec * 1.5) {
+                reply.status(400);
+                return {
+                    error: "Script too long",
+                    details: `Kịch bản ước lượng ${estimated.totalDurationSec.toFixed(1)}s, vượt quá 150% mục tiêu ${reqData.targetDurationSec}s.`,
+                };
+            }
+        }
+
         const ip = request.ip || '127.0.0.1';
         if (!rateLimiter.checkAndIncrementDailyQuota(ip)) {
             reply.status(429);
@@ -428,12 +677,19 @@ export async function buildApp(options: { logger?: boolean, queue?: IVideoQueue 
             return { error: "Concurrency limit exceeded" };
         }
 
-        const inputScript = body.script as videoScript | undefined;
         const bgmPath = body.bgmPath as string | undefined;
         const skipPreview = Boolean(body.skipPreview);
+        const autoDirect = Boolean(body.autoDirect || body.mode === 'auto');
+        const autoAnswers = body.answers;
+        const requestedRotation = Number(body.variantRotation ?? 0);
+        const variantRotation = Number.isFinite(requestedRotation) ? Math.max(0, Math.floor(requestedRotation)) : 0;
         const jobId = body.jobId || v4();
         const defaultSeed = hashString32(jobId);
         const seed = parseSeedSafe(reqData.seed ?? body.seed, defaultSeed);
+
+        // Xác định chủ job để cổng quản trị hiển thị/tìm kiếm theo người dùng.
+        const currentUser = await getCurrentUser(request);
+        const userId = currentUser?.id;
 
         const outputDir = join(process.cwd(), "tmp", `job-${jobId}`);
 
@@ -441,8 +697,12 @@ export async function buildApp(options: { logger?: boolean, queue?: IVideoQueue 
             jobIpMap.set(jobId, ip);
             await queue.addJob(jobId, {
                 jobId,
+                userId,
                 request: reqData,
                 script: inputScript,
+                autoDirect,
+                autoAnswers,
+                variantRotation,
                 bgmPath,
                 skipPreview,
                 outputDir,
@@ -463,8 +723,12 @@ export async function buildApp(options: { logger?: boolean, queue?: IVideoQueue 
             try {
                 const result = await processVideoJob({
                     jobId,
+                    userId,
                     request: reqData,
                     script: inputScript,
+                    autoDirect,
+                    autoAnswers,
+                    variantRotation,
                     bgmPath,
                     skipPreview,
                     outputDir,
@@ -505,16 +769,25 @@ export async function buildApp(options: { logger?: boolean, queue?: IVideoQueue 
 
     app.get("/api/jobs", async () => {
         const jobs = await queue.getJobs();
-        return jobs.map((j) => ({
-            jobId: j.jobId,
-            status: j.status,
-            createdAt: j.createdAt,
-            updatedAt: j.updatedAt,
-            topic: j.request.prompt,
-            durationSec: j.result?.durationSec,
-            qaStatus: j.qaStatus ?? j.result?.qaStatus,
-            error: j.error,
-        }));
+        // Mới nhất trước. Không dựa vào thứ tự của queue: memory queue trả theo
+        // thứ tự chèn còn BullMQ trả theo từng state, nên client luôn nhận một
+        // danh sách đã sắp xếp thay vì phải tự đoán.
+        const timeOf = (j: { createdAt?: string; updatedAt?: string }) => {
+            const t = Date.parse(j.createdAt || j.updatedAt || "");
+            return Number.isFinite(t) ? t : 0;
+        };
+        return jobs
+            .map((j) => ({
+                jobId: j.jobId,
+                status: j.status,
+                createdAt: j.createdAt,
+                updatedAt: j.updatedAt,
+                topic: j.request?.prompt ?? j.topic ?? '(job cũ thiếu thông tin yêu cầu)',
+                durationSec: j.result?.durationSec,
+                qaStatus: j.qaStatus ?? j.result?.qaStatus,
+                error: j.error,
+            }))
+            .sort((a, b) => timeOf(b) - timeOf(a));
     });
 
     app.get("/api/jobs/:jobId", async (request: FastifyRequest<{ Params: { jobId: string } }>, reply: FastifyReply) => {
@@ -644,7 +917,7 @@ export async function buildApp(options: { logger?: boolean, queue?: IVideoQueue 
     app.get("/api/jobs/:jobId/video", async (request: FastifyRequest<{ Params: { jobId: string } }>, reply: FastifyReply) => {
         const { jobId } = request.params;
         const job = await queue.getJob(jobId);
-        const videoPath = job?.result?.videoPath ?? join(process.cwd(), "tmp", `job-${jobId}`, "final_video.mp4");
+        const videoPath = resolveJobVideoPath(job, jobId);
         if (!existsSync(videoPath)) {
             reply.status(404);
             return { error: "Video file not found for job" };
@@ -653,6 +926,21 @@ export async function buildApp(options: { logger?: boolean, queue?: IVideoQueue 
         const stat = statSync(videoPath);
         const fileSize = stat.size;
         const range = request.headers.range;
+        // Video của một job là bất biến, nhưng tệp có thể bị ghi đè khi render lại
+        // cùng thư mục. `no-cache` + ETag buộc trình duyệt hỏi lại: nếu tệp không
+        // đổi thì chỉ tốn một 304, còn nếu đổi thì không bao giờ phát video cũ.
+        const etag = `"v${fileSize.toString(16)}-${Math.floor(stat.mtimeMs).toString(16)}"`;
+        const cacheHeaders = {
+            'Cache-Control': 'private, no-cache',
+            'ETag': etag,
+            'Last-Modified': stat.mtime.toUTCString(),
+        };
+
+        if (!range && request.headers['if-none-match'] === etag) {
+            reply.raw.writeHead(304, cacheHeaders);
+            reply.raw.end();
+            return reply;
+        }
 
         if (range) {
             const parts = range.replace(/bytes=/, "").split("-");
@@ -661,6 +949,7 @@ export async function buildApp(options: { logger?: boolean, queue?: IVideoQueue 
             const chunkSize = (end - start) + 1;
             const file = createReadStream(videoPath, { start, end });
             reply.raw.writeHead(206, {
+                ...cacheHeaders,
                 'Content-Range': `bytes ${start}-${end}/${fileSize}`,
                 'Accept-Ranges': 'bytes',
                 'Content-Length': chunkSize,
@@ -670,6 +959,7 @@ export async function buildApp(options: { logger?: boolean, queue?: IVideoQueue 
             return reply;
         } else {
             reply.raw.writeHead(200, {
+                ...cacheHeaders,
                 'Content-Length': fileSize,
                 'Accept-Ranges': 'bytes',
                 'Content-Type': 'video/mp4',
@@ -682,7 +972,7 @@ export async function buildApp(options: { logger?: boolean, queue?: IVideoQueue 
     app.get("/api/jobs/:jobId/download", async (request: FastifyRequest<{ Params: { jobId: string } }>, reply: FastifyReply) => {
         const { jobId } = request.params;
         const job = await queue.getJob(jobId);
-        const videoPath = job?.result?.videoPath ?? join(process.cwd(), "tmp", `job-${jobId}`, "final_video.mp4");
+        const videoPath = resolveJobVideoPath(job, jobId);
         if (!existsSync(videoPath)) {
             reply.status(404);
             return { error: "Video file not found for job" };

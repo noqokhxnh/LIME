@@ -9,6 +9,7 @@ import { Config, getConfig } from "@/config";
 import { AudioResult, durationMap, videoScript } from "@/llm/schema";
 import { estimateTextDuration } from "./estimateDuration";
 import { withRetry } from "./retry.js";
+import { WordTiming, computeFallbackWordTimings, parseEdgeWordBoundaries } from "./wordTiming.js";
 
 export interface TTSClient {
     readonly provider: string;
@@ -22,7 +23,7 @@ export interface TTSClient {
             pitch?: string;
             signal?: AbortSignal;
         }
-    ): Promise<void>;
+    ): Promise<{ wordTimings?: WordTiming[] } | void>;
 }
 
 // ---------------------------------------------------------------- Edge TTS
@@ -81,7 +82,7 @@ export function buildSpeechConfigFrame(): string {
         `X-Timestamp:${dateToString()}\r\n` +
         "Content-Type:application/json; charset=utf-8\r\n" +
         "Path:speech.config\r\n\r\n" +
-        '{"context":{"synthesis":{"audio":{"metadataoptions":{"sentenceBoundaryEnabled":"true","wordBoundaryEnabled":"false"},"outputFormat":"audio-24khz-48kbitrate-mono-mp3"}}}}\r\n'
+        '{"context":{"synthesis":{"audio":{"metadataoptions":{"sentenceBoundaryEnabled":"false","wordBoundaryEnabled":"true"},"outputFormat":"audio-24khz-48kbitrate-mono-mp3"}}}}\r\n'
     );
 }
 
@@ -146,7 +147,7 @@ export class EdgeTTSClient implements TTSClient {
         text: string,
         outputPath: string,
         options?: { voice?: string; language?: string; signal?: AbortSignal }
-    ): Promise<void> {
+    ): Promise<{ wordTimings?: WordTiming[] } | void> {
         const voice = resolveEdgeVoice(options?.voice ?? this.config.TTS_Voice, options?.language ?? "vi");
         const connectionId = uuidv4().replace(/-/g, "");
         const url =
@@ -156,6 +157,7 @@ export class EdgeTTSClient implements TTSClient {
             `&Sec-MS-GEC-Version=${EDGE_TTS_VERSION}`;
 
         const chunks: Buffer[] = [];
+        const wordTimings: WordTiming[] = [];
         await new Promise<void>((resolve, reject) => {
             let settled = false;
             const ws = new EdgeWebSocketImpl(url, {
@@ -188,7 +190,13 @@ export class EdgeTTSClient implements TTSClient {
             ws.onmessage = (event) => {
                 const data = event.data;
                 if (typeof data === "string") {
-                    const { headers } = parseFrameHeaders(data);
+                    const { headers, body } = parseFrameHeaders(data);
+                    if (headers["path"] === "audio.metadata") {
+                        const parsed = parseEdgeWordBoundaries(body);
+                        if (parsed.length > 0) {
+                            wordTimings.push(...parsed);
+                        }
+                    }
                     if (headers["path"] === "turn.end") {
                         settled = true;
                         clearTimeout(timeout);
@@ -230,6 +238,7 @@ export class EdgeTTSClient implements TTSClient {
             throw new Error("Edge TTS returned no audio data");
         }
         writeFileSync(outputPath, Buffer.concat(chunks));
+        return { wordTimings };
     }
 }
 
@@ -383,6 +392,24 @@ export const VIENEU_PRESET_VOICES = [
     { id: "Mạnh Dũng", name: "Mạnh Dũng (Nam · Bắc · Tự nhiên)", gender: "male", language: "vi" },
 ];
 
+/** Trả về preset khớp với `name` (so khớp không phân biệt hoa thường), hoặc undefined. */
+export function findVieNeuPreset(name?: string) {
+    const wanted = (name || "").trim().toLowerCase();
+    if (!wanted) return undefined;
+    return VIENEU_PRESET_VOICES.find((p) => p.id.toLowerCase() === wanted);
+}
+
+/**
+ * Chọn giọng gửi tới microservice VieNeu: ưu tiên giọng hợp lệ do người dùng yêu cầu,
+ * nếu không có thì dùng giọng cấu hình (`TTS_Voice`) khi hợp lệ, cuối cùng mới về
+ * "Minh Quân". Tách thành hàm thuần để test được mà không cần gọi mạng.
+ */
+export function resolveVieNeuVoice(requested?: string, configured?: string): string {
+    const preset = findVieNeuPreset(requested);
+    if (preset) return preset.id;
+    return findVieNeuPreset(configured)?.id ?? "Minh Quân";
+}
+
 export async function fetchVieNeuVoices(baseUrl?: string): Promise<
     Array<{
         id: string;
@@ -446,14 +473,13 @@ export class VieNeuTTSClient implements TTSClient {
         }
     ): Promise<void> {
         const baseUrl = (this.config.VIENEU_TTS_URL || process.env.VIENEU_TTS_URL || "http://127.0.0.1:7860").replace(/\/+$/, "");
-        const validPreset = VIENEU_PRESET_VOICES.find(
-            (p) => p.id.toLowerCase() === (options?.voice || "").toLowerCase()
-        );
-        const voice = validPreset
-            ? validPreset.id
-            : (this.config.TTS_Voice && VIENEU_PRESET_VOICES.some(p => p.id === this.config.TTS_Voice))
-                ? this.config.TTS_Voice
-                : "Minh Quân";
+        const requestedVoice = (options?.voice || "").trim();
+        if (requestedVoice && !findVieNeuPreset(requestedVoice)) {
+            console.warn(
+                `[VieNeu-TTS] Giọng yêu cầu "${requestedVoice}" không nằm trong danh sách preset — hệ thống sẽ dùng giọng thay thế.`
+            );
+        }
+        const voice = resolveVieNeuVoice(options?.voice, this.config.TTS_Voice);
 
         let speed = 1.0;
         if (typeof options?.speechRate === "number") {
@@ -604,6 +630,51 @@ export async function generateSilence(outputPath: string, durationSec: number): 
 
 // ---------------------------------------------------------------- Main
 
+/**
+ * Bù khoảng lặng vào CUỐI video để tổng thời lượng cảnh khớp `targetDurationSec`.
+ *
+ * Toàn bộ phần thiếu được gộp vào cảnh CUỐI: giữ nguyên tương phản độ dài giữa các
+ * cảnh nên không phá luật nhịp điệu của Oracle QA (CV >= 0.3, ratio shot dài/ngắn >= 4),
+ * đồng thời lời thoại của mọi cảnh vẫn phát trọn vẹn nên timing karaoke không đổi.
+ *
+ * Bỏ qua (trả về nguyên trạng, `applied = false`) khi:
+ *  - không có cảnh / không có target, hoặc thiếu quá ít (< `minDeficitSec`), hoặc
+ *  - narration quá ngắn (< `minCoverageRatio` × target): lúc đó bù khoảng lặng sẽ biến
+ *    video thành gần như im lặng — trường hợp này để prompt và cảnh báo cận dưới lo.
+ */
+export function padScenesToTarget(
+    sceneDurations: durationMap,
+    targetDurationSec: number,
+    options?: { minDeficitSec?: number; minCoverageRatio?: number }
+): {
+    paddedDurations: durationMap;
+    tailGapSec: number;
+    lastSceneId: string | null;
+    deficitSec: number;
+    applied: boolean;
+} {
+    const ids = Object.keys(sceneDurations);
+    const currentTotal = ids.reduce((acc, id) => acc + (sceneDurations[id] || 0), 0);
+    const deficitSec = Math.round((targetDurationSec - currentTotal) * 100) / 100;
+    const minDeficitSec = options?.minDeficitSec ?? 0.25;
+    const minCoverageRatio = options?.minCoverageRatio ?? 0.25;
+
+    const applied =
+        ids.length > 0 &&
+        targetDurationSec > 0 &&
+        deficitSec >= minDeficitSec &&
+        currentTotal >= targetDurationSec * minCoverageRatio;
+
+    if (!applied) {
+        return { paddedDurations: { ...sceneDurations }, tailGapSec: 0, lastSceneId: null, deficitSec, applied: false };
+    }
+
+    const lastSceneId = ids[ids.length - 1];
+    const paddedDurations: durationMap = { ...sceneDurations };
+    paddedDurations[lastSceneId] = Math.round(((sceneDurations[lastSceneId] || 0) + deficitSec) * 100) / 100;
+    return { paddedDurations, tailGapSec: deficitSec, lastSceneId, deficitSec, applied: true };
+}
+
 export interface AudioSynthesisOptions {
     script: videoScript;
     outputDir: string;
@@ -611,6 +682,8 @@ export interface AudioSynthesisOptions {
     voice?: string;
     language?: string;
     bgmVolume?: number;
+    /** Thời lượng mục tiêu (giây) — bù khoảng lặng khi narration ngắn hơn mục tiêu. */
+    targetDurationSec?: number;
     ttsProvider?: 'edge' | 'elevenlabs' | 'openai' | 'google' | 'vieneu' | string;
     onProgress?: (message: string, progress?: number) => void;
     signal?: AbortSignal;
@@ -622,7 +695,7 @@ export interface AudioSynthesisOptions {
  * sceneDurations từ đây là nguồn sự thật cho timing animation.
  */
 export async function synthesizeAudio(options: AudioSynthesisOptions): Promise<AudioResult> {
-    const { script, outputDir, bgmPath, voice, language = "vi", bgmVolume = 0.15, ttsProvider, onProgress, signal } = options;
+    const { script, outputDir, bgmPath, voice, language = "vi", bgmVolume = 0.15, ttsProvider, targetDurationSec, onProgress, signal } = options;
 
     if (script.scenes.length === 0) {
         throw new Error("Script has no scenes to synthesize");
@@ -634,6 +707,7 @@ export async function synthesizeAudio(options: AudioSynthesisOptions): Promise<A
     const tts = ttsProvider ? createTTSClient(ttsProvider) : getTTSClient();
     const audioFiles: Record<string, string> = {};
     const sceneDurations: durationMap = {};
+    const sceneWordTimings: Record<string, WordTiming[]> = {};
     const total = script.scenes.length;
 
     for (let i = 0; i < total; i++) {
@@ -648,20 +722,28 @@ export async function synthesizeAudio(options: AudioSynthesisOptions): Promise<A
 
         await withRetry(
             async (attempt) => {
+                let ttsRes: { wordTimings?: WordTiming[] } | void = undefined;
                 if (!text) {
                     const silenceDuration = estimateTextDuration(scene.voiceOverText, { language });
                     onProgress?.(`[TTS] Scene "${scene.title}" không có lời thoại — tạo đoạn im lặng ${silenceDuration}s`);
                     await generateSilence(sceneAudioPath, silenceDuration);
                 } else {
-                    await tts.synthesize(text, sceneAudioPath, { voice, language, signal });
+                    ttsRes = await tts.synthesize(text, sceneAudioPath, { voice, language, signal });
                 }
 
                 const durationSec = await probeDuration(sceneAudioPath);
                 if (!durationSec || durationSec <= 0) {
                     throw new Error(`Không đo được duration audio của scene "${scene.id}"`);
                 }
-                sceneDurations[scene.id] = Math.round(durationSec * 100) / 100;
+                const roundedDuration = Math.round(durationSec * 100) / 100;
+                sceneDurations[scene.id] = roundedDuration;
                 audioFiles[scene.id] = sceneAudioPath;
+
+                let timings = ttsRes && ttsRes.wordTimings && ttsRes.wordTimings.length > 0 ? ttsRes.wordTimings : undefined;
+                if (!timings) {
+                    timings = computeFallbackWordTimings(text, roundedDuration);
+                }
+                sceneWordTimings[scene.id] = timings;
             },
             {
                 maxAttempts: 3,
@@ -679,14 +761,34 @@ export async function synthesizeAudio(options: AudioSynthesisOptions): Promise<A
         );
     }
 
+    // Bù khoảng lặng để tổng thời lượng khớp mục tiêu (video không ngắn hơn mức đặt trước).
+    const target = targetDurationSec ?? 0;
+    const padding = padScenesToTarget(sceneDurations, target);
+    if (padding.applied && padding.lastSceneId) {
+        sceneDurations[padding.lastSceneId] = padding.paddedDurations[padding.lastSceneId];
+        onProgress?.(
+            `[Audio] Narration ngắn hơn mục tiêu ${padding.deficitSec.toFixed(1)}s — bù khoảng lặng ở cảnh cuối để đủ ${target}s`,
+            84
+        );
+    } else if (target > 0 && padding.deficitSec >= 0.25) {
+        onProgress?.(
+            `[Audio] Cảnh báo: narration chỉ đạt ${(target - padding.deficitSec).toFixed(1)}s/${target}s — quá ngắn để bù an toàn, giữ nguyên độ dài thực.`,
+            84
+        );
+    }
+
     onProgress?.("Đang nối các đoạn âm thanh thành track hoàn chỉnh", 85);
     const fullVoicePath = join(outputDir, "full_voice.mp3");
+
+    const concatFiles: string[] = script.scenes.map((s) => audioFiles[s.id]);
+    if (padding.applied && padding.tailGapSec > 0.01) {
+        const tailGapPath = join(audioDir, "tail__gap.mp3");
+        await generateSilence(tailGapPath, padding.tailGapSec);
+        concatFiles.push(tailGapPath);
+    }
+
     await withRetry(
-        () =>
-            concatAudios(
-                script.scenes.map((s) => audioFiles[s.id]),
-                fullVoicePath
-            ),
+        () => concatAudios(concatFiles, fullVoicePath),
         {
             maxAttempts: 2,
             signal,
@@ -725,5 +827,9 @@ export async function synthesizeAudio(options: AudioSynthesisOptions): Promise<A
         audioFiles,
         totalDurationSec,
         mixAudioPath,
+        wordTimings: sceneWordTimings,
     };
 }
+
+export * from "./audioMixer.js";
+export * from "./wordTiming.js";

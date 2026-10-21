@@ -1,3 +1,15 @@
+/**
+ * KIỂM TRA THỦ CÔNG — không phải test tự động.
+ *
+ * Trước đây file này nằm ở `tests/integration/vieneu.test.ts` nhưng không hề có `assert`:
+ * nó chỉ gọi TTS rồi ghi log, nên luôn "pass" kể cả khi service không tồn tại (đã từng
+ * in ra `ENOTFOUND lime_vieneu_tts` mà bộ test vẫn xanh). Đuôi `*.manual.ts` giúp
+ * `scripts/run-unit-tests.ts` không coi đây là test và không đưa vào nhóm nào.
+ *
+ * Cách chạy (cần service VieNeu-TTS đang chạy, xem `docker-compose.yml`):
+ *   docker compose up -d vieneu-tts
+ *   npx tsx tests/manual/vieneu.manual.ts
+ */
 import { createTTSClient } from '../../src/pipeline/audioSysnthesis.js';
 import { existsSync, statSync } from 'node:fs';
 

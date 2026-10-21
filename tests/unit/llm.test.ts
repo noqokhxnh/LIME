@@ -234,7 +234,8 @@ describe('Module 3: LLM Client & Script Generation (src/llm/client.ts, src/pipel
 
     describe('TC-LLM-004: Cơ chế Self-Correction Retry (Thử lại khi gặp lỗi với Error Log)', () => {
         it('phải gửi kèm thông tin lỗi lần trước ở lần thử thứ 2 và thành công', async () => {
-            // Lần 1: JSON hợp lệ nhưng thiếu trường scenes (vi phạm Zod schema)
+            // Lượt 1: pickStyleSlug trả về slug hợp lệ. Lượt 2: JSON hợp lệ nhưng thiếu
+            // trường scenes (vi phạm Zod schema). Lượt 3: JSON hợp lệ hoàn chỉnh.
             const invalidJson = JSON.stringify({
                 id: 'bad-script',
                 title: 'Bad',
@@ -248,7 +249,7 @@ describe('Module 3: LLM Client & Script Generation (src/llm/client.ts, src/pipel
             // Lần 2: JSON hợp lệ hoàn chỉnh
             const validJson = `\`\`\`json\n${JSON.stringify(validScriptObj)}\n\`\`\``;
 
-            const mockClient = new MockLLMClient([invalidJson, validJson]);
+            const mockClient = new MockLLMClient(['hologram-hud', invalidJson, validJson]);
             setLLMClient(mockClient);
 
             const progressLogs: string[] = [];
@@ -256,15 +257,20 @@ describe('Module 3: LLM Client & Script Generation (src/llm/client.ts, src/pipel
                 progressLogs.push(msg);
             });
 
-            // Kiểm tra số lần gọi đến LLM
-            assert.strictEqual(mockClient.calls.length, 2, 'Phải gọi LLM đúng 2 lần');
+            // Kiểm tra số lần gọi đến LLM: 1 lượt pick style + 2 lượt sinh script
+            assert.strictEqual(mockClient.calls.length, 3, 'Phải gọi LLM đúng 3 lần (1 lượt pick + 2 attempt sinh script)');
+            assert.match(
+                mockClient.calls[0].userPrompt,
+                /Style preset menu \(slug/,
+                'Lượt đầu tiên phải là lượt AI tự chọn style preset'
+            );
 
-            // Kiểm tra prompt lần 1 không có log lỗi
-            assert.doesNotMatch(mockClient.calls[0].userPrompt, /Lần trước bị lỗi/);
+            // Kiểm tra prompt lần 1 (sinh script) không có log lỗi
+            assert.doesNotMatch(mockClient.calls[1].userPrompt, /Lần trước bị lỗi/);
 
             // Kiểm tra prompt lần 2 có đính kèm hướng dẫn sửa lỗi
             assert.match(
-                mockClient.calls[1].userPrompt,
+                mockClient.calls[2].userPrompt,
                 /Lần trước bị lỗi, hãy sửa lỗi sau:/,
                 'Prompt lần 2 phải chứa log lỗi lần 1'
             );
@@ -289,11 +295,9 @@ describe('Module 3: LLM Client & Script Generation (src/llm/client.ts, src/pipel
         it('phải ném Error thông báo hết số lần thử sau 3 attempt thất bại', async () => {
             const malformedJson = '{ "broken_json": true, '; // Cú pháp JSON lỗi
 
-            const mockClient = new MockLLMClient([
-                malformedJson,
-                malformedJson,
-                malformedJson,
-            ]);
+            // Lượt 1: pickStyleSlug trả về slug hợp lệ (không tính vào retry).
+            // 3 lượt kiểu attempt sau đó đều trả JSON lỗi.
+            const mockClient = new MockLLMClient(['dataviz', malformedJson, malformedJson, malformedJson]);
             setLLMClient(mockClient);
 
             const progressLogs: string[] = [];
@@ -314,7 +318,7 @@ describe('Module 3: LLM Client & Script Generation (src/llm/client.ts, src/pipel
                 'Phải ném ngoại lệ khi cả 3 lần đều fail'
             );
 
-            assert.strictEqual(mockClient.calls.length, 3, 'Phải thực hiện đúng 3 lần retry');
+            assert.strictEqual(mockClient.calls.length, 4, 'Phải thực hiện đúng 1 lượt pick + 3 lần retry');
             assert.ok(progressLogs.some((log) => log.includes('Attempt 3 failed')));
         });
     });

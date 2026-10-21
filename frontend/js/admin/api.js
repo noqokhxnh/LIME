@@ -42,10 +42,23 @@ export const AdminApi = {
         return this.request('/api/auth/me');
     },
 
+
+    async logout() {
+        return this.request('/api/auth/logout', { method: 'POST' });
+    },
+
+
     // Dashboard Stats
     async getStats() {
         return this.request('/api/admin/stats');
     },
+
+
+    // Dashboard Analytics (SaaS metrics: MRR/ARR, ARPU, LTV, churn, conversion, signups, feature usage)
+    async getAnalytics(period = '30d') {
+        return this.request(`/api/admin/analytics?period=${encodeURIComponent(period)}`);
+    },
+
 
     // Users
     async getUsers(params = {}) {
@@ -92,11 +105,46 @@ export const AdminApi = {
         });
     },
 
-    async resetPassword(userId) {
+
+    async resetPassword(userId, newPassword) {
         return this.request(`/api/admin/users/${encodeURIComponent(userId)}/reset-password`, {
-            method: 'POST'
+            method: 'POST',
+            body: newPassword ? JSON.stringify({ newPassword }) : undefined
         });
     },
+
+    /**
+     * Xuất CSV danh sách người dùng theo bộ lọc hiện tại (server-side, không giới hạn
+     * theo trang đang xem). Trả về Blob + tên file để view kích hoạt tải xuống.
+     */
+    async exportUsers(params = {}) {
+        const qs = new URLSearchParams();
+        Object.entries(params).forEach(([key, val]) => {
+            if (val === undefined || val === null || val === '') return;
+            if (Array.isArray(val)) val.forEach((v) => qs.append(key, v));
+            else qs.append(key, val);
+        });
+
+        const res = await fetch(`/api/admin/users/export?${qs.toString()}`, {
+            credentials: 'include',
+            headers: this.getHeaders()
+        });
+
+        if (!res.ok) {
+            const data = await res.json().catch(() => ({}));
+            throw new Error(data.error || data.message || `Xuất CSV thất bại (HTTP ${res.status})`);
+        }
+
+        const blob = await res.blob();
+        const disposition = res.headers.get('Content-Disposition') || '';
+        const match = disposition.match(/filename="?([^"]+)"?/);
+
+        return {
+            blob,
+            filename: match ? match[1] : `vidtml_users_${new Date().toISOString().slice(0, 10)}.csv`
+        };
+    },
+
 
     // Video Jobs
     async getJobs(params = {}) {
@@ -134,8 +182,17 @@ export const AdminApi = {
     },
 
     // Orders
-    async getOrders() {
-        return this.request('/api/admin/orders');
+
+    async getOrders(params = {}) {
+        const qs = new URLSearchParams();
+        Object.entries(params).forEach(([key, val]) => {
+            if (val !== undefined && val !== null && val !== '') {
+                qs.append(key, val);
+            }
+        });
+        const suffix = qs.toString();
+        return this.request(`/api/admin/orders${suffix ? `?${suffix}` : ''}`);
+
     },
 
     async fulfillOrder(orderId) {
@@ -151,12 +208,26 @@ export const AdminApi = {
     },
 
     // Failed Payments & Refunds
-    async getUnmatched(status = 'pending') {
-        return this.request(`/api/admin/unmatched?status=${encodeURIComponent(status)}`);
+
+    async getUnmatched(params = {}) {
+        // Cho phép gọi cũ dạng chuỗi trạng thái: getUnmatched('pending').
+        const query = typeof params === 'string' ? { status: params } : params;
+        const qs = new URLSearchParams();
+        Object.entries(query).forEach(([key, val]) => {
+            if (val !== undefined && val !== null && val !== '') qs.append(key, val);
+        });
+        const suffix = qs.toString();
+        return this.request(`/api/admin/unmatched${suffix ? `?${suffix}` : ''}`);
     },
 
-    async getDuplicatePayments() {
-        return this.request('/api/admin/payments/duplicates');
+    async getDuplicatePayments(params = {}) {
+        const qs = new URLSearchParams();
+        Object.entries(params).forEach(([key, val]) => {
+            if (val !== undefined && val !== null && val !== '') qs.append(key, val);
+        });
+        const suffix = qs.toString();
+        return this.request(`/api/admin/payments/duplicates${suffix ? `?${suffix}` : ''}`);
+
     },
 
     async resolveUnmatched(id, data) {
@@ -180,8 +251,15 @@ export const AdminApi = {
         });
     },
 
-    async getRefunds() {
-        return this.request('/api/admin/refunds');
+
+    async getRefunds(params = {}) {
+        const qs = new URLSearchParams();
+        Object.entries(params).forEach(([key, val]) => {
+            if (val !== undefined && val !== null && val !== '') qs.append(key, val);
+        });
+        const suffix = qs.toString();
+        return this.request(`/api/admin/refunds${suffix ? `?${suffix}` : ''}`);
+
     },
 
     // System Settings
@@ -204,8 +282,17 @@ export const AdminApi = {
     },
 
     // Audit Logs
-    async getAuditLogs() {
-        return this.request('/api/admin/audit-logs');
+
+    async getAuditLogs(params = {}) {
+        const qs = new URLSearchParams();
+        Object.entries(params).forEach(([key, val]) => {
+            if (val !== undefined && val !== null && val !== '') {
+                qs.append(key, val);
+            }
+        });
+        const suffix = qs.toString();
+        return this.request(`/api/admin/audit-logs${suffix ? `?${suffix}` : ''}`);
+
     },
 
     async clearAuditLogs() {
@@ -260,5 +347,107 @@ export const AdminApi = {
         return this.request('/api/admin/maintenance', {
             method: 'DELETE'
         });
+
+    },
+
+    // System Broadcast Banner (Announcements)
+    async getAnnouncements(params = {}) {
+        const qs = new URLSearchParams();
+        Object.entries(params).forEach(([key, val]) => {
+            if (val !== undefined && val !== null && val !== '') {
+                qs.append(key, val);
+            }
+        });
+        const suffix = qs.toString();
+        return this.request(`/api/admin/announcements${suffix ? `?${suffix}` : ''}`);
+    },
+
+    async createAnnouncement(data) {
+        return this.request('/api/admin/announcements', {
+            method: 'POST',
+            body: JSON.stringify(data)
+        });
+    },
+
+    async updateAnnouncement(id, data) {
+        return this.request(`/api/admin/announcements/${encodeURIComponent(id)}`, {
+            method: 'PATCH',
+            body: JSON.stringify(data)
+        });
+    },
+
+    async toggleAnnouncement(id) {
+        return this.request(`/api/admin/announcements/${encodeURIComponent(id)}/toggle`, {
+            method: 'POST'
+        });
+    },
+
+    async deleteAnnouncement(id) {
+        return this.request(`/api/admin/announcements/${encodeURIComponent(id)}`, {
+            method: 'DELETE'
+        });
+    },
+
+    // Helpdesk / Ticketing (quản lý yêu cầu hỗ trợ)
+    async getTickets(params = {}) {
+        const qs = new URLSearchParams();
+        Object.entries(params).forEach(([key, val]) => {
+            if (val !== undefined && val !== null && val !== '') {
+                qs.append(key, val);
+            }
+        });
+        const suffix = qs.toString();
+        return this.request(`/api/admin/tickets${suffix ? `?${suffix}` : ''}`);
+    },
+
+    async getTicket(id) {
+        return this.request(`/api/admin/tickets/${encodeURIComponent(id)}`);
+    },
+
+    async replyTicket(id, { body, isInternal = false }) {
+        return this.request(`/api/admin/tickets/${encodeURIComponent(id)}/messages`, {
+            method: 'POST',
+            body: JSON.stringify({ body, isInternal })
+        });
+    },
+
+    async updateTicket(id, data) {
+        return this.request(`/api/admin/tickets/${encodeURIComponent(id)}`, {
+            method: 'PATCH',
+            body: JSON.stringify(data)
+        });
+    },
+
+    // Docker Logs
+    async getDockerContainers() {
+        return this.request('/api/admin/docker-logs/containers');
+    },
+
+    getDockerLogStreamUrl(container, tail = 100) {
+        return `/api/admin/docker-logs/stream?container=${encodeURIComponent(container)}&tail=${encodeURIComponent(tail)}`;
+    },
+
+    getDockerLogDownloadUrl(container, tail = 1000) {
+        return `/api/admin/docker-logs/download?container=${encodeURIComponent(container)}&tail=${encodeURIComponent(tail)}`;
+    },
+
+    // Yêu cầu hoàn tiền của người dùng (danh mục "refund" trong widget Hỗ trợ)
+    async getRefundRequests(params = {}) {
+        const qs = new URLSearchParams();
+        Object.entries(params).forEach(([key, val]) => {
+            if (val !== undefined && val !== null && val !== '') {
+                qs.append(key, val);
+            }
+        });
+        const suffix = qs.toString();
+        return this.request(`/api/admin/refund-requests${suffix ? `?${suffix}` : ''}`);
+    },
+
+    async updateRefundRequest(id, data) {
+        return this.request(`/api/admin/refund-requests/${encodeURIComponent(id)}`, {
+            method: 'PATCH',
+            body: JSON.stringify(data)
+        });
+
     }
 };

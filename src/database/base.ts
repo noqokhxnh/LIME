@@ -75,6 +75,13 @@ CREATE TABLE IF NOT EXISTS audit_logs (
     created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
 
+-- Người THỰC HIỆN hành động (actor), tách khỏi user_id/user_email là ĐỐI TƯỢNG bị
+-- tác động. Trước đây thông tin người thực hiện chỉ nằm rải rác trong details
+-- (updatedBy/deletedBy/...) và ip_address không bao giờ được ghi từ cổng quản trị.
+ALTER TABLE audit_logs ADD COLUMN IF NOT EXISTS actor_id UUID;
+ALTER TABLE audit_logs ADD COLUMN IF NOT EXISTS actor_email VARCHAR(255);
+
+
 CREATE INDEX IF NOT EXISTS idx_audit_logs_created_at ON audit_logs(created_at DESC);
 CREATE INDEX IF NOT EXISTS idx_audit_logs_action ON audit_logs(action);
 `;
@@ -200,4 +207,95 @@ CREATE TABLE IF NOT EXISTS refunds (
 );
 
 CREATE UNIQUE INDEX IF NOT EXISTS uq_refunds_source ON refunds(source_type, source_id);
+`;
+
+/**
+ * Câu lệnh SQL khởi tạo bảng announcements (System Broadcast Banner).
+ *
+ * Mỗi bản ghi là một thông báo có thể hiển thị cho toàn bộ người dùng — đã đăng
+ * nhập lẫn khách chưa đăng nhập: bảo trì, ra mắt tính năng mới, cảnh báo…
+ *
+ * Các cột:
+ *   - kind        : info | feature | warning | maintenance (quyết định màu/kểu banner)
+ *   - priority    : số càng lớn càng ưu tiên hiển thị lên trên
+ *   - is_active   : bật/tắt nhanh mà không cần xoá
+ *   - starts_at   : thời điểm bắt đầu hiệu lực (NULL = ngay lập tức)
+ *   - ends_at     : thời điểm hết hiệu lực (NULL = không hết hạn)
+ *   - dismissible : người dùng có được phép đóng banner này không
+ *   - audience    : all | users | guests (phạm vi người xem)
+ */
+export const ANNOUNCEMENT_SQL = `
+CREATE TABLE IF NOT EXISTS announcements (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    title VARCHAR(160) NOT NULL,
+    body TEXT NOT NULL,
+    kind VARCHAR(20) NOT NULL DEFAULT 'info',
+    priority INTEGER NOT NULL DEFAULT 0,
+    is_active BOOLEAN NOT NULL DEFAULT true,
+    starts_at TIMESTAMPTZ,
+    ends_at TIMESTAMPTZ,
+    dismissible BOOLEAN NOT NULL DEFAULT true,
+    link_url TEXT,
+    link_label VARCHAR(80),
+    audience VARCHAR(20) NOT NULL DEFAULT 'all',
+    created_by VARCHAR(255),
+    created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+
+CREATE INDEX IF NOT EXISTS idx_announcements_active
+ON announcements(is_active, priority DESC, created_at DESC);
+`;
+
+/**
+ * Câu lệnh SQL khởi tạo bảng helpdesk (Yêu cầu hỗ trợ / Ticketing).
+ *
+ * Người dùng tạo ticket (báo lỗi, yêu cầu hỗ trợ kỹ thuật) ngay trên trang của
+ * mình qua widget nổi; Admin tiếp nhận và phản hồi ngay trong trang Admin.
+ * Mỗi ticket là một chuỗi hội thoại gồm nhiều `ticket_messages` (bên user/admin,
+ * có thể kèm ảnh và ghi chú nội bộ `is_internal` ẩn khỏi người dùng).
+ *
+ * Các cột chính:
+ *   - code     : mã ticket hiển thị dạng LIME-T-XXXXXX (unique, tránh nhầm lẫn với UUID)
+ *   - status   : open | in_progress | waiting_user | resolved | closed
+ *   - category : bug | feature_request | billing | account | render | other
+ *   - priority : low | normal | high | urgent
+ *   - context  : JSONB tự báo cáo (URL, userAgent, tier, jobId) giúp admin tra cứu
+ */
+export const HELPDESK_SQL = `
+CREATE TABLE IF NOT EXISTS tickets (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    code VARCHAR(20) NOT NULL UNIQUE,
+    user_id UUID REFERENCES users(id) ON DELETE SET NULL,
+    user_email VARCHAR(255),
+    subject VARCHAR(200) NOT NULL,
+    category VARCHAR(30) NOT NULL DEFAULT 'other',
+    priority VARCHAR(20) NOT NULL DEFAULT 'normal',
+    status VARCHAR(20) NOT NULL DEFAULT 'open',
+    context JSONB,
+    last_message_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    last_admin_reply_at TIMESTAMPTZ,
+    created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+
+CREATE INDEX IF NOT EXISTS idx_tickets_status_last
+ON tickets(status, last_message_at DESC);
+CREATE INDEX IF NOT EXISTS idx_tickets_user
+ON tickets(user_id, created_at DESC);
+
+CREATE TABLE IF NOT EXISTS ticket_messages (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    ticket_id UUID NOT NULL REFERENCES tickets(id) ON DELETE CASCADE,
+    sender_type VARCHAR(10) NOT NULL,
+    sender_id UUID,
+    sender_email VARCHAR(255),
+    body TEXT NOT NULL,
+    attachments JSONB NOT NULL DEFAULT '[]'::jsonb,
+    is_internal BOOLEAN NOT NULL DEFAULT false,
+    created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+
+CREATE INDEX IF NOT EXISTS idx_ticket_messages_ticket
+ON ticket_messages(ticket_id, created_at);
 `;

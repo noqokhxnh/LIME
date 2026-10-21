@@ -116,6 +116,45 @@ async function persistSettingsToDb(settings: SystemSettings): Promise<void> {
     }
 }
 
+export const SYSTEM_SETTINGS_LIMITS = {
+    maxConcurrentJobs: { min: 1, max: 20 },
+    freeCreditsOnRegister: { min: 0, max: 1_000_000 },
+} as const;
+
+/**
+ * Kiểm tra dữ liệu cập nhật cài đặt. Trả về thông báo lỗi hoặc `null` nếu hợp lệ.
+ *
+ * Trước đây `update()` nhận `any` và lưu thẳng, nên admin có thể đặt
+ * `maxConcurrentJobs = 0/-5/NaN` hoặc `freeCreditsOnRegister` âm — làm hỏng hàng
+ * đợi render và tặng credit âm khi đăng ký.
+ */
+export function validateSettingsPatch(partial: any): string | null {
+    if (!partial || typeof partial !== "object") return "Dữ liệu cài đặt không hợp lệ.";
+
+    const numericFields: Array<[string, { min: number; max: number }]> = [
+        ["maxConcurrentJobs", SYSTEM_SETTINGS_LIMITS.maxConcurrentJobs],
+        ["renderConcurrency", SYSTEM_SETTINGS_LIMITS.maxConcurrentJobs],
+        ["freeCreditsOnRegister", SYSTEM_SETTINGS_LIMITS.freeCreditsOnRegister],
+    ];
+    for (const [field, limit] of numericFields) {
+        if (partial[field] === undefined) continue;
+        const value = Number(partial[field]);
+        if (!Number.isFinite(value) || !Number.isInteger(value) || value < limit.min || value > limit.max) {
+            return `${field} phải là số nguyên trong khoảng ${limit.min}–${limit.max}.`;
+        }
+    }
+
+    const booleanFields = ["maintenanceMode", "registrationEnabled", "allowSandboxPayments"];
+    for (const field of booleanFields) {
+        if (partial[field] !== undefined && typeof partial[field] !== "boolean") {
+            return `${field} phải là giá trị đúng/sai (boolean).`;
+        }
+    }
+
+    return null;
+}
+
+
 export const systemSettings = {
     get(): SystemSettings {
         if (cachedSettings) return cachedSettings;
@@ -157,6 +196,20 @@ export const systemSettings = {
         if (partial.llmModel !== undefined) normalized.defaultLlmModel = partial.llmModel;
         if (partial.ttsVoice !== undefined) normalized.defaultTtsVoice = partial.ttsVoice;
         if (partial.renderConcurrency !== undefined) normalized.maxConcurrentJobs = Number(partial.renderConcurrency);
+
+        // Kẹp giá trị số phòng trường hợp bị gọi trực tiếp (không qua route đã validate).
+        if (normalized.maxConcurrentJobs !== undefined) {
+            const v = Math.round(Number(normalized.maxConcurrentJobs));
+            normalized.maxConcurrentJobs = Number.isFinite(v)
+                ? Math.min(Math.max(v, SYSTEM_SETTINGS_LIMITS.maxConcurrentJobs.min), SYSTEM_SETTINGS_LIMITS.maxConcurrentJobs.max)
+                : current.maxConcurrentJobs;
+        }
+        if (normalized.freeCreditsOnRegister !== undefined) {
+            const v = Math.round(Number(normalized.freeCreditsOnRegister));
+            normalized.freeCreditsOnRegister = Number.isFinite(v)
+                ? Math.min(Math.max(v, SYSTEM_SETTINGS_LIMITS.freeCreditsOnRegister.min), SYSTEM_SETTINGS_LIMITS.freeCreditsOnRegister.max)
+                : current.freeCreditsOnRegister;
+        }
 
         const targetLlmProvider = normalized.defaultLlmProvider || current.defaultLlmProvider;
         if (!normalized.defaultLlmModel && partial.llmProvider !== undefined) {

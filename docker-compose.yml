@@ -37,6 +37,7 @@ services:
     image: lime_app:latest
     container_name: lime_server
     command: npm run dev
+    user: root
     ports:
       - "${PORT:-3000}:${PORT:-3000}"
     extra_hosts:
@@ -45,6 +46,7 @@ services:
       - lime_data:/app/tmp
       - ./src:/app/src
       - ./frontend:/app/frontend
+      - /var/run/docker.sock:/var/run/docker.sock:ro
     environment:
       - REDIS_URL=redis://redis:6379
       - QUEUE_TYPE=redis

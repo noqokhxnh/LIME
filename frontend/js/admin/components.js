@@ -141,10 +141,10 @@ export const Skeleton = {
 
 // 6. EMPTY STATE
 export const EmptyState = {
-    render({ title = 'Không tìm thấy dữ liệu', description = 'Thử thay đổi bộ lọc hoặc từ khóa tìm kiếm.', actionText = 'Đặt lại bộ lọc', onAction }) {
-        const container = document.createElement('div');
-        container.className = 'empty-state';
-        container.innerHTML = `
+    /** Markup HTML — dùng khi cần nhúng vào innerHTML (ví dụ một hàng của bảng). */
+    markup({ title = 'Không tìm thấy dữ liệu', description = 'Thử thay đổi bộ lọc hoặc từ khóa tìm kiếm.', actionText = 'Đặt lại bộ lọc' } = {}) {
+        return `
+
             <div class="empty-state-icon">
                 <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.3-4.3"/></svg>
             </div>
@@ -152,13 +152,407 @@ export const EmptyState = {
             <div class="empty-state-desc">${description}</div>
             ${actionText ? `<button class="btn btn-secondary btn-reset-filter">${actionText}</button>` : ''}
         `;
+    },
+
+    render({ title = 'Không tìm thấy dữ liệu', description = 'Thử thay đổi bộ lọc hoặc từ khóa tìm kiếm.', actionText = 'Đặt lại bộ lọc', onAction } = {}) {
+        const container = document.createElement('div');
+        container.className = 'empty-state';
+        container.innerHTML = this.markup({ title, description, actionText });
 
         if (actionText && typeof onAction === 'function') {
             const btn = container.querySelector('.btn-reset-filter');
-            btn.onclick = onAction;
+            if (btn) btn.onclick = onAction;
         }
 
         return container;
+    },
+
+    /**
+     * Hàng bảng rỗng: `<tr><td colspan=N>…empty-state…</td></tr>`.
+     * `render()` trả về DOM element nên KHÔNG nội suy được vào template string
+     * (sẽ ra "[object HTMLDivElement]") — dùng hàm này cho `<tbody>`.
+     */
+    rowHtml(colspan, options = {}) {
+        const span = Number(colspan) || 1;
+        return `<tr class="empty-state-row"><td colspan="${span}"><div class="empty-state">${this.markup(options)}</div></td></tr>`;
+    },
+
+    /** Gắn handler cho nút hành động trong vùng vừa ghi bằng rowHtml(). */
+    bindAction(scopeEl, onAction) {
+        if (!scopeEl) return null;
+        const btn = scopeEl.querySelector('.btn-reset-filter');
+        if (btn && typeof onAction === 'function') btn.addEventListener('click', onAction);
+        return btn;
+    }
+};
+
+// 6b. INLINE ALERT BANNER — thay cho các dòng lỗi rải rác trong bảng/khối
+const escapeAlertHtml = (value) =>
+    String(value ?? '').replace(/[&<>"']/g, (ch) => (
+        { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[ch]
+    ));
+
+export const AlertBanner = {
+    iconPath(level) {
+        if (level === 'warning') {
+            return '<path d="M10.3 3.9 1.8 18a2 2 0 0 0 1.7 3h17a2 2 0 0 0 1.7-3L13.7 3.9a2 2 0 0 0-3.4 0Z"/><path d="M12 9v4M12 17h.01"/>';
+        }
+        return '<circle cx="12" cy="12" r="10"/><path d="M12 8v5M12 16h.01"/>';
+    },
+
+    markup({ title = '', message = '', level = 'danger', retryLabel = 'Thử lại', retryId = '' } = {}) {
+        const tone = level === 'warning' ? 'warning' : 'danger';
+        const action = retryLabel
+            ? `<button type="button" class="btn btn-secondary btn-sm alert-banner-retry"${retryId ? ` id="${escapeAlertHtml(retryId)}"` : ''}>${escapeAlertHtml(retryLabel)}</button>`
+            : '';
+        const heading = title ? `<div class="alert-banner-title">${escapeAlertHtml(title)}</div>` : '';
+        return `
+            <div class="alert-banner alert-banner-${tone}" role="alert">
+                <svg class="alert-banner-icon" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">${this.iconPath(level)}</svg>
+                <div class="alert-banner-content">
+                    ${heading}
+                    <div class="alert-banner-message">${escapeAlertHtml(message)}</div>
+                </div>
+                ${action}
+            </div>`;
+    },
+
+    /** Markup cho tải bảng thất bại: <tr><td colspan=N>…banner…</td></tr>. */
+    rowHtml(colspan, options = {}) {
+        const span = Number(colspan) || 1;
+        return `<tr class="alert-banner-row"><td colspan="${span}">${this.markup(options)}</td></tr>`;
+    },
+
+    /** Thay nội dung một khối bằng banner; gắn sẵn handler cho nút thử lại. */
+    render(container, options = {}) {
+        if (!container) return null;
+        container.innerHTML = this.markup(options);
+        return this.bindRetry(container, options.onRetry);
+    },
+
+    /** Gắn nút "Thử lại" trong một vùng vừa được ghi bằng rowHtml/render. */
+    bindRetry(scopeEl, onRetry) {
+        if (!scopeEl) return null;
+        const btn = scopeEl.querySelector('.alert-banner-retry');
+        if (btn && typeof onRetry === 'function') btn.addEventListener('click', onRetry);
+        return btn;
+    }
+};
+
+// 6c. TABLE ENHANCER — nhãn cột cho card view mobile + cột thao tác dán bên phải
+export const EnhanceTable = {
+    _tables: new WeakSet(),
+    _docObserver: null,
+    _rafId: null,
+
+    /**
+     * Gắn `data-label` (nhãn cột, dùng cho card view trên mobile) và đánh dấu
+     * cột thao tác (dán bên phải khi cuộn ngang).
+     *
+     * Bỏ qua các "hàng đặc biệt" chỉ có 1 ô (colspan) như hàng rỗng / hàng lỗi —
+     * nếu không chúng sẽ bị coi là cột thao tác và dán sai.
+     */
+    annotate(table) {
+        if (!table || !table.querySelector) return;
+
+        const headCells = Array.from(table.querySelectorAll('thead th'));
+        if (headCells.length === 0) return;
+
+        const labels = headCells.map((th) => (th.textContent || '').replace(/\s+/g, ' ').trim());
+        const actionIndex = labels.findIndex((label) => /^(thao tác|hành động|actions?)$/i.test(label));
+
+        headCells.forEach((th, i) => {
+            th.classList.toggle('col-actions', i === actionIndex);
+        });
+
+        table.querySelectorAll('tbody tr').forEach((tr) => {
+            const cells = tr.querySelectorAll(':scope > td');
+            if (cells.length <= 1) {
+                // Hàng colspan (empty state / alert banner): không gắn nhãn, không dán.
+                cells.forEach((td) => { td.classList.remove('col-actions'); });
+                return;
+            }
+            cells.forEach((td, i) => {
+                const label = labels[i];
+                if (label && td.dataset.label !== label) td.dataset.label = label;
+                td.classList.toggle('col-actions', i === actionIndex);
+            });
+        });
+    },
+
+    /** Idempotent: theo dõi mọi `.admin-table` hiện có và tự chạy lại khi bảng đổi. */
+    observe(root = document) {
+        root.querySelectorAll('.admin-table').forEach((table) => {
+            if (this._tables.has(table)) return;
+            this._tables.add(table);
+            this.annotate(table);
+
+            const tbody = table.querySelector('tbody');
+            if (!tbody) return;
+            new MutationObserver(() => this.scheduleAnnotate(table)).observe(tbody, {
+                childList: true,
+                subtree: true
+            });
+        });
+    },
+
+    /** Gộp nhiều lần render liên tiếp vào một lần quét trong khung hình kế tiếp. */
+    scheduleAnnotate(table) {
+        if (this._rafId) cancelAnimationFrame(this._rafId);
+        this._rafId = requestAnimationFrame(() => {
+            this._rafId = null;
+            this.annotate(table);
+            this.scheduleFit();
+        });
+    },
+
+    /** Theo dõi cả những bảng được thêm vào DOM sau (khi đổi tab). */
+    watchDocument() {
+        if (this._docObserver) {
+            this.observe();
+        } else {
+            this._docObserver = new MutationObserver(() => {
+                this.observe();
+                this.scheduleFit();
+            });
+            this._docObserver.observe(document.body, { childList: true, subtree: true });
+        }
+
+        window.addEventListener('resize', () => this.scheduleFit());
+        this.observe();
+        this.scheduleFit();
+    },
+
+    /**
+     * Cắt chiều cao `.table-wrapper` theo vị trí thật của nó để phần phân trang
+     * luôn nằm trong màn hình đầu — nhờ đó `thead` dán được mà vẫn thấy trang.
+     */
+    fitToViewport() {
+        document.querySelectorAll('.table-wrapper').forEach((wrapper) => {
+            const documentOffset = wrapper.getBoundingClientRect().top + window.scrollY;
+            if (!documentOffset) return;
+            const reserve = 104; // phân trang + đệm đáy
+            const maxHeight = Math.max(280, Math.round(window.innerHeight - documentOffset - reserve));
+            wrapper.style.maxHeight = `${maxHeight}px`;
+        });
+    },
+
+    scheduleFit() {
+        if (this._fitRafId) cancelAnimationFrame(this._fitRafId);
+        this._fitRafId = requestAnimationFrame(() => {
+            this._fitRafId = null;
+            this.fitToViewport();
+        });
+    }
+};
+
+// 6d. TABLE DENSITY — chuyển mật độ bảng (thoáng / gọn), ghi nhớ trong localStorage
+export const TableDensity = {
+    key: 'admin_table_density',
+    _value: 'comfortable',
+
+    get() {
+        return this._value;
+    },
+
+    isCompact() {
+        return this._value === 'compact';
+    },
+
+    /** Gắn nút bật/tắt mật độ vào topbar. */
+    mount(button) {
+        if (!button) return;
+
+        let stored = null;
+        try { stored = localStorage.getItem(this.key); } catch {}
+        if (stored === 'compact' || stored === 'comfortable') this._value = stored;
+        this.apply();
+
+        button.addEventListener('click', () => {
+            this._value = this.isCompact() ? 'comfortable' : 'compact';
+            this.apply();
+            try { localStorage.setItem(this.key, this._value); } catch {}
+        });
+    },
+
+    apply() {
+        const compact = this.isCompact();
+        document.documentElement.dataset.density = this._value;
+
+        const button = document.getElementById('admin-density-toggle');
+        if (button) {
+            button.setAttribute('aria-pressed', String(compact));
+            button.title = compact ? 'Mật độ: gọn (bấm để chuyển sang thoáng)' : 'Mật độ: thoáng (bấm để chuyển sang gọn)';
+            button.setAttribute('aria-label', button.title);
+            button.classList.toggle('is-active', compact);
+        }
+    }
+};
+
+const escapeHtml = (value) =>
+    String(value ?? '')
+        .replace(/&/g, '&amp;')
+        .replace(/</g, '&lt;')
+        .replace(/>/g, '&gt;')
+        .replace(/"/g, '&quot;')
+        .replace(/'/g, '&#039;');
+
+/** Mũi tên xu hướng dùng chung cho `MetricDelta`. */
+const arrowIcon = (kind) => {
+    const paths = {
+        up: '<path d="M7 17 17 7"/><path d="M9 7h8v8"/>',
+        down: '<path d="M7 7l10 10"/><path d="M17 9v8H9"/>',
+        flat: '<path d="M6 12h12"/>'
+    };
+    return `<svg class="metric-delta-icon" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">${paths[kind] || paths.flat}</svg>`;
+};
+
+// 6e. METRIC DELTA — mức tăng/giảm so với kỳ liền trước
+export const MetricDelta = {
+    /**
+     * Chênh lệch giữa kỳ này và kỳ trước.
+     * - `up` / `down` / `flat`: hướng thay đổi
+     * - `new`: kỳ trước bằng 0 nên không có mốc để tính phần trăm
+     */
+    compute(current, previous) {
+        const cur = Number(current) || 0;
+        const prev = Number(previous) || 0;
+        if (prev === 0) return cur === 0 ? { kind: 'flat', ratio: 0 } : { kind: 'new', ratio: null };
+        return { kind: cur === prev ? 'flat' : cur > prev ? 'up' : 'down', ratio: (cur - prev) / Math.abs(prev) };
+    },
+
+    /**
+     * @param {object} opts
+     * @param {number} opts.current         giá trị kỳ này
+     * @param {number} opts.previous        giá trị kỳ trước
+     * @param {boolean} [opts.invert]       true khi TĂNG là điều xấu (vd: churn rate)
+     * @param {'percent'|'point'} [opts.unit] `point` cho các tỷ lệ (chênh lệch điểm %)
+     * @param {string} [opts.context]       mô tả kỳ trước, hiện trong tooltip
+     * @param {string} [opts.format]        hàm định dạng giá trị kỳ trước
+     */
+    markup({ current, previous, invert = false, unit = 'percent', context = '', format } = {}) {
+        const { kind, ratio } = this.compute(current, previous);
+
+        if (kind === 'new') {
+            // Không có mốc so sánh: nêu rõ thay vì bịa phần trăm.
+            const label = 'mới';
+            return `<span class="metric-delta is-new" title="${escapeHtml(context)}" aria-label="Không có dữ liệu kỳ trước để so sánh">${arrowIcon('flat')}<span>${label}</span></span>`;
+        }
+
+        let text;
+        if (unit === 'point') {
+            const points = ((Number(current) || 0) - (Number(previous) || 0)) * 100;
+            text = `${points > 0 ? '+' : points < 0 ? '−' : ''}${Math.abs(points).toFixed(1).replace('.', ',')} điểm`;
+        } else if (kind === 'flat') {
+            text = 'không đổi';
+        } else {
+            const pct = Math.abs(ratio) * 100;
+            text = `${kind === 'up' ? '+' : '−'}${pct.toFixed(pct >= 10 ? 0 : 1).replace('.', ',')}%`;
+        }
+
+        // "Tốt/xấu" phụ thuộc chiều của chỉ số: churn tăng là xấu, doanh thu tăng là tốt.
+        const tone = kind === 'flat' ? 'is-flat' : (kind === 'up') !== Boolean(invert) ? 'is-good' : 'is-bad';
+
+        const prevText = typeof format === 'function' ? format(previous) : String(previous ?? '');
+        const tip = [context, Number(previous) || Number(current) ? `Kỳ trước: ${prevText}` : '']
+            .filter(Boolean)
+            .join(' — ');
+
+        return `<span class="metric-delta ${tone}" title="${escapeHtml(tip)}" aria-label="${escapeHtml(`So với kỳ trước: ${text}`)}">${arrowIcon(kind)}<span>${escapeHtml(text)}</span></span>`;
+    },
+
+    /** Ghi kết quả vào một phần tử (thường là dòng phụ của thẻ KPI). */
+    render(container, opts = {}) {
+        if (!container) return;
+        container.innerHTML = this.markup(opts);
+        return container.firstElementChild;
+    }
+};
+
+// 6f. DONUT CHART — biểu đồ tròn SVG, không phụ thuộc thư viện ngoài
+export const DonutChart = {
+    /** Bảng màu lấy từ hệ màu LIME (lime → xanh lá → trung tính) để phân biệt được các phần. */
+    colors: ['#B9E72B', '#8FBE0A', '#65A30D', '#4D7C0F', '#14160F', '#9A9E92'],
+
+    color(index) {
+        return this.colors[index % this.colors.length];
+    },
+
+    /**
+     * @param {Array<{name: string, count: number, percentage?: number}>} items
+     * @param {object} [opts]
+     * @param {number} [opts.size]          đường kính (px)
+     * @param {number} [opts.thickness]     độ dày vành
+     * @param {string} [opts.centerValue]   số lớn giữa vòng
+     * @param {string} [opts.centerLabel]   nhãn nhỏ dưới số
+     */
+    markup(items, opts = {}) {
+        const list = (items || []).filter((item) => Number(item.count) > 0);
+        const total = list.reduce((sum, item) => sum + (Number(item.count) || 0), 0);
+
+        if (total === 0) {
+            return `<div class="views-widget-empty">Chưa có gói cước nào đang hoạt động.</div>`;
+        }
+
+        const size = opts.size || 168;
+        const thickness = opts.thickness || 22;
+        const radius = (size - thickness) / 2;
+        const circumference = 2 * Math.PI * radius;
+        const center = size / 2;
+        // Khe hở nhỏ giữa các phần; chỉ áp dụng khi có nhiều hơn 1 phần.
+        const gap = list.length > 1 ? Math.min(3, circumference / list.length / 4) : 0;
+
+        let offset = 0;
+        const arcs = list
+            .map((item, index) => {
+                const ratio = (Number(item.count) || 0) / total;
+                const length = Math.max(0.6, ratio * circumference - gap);
+                const arc = `<circle class="donut-segment" cx="${center}" cy="${center}" r="${radius}"
+                        fill="none" stroke="${this.color(index)}" stroke-width="${thickness}"
+                        stroke-dasharray="${length.toFixed(2)} ${(circumference - length).toFixed(2)}"
+                        stroke-dashoffset="${(-offset).toFixed(2)}"
+                        transform="rotate(-90 ${center} ${center})">
+                        <title>${escapeHtml(`${item.name}: ${item.count} gói (${Math.round(ratio * 100)}%)`)}</title>
+                    </circle>`;
+                offset += ratio * circumference;
+                return arc;
+            })
+            .join('');
+
+        const label = `Cơ cấu ${total} gói đang hoạt động: ${list
+            .map((item) => `${item.name} ${item.count} gói`)
+            .join(', ')}`;
+
+        const legend = list
+            .map((item, index) => {
+                const pct = Math.round(((Number(item.count) || 0) / total) * 100);
+                const mrr = Number(item.mrrVnd) || 0;
+                return `
+                    <li class="donut-legend-item" title="${escapeHtml(`${item.name}: ${pct}%`)}">
+                        <span class="donut-legend-dot" style="background: ${this.color(index)};"></span>
+                        <span class="donut-legend-name audit-break-word">${escapeHtml(item.name)}</span>
+                        <span class="donut-legend-value">${item.count} <span class="donut-legend-pct">(${pct}%)</span></span>
+                    </li>
+                `;
+            })
+            .join('');
+
+        return `
+            <div class="donut-chart">
+                <div class="donut-chart-figure">
+                    <svg width="${size}" height="${size}" viewBox="0 0 ${size} ${size}" role="img" aria-label="${escapeHtml(label)}">
+                        <circle cx="${center}" cy="${center}" r="${radius}" fill="none" stroke="var(--line)" stroke-width="${thickness}"></circle>
+                        ${arcs}
+                    </svg>
+                    <div class="donut-chart-center">
+                        <span class="donut-chart-center-value">${escapeHtml(opts.centerValue ?? String(total))}</span>
+                        <span class="donut-chart-center-label">${escapeHtml(opts.centerLabel ?? 'gói')}</span>
+                    </div>
+                </div>
+                <ul class="donut-chart-legend">${legend}</ul>
+            </div>
+        `;
+
     }
 };
 
@@ -229,7 +623,13 @@ export const ActionMenu = {
         }, true);
 
         document.addEventListener('keydown', (e) => {
-            if (e.key === 'Escape') this.close();
+            if (e.key !== 'Escape') return;
+            // Chỉ xử lý khi menu đang thật sự mở, và trả focus về nút "Thao tác".
+            if (!this.portalEl?.classList.contains('show')) return;
+            const trigger = this.activeTrigger;
+            this.close();
+            trigger?.focus?.();
+
         });
     },
 
@@ -270,7 +670,13 @@ export const ActionMenu = {
             itemBtn.innerHTML = `<span>${item.label}</span>`;
             itemBtn.onclick = (e) => {
                 e.stopPropagation();
+                // Trả focus về nút "Thao tác" TRƯỚC khi chạy hành động, để hộp
+                // thoại/drawer mở sau đó ghi nhận đúng phần tử cần trả focus khi
+                // đóng (nếu không, activeElement là <body> nên focus bị mất).
+                const trigger = this.activeTrigger;
                 this.close();
+                trigger?.focus?.();
+
                 if (typeof item.onClick === 'function') {
                     item.onClick();
                 }
@@ -379,6 +785,214 @@ export const BulkBar = {
         if (this.el) this.el.classList.remove('show');
     }
 };
+
+// 9b. VIDEO PREVIEW — xem video của job đã hoàn thành ngay trong trang quản trị.
+// Dùng route sẵn có `/api/jobs/:jobId/video` (stream có hỗ trợ Range) và
+// `/api/jobs/:jobId/download`; cả hai cùng origin với trang admin.
+export const VideoPreview = {
+    rootEl: null,
+    playerEl: null,
+    statusEl: null,
+    returnFocus: null,
+    activeJobId: '',
+    onKeydown: null,
+
+    videoUrl(jobId) {
+        return `/api/jobs/${encodeURIComponent(jobId)}/video`;
+    },
+
+    downloadUrl(jobId) {
+        return `/api/jobs/${encodeURIComponent(jobId)}/download`;
+    },
+
+    init() {
+        if (this.rootEl?.isConnected) return this.rootEl;
+
+        const root = document.createElement('div');
+        root.className = 'video-preview-backdrop';
+        root.hidden = true;
+        root.innerHTML = `
+            <section class="video-preview-dialog" role="dialog" aria-modal="true" aria-labelledby="video-preview-title">
+                <header class="video-preview-header">
+                    <div class="video-preview-heading">
+                        <h2 class="video-preview-title" id="video-preview-title">Video</h2>
+                        <div class="video-preview-subtitle" data-video-preview-subtitle></div>
+                    </div>
+                    <button class="btn-icon" type="button" data-video-preview-close aria-label="Đóng cửa sổ xem video" title="Đóng">
+                        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><path d="M18 6 6 18M6 6l12 12"/></svg>
+                    </button>
+                </header>
+                <div class="video-preview-stage">
+                    <video class="video-preview-player" data-video-preview-player controls playsinline preload="metadata"></video>
+                    <div class="video-preview-status" data-video-preview-status role="status" hidden></div>
+                </div>
+                <footer class="video-preview-footer">
+                    <a class="btn btn-secondary" data-video-preview-newtab target="_blank" rel="noopener">Mở trong tab mới</a>
+                    <a class="btn btn-primary" data-video-preview-download>⬇ Tải video</a>
+                </footer>
+            </section>`;
+        document.body.appendChild(root);
+
+        this.rootEl = root;
+        this.playerEl = root.querySelector('[data-video-preview-player]');
+        this.statusEl = root.querySelector('[data-video-preview-status]');
+
+        // Không dùng sự kiện `close` mà tự đóng khi bấm nền/nút ✕.
+        root.addEventListener('click', (event) => {
+            if (event.target === root || event.target.closest('[data-video-preview-close]')) this.close();
+        });
+
+        // Thẻ <video> chỉ báo "error" chung chung, không nói vì sao: có thể tệp đã bị
+        // dọn khỏi thư mục tạm (404) hoặc trình duyệt không giải mã được tệp. Hỏi lại
+        // máy chủ một phát gọn (Range 0-0) để báo đúng nguyên nhân.
+        this.playerEl.addEventListener('error', async () => {
+            if (!this.activeJobId || this.rootEl.hidden) return;
+            const jobId = this.activeJobId;
+            let fileMissing = false;
+            let checked = false;
+            try {
+                const res = await fetch(this.videoUrl(jobId), { headers: { Range: 'bytes=0-0' } });
+                fileMissing = res.status === 404;
+                checked = true;
+            } catch {
+                // Lỗi mạng thì giữ thông báo chung bên dưới.
+            }
+            // Người dùng có thể đã đóng cửa sổ hoặc mở job khác trong lúc chờ.
+            if (!this.activeJobId || this.rootEl.hidden || this.activeJobId !== jobId) return;
+            if (fileMissing) {
+                this.setStatus('Tệp video không còn trên máy chủ: đã bị xoá khỏi thư mục tạm (tmp) hoặc job được render ở máy khác. Hãy tạo lại video để có tệp mới.');
+            } else if (checked) {
+                this.setStatus('Trình duyệt không phát được tệp video này (định dạng hoặc chuẩn mã hoá chưa được hỗ trợ). Bạn vẫn có thể bấm "Tải video" rồi mở bằng trình phát khác.');
+            } else {
+                this.setStatus('Không tải được tệp video. Kiểm tra kết nối tới máy chủ rồi thử lại, hoặc bấm "Tải video" để tải trực tiếp.');
+            }
+        });
+        const clearStatus = () => {
+            if (this.activeJobId && !this.rootEl.hidden) this.setStatus('');
+        };
+        this.playerEl.addEventListener('loadedmetadata', clearStatus);
+        this.playerEl.addEventListener('canplay', clearStatus);
+
+        return root;
+    },
+
+    setStatus(message) {
+        if (!this.statusEl) return;
+        this.statusEl.textContent = message || '';
+        this.statusEl.hidden = !message;
+    },
+
+    /** Mở cửa sổ xem video cho một job đã có tệp video. */
+    show({ jobId, title = 'Video đã hoàn thành', subtitle = '' } = {}) {
+        const id = String(jobId || '').trim();
+        if (!id) return null;
+
+        this.init();
+        this.returnFocus = document.activeElement;
+        this.activeJobId = id;
+
+        this.rootEl.querySelector('#video-preview-title').textContent = title || 'Video đã hoàn thành';
+        this.rootEl.querySelector('[data-video-preview-subtitle]').textContent = subtitle || `Job ${id.slice(0, 8)}…`;
+        this.rootEl.querySelector('[data-video-preview-newtab]').href = this.videoUrl(id);
+        this.rootEl.querySelector('[data-video-preview-download]').href = this.downloadUrl(id);
+
+        this.setStatus('Đang tải video…');
+        this.playerEl.src = this.videoUrl(id);
+        this.playerEl.load();
+
+        this.rootEl.hidden = false;
+        requestAnimationFrame(() => {
+            this.rootEl.classList.add('is-open');
+            this.rootEl.querySelector('[data-video-preview-close]')?.focus();
+            // Chặn autoplay là bình thường (video có tiếng) — bỏ qua lỗi để không
+            // hiện cảnh báo thừa.
+            this.playerEl.play?.()?.catch?.(() => { });
+        });
+
+        this.onKeydown = (event) => {
+            if (event.key === 'Escape') {
+                event.stopPropagation();
+                this.close();
+            }
+        };
+        document.addEventListener('keydown', this.onKeydown, true);
+
+        return this.rootEl;
+    },
+
+    close() {
+        if (!this.rootEl || this.rootEl.hidden) return;
+        this.activeJobId = '';
+        this.rootEl.classList.remove('is-open');
+        this.rootEl.hidden = true;
+        this.playerEl.pause();
+        this.playerEl.removeAttribute('src');
+        this.playerEl.load();
+        this.setStatus('');
+        if (this.onKeydown) {
+            document.removeEventListener('keydown', this.onKeydown, true);
+            this.onKeydown = null;
+        }
+        this.returnFocus?.focus?.();
+        this.returnFocus = null;
+    },
+
+    isOpen() {
+        return Boolean(this.rootEl && !this.rootEl.hidden);
+    }
+};
+
+// 9c. API HEALTH INDICATOR (sidebar/topbar badge)
+export const HealthDot = {
+    el: null,
+    timer: null,
+    intervalMs: 30000,
+
+    mount(el) {
+        this.el = el || document.getElementById('admin-health-badge');
+        if (!this.el) return;
+        this.el.classList.add('admin-health-badge');
+        this.check();
+        if (this.timer) clearInterval(this.timer);
+        this.timer = setInterval(() => this.check(), this.intervalMs);
+    },
+
+    async check() {
+        const el = this.el;
+        if (!el) return;
+
+        let ok = false;
+        let reason = '';
+        try {
+            const res = await fetch('/api/health', {
+                headers: { Accept: 'application/json' },
+                credentials: 'same-origin',
+                cache: 'no-store'
+            });
+            const data = await res.json().catch(() => ({}));
+            ok = res.ok && data.status === 'ok';
+            if (!ok) reason = `HTTP ${res.status}`;
+        } catch (err) {
+            reason = 'không kết nối được';
+        }
+
+        el.classList.toggle('badge-success', ok);
+        el.classList.toggle('badge-danger', !ok);
+        el.classList.toggle('badge-neutral', false);
+        el.title = ok
+            ? 'Máy chủ API hoạt động bình thường'
+            : `Máy chủ API không phản hồi (${reason || 'lỗi'})`;
+
+        const label = el.querySelector('.admin-health-label');
+        if (label) label.textContent = ok ? 'API Online' : 'API Offline';
+    },
+
+    stop() {
+        if (this.timer) clearInterval(this.timer);
+        this.timer = null;
+    }
+};
+
 
 // 10. GEO & ISP FORMATTERS
 const COUNTRY_MAP = {

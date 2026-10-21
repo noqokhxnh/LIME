@@ -1,7 +1,7 @@
 import { existsSync, mkdirSync, rmSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { v4 } from "uuid";
-import { videoPreset } from "@/config";
+import { videoPreset, resolveResolution } from "@/config";
 import { videoRequest, pipelineResult, pipelineProgess, progressCallback, pipelinePhase, videoScript, AudioResult, checkRhythm } from "@/llm/schema";
 import { generateScript } from "./scriptGenerator";
 import { estimateDuration } from "./estimateDuration";
@@ -11,6 +11,8 @@ import { synthesizeAudio } from "./audioSysnthesis.js";
 import { renderVideo } from "./renderer.js";
 import { hashString32, parseSeedSafe } from "./rng.js";
 import { runOracleQa, type QAReport, type DOMSampler, type BatchDOMSampler, type AudioStats } from "./oracleQa.js";
+import { extractTimelineEventsFromHtml } from "./sfxSynth.js";
+import { mixAudioPipeline } from "./audioMixer.js";
 
 export interface orchestratorOptions {
     request: videoRequest;
@@ -29,6 +31,22 @@ export interface orchestratorOptions {
     domSampler?: DOMSampler;
     batchDomSampler?: BatchDOMSampler;
     audioAnalyzer?: (audioPath: string) => Promise<AudioStats>;
+    /**
+     * Bỏ qua hiệu ứng shutter motion blur trong khâu render (Spec D)
+     */
+    skipShutterBlur?: boolean;
+    /**
+     * Số lượng mẫu sub-frame (K) cho shutter motion blur (Spec D, mặc định 8)
+     */
+    shutterSamples?: number;
+    /**
+     * Bỏ qua track SFX trong chuỗi hòa âm (Spec E)
+     */
+    skipSfx?: boolean;
+    /**
+     * Âm lượng track SFX (Spec E)
+     */
+    sfxVolume?: number;
 }
 
 export interface fullPipelineResult extends pipelineResult {
@@ -55,7 +73,7 @@ export async function runFullPipeline(option: orchestratorOptions): Promise<full
         rmSync(workDir, { recursive: true, force: true });
     }
 
-    const preset = videoPreset[request.aspectRatio];
+    const preset = resolveResolution(request.aspectRatio, request.format);
     const fps = 30;
     const timing: Record<string, number> = {};
     const startTime = Date.now();
@@ -127,7 +145,13 @@ export async function runFullPipeline(option: orchestratorOptions): Promise<full
                 preset.height,
                 workDir,
                 (msg) => logProgress("html_assembly", 25, msg),
-                { seed: currentSeed, jobId }
+                {
+                    seed: currentSeed,
+                    jobId,
+                    format: request.format,
+                    safeArea: request.safeArea,
+                    karaoke: request.karaoke,
+                }
             );
             timing["html_assembly"] = Date.now() - phaseStart;
 
@@ -160,10 +184,11 @@ export async function runFullPipeline(option: orchestratorOptions): Promise<full
             audio = await synthesizeAudio({
                 script,
                 outputDir: workDir,
-                bgmPath,
+                bgmPath: undefined, // BGM được hòa âm ở bước mixAudioPipeline với Ducking & Reverb
                 voice: request.voice,
                 ttsProvider: request.ttsProvider,
                 language: request.language,
+                targetDurationSec: request.targetDurationSec,
                 onProgress: (msg, prog) => {
                     const scaledProg = prog !== undefined ? Math.round(45 + prog * 0.2) : 50;
                     logProgress("audio_synthesis", scaledProg, msg);
@@ -181,9 +206,54 @@ export async function runFullPipeline(option: orchestratorOptions): Promise<full
                 preset.height,
                 workDir,
                 (msg) => logProgress("html_assembly", 75, msg),
-                { seed: currentSeed, jobId }
+                {
+                    seed: currentSeed,
+                    jobId,
+                    wordTimings: audio.wordTimings,
+                    format: request.format,
+                    safeArea: request.safeArea,
+                    karaoke: request.karaoke,
+                }
             );
             timing["html_assembly"] = Date.now() - phaseStart;
+
+            // phase 6.5: Spec E - Chuỗi hòa âm 5 bước (Voice, SFX, BGM Ducking -6dB, Reverb, Master -16 LUFS)
+            phaseStart = Date.now();
+            logProgress("audio_synthesis", 76, "Đang hòa âm chuỗi Spec E (SFX, Ducking BGM, Shared Reverb, Master LUFS)");
+
+            let events: any[] = [];
+            if (!option.skipSfx) {
+                try {
+                    events = await extractTimelineEventsFromHtml(join(workDir, "index.html"));
+                } catch (evtErr: any) {
+                    console.warn(`[Orchestrator] Không thể trích xuất events từ HTML: ${evtErr?.message || evtErr}`);
+                    events = [];
+                }
+            }
+
+            const voicePath = existsSync(join(workDir, "full_voice.mp3"))
+                ? join(workDir, "full_voice.mp3")
+                : audio.mixAudioPath;
+
+            const mixerResult = await mixAudioPipeline({
+                voicePath,
+                events,
+                bgmPath,
+                outputDir: workDir,
+                durationSec: audio.totalDurationSec,
+                skipSfx: option.skipSfx,
+                sfxVolume: option.sfxVolume,
+                seed: currentSeed,
+                onProgress: (msg) => {
+                    logProgress("audio_synthesis", 76, msg);
+                },
+            });
+
+            audio.mixAudioPath = mixerResult.mixAudioPath;
+            audio.sfxPath = mixerResult.sfxPath;
+            audio.hasSfx = mixerResult.hasSfx;
+            audio.loudness = mixerResult.loudness;
+            timing["audio_mix"] = Date.now() - phaseStart;
 
             // Phase 4.5: Oracle QA (Kiểm định chất lượng tự động trước render)
             if (option.skipQa) {
@@ -206,19 +276,25 @@ export async function runFullPipeline(option: orchestratorOptions): Promise<full
                     domSampler: option.domSampler,
                     batchDomSampler: option.batchDomSampler,
                     audioAnalyzer: option.audioAnalyzer,
+                    hasShutterBlur: option.skipShutterBlur ? false : undefined,
                 });
                 timing["oracle_qa"] = Date.now() - phaseStart;
                 qaStatus = qaReport.qaStatus;
 
-                try {
-                    writeFileSync(
-                        join(workDir, "qa_report.json"),
-                        JSON.stringify(qaReport, null, 2),
-                        "utf-8"
-                    );
-                } catch (reportErr: any) {
-                    console.warn(`[Orchestrator] Không thể ghi file qa_report.json: ${reportErr.message}`);
-                }
+                /** Ghi qa_report.json để nội dung luôn khớp với kết luận cuối cùng. */
+                const persistQaReport = () => {
+                    try {
+                        writeFileSync(
+                            join(workDir, "qa_report.json"),
+                            JSON.stringify(qaReport, null, 2),
+                            "utf-8"
+                        );
+                    } catch (reportErr: any) {
+                        console.warn(`[Orchestrator] Không thể ghi file qa_report.json: ${reportErr.message}`);
+                    }
+                };
+
+                persistQaReport();
 
                 if (qaStatus === 'fail') {
                     if (attempt < maxQaAttempts && !inputScript) {
@@ -229,25 +305,22 @@ export async function runFullPipeline(option: orchestratorOptions): Promise<full
                         attempt++;
                         continue;
                     } else {
-                        const failMsg = `[Oracle QA Thất bại] Kịch bản không đạt tiêu chuẩn sau ${attempt} lần thử: ${qaReport.errors.join("; ")}. Dừng pipeline trước khâu kết xuất.`;
-                        console.error(`[Orchestrator] ${failMsg}`);
-                        logProgress("oracle_qa", 79, failMsg);
-
-                        return {
-                            jobId,
-                            seed: currentSeed,
-                            workDir,
-                            videoPath: "",
-                            durationSec: audio.totalDurationSec,
-                            scences: script.scenes,
-                            resolution: `${preset.width}x${preset.height}`,
-                            timing,
-                            preview: previews,
-                            audio,
-                            finalHtmlPath: join(workDir, "index.html"),
-                            qaStatus: 'fail',
-                            qaReport,
-                        };
+                        // Hết số lần retry: vẫn render tiếp để người dùng có video, nhưng
+                        // KHÔNG hạ cấp kết luận — báo cáo giữ nguyên 'fail' / valid: false và
+                        // được đánh dấu degraded để lộ rõ đây là bản render suy giảm chất lượng.
+                        // Nhờ vậy job vẫn vào trạng thái qa_failed (admin thấy và retry được)
+                        // mà vẫn có file video để đối chiếu.
+                        const degradeMsg = `[Oracle QA] Kịch bản không đạt chuẩn sau ${attempt} lần thử: ${qaReport.errors.join("; ")}. Vẫn render tiếp ở dạng suy giảm chất lượng (degraded).`;
+                        console.warn(`[Orchestrator] ${degradeMsg}`);
+                        logProgress("oracle_qa", 79, degradeMsg);
+                        qaStatus = "fail";
+                        qaReport.degraded = true;
+                        qaReport.warnings = [
+                            ...(qaReport.warnings || []),
+                            `[QA retry exhausted] Đã render tiếp dù QA thất bại sau ${attempt} lần thử.`,
+                        ];
+                        persistQaReport();
+                        break;
                     }
                 } else if (qaStatus === 'warn') {
                     const warnMsg = `[Oracle QA Cảnh báo] Kịch bản đạt nhưng có lưu ý: ${qaReport.warnings.join("; ")}`;
@@ -301,6 +374,9 @@ export async function runFullPipeline(option: orchestratorOptions): Promise<full
                     logProgress("render", scaled, msg);
                 },
                 watermark: request.watermark,
+                skipShutterBlur: option.skipShutterBlur,
+                shutterSamples: option.shutterSamples,
+                seed: currentSeed,
             });
             timing["render"] = Date.now() - phaseStart;
         }

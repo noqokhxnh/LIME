@@ -8,6 +8,9 @@ import { systemSettings } from '../../src/admin/systemSettings.js';
 import { auditLog } from '../../src/security/auditLog.js';
 import { pageViewTracker } from '../../src/security/pageViewTracker.js';
 import { maintenanceTracker } from '../../src/admin/maintenanceTracker.js';
+import { setLLMClientFactory, resetLLMClientFactory } from '../../src/llm/client.js';
+import { initDatabase, db } from '../../src/database/index.js';
+import { getConfig } from '../../src/config.js';
 
 describe('Admin, Profile, and Settings Test Suite', () => {
     let app: FastifyInstance;
@@ -15,16 +18,44 @@ describe('Admin, Profile, and Settings Test Suite', () => {
     let userToken: string;
 
     const ADMIN_ID = '00000000-0000-4000-a000-000000000001';
-    const NORMAL_USER_ID = 'user-test-uuid-001';
+    // Phải là UUID hợp lệ: cột `users.id` là kiểu UUID nên ở chế độ PostgreSQL thật
+    // (job `postgres` trong CI) một id kiểu 'user-test-uuid-001' bị PostgreSQL từ chối
+    // ⇒ người dùng không tồn tại và endpoint danh sách người dùng trả về rỗng.
+    const NORMAL_USER_ID = '00000000-0000-4000-a000-000000000002';
 
     before(async () => {
+        const config = getConfig();
+        if (config.DATABASE_URL) {
+            // Cổng quản trị đọc danh sách người dùng từ PostgreSQL chứ không đọc cache bộ
+            // nhớ, nên ở chế độ PostgreSQL thật phải có sẵn hai hàng dữ liệu này. Trước đây
+            // file này là test admin DUY NHẤT không tự tạo người dùng ⇒ trên một database
+            // rỗng (đúng như job `postgres` trong CI) nó chỉ thấy dữ liệu do test khác chạy
+            // song song chèn vào, nên lúc đỏ lúc xanh tuỳ thứ tự chạy.
+            await initDatabase();
+            // Dùng ĐÚNG danh tính mà `userStore` tự tạo trong bộ nhớ (xem SUPER_ADMIN_UUID /
+            // ADMIN_EMAIL trong src/admin/userStore.ts): nhiều file test khác cũng dùng
+            // ADMIN_ID này và đối chiếu email, nên hai chế độ phải khớp nhau.
+            await db.query(
+                `INSERT INTO users (id, username, email, password_hash, role, tier, credits, total_credits, status)
+                 VALUES ($1, 'khanh2k5xxx', 'khanh2k5xxx@gmail.com', NULL, 'admin', 'enterprise', 10000, 10000, 'active')
+                 ON CONFLICT DO NOTHING`,
+                [ADMIN_ID],
+            );
+            await db.query(
+                `INSERT INTO users (id, username, email, password_hash, role, tier, credits, total_credits, status)
+                 VALUES ($1, 'lime_normal_test', 'lime_normal_test@lime.test', NULL, 'user', 'free', 15, 20, 'active')
+                 ON CONFLICT DO NOTHING`,
+                [NORMAL_USER_ID],
+            );
+        }
+
         const { getQueue } = await import('../../src/queue/index.js');
         const queue = await getQueue();
         queue.startListeners();
         app = await buildApp({ queue, logger: false });
         await app.ready();
 
-        // Setup test user
+        // Setup test user (đường dùng cho chế độ in-memory)
         await userStore.upsertUser({
             id: NORMAL_USER_ID,
             role: 'user',
@@ -241,6 +272,41 @@ describe('Admin, Profile, and Settings Test Suite', () => {
             assert.ok(body.stats.maintenance);
         });
 
+        it('Super Admin gọi GET /api/admin/analytics phải trả về các chỉ số SaaS', async () => {
+            const res = await app.inject({
+                method: 'GET',
+                url: '/api/admin/analytics?period=30d',
+                cookies: { vidtml_session: adminToken },
+            });
+            assert.strictEqual(res.statusCode, 200);
+            const body = JSON.parse(res.body);
+            assert.strictEqual(body.period, '30d');
+            assert.ok(body.kpi);
+            assert.ok(typeof body.kpi.mrrVnd === 'number');
+            assert.ok(typeof body.kpi.arrVnd === 'number');
+            assert.ok(typeof body.kpi.arpuVnd === 'number');
+            assert.ok(typeof body.kpi.ltvVnd === 'number');
+            assert.ok(typeof body.kpi.churnRate === 'number');
+            assert.ok(typeof body.kpi.trialToPaidRate === 'number');
+            assert.ok(body.signups);
+            assert.ok(Array.isArray(body.signups.series));
+            assert.ok(body.revenue);
+            assert.ok(body.churn);
+            assert.ok(body.conversion);
+            assert.ok(body.featureUsage);
+            assert.ok(Array.isArray(body.featureUsage.dimensions));
+        });
+
+        it('Người dùng thông thường gọi /api/admin/analytics phải bị 403 Forbidden', async () => {
+            const res = await app.inject({
+                method: 'GET',
+                url: '/api/admin/analytics',
+                cookies: { vidtml_session: userToken },
+            });
+            assert.strictEqual(res.statusCode, 403);
+        });
+
+
         it('Super Admin gọi GET /api/admin/users phải trả về danh sách người dùng', async () => {
             const res = await app.inject({
                 method: 'GET',
@@ -303,20 +369,30 @@ describe('Admin, Profile, and Settings Test Suite', () => {
         });
 
         it('Super Admin gọi POST /api/admin/test-provider để kiểm tra kết nối', async () => {
-            const res = await app.inject({
-                method: 'POST',
-                url: '/api/admin/test-provider',
-                cookies: { vidtml_session: adminToken },
-                body: {
-                    provider: 'edge',
-                    type: 'tts',
-                    voice: 'vi-VN-HoaiMyNeural',
+            // test-provider nay gọi API thật; dùng factory thay thế để không phụ thuộc mạng.
+            setLLMClientFactory((provider) => ({
+                provider,
+                async generate() {
+                    return '{"status":"ok"}';
                 },
-            });
-            assert.strictEqual(res.statusCode, 200);
-            const body = JSON.parse(res.body);
-            assert.strictEqual(body.success, true);
-            assert.strictEqual(body.provider, 'edge');
+            }) as any);
+            try {
+                const res = await app.inject({
+                    method: 'POST',
+                    url: '/api/admin/test-provider',
+                    cookies: { vidtml_session: adminToken },
+                    body: {
+                        provider: '9router',
+                        type: 'llm',
+                    },
+                });
+                assert.strictEqual(res.statusCode, 200);
+                const body = JSON.parse(res.body);
+                assert.strictEqual(body.success, true, body.message);
+                assert.strictEqual(body.provider, '9router');
+            } finally {
+                resetLLMClientFactory();
+            }
         });
 
         it('Super Admin gọi GET /api/admin/audit-logs ghi nhận đầy đủ hành động', async () => {

@@ -1,4 +1,4 @@
-# VidTML Architecture
+# LIME Architecture
 
 ## System overview
 
@@ -7,52 +7,62 @@
 │  Browser (3-panel      │        │  Redis                             │
 │  workspace UI, vanilla │        │  ├─ BullMQ "video-generation"      │
 │  JS served by Fastify) │        │  ├─ BullMQ "script-draft"          │
-└──────────┬─────────────┘        │  └─ pub/sub "job-events:*"         │
-           │ REST + SSE           └──────────┬─────────────────────────┘
-           │ (session cookie)                │
-┌──────────▼─────────────┐        ┌──────────▼─────────────────────────┐
-│  API server            │        │  Worker(s) (src/worker.ts, BullMQ) │
-│  (src/index.ts,        │◄───────│  ├─ draftWorker (script-draft)     │
-│  Fastify)              │  poll  │  │  └─ generateScript()            │
-│  - Auth (register/     │        │  │     └─ finalizeDraft()          │
-│    login, session      │        │  └─ worker (video-generation)      │
-│    cookies, bcryptjs)  │        │     └─ runPipeline(...)            │
-│  - REST endpoints 🔒   │        │        (skips Phase 1 if confirmed)│
-│  - SSE streaming       │        │        ▼                           │
-│  - static web/         │        │  pipeline phases 1–6               │
-└──────────┬─────────────┘        │  (script → TTS/img → HTML          │
-           │                      │   → preview → render → mux)        │
-┌──────────▼─────────────┐        │     │                              │
-│  SQLite (shared)       │◄───────┼──┌──▼──┐ ┌──▼──┐ ...              │
-│  jobs, job_logs,       │        │  │Chrom│ │Chrom│   (≤ RENDER       │
-│  users, sessions,      │        │  └──┬──┘ └──┬──┘    MAX_CON-       │
-│  settings,             │        │     └───┬───┘       CURRENCY)      │
-│  image_search_cache    │        └─────────┼──────────────────────────┘
-└──────────┬─────────────┘                  │
-           │                  ┌─────────────▼──────┐
-           └──────────────────│  Filesystem: tmp/<jobId>/   │
-                              │  html, images/, audio,      │
-                              │  raw_video.mp4, final.mp4,  │
-                              │  previews (WebP)            │
-                              └─────────────────────────────┘
+└──────────┬─────────────┘        │  ├─ BullMQ "sepay-webhooks"        │
+           │ REST + SSE           │  └─ pub/sub "job-events:*"         │
+           │ (session cookie)     └──────────┬─────────────────────────┘
+┌──────────▼─────────────┐                   │
+│  API server            │                   │
+│  (src/index.ts,        │◄──────────────────┤
+│  Fastify)              │        poll       │
+│  - Auth (register/     │                   │
+│    login, session      │        ┌──────────▼─────────────────────────┐
+│    cookies, bcryptjs)  │        │  Worker(s) (src/worker.ts, BullMQ) │
+│  - REST endpoints 🔒   │        │  ├─ draftWorker (script-draft)     │
+│  - SSE streaming       │        │  ├─ worker (video-generation)      │
+│  - static frontend/    │        │  │  └─ runPipeline(...)            │
+│  - VietQR billing &    │        │  │     (skips Phase 1 if confirmed)│
+│    brand kit APIs      │        │  │     ▼                           │
+└──────────┬─────────────┘        │  │  pipeline phases 1–6            │
+           │                      │  │  (script → TTS/img → HTML       │
+┌──────────▼─────────────┐        │  │   → preview → render → mux)     │
+│  PostgreSQL (shared)   │◄───────┤  ├─ billingQueue (sepay-webhooks)  │
+│  users, sessions,      │        │  │  └─ fulfill order / reconcile   │
+│  system_settings,      │        │  │                                 │
+│  audit_logs, brand_kit,│        │  │Chrom│ │Chrom│   (≤ RENDER       │
+│  plans, orders,        │        │  └──┬──┘ └──┬──┘    MAX_CON-       │
+│  payments, refunds     │        │     └───┬───┘       CURRENCY)      │
+└────────────────────────┘        └─────────┼──────────────────────────┘
+                                            │
+                                  ┌─────────▼──────────────────────────┐
+┌────────────────────────┐        │  Filesystem: tmp/<jobId>/          │
+│  VieNeu-TTS Service    │◄───────┤  html, images/, audio,             │
+│  (port 7860, Python    │        │  raw_video.mp4, final.mp4,         │
+│  Vietnamese neural TTS)│        │  previews (WebP)                   │
+└────────────────────────┘        └────────────────────────────────────┘
 ```
 
-Two long-running processes, both stateless enough to run on the same host or separately:
+Long-running services in the architecture:
 
-- **API server** (`src/index.ts`, Fastify) — REST endpoints, SSE, serves `web/`, auth (register/login/logout/me via session cookies). Never executes heavy pipeline phases.
-- **Worker** (`src/worker.ts`, BullMQ) — hosts two workers:
-  - `draftWorker`: consumes from `script-draft`, executes Phase 1 LLM script generation, persists the draft script to SQLite, and emits `draft_ready`.
-  - `worker`: consumes from `video-generation`, executes the full multi-process video rendering pipeline (skipping Phase 1 when a confirmed script is supplied), persists logs/status to SQLite, and emits progress events.
+- **API server** (`src/index.ts`, Fastify) — REST endpoints, SSE, static assets & views served from `frontend/` (`index.html`, `workspace.html`, `profile.html`, `settings.html`, `admin.html`, `legal.html`), session-based auth, Brand Kit uploads, and VietQR billing APIs. Never executes heavy video rendering phases.
+- **Worker** (`src/worker.ts`, BullMQ) — hosts background queues:
+  - `draftWorker`: consumes from `script-draft`, executes Phase 1 LLM script generation, persists the draft script, and emits `draft_ready`.
+  - `worker`: consumes from `video-generation`, executes the full multi-process video rendering pipeline (skipping Phase 1 when a confirmed script is supplied), and publishes progress events.
+  - `billingQueue`: consumes from `sepay-webhooks`, validates bank transaction records, and atomically fulfills subscription orders.
+- **VieNeu-TTS microservice** (`services/vieneu-tts/`, port 7860) — dedicated Vietnamese neural speech synthesis service providing high-fidelity Vietnamese voiceovers.
+- **PostgreSQL 13+** — persistent relational storage for user accounts, sessions, subscription billing, brand kits, and system configurations.
+- **Redis 7+** — distributed message broker for BullMQ queues, realtime SSE pub/sub events, cooperative cancellation flags, and atomic rate-limiting counters.
 
-Jobs submitted while the server is down still get picked up once a worker starts; the queue survives restarts.
+Jobs submitted while the server is down still get picked up once a worker starts; queues and relational data survive process restarts.
 
 ## Authentication & quotas
 
 Session-based auth (`src/auth/`). See [api.md § Authentication](api.md#authentication) for endpoint details.
 
-- **Registration & login** (`/api/auth/register`, `/api/auth/login`) — creates a user row in SQLite, issues a session cookie (`vidtml_session`)
+- **Registration & login** (`/api/auth/register`, `/api/auth/login`) — creates a user row in PostgreSQL (`users` table), issues a session cookie (`vidtml_session`).
 - **Session tokens** — 32 random bytes; only the SHA-256 hash is stored in the `sessions` table. Cookie flags: `HttpOnly`, `SameSite=Lax`, `Secure` in production. TTL: 7 days.
-- **Password hashing** — bcryptjs, 10 rounds
+- **Password hashing** — bcryptjs, 10 rounds.
+- **Google OAuth 2.0 & Account Linking** — OpenID Connect verification via `jose`. Accounts created with Google have `password_hash = NULL`. Existing email accounts automatically link `google_id`.
+- **Role-Based Access Control (RBAC)** — `role` (`user` | `admin`) and subscription `tier` (`free` | `creator` | `pro` | `max` | `enterprise`) governing access to `/admin` portal routes and generation quotas.
 - **Rate limiting** — Redis fixed-window counters (shared across instances, fail-open in-memory fallback when Redis is down): 10 login failures / 15 min per IP+username, 20 registrations / hour per IP, 30 generate/draft requests / min per user (`rl:generate`). `X-Forwarded-For` is only trusted when `TRUST_PROXY=1`.
 - **Per-user generation quotas & Two-Phase Atomic Reservation** — atomic hold & reconcile on `POST /api/generate`: concurrent active jobs ≤ `QUOTA_MAX_CONCURRENT_JOBS` (default 3), jobs per UTC day ≤ `QUOTA_MAX_DAILY_JOBS` (default 20), optional daily USD budget (`QUOTA_DAILY_BUDGET_USD`). Uses Redis Lua scripts (with in-memory fallback) to atomically verify and reserve concurrent slots and estimated budget before enqueueing (preventing race conditions and financial overrun on burst requests), with post-execution settlement upon job completion, failure, or cancellation.
 - **Drafts vs. quotas:**
@@ -60,23 +70,39 @@ Session-based auth (`src/auth/`). See [api.md § Authentication](api.md#authenti
   - While generating (`queued` or `running`), draft jobs transiently count toward the user's active concurrent job limit.
   - Once in `'draft'` status, a draft job does not occupy an active concurrent slot.
   - Quota is reserved when the user confirms the draft and calls `POST /api/generate`.
-  - LLM token usage and cost for draft generation are tracked and attributed to the draft `jobId` in `usage` records. When the confirmed render job runs, it skips Phase 1, incurring 0 LLM token cost (its result usage records no LLM tokens, reflecting only downstream TTS/rendering execution).
+  - LLM token usage and cost for draft generation are tracked and attributed to the draft `jobId` in `usage` records. When the confirmed render job runs, it skips Phase 1, incurring 0 LLM token cost.
 - **Job ownership** — every job carries a `user_id` FK. All job endpoints verify ownership; non-owned jobs return `404` (no existence leak).
-- **Cleanup** — expired sessions are pruned hourly by the API server (`deleteExpiredSessions`)
-
-Most API endpoints require a valid session (`requireAuth` preHandler). Public endpoints: `GET /api/health` and the auth routes themselves.
+- **Cleanup** — expired sessions are pruned hourly by the API server (`deleteExpiredSessions`).
 
 ## Data stores
 
 | Store | What it holds | Notes |
 |---|---|---|
-| Redis | BullMQ queues `video-generation` and `script-draft`; pub/sub channels `job-events:<jobId>` | Queues keep last 100 completed/failed jobs (`removeOnComplete`/`removeOnFail`) |
-| SQLite | `jobs` (status, request/result JSON, `script_json`, `draft_job_id`, `user_id` FK), `job_logs` (per-phase progress), `users` + `sessions` (auth), `settings` (user-scoped runtime provider selection), `image_search_cache` (Commons results) | WAL mode; schema applied idempotently on startup (`src/db/schema.ts`); DB at `DB_PATH` (default `tmp/vidtml.sqlite`) |
+| PostgreSQL | `users`, `sessions`, `system_settings`, `audit_logs`, `brand_kits`, `plans`, `orders`, `payments`, `unmatched_payments`, `refunds` | Initialized via `src/database/index.ts` (`pg` Pool); schema applied idempotently on startup (`src/database/base.ts`); configured with `DATABASE_URL` |
+| Redis | BullMQ queues (`video-generation`, `script-draft`, `sepay-webhooks`); pub/sub channels `job-events:<jobId>`; rate-limit counters & cancellation flags | Queues retain completed/failed job records per retention policy |
 | Filesystem | Per-job workdir `tmp/<jobId>/`: `html/`, `images/`, TTS audio files, `raw_video.mp4`, final MP4, preview WebPs | Removed on `DELETE /api/jobs/:id` or by the worker's 24 h TTL cleaner |
 
 ## Job & draft lifecycle
 
-VidTML supports both a two-phase draft flow and a direct one-shot generation flow.
+LIME supports both a two-phase draft flow and a direct one-shot generation flow.
+
+> **Trạng thái triển khai.** Luồng hai pha dưới đây là thiết kế ban đầu và **chưa**
+> được triển khai. Bản đang chạy là biến thể đồng bộ của cùng ý tưởng:
+>
+> ```
+> POST /api/script/clarify ──► 3 câu hỏi + confidence (câu ≥ 0.8 bị thu gọn)
+> POST /api/script/draft   ──► sinh 3 phương án SONG SONG (sync, không queue)
+>                              mỗi phương án = archetype + style + blueprint
+>                              dedupe palette/số cảnh, chấm score, trả recommended
+> [người dùng duyệt + sửa voiceOverText]
+> POST /api/pipeline { script } ──► validate tại route ──► render
+> ```
+>
+> Chế độ "Để AI quyết hết": `POST /api/pipeline { mode: "auto" }` — worker tự gọi
+> clarify, tự sinh 3 phương án, tự chọn theo `scoreDraft()` (độ khớp thời lượng +
+> ngân sách từ) rồi render trong cùng job, báo lại phương án đã chọn qua progress.
+> Không có job status `draft`, không có `draft_ready`, không có bảng `jobs`.
+> Trạng thái duyệt phía client lưu ở `localStorage` (key `lime.hitl.v1`).
 
 ### Two-Phase Flow (Draft → Edit/Confirm → Render)
 
@@ -112,56 +138,142 @@ POST /api/generate 🔒
               failed
 ```
 
-- Statuses: `queued | running | completed | failed | draft` — persisted in SQLite by worker handlers (`updateJobStatus`, `finalizeDraft`).
+- Statuses: `queued | running | completed | failed | draft` — tracked in BullMQ / queue stores.
 - `attempts: 1` — failed jobs and drafts are not retried automatically to prevent runaway LLM/render costs on transient issues. Users can trigger AI regeneration or resubmit manually.
-- Every progress event is both appended to `job_logs` (history) and published to Redis pub/sub (realtime).
-- The worker runs a TTL cleaner every 30 min: jobs older than 24 h (and their workdirs) are deleted.
+- Every progress event is published to Redis pub/sub (realtime) and logged.
+- The worker runs a TTL cleaner every 30 min: scratch workdirs older than 24 h are deleted.
 
 ## Background workers & queues
 
-`src/worker.ts` runs two BullMQ worker instances against Redis:
+`src/worker.ts` runs BullMQ worker instances against Redis:
 
 1. **`draftWorker` (`script-draft` queue):**
    - Consumes draft generation jobs (`enqueueScriptDraft`).
    - Marks status `running` and logs progress.
    - Calls `generateScript(...)` with cancellation signal propagation.
-   - On success: calls `finalizeDraft(jobId, script)` in `jobsRepository.ts`, transitioning job status to `'draft'` and saving `script_json`. Publishes `draft_ready` event to Redis channel `job-events:<jobId>`.
+   - On success: transitions job status to `'draft'` and saves `script_json`. Publishes `draft_ready` event to Redis channel `job-events:<jobId>`.
    - On error: updates status to `'failed'` and publishes `failed` event.
 
 2. **`worker` (`video-generation` queue):**
    - Consumes full video generation jobs (`enqueueVideoJob`).
    - If a confirmed `script` is passed in job data (from `POST /api/generate` with `draftJobId`), it passes it directly to `runPipeline()`.
-   - On completion: saves `result_json`, marks status `'completed'`, reconciles quota, and publishes `completed` event.
+   - On completion: saves result metadata, marks status `'completed'`, reconciles quota, and publishes `completed` event.
 
-Both workers share cooperative cancellation (`watchJobCancellation` polling `job-cancelled:<jobId>` in Redis every ~0.4 s) and handle graceful shutdown via `Promise.all([worker.close(), draftWorker.close()])`.
+3. **`billingQueue` (`sepay-webhooks` queue, `src/billing/queue.ts`):**
+   - Consumes incoming SePay payment webhook payloads asynchronously.
+   - Ensures sub-50ms HTTP 200 responses to the banking webhook caller while processing reconciliation safely in the background.
+   - Matches order pay codes (`LIME...`), updates orders to `'paid'`, and adds user credits.
 
-## Database schema & migrations
+Workers share cooperative cancellation (`watchJobCancellation` polling `job-cancelled:<jobId>` in Redis every ~0.4 s) and handle graceful shutdown on process termination signals.
 
-The SQLite schema (`src/db/schema.ts`) defines the `jobs` table:
+## Database schema & idempotent migrations
+
+PostgreSQL schemas are managed in `src/database/base.ts` and executed automatically during startup by `initDatabase()` (`src/database/index.ts`):
 
 ```sql
-CREATE TABLE IF NOT EXISTS jobs (
-  id TEXT PRIMARY KEY,
-  user_id TEXT,
-  status TEXT NOT NULL CHECK(status IN ('queued', 'running', 'completed', 'failed', 'draft')),
-  request_json TEXT NOT NULL,
-  result_json TEXT,
-  error_message TEXT,
-  created_at INTEGER NOT NULL,
-  updated_at INTEGER NOT NULL,
-  script_json TEXT,
-  draft_job_id TEXT
+-- Core user accounts & roles
+CREATE TABLE IF NOT EXISTS users (
+    id UUID PRIMARY KEY,
+    username VARCHAR(30) NOT NULL,
+    email VARCHAR(255) NOT NULL,
+    password_hash TEXT,
+    google_id VARCHAR(255),
+    role VARCHAR(20) NOT NULL DEFAULT 'user',
+    tier VARCHAR(20) NOT NULL DEFAULT 'free',
+    credits INTEGER NOT NULL DEFAULT 20,
+    total_credits INTEGER NOT NULL DEFAULT 20,
+    status VARCHAR(20) NOT NULL DEFAULT 'active',
+    deleted_at TIMESTAMPTZ,
+    preferences JSONB DEFAULT '{}'::jsonb,
+    plan_id VARCHAR(50),
+    plan_expires_at TIMESTAMPTZ,
+    created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+
+-- Authentication sessions
+CREATE TABLE IF NOT EXISTS sessions (
+    token_hash CHAR(64) PRIMARY KEY,
+    user_id UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+    expires_at TIMESTAMPTZ NOT NULL,
+    created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+
+-- Brand kit & logo watermark configurations
+CREATE TABLE IF NOT EXISTS brand_kits (
+    user_id     UUID PRIMARY KEY REFERENCES users(id) ON DELETE CASCADE,
+    logo_url    TEXT NOT NULL,
+    position    VARCHAR(20) NOT NULL DEFAULT 'top-right',
+    scale_pct   NUMERIC(5,2) NOT NULL DEFAULT 15,
+    opacity     NUMERIC(4,3) NOT NULL DEFAULT 0.8,
+    x_pct       NUMERIC(5,2),
+    y_pct       NUMERIC(5,2),
+    updated_at  TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+
+-- VietQR Billing Plans, Orders, Payments, and Refunds
+CREATE TABLE IF NOT EXISTS plans (
+    id VARCHAR(50) PRIMARY KEY,
+    name VARCHAR(100) NOT NULL,
+    price_vnd INTEGER NOT NULL CHECK (price_vnd > 0),
+    quota_video INTEGER NOT NULL DEFAULT 0,
+    days INTEGER NOT NULL DEFAULT 30,
+    is_active BOOLEAN NOT NULL DEFAULT true,
+    created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+
+CREATE TABLE IF NOT EXISTS orders (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    user_id UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+    plan_id VARCHAR(50) NOT NULL REFERENCES plans(id),
+    amount_vnd INTEGER NOT NULL,
+    pay_code VARCHAR(50) NOT NULL UNIQUE,
+    status VARCHAR(20) NOT NULL DEFAULT 'pending',
+    expires_at TIMESTAMPTZ NOT NULL,
+    claimed_at TIMESTAMPTZ,
+    paid_at TIMESTAMPTZ,
+    created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+
+CREATE TABLE IF NOT EXISTS payments (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    order_id UUID REFERENCES orders(id) ON DELETE SET NULL,
+    sepay_ref VARCHAR(100) NOT NULL UNIQUE,
+    amount_vnd INTEGER NOT NULL,
+    raw JSONB NOT NULL,
+    received_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    result VARCHAR(20) NOT NULL
+);
+
+CREATE TABLE IF NOT EXISTS unmatched_payments (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    sepay_ref VARCHAR(100) NOT NULL UNIQUE,
+    amount_vnd INTEGER NOT NULL,
+    content TEXT NOT NULL,
+    raw JSONB NOT NULL,
+    status VARCHAR(20) NOT NULL DEFAULT 'pending',
+    admin_note TEXT,
+    resolved_by VARCHAR(100),
+    resolved_at TIMESTAMPTZ,
+    created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+
+CREATE TABLE IF NOT EXISTS refunds (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    source_type VARCHAR(20) NOT NULL,
+    source_id VARCHAR(100) NOT NULL,
+    sepay_ref VARCHAR(100) NOT NULL,
+    amount_vnd INTEGER NOT NULL,
+    bank_account VARCHAR(50) NOT NULL,
+    bank_name VARCHAR(100) NOT NULL,
+    admin_note TEXT,
+    refunded_by VARCHAR(100),
+    refunded_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
 ```
 
-### Table-rebuild migration (`src/db/index.ts`)
-SQLite does not permit altering an existing column's `CHECK` constraint via `ALTER TABLE`. To seamlessly upgrade existing databases that lack `script_json` or the `'draft'` status in the `CHECK` constraint:
-1. The migration inspects `PRAGMA table_info(jobs)`.
-2. If `script_json` is missing, it runs a table-rebuild inside an exclusive transaction (`BEGIN EXCLUSIVE`) with `PRAGMA foreign_keys=OFF`.
-3. Renames `jobs` → `jobs_old` and `job_logs` → `job_logs_old`.
-4. Creates the new `jobs` and `job_logs` tables with the updated schema and CHECK constraints.
-5. Copies all existing data across (`INSERT INTO jobs ... SELECT ..., NULL, NULL FROM jobs_old`).
-6. Drops temporary tables, recreates indices (`idx_jobs_status`, `idx_jobs_created_at`, `idx_job_logs_job_id`, `idx_jobs_user_id`), commits, re-enables foreign keys (`PRAGMA foreign_keys=ON`), and runs `PRAGMA foreign_key_check`.
+All migrations are designed to run idempotently on database initialization using `CREATE TABLE IF NOT EXISTS`, `ALTER TABLE ... ADD COLUMN IF NOT EXISTS`, and `CREATE UNIQUE INDEX IF NOT EXISTS`.
 
 ## Pipeline phases
 
@@ -187,17 +299,23 @@ Any contract violation throws a descriptive error that is appended to the retry 
 
 ### 2a. Audio synthesis — `audioSynth.ts`
 
-TTS per scene (sequential, to avoid rate limits), probes each file with ffprobe for duration, concatenates, optionally mixes BGM at low volume (`bgmPath`). Produces `sceneDurations` — a sceneId → seconds map that is the **source of truth for animation timing**. Runs in parallel with 2b.
+TTS per scene (sequential, to avoid rate limits), probes each file with ffprobe for duration, concatenates, optionally mixes BGM at low volume (`bgmPath`).
+Supported voice providers:
+- `vieneu` — local Vietnamese neural voice synthesis via `VIENEU_TTS_URL` (high naturalness and native Vietnamese prosody)
+- `edge` — Microsoft Edge Neural voices (free, no API key required)
+- `openai`, `google`, `elevenlabs` — commercial cloud voice engines
+
+Produces `sceneDurations` — a sceneId → seconds map that is the **source of truth for animation timing**. Runs in parallel with 2b.
 
 ### 2b. Image generation — `imageGenerator.ts`
 
-Per-scene Wikimedia Commons photo search (`src/image/client.ts`), downloads the top candidate into `html/images/`, returns a sceneId → relative-path map. Scenes without an `imagePrompt` field are skipped (no query spent); failures fall back to a transparent GIF data URI so layouts hold. Search results are cached in SQLite (`image_search_cache`) so repeat queries cost nothing; per-job query cap `IMAGE_MAX_QUERIES_PER_JOB` (cache hits don't count). Commons full-text search is strict, so queries that return nothing have trailing words dropped and are retried ("Hồ Gươm cổ kính" → "Hồ Gươm"). Candidates are ranked by aspect-ratio fit.
+Per-scene Wikimedia Commons photo search (`src/image/client.ts`), downloads candidate images into `html/images/`, returns a sceneId → relative-path map. Scenes without an `imagePrompt` field are skipped (no query spent); failures fall back to a transparent GIF data URI so layouts hold. Commons search query cap is `IMAGE_MAX_QUERIES_PER_JOB`. Commons full-text search is strict, so queries that return nothing have trailing words dropped and are retried ("Hồ Gươm cổ kính" → "Hồ Gươm"). Candidates are ranked by aspect-ratio fit.
 
 ### 3. Code assembly — `codeAssembler.ts`
 
 Replaces `{{SCENE_DURATION}}` placeholders in each scene's `jsCode` with the real TTS-measured duration and `{{SCENE_IMAGE}}` in `htmlCode`/`cssCode` with the downloaded photo path (or transparent GIF), performs final fail-closed contract and JS syntax validation with actual durations (`scriptValidator.ts`), and assembles one self-contained HTML file. Any syntax or contract failure throws and aborts rather than attempting a broken render.
 
-The assembler also injects helper globals (`window.__sm()` and `window.__fx()`) into every page — these are factory functions for the stickman character rig and comic FX (see [styles.md § Section 6](styles.md#6-cải-tiến-stickman-2026-08-22)). The injection is unconditional (~5KB) because the LLM output schema has no `style` field to gate on.
+The assembler also injects helper globals (`window.__sm()` and `window.__fx()`) into every page — factory functions for the stickman character rig and comic FX (see [styles.md § Section 6](styles.md#6-cải-tiến-stickman-2026-08-22)).
 
 ### 4. Preview — `previewer.ts`
 
@@ -207,15 +325,13 @@ Optional (skipped when `skipPreview` is set). Playwright seeks the GSAP timeline
 
 Splits the timeline into per-scene chunks and renders them **in parallel** across isolated Playwright Chromium instances (≤ `RENDER_MAX_CONCURRENCY`, default 4). Each chunk screenshots every frame (`__seekTo(time)`), pipes PNGs into an ffmpeg `image2pipe` (libx264) to produce a silent chunk MP4; chunks are concatenated with the ffmpeg concat demuxer **without re-encoding**. Frame rate is currently hardcoded to 30 fps in the orchestrator.
 
-### 6. Mux — `muxer.ts`
+### 6. Mux & Brand Kit Overlay — `muxer.ts` & `watermarkFilter.ts`
 
-ffmpeg muxes the raw video + mixed audio (`-shortest`, AAC, `+faststart`) into the final MP4, named after the script title (sanitized). Returns duration and file size.
+ffmpeg muxes the raw video + mixed audio (`-shortest`, AAC, `+faststart`) into the final MP4, named after the script title (sanitized). If the user has a configured brand kit (or passes watermark options), `watermarkFilter.ts` generates FFmpeg overlay filter configurations to place the logo at the chosen corner (`top-left`, `top-right`, `bottom-left`, `bottom-right`) or custom coordinates with configured opacity and scaling.
 
 ### Timing budget
 
 `timing` (per-phase seconds) is collected in `FullPipelineResult.timing` and surfaced in the API — useful for spotting slow phases.
-
-> **Caveat:** phases 2a (audio) and 2b (images) run in parallel via `Promise.all`, but both `timing.audioSynthesis` and `timing.imageGeneration` are measured from the same `phaseStart` to the same end point. They therefore both report `max(audio, image)` time, not the individual phase duration. Keep this in mind when profiling.
 
 ## The HTML↔renderer contract (critical)
 
@@ -225,49 +341,62 @@ The LLM-generated HTML must expose specific globals that phases 4–5 rely on. T
 - `window.__seekTo(time)` — seeks the paused master GSAP timeline to an arbitrary time; the renderer calls this once per frame
 - `window.__masterTimeline`, `window.__registerScene(sceneId, tl, duration)`, `window.__getTotalDuration()` — master timeline plumbing defined in `globalSetupJs`
 - Scene `jsCode` must use the `{{SCENE_DURATION}}` placeholder (not hardcoded durations) — the real per-scene duration is only known after TTS
-- Scene `htmlCode`/`cssCode` may reference a web-searched photo via `{{SCENE_IMAGE}}` (at most once per scene; the LLM decides which scenes get photos, via a matching `imagePrompt` field) — the assembler swaps it for a local path
+- Scene `htmlCode`/`cssCode` may reference web-searched photos via `{{SCENE_IMAGE}}`, `{{SCENE_IMAGE_2}}`, `{{SCENE_IMAGE_3}}` (the assembler swaps each token for a local path in index order)
 - GSAP only: no `setTimeout`/`setInterval`/`requestAnimationFrame`/CSS `@keyframes` — seek-based rendering can't capture those
 - `window.__sm(opts)` — stickman character factory (injected by codeAssembler); returns SVG string
 - `window.__fx(type, opts)` — comic FX factory (injected by codeAssembler); returns positioned `<div>`
 
+## Brand Kit & Watermark Subsystem
+
+LIME includes an integrated Brand Kit engine for creator branding:
+- **Logo Storage & Security** (`src/security/uploadGuard.ts`): supports PNG, JPEG, WebP, and SVG files (with comprehensive XML/SVG sanitization against XXE, XSS, foreign objects, and malicious event attributes).
+- **Custom Positioning**: preset positions (`top-left`, `top-right`, `bottom-left`, `bottom-right`) and arbitrary coordinates (`x_pct`, `y_pct`), with customizable scaling (`5%` - `50%`) and opacity (`0.1` - `1.0`).
+- **Video Overlay Filter** (`src/pipeline/watermarkFilter.ts`): constructs hardware-optimized FFmpeg video filter complexes to superimpose the sanitized brand logo into the rendered stream.
+
+## VietQR & SePay Billing Subsystem
+
+LIME integrates automated banking payment gateway support for the Vietnamese market:
+- **Specification**: Complete technical specification in `docs/dac-ta-thanh-toan-vietqr.pdf`.
+- **Plans**: `creator` (149k VND, 50 videos), `pro` (249k VND, 150 videos), `max` (499k VND, 500 videos).
+- **Payment Lifecycle**: `pending` → `claimed` ("Tôi đã chuyển khoản") → `paid` (or `expired`/`cancelled`).
+- **SePay Webhook Integration**: Sub-50ms immediate acknowledgment, queuing background verification into BullMQ (`sepay-webhooks`). HMAC-SHA256 signature verification, anti-replay timestamp validation, and IP allowlist enforcement.
+- **Admin Reconciliation**: Admin portal views for unmatched bank transfers, duplicate payments, manual resolution, and bank refund recording.
+
 ## Frontend workspace architecture
 
-The web frontend (`web/`) is organized as a 3-panel studio workspace:
+The web frontend (`frontend/`) is organized as a 3-panel studio workspace (`workspace.html`, `workspace.js`, `workspace.css`):
 
-1. **Panel 1: Workspace Sidebar (Project History):**
-   - Displays previous jobs and drafts owned by the user (`Dự án` header with badge count).
-   - Card items show thumbnail previews, status pill, aspect ratio, scene count, duration, and last status message.
-   - Includes refresh button and empty/error states.
+1. **Left panel — Kịch bản AI.** Wizard 3 bước với footer cố định:
+   - **Bước 1 · prompt:** textarea (10–500 ký tự) và danh sách phân cảnh của video đã render.
+   - **Bước 2 · hướng làm:** mỗi lần một câu (người xem → mục đích → cấu trúc), chọn xong tự chuyển sau 240ms, có `← Quay lại`. Câu AI đã chắc (confidence ≥ 0.8) không thành màn riêng mà gom vào dải "Đã tự chọn" (vẫn bấm `Đổi` được). Hết câu thì hiện chip tóm tắt 3 câu trả lời.
+   - **Switch "Để AI quyết định hết":** bật thì bỏ qua wizard, CTA đổi thành `Tạo video ngay` và gửi `POST /api/pipeline { mode: "auto" }`; những câu đã trả lời vẫn được gửi kèm trong `answers`.
+   - Footer luôn hiện CTA chính: `Tiếp tục` → `Xem 3 phương án` → `Tạo video ngay`.
 
-2. **Panel 2: Center Workspace (Tabs):**
-   - **Tab *"Xem video"* (Monitor):** HTML5 video player, metadata spec cards (duration, scenes, resolution, status), direct MP4 download button, and copy-link button.
-   - **Tab *"Kịch bản"* (Script Editor & Review):** Managed by `web/js/scriptTab.js`.
-     - Stats bar: estimated duration, word count, scene count, visual style.
-     - Color palette swatches: visual representation of LLM-chosen theme colors (`primary`, `secondary`, `background`, `text`, `accent`).
-     - Scene cards: editable cards per scene with auto-growing textareas for `title` and `voiceoverText`.
-     - Diff tracking: `getScriptEdits()` compares current textarea values against the original draft to send only modified fields.
-     - Raw JSON viewer: collapsible JSON inspector and copy button.
-     - Confirmation CTA: *"Duyệt kịch bản & Tạo video"* button triggers `POST /api/generate` with `draftJobId` and `scriptEdits`.
-     - AI Revision Card: feedback textarea and *"Tạo lại theo phản hồi"* button triggers `POST /api/script/draft` with `{ draftJobId, feedback }`.
+2. **Center panel — Program monitor + timeline.** Video đã render, timeline phân cảnh, tải MP4 / xem HTML gốc / xem thử chuyển động.
 
-3. **Panel 3: Right Panel (Configuration & Progress):**
-   - Input configuration form: prompt textarea with character counter, quick inspiration chips, technical selects (aspect ratio, duration, language, style).
-   - Real-time progress box: phase-by-phase status bar and live log output connected via SSE.
+3. **Right panel — Inspector.** Khung hình & thời lượng, giọng đọc và các trường nâng cao (mô tả phong cách, kịch bản JSON tự dựng). Ô JSON có sẵn kịch bản mẫu hợp lệ: sửa để render thẳng, xoá trắng để AI tự viết. Motion block và blueprint đều do AI tự chọn — không còn UI chọn tay. Style cũng không còn là lựa chọn riêng: phương án được duyệt quyết định style + blueprint.
 
-**Draft-First UX Flow:** By default, submitting the form calls `POST /api/script/draft`. When the SSE stream receives `draft_ready`, the UI activates the *Kịch bản* tab for review and adjustment.
+**Review board (HITL).** Sau khi trả lời đủ, `POST /api/script/draft` trả 3 phương án và một overlay toàn vùng nội dung mở ra 3 cột: mini-frame 16:9 dựng bằng CSS từ palette + font của từng phương án, hook, thanh khớp thời lượng so với mục tiêu, hai dòng lời thoại đầu. Chọn một phương án → sửa `voiceOverText` từng cảnh ngay bên dưới (textarea auto-grow) → `Duyệt & Render` gửi `script` + `style` + `blueprintId` lên `POST /api/pipeline`. `Đổi bộ` sinh lại với `variantRotation + 1`; `Để AI tự chọn` chọn phương án điểm cao nhất.
+
+**Persistence.** Trạng thái wizard (prompt, câu trả lời, confidence, câu đang hỏi, 3 phương án, phương án đang chọn, switch auto) lưu ở `localStorage` key `lime.hitl.v1`; reload khôi phục đúng màn đang làm. Đổi prompt thì reset toàn bộ trạng thái.
+
+Additional frontend pages:
+- `frontend/index.html` — Landing page and quick generation interface.
+- `frontend/admin.html` — Super Admin portal for user management, order review, payment reconciliation, and system settings.
+- `frontend/profile.html` — User profile, usage stats, and credit consumption history.
+- `frontend/settings.html` — AI and TTS provider runtime configurations.
+- `frontend/legal.html` — Terms of Service and Privacy Policy.
 
 ## Provider adapters
 
-LLM (`src/llm/client.ts`) and TTS (`src/pipeline/audioSynth.ts`) use the same pattern: an interface, one class per provider (plain `fetch` calls, no SDKs), and a factory singleton selected by config.
+LLM (`src/llm/client.ts`) and TTS (`src/pipeline/audioSynth.ts`) use an interface with one class per provider (plain `fetch` calls, no SDKs) and factory singletons:
 
 | Domain | Providers |
 |---|---|
-| LLM | `openai` (GPT), `gemini`, `claude` (Anthropic), `deepseek` |
-| TTS | `edge` (msedge-tts, free, Vietnamese neural voices), `openai`, `google`, `elevenlabs` |
+| LLM | `deepseek`, `gemini`, `claude`, `openai`, `9router` |
+| TTS | `vieneu` (Vietnamese neural voice microservice, port 7860), `edge` (free), `openai`, `google`, `elevenlabs` |
 
-**Precedence:** the provider selected at runtime in the web UI (stored per user in the SQLite `settings` table) wins over the `*_PROVIDER` env var; API keys always come from `.env`. LLM clients are cached per provider so a UI switch is picked up without a process restart.
-
-> Gotcha: DeepSeek model names from the Anthropic-compatible endpoint (`deepseek-v4-flash`, etc.) return empty/truncated responses on the OpenAI-compatible `chat/completions` endpoint — use `deepseek-chat`/`deepseek-reasoner` there.
+**Precedence:** the provider selected at runtime in the web UI (stored per user in PostgreSQL `users.preferences` JSONB or `system_settings`) wins over the `*_PROVIDER` env var; API keys always come from `.env`. LLM clients are cached per provider so a UI switch is picked up without a process restart.
 
 ## Usage tracking & cost estimation
 
@@ -281,56 +410,67 @@ LLM (`src/llm/client.ts`) and TTS (`src/pipeline/audioSynth.ts`) use the same pa
 
 | Knob | Default | What it controls |
 |---|---|---|
-| `WORKER_CONCURRENCY` | 2 | Jobs a single worker processes simultaneously |
-| `RENDER_MAX_CONCURRENCY` | 4 | Chromium/ffmpeg processes spawned per job |
+| `WORKER_CONCURRENCY` | 2 | Video jobs a single worker processes simultaneously |
+| `RENDER_MAX_CONCURRENCY` | 4 | Chromium/ffmpeg processes spawned per video job |
 | multiple workers | — | Run several `npm run worker` processes for more parallelism |
 
 ## Reliability & cleanup
 
-- Queue survives restarts (Redis); jobs persisted in SQLite with full progress history
-- SSE replays state for late-connecting clients (status + last 100 logs from SQLite, then live Redis events); no `Last-Event-ID` support — reconnecting clients receive the full replay
-- Jobs are never auto-cleaned immediately; workdirs are removed by `DELETE /api/jobs/:id` or by the 24 h TTL cleaner in the worker; the video endpoint returns 410 once files are gone
-- **Cooperative cancellation** — `DELETE /api/jobs/:id` sets a Redis flag (`job-cancelled:<jobId>`, 1 h TTL). The worker polls it every ~0.4 s (`watchJobCancellation`) and aborts an `AbortSignal` threaded through every phase (`src/pipeline/cancel.ts`: `throwIfAborted`/`raceWithAbort`): LLM/TTS fetches, image searches/downloads, Playwright previews and per-frame renders, and ffmpeg subprocesses all stop in-flight (worst case ≈ one poll + one frame/TTS segment), throwing `JobCancelledError` which cleans the workdir without marking the job `failed`. The DELETE response message reflects this: running jobs get "cancellation requested", queued jobs "removed from queue".
-- Failed jobs keep their error message in `error_message` for diagnosis
-- `image_search_cache` rows are not cleaned by the job TTL cleaner; they grow independently (TTL controlled by `IMAGE_CACHE_TTL_DAYS` but no background pruner exists yet)
+- Queue survives restarts (Redis); user accounts and financial data persisted in PostgreSQL.
+- SSE replays state for late-connecting clients (status + historical logs from the job log, then live Redis events).
+- Jobs scratch directories are removed by `DELETE /api/jobs/:id` or by the 24 h TTL cleaner in the worker; video endpoints return 410 once files are pruned.
+- **Cooperative cancellation** — `DELETE /api/jobs/:id` sets a Redis flag (`job-cancelled:<jobId>`, 1 h TTL). The worker polls it every ~0.4 s (`watchJobCancellation`) and aborts an `AbortSignal` threaded through every phase (`src/pipeline/cancel.ts`: `throwIfAborted`/`raceWithAbort`): LLM/TTS fetches, image downloads, Playwright previews, per-frame renders, and ffmpeg subprocesses all stop in-flight, throwing `JobCancelledError` which cleans scratch files without corrupting state.
 
 ## Security model (untrusted LLM code)
 
-The LLM writes `globalSetupJs` and per-scene `htmlCode`/`cssCode`/`jsCode` that runs almost directly in a headless Chromium process — prompt injection can become JavaScript executing on the render host. Defense is layered:
+The LLM writes `globalSetupJs` and per-scene `htmlCode`/`cssCode`/`jsCode` that runs in a headless Chromium process. Defense is layered:
 
-1. **OS sandbox (default on)** — render/preview Chromium launch with the Chromium sandbox enabled via the shared helper `launchChromium()` (`src/pipeline/browser.ts`). The old `--no-sandbox`/`--disable-setuid-sandbox` flags are gone. On hosts where the sandbox can't start (e.g. containers without unprivileged user namespaces) the job fails at launch with operator guidance; setting `RENDER_ALLOW_NO_SANDBOX=1` opts back into unsandboxed mode with a loud warning.
-2. **Fail-closed code gate** — `scriptValidator.ts` and `codeAssembler.ts` scan every scene's `jsCode`, `htmlCode`, `cssCode` and `globalSetupJs` against `SECURITY_PATTERNS` (eval, `Function` ctor, fetch, XHR, sendBeacon, WebSocket, dynamic import, Worker, `document.write`; HTML additionally: curated event-handler attributes, embedded `<script>`) as well as non-deterministic timers (`setTimeout`, `setInterval`, `requestAnimationFrame`, `@keyframes`). Any match **throws** fail-fast in Phase 1 (for LLM retry) and Phase 3 (aborting assembly before render).
-3. **CSP** — the assembled page carries a strict Content-Security-Policy: `default-src 'none'`, `script-src 'unsafe-inline'` (no `'unsafe-eval'`, so eval/`Function` are blocked natively), `connect-src 'none'` (network exfiltration dead at browser level), images/fonts restricted to `file:`/`data:`.
+1. **OS sandbox (default on)** — render/preview Chromium launch with the Chromium sandbox enabled via `launchChromium()` (`src/pipeline/browser.ts`). Setting `RENDER_ALLOW_NO_SANDBOX=1` opts into unsandboxed mode with explicit logging.
+2. **Fail-closed code gate** — `scriptValidator.ts` and `codeAssembler.ts` scan code against `SECURITY_PATTERNS` (eval, `Function` ctor, fetch, XHR, sendBeacon, WebSocket, dynamic import, Worker, `document.write`; HTML: event-handler attributes, embedded `<script>`) and non-deterministic timers (`setTimeout`, `setInterval`, `requestAnimationFrame`, `@keyframes`). Any match throws fail-fast in Phase 1 (for LLM retry) and Phase 3 (aborting assembly before render).
+3. **CSP** — the assembled page carries a strict Content-Security-Policy: `default-src 'none'`, `script-src 'unsafe-inline'`, `connect-src 'none'`, images/fonts restricted to `file:`/`data:`.
 4. **Network block** — the renderer's `page.route` aborts every non-`file://`/`data:` request.
-
-The OS sandbox is the load-bearing layer; layers 2–4 are defense in depth.
 
 ## Tests
 
-- **Unit tests** (`tests/unit/`): `codeAssembler.test.ts` (HTML assembly, stickman helper injection, duration injection, `__ready` flag); `db.test.ts` (SQLite schema, jobs CRUD)
-- **Integration tests** (`tests/integration/`): directory exists but no tests yet
+LIME has a comprehensive automated test suite:
+- **Unit tests** (`tests/unit/`, 19+ test suites with 690+ assertions across 40+ suites):
+  - GSAP timeline AST linter & contract safety (`schema.test.ts`, `scriptGenerator.test.ts`, `assembler.test.ts`)
+  - Stickman character rig, IK geometry, and line-boil motion
+  - Audio ducking, loudness normalization, and BeatSync
+  - CDP frame capture deduplication
+  - Canvas2D & Three.js time-driver determinism
+  - Brand Kit upload validation and Watermark FFmpeg filters (`uploadGuard.test.ts`, `watermarkFilter.test.ts`)
+  - VietQR payment reconciliation and Admin refund operations (`admin.test.ts`, `admin_failed_payments.test.ts`, `billing_refunds.test.ts`)
+  - Payment flow safety net: pay-code generation and retry, order ownership checks, every webhook early-exit branch, SePay transaction reconciliation (stubbed `fetch`), and the two background cron jobs with a fake clock (`billing_vietqr_service.test.ts`, `billing_reconciler.test.ts`, `billing_cron.test.ts`)
+  - Quota reservations and security guards
+- **Integration tests** (`tests/integration/`):
+  - `billing_vietqr.test.ts`: end-to-end VietQR order creation, claiming, and webhook reconciliation flow
+  - `watermark.test.ts`: video watermark rendering and composition verification
+  - `tests/manual/vieneu.manual.ts`: kiểm tra tay kết nối VieNeu-TTS (không phải test tự động — không có `assert`, cần service Docker)
+
+Run tests:
+```bash
+npm run test:unit:pr     # nhóm chạy ở mọi PR (fast + tích hợp rẻ), nhanh
+npm run test:unit        # test đơn vị: fast + heavy
+npm run test:coverage    # đo độ phủ + cổng chất lượng 70% dòng (toàn bộ suite)
+npm run test:e2e         # pipeline 6 giai đoạn (nặng)
+```
 
 ## Deployment & containerization (Docker)
 
-VidTML is packaged as a multi-container Docker application orchestrated via Docker Compose (`docker-compose.yml`):
+LIME is packaged as a multi-container Docker application orchestrated via Docker Compose (`docker-compose.yml`):
 
-- **`redis`**: Standalone Redis 7 instance with AOF persistence.
-- **`server`**: Fastify HTTP server serving the Web UI, handling authentication, and streaming SSE events (`npm start`).
-- **`worker`**: BullMQ video processing worker with Playwright Chromium, FFmpeg, and Unicode/Vietnamese fonts pre-installed (`npm run worker`). Configured with `shm_size: 2gb` to handle parallel Chromium headless rendering instances smoothly.
-- **Shared volumes**:
-  - `vidtml_data` (`/app/tmp`): Shared volume between Server and Worker for SQLite database (`vidtml.sqlite`), generated video files, previews, and usage JSONL logs.
+- **`redis`**: Standalone Redis 7 instance (`lime_redis`) with AOF persistence.
+- **`postgres`**: PostgreSQL 13 database (`lime_postgres`) storing user accounts, sessions, system settings, brand kits, and billing records.
+- **`vieneu-tts`**: Dedicated Python microservice (`lime_vieneu_tts`, port 7860) running the Vietnamese neural voice synthesis model.
+- **`server`**: Fastify HTTP server (`lime_server`) serving the `frontend/` UI, handling authentication, REST APIs, and SSE streams (`npm run dev` / `npm start`).
+- **`worker`**: BullMQ video processing and billing webhook worker (`lime_worker`) with Playwright Chromium, FFmpeg, and Unicode/Vietnamese fonts pre-installed (`npm run worker`). Configured with `shm_size: 2gb` to handle parallel Chromium headless rendering instances smoothly.
+- **Volumes**:
+  - `postgres_data` (`/var/lib/postgresql/data`): Persistent storage for PostgreSQL database.
   - `redis_data` (`/data`): Persistent storage for Redis queue jobs and metadata.
+  - `lime_data` (`/app/tmp`): Shared volume between Server and Worker for video scratch files, previews, and usage logs.
 
+Run with:
 ```bash
 docker compose up --build
 ```
-
-## Roadmap
-
-The system is intentionally built in layers so new domains slot in without restructuring. Planned / under consideration:
-
-- **Job history & re-generation** — replay a previous job's request with a modified prompt
-- **Custom BGM** — `bgmPath` already flows through the queue (`VideoJobData`); only the UI wiring is missing
-- **Config wiring** — `DEFAULT_FPS`/`DEFAULT_WIDTH`/`DEFAULT_HEIGHT` are validated in config but not yet consumed by the pipeline (fps is hardcoded to 30; dimensions come from `VIDEO_PRESETS`)
-- **Image cache pruner** — `image_search_cache` rows are never cleaned; a periodic pruner based on `IMAGE_CACHE_TTL_DAYS` is planned
-

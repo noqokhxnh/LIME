@@ -2,11 +2,14 @@ node_modules/
 dist/
 tmp/
 .cache/
+__pycache__/
+*.pyc
 *.mp4
 *.mp3
 *.wav
 !assets/audio/**
 .env
+coverage/
 dump.rdb
 docs/comparison
 docs/plans/
@@ -19,3 +22,5 @@ pyrightconfig.json
 reuseforge/
 videos/
 data/*
+# OpenCode local state
+.opencode/

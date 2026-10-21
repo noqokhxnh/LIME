@@ -6,6 +6,18 @@ import { db } from '../database/index.js';
 import { createSession, deleteSession, getCurrentUser } from './session.js';
 import { getConfig } from '../config.js';
 import { createRemoteJWKSet, jwtVerify } from 'jose';
+import { recordAuthEvent } from './loginAudit.js';
+import { systemSettings } from '../admin/systemSettings.js';
+
+/** Email Super Admin tối cao — luôn được phép đăng ký dù chức năng đăng ký bị tắt. */
+const SUPER_ADMIN_EMAIL = 'khanh2k5xxx@gmail.com';
+
+/** Số credit tặng cho người dùng mới theo cấu hình quản trị (thay cho 20 viết cứng). */
+function freeCreditsForNewUser(): number {
+    const value = Math.round(Number(systemSettings.get().freeCreditsOnRegister));
+    return Number.isFinite(value) && value >= 0 ? value : 20;
+}
+
 
 const registerSchema = z.object({
     username: z.string().trim().regex(/^[a-zA-Z0-9_]{3,30}$/),
@@ -39,11 +51,17 @@ export async function authRoutes(app: FastifyInstance): Promise<void> {
         }
         const { username, password } = parsed.data;
         const email = parsed.data.email.toLowerCase();
+        const isAdmin = email === SUPER_ADMIN_EMAIL;
+
+        // Tôn trọng công tắc "cho phép đăng ký" của quản trị viên.
+        if (!isAdmin && !systemSettings.get().registrationEnabled) {
+            return reply.status(403).send({ error: 'Chức năng đăng ký đang tạm đóng.' });
+        }
+
         const passwordHash = await bcrypt.hash(password, 12);
-        const isAdmin = email === 'khanh2k5xxx@gmail.com';
         const role = isAdmin ? 'admin' : 'user';
         const tier = isAdmin ? 'enterprise' : 'free';
-        const credits = isAdmin ? 10000 : 20;
+        const credits = isAdmin ? 10000 : freeCreditsForNewUser();
         const totalCredits = credits;
         try {
             const result = await db.query(
@@ -54,6 +72,22 @@ export async function authRoutes(app: FastifyInstance): Promise<void> {
             );
             const user = result.rows[0];
             await createSession(user.id, reply);
+            await recordAuthEvent({
+                action: 'auth.register',
+                userId: user.id,
+                userEmail: user.email,
+                provider: 'local',
+                request,
+                details: { username: user.username },
+            });
+            await recordAuthEvent({
+                action: 'auth.login',
+                userId: user.id,
+                userEmail: user.email,
+                provider: 'local',
+                request,
+                details: { username: user.username, afterRegister: true },
+            });
             return reply.status(201).send({
                 id: user.id,
                 username: user.username,
@@ -86,11 +120,26 @@ export async function authRoutes(app: FastifyInstance): Promise<void> {
         );
         const user = result.rows[0];
         if (!user) {
+            await recordAuthEvent({
+                action: 'auth.login_failed',
+                status: 'failure',
+                request,
+                details: { identifier: parsed.data.username, reason: 'user_not_found' },
+            });
             return reply.status(401).send({
                 error: 'Invalid username or password',
             });
         }
         if(!user.password_hash) {
+            await recordAuthEvent({
+                action: 'auth.login_failed',
+                status: 'failure',
+                userId: user.id,
+                userEmail: user.email,
+                provider: 'google',
+                request,
+                details: { reason: 'google_account' },
+            });
             return reply.status(401).send({
                 error: 'đăng nhập bằng Google',
             });
@@ -100,6 +149,14 @@ export async function authRoutes(app: FastifyInstance): Promise<void> {
             user.password_hash
         );
         if (!validPassword) {
+            await recordAuthEvent({
+                action: 'auth.login_failed',
+                status: 'failure',
+                userId: user.id,
+                userEmail: user.email,
+                request,
+                details: { reason: 'wrong_password' },
+            });
             return reply.status(401).send({
                 error: 'Invalid username or password',
             });
@@ -108,6 +165,13 @@ export async function authRoutes(app: FastifyInstance): Promise<void> {
         const totalCredits = Math.max(Number(user.total_credits ?? 20), 1);
         const creditPercent = Math.min(100, Math.max(0, Math.round((credits / totalCredits) * 100)));
         await createSession(user.id, reply);
+        await recordAuthEvent({
+            action: 'auth.login',
+            userId: user.id,
+            userEmail: user.email,
+            request,
+            details: { username: user.username },
+        });
         return {
             id: user.id,
             username: user.username,
@@ -166,6 +230,13 @@ export async function authRoutes(app: FastifyInstance): Promise<void> {
             'UPDATE users SET password_hash = $1 WHERE id = $2',
             [passwordHash, user.id]
         );
+
+        await recordAuthEvent({
+            action: 'auth.password_changed',
+            userId: sessionUser.id,
+            userEmail: sessionUser.email,
+            request,
+        });
 
         return {
             ok: true,
@@ -352,22 +423,47 @@ export async function authRoutes(app: FastifyInstance): Promise<void> {
             }
 
             // 3. Nếu người dùng chưa tồn tại, tạo mới
+            let isNewGoogleUser = false;
             if (!user) {
+                const isAdmin = email.toLowerCase() === SUPER_ADMIN_EMAIL;
+
+                // Tôn trọng công tắc "cho phép đăng ký" cho người dùng Google mới.
+                if (!isAdmin && !systemSettings.get().registrationEnabled) {
+                    return reply.redirect('/?auth=error&error=registration_disabled');
+                }
+
                 const id = randomUUID();
                 const username = `google_${googleId.slice(-8)}_${randomBytes(2).toString('hex')}`;
-                const isAdmin = email.toLowerCase() === 'khanh2k5xxx@gmail.com';
                 const role = isAdmin ? 'admin' : 'user';
                 const tier = isAdmin ? 'enterprise' : 'free';
-                const credits = isAdmin ? 10000 : 20;
+                const credits = isAdmin ? 10000 : freeCreditsForNewUser();
                 const totalCredits = credits;
                 const createdResult = await db.query(
                     'INSERT INTO users (id, username, email, password_hash, google_id, role, tier, credits, total_credits) VALUES ($1, $2, $3, NULL, $4, $5, $6, $7, $8) RETURNING id, username, email, created_at',
                     [id, username, email, googleId, role, tier, credits, totalCredits]
                 );
                 user = createdResult.rows[0];
+                isNewGoogleUser = true;
             }
 
             await createSession(user.id, reply);
+            if (isNewGoogleUser) {
+                await recordAuthEvent({
+                    action: 'auth.register',
+                    userId: user.id,
+                    userEmail: user.email,
+                    provider: 'google',
+                    request,
+                    details: { username: user.username },
+                });
+            }
+            await recordAuthEvent({
+                action: 'auth.login',
+                userId: user.id,
+                userEmail: user.email,
+                provider: 'google',
+                request,
+            });
             return reply.redirect('/workspace');
         } catch (error) {
             request.log.error(

@@ -53,6 +53,7 @@ const envSchema = z.object({
     Claude_Model: z.string().default("claude sonnet 4.5"),
 
     TTS_Provider: z.enum(['edge', 'elevenlabs', 'openai', 'google', 'vieneu']).default('edge'),
+    RENDER_MAX_CONCURRENCY: z.coerce.number().int().min(1).max(16).default(1),
     VIENEU_TTS_URL: z.string().default('http://127.0.0.1:7860'),
     TTS_Voice: z.string().default('alloy'),
 
@@ -93,7 +94,14 @@ export { envSchema };
 let _config: Config | null = null;
 export function getConfig(): Config {
     if (!_config) {
-        const result = envSchema.safeParse(process.env);
+        // Chấp nhận cả TTS_PROVIDER (chuẩn ALL_CAPS trong .env/docker) lẫn TTS_Provider (schema cũ).
+        // Dùng bản sao để KHÔNG ghi ngược vào process.env — tránh rò rỉ trạng thái
+        // giữa các lần gọi `getConfig()`/`resetConfig()` và làm test phụ thuộc thứ tự.
+        const env = { ...process.env };
+        if (!env.TTS_Provider && env.TTS_PROVIDER) {
+            env.TTS_Provider = env.TTS_PROVIDER;
+        }
+        const result = envSchema.safeParse(env);
         if (!result.success) {
             throw new Error(`Configuration error: ${result.error.message}`);
         }
@@ -139,5 +147,42 @@ export const videoPreset: Record<string, videoPreset> = {
         height: 1920,
         label: "1:1",
     },
-
+    "vertical": {
+        name: "vertical",
+        width: 720,
+        height: 1280,
+        label: "9:16 Vertical (720x1280)",
+    },
+    "horizontal": {
+        name: "horizontal",
+        width: 1920,
+        height: 1080,
+        label: "16:9 Horizontal (1920x1080)",
+    },
+    // Issue #30: 4K UHD presets
+    "4k": {
+        name: "4k",
+        width: 3840,
+        height: 2160,
+        label: "4K UHD 16:9 (3840x2160)",
+    },
+    "4k-vertical": {
+        name: "4k-vertical",
+        width: 2160,
+        height: 3840,
+        label: "4K Vertical 9:16 (2160x3840)",
+    },
 };
+
+export function resolveResolution(aspectRatio?: string, format?: "vertical" | "horizontal"): videoPreset {
+    if (format === "vertical") {
+        return videoPreset["vertical"];
+    }
+    if (format === "horizontal") {
+        return videoPreset["horizontal"];
+    }
+    if (aspectRatio && videoPreset[aspectRatio]) {
+        return videoPreset[aspectRatio];
+    }
+    return videoPreset["16:9"];
+}
