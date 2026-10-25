@@ -147,18 +147,24 @@ export async function buildApp(options: { logger?: boolean, queue?: IVideoQueue 
             const ip = request.ip || '127.0.0.1';
             const body = request.body as any;
 
-            // /api/script/draft gọi LLM song song cho từng phương án, cộng thêm một
-            // lần phân loại nếu client chưa gửi answers. Tính RPM theo lượt gọi thật
-            // để không ai nhân chi phí LLM lên 3 lần mà vẫn trong hạn mức.
+            // /api/script/draft gọi LLM song song cho từng phương án: mỗi
+            // phương án tốn tối thiểu 1 lần chọn style + 1 lần sinh kịch
+            // bản (chưa kể thử lại khi lỗi), cộng thêm một lần phân loại
+            // nếu client chưa gửi answers. Tính RPM theo fan-out tối thiểu
+            // đó (2/variant); phần chi phí vượt trần theo ngày do trần
+            // draft/ngày theo tài khoản ở handler chặn.
             let rpmCost = 1;
             if (path === '/api/script/draft') {
                 const requested = Number(body?.variantCount ?? 1);
                 const variants = Number.isFinite(requested)
                     ? Math.min(3, Math.max(1, Math.floor(requested)))
                     : 1;
-                rpmCost = variants + (body?.answers ? 0 : 1);
-            } else if (path === '/api/pipeline' && (body?.autoDirect || body?.mode === 'auto')) {
-                // autoDirect = 1 lần phân loại + 3 lần sinh phương án.
+                rpmCost = variants * 2 + (body?.answers ? 0 : 1);
+            } else if ((path === '/api/pipeline' || path === '/api/generate') && (body?.autoDirect || body?.mode === 'auto')) {
+                // autoDirect = 1 lần phân loại + 3 lần sinh phương án. Cả hai
+                // alias /api/pipeline và /api/generate dùng chung một handler
+                // nên phải tính như nhau — trước đây /api/generate chỉ bị
+                // tính 1, mở đường vòng qua alias để né hạn mức.
                 rpmCost = 4;
             }
 
@@ -487,6 +493,12 @@ export async function buildApp(options: { logger?: boolean, queue?: IVideoQueue 
             reply.status(401);
             return { error: "Authentication required" };
         }
+        // Trần ngày theo tài khoản: RPM chỉ chặn theo phút, không có trần
+        // ngày thì một tài khoản đốt LLM cả ngày ở nhịp RPM vẫn hợp lệ.
+        if (!rateLimiter.checkAndIncrementDailyQuota(`draft:${authUser.id}`, 50)) {
+            reply.status(429);
+            return { success: false, error: "Daily draft quota exceeded" };
+        }
         const body = (request.body as any) ?? {};
         try {
             const normalized = normalizeVideoRequestBody(body);
@@ -617,6 +629,12 @@ export async function buildApp(options: { logger?: boolean, queue?: IVideoQueue 
             reply.status(401);
             return { success: false, error: "Authentication required" };
         }
+        // Trần ngày theo tài khoản (mỗi lượt clarify là một lần gọi LLM
+        // phân loại bằng API key của hệ thống).
+        if (!rateLimiter.checkAndIncrementDailyQuota(`clarify:${authUser.id}`, 100)) {
+            reply.status(429);
+            return { success: false, error: "Daily clarify quota exceeded" };
+        }
         const body = (request.body as any) ?? {};
         const prompt = String(body.prompt ?? body.text ?? body.topic ?? '').trim();
         if (prompt.length < 10) {
@@ -689,12 +707,23 @@ export async function buildApp(options: { logger?: boolean, queue?: IVideoQueue 
             }
         }
 
+        // jobId do client gửi được dùng làm khoá hàng đợi VÀ tên thư mục
+        // tmp/job-<jobId>: ký tự đường dẫn (`/`, `..`) sẽ thành traversal
+        // khi đọc/xoá artifact — kiểm tra TRƯỚC khi trừ quota/giữ slot để
+        // request bị từ chối không ăn hạn mức.
+        if (body.jobId !== undefined && !isSafeJobId(body.jobId)) {
+            reply.status(400);
+            return { error: "Invalid jobId" };
+        }
+
         const ip = request.ip || '127.0.0.1';
         if (!rateLimiter.checkAndIncrementDailyQuota(ip)) {
             reply.status(429);
             return { error: "Daily quota exceeded" };
         }
         if (!rateLimiter.acquireConcurrentJob(ip)) {
+            // Không nhận job thì không tính quota ngày.
+            rateLimiter.refundDailyQuota(ip);
             reply.status(429);
             return { error: "Concurrency limit exceeded" };
         }
@@ -707,13 +736,6 @@ export async function buildApp(options: { logger?: boolean, queue?: IVideoQueue 
         const autoAnswers = body.answers;
         const requestedRotation = Number(body.variantRotation ?? 0);
         const variantRotation = Number.isFinite(requestedRotation) ? Math.max(0, Math.floor(requestedRotation)) : 0;
-        // jobId do client gửi được dùng làm khoá hàng đợi VÀ tên thư mục
-        // tmp/job-<jobId>: ký tự đường dẫn (`/`, `..`) sẽ thành traversal
-        // khi đọc/xoá artifact — từ chối ngay tại cổng.
-        if (body.jobId !== undefined && !isSafeJobId(body.jobId)) {
-            reply.status(400);
-            return { error: "Invalid jobId" };
-        }
         const jobId = body.jobId || v4();
         const defaultSeed = hashString32(jobId);
         const seed = parseSeedSafe(reqData.seed ?? body.seed, defaultSeed);
@@ -726,7 +748,8 @@ export async function buildApp(options: { logger?: boolean, queue?: IVideoQueue 
 
         if (isAsync) {
             jobIpMap.set(jobId, ip);
-            await queue.addJob(jobId, {
+            try {
+                await queue.addJob(jobId, {
                 jobId,
                 userId,
                 request: reqData,
@@ -738,7 +761,16 @@ export async function buildApp(options: { logger?: boolean, queue?: IVideoQueue 
                 skipPreview,
                 outputDir,
                 seed
-            });
+                });
+            } catch (err) {
+                // Enqueue lỗi: job không chạy nên sẽ không có sự kiện kết
+                // thúc nào tới để nhả slot — nhả ngay tại đây và hoàn quota.
+                jobIpMap.delete(jobId);
+                rateLimiter.releaseConcurrentJob(ip);
+                rateLimiter.refundDailyQuota(ip);
+                reply.status(500);
+                return { error: "Failed to enqueue job" };
+            }
 
             reply.status(202);
             return {
