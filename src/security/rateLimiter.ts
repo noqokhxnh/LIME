@@ -3,6 +3,7 @@ export interface IRateLimiter {
     acquireConcurrentJob(id: string, maxConcurrent?: number): boolean;
     releaseConcurrentJob(id: string): void;
     checkAndIncrementDailyQuota(id: string, maxDaily?: number): boolean;
+    refundDailyQuota(id: string): void;
 }
 
 export class InMemoryRateLimiter implements IRateLimiter {
@@ -84,6 +85,19 @@ export class InMemoryRateLimiter implements IRateLimiter {
         
         record.count++;
         return true;
+    }
+
+    /**
+     * Hoàn một lượt quota ngày đã trừ. Dùng khi request bị chính service
+     * từ chối sau bước trừ quota (hết slot đồng thời, enqueue lỗi): quota
+     * ngày chỉ được tính cho job thật sự được nhận — trước đây các lượt
+     * bị từ chối vẫn ăn hạn mức và không có đường nào hoàn lại.
+     */
+    public refundDailyQuota(id: string): void {
+        const record = this.dailyMap.get(id);
+        if (record && record.count > 0 && Date.now() <= record.resetAt) {
+            record.count--;
+        }
     }
 }
 

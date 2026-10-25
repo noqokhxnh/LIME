@@ -108,6 +108,7 @@ export class BullMQQueue implements IVideoQueue {
         // Job đang chờ: xoá khỏi hàng đợi để worker không nhặt lên chạy.
         try {
             await job.remove();
+            this.events.emit('cancelled', { jobId });
         } catch {
             await job.updateData({ ...job.data, cancelled: true });
         }
@@ -135,6 +136,9 @@ export class BullMQQueue implements IVideoQueue {
         if (!job) return false;
         try {
             await job.remove();
+            // Báo 'cancelled' để nhả slot đồng thời của job (nếu có) —
+            // job bị xoá không còn sự kiện kết thúc nào khác.
+            this.events.emit('cancelled', { jobId });
             return true;
         } catch {
             return false;
@@ -188,6 +192,14 @@ export class BullMQQueue implements IVideoQueue {
 
         this.queueEvents.on('failed', (args: any) => {
             this.events.emit('failed', args);
+        });
+
+        // Job bị xoá trong lúc chờ (admin cancel/remove) không sinh
+        // completed/failed: chuyển 'removed' thành 'cancelled' để nơi giữ
+        // slot đồng thời (releaseJobSlot ở index.ts) được nhả — trước đây
+        // slot rò vĩnh viễn tới khi restart tiến trình.
+        this.queueEvents.on('removed', (args: any) => {
+            this.events.emit('cancelled', args);
         });
     }
 
