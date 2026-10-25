@@ -150,6 +150,8 @@ export interface SePayWebhookPayload {
     referenceCode?: string | null;
     reference_code?: string | null;
     description?: string;
+    /** Chữ ký toàn vẹn khi payload đi qua hàng đợi (queueAuth) — không phải dữ liệu SePay, bị loại trước khi xử lý nghiệp vụ. */
+    _queueSig?: string;
     [key: string]: any;
 }
 

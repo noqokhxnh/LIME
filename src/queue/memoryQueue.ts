@@ -1,5 +1,5 @@
 import { EventEmitter } from 'node:events';
-import { IVideoQueue, JobData, JobRecord, JobProgress, JobUpdate } from './interfaces.js';
+import { IVideoQueue, JobData, JobRecord, JobProgress, JobUpdate, JobIdConflictError } from './interfaces.js';
 import { type fullPipelineResult } from '../pipeline/orchestrator.js';
 import { hashString32, parseSeedSafe } from '../pipeline/rng.js';
 import { systemSettings } from '../admin/systemSettings.js';
@@ -38,6 +38,11 @@ export class MemoryQueue implements IVideoQueue {
     constructor() {}
 
     async addJob(jobId: string, data: JobData): Promise<void> {
+        // Không ghi đè job đã tồn tại (xem JobIdConflictError): store.set mù
+        // sẽ thay luôn bản ghi của job người khác khi jobId bị dùng lại.
+        if (this.store.has(jobId)) {
+            throw new JobIdConflictError(jobId);
+        }
         const seed = parseSeedSafe(data.seed ?? data.request?.seed, hashString32(jobId));
         data.seed = seed;
         data.cancelled = false;

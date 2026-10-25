@@ -3,7 +3,21 @@ import { Queue, Worker } from 'bullmq';
 import Redis from 'ioredis';
 import { getConfig } from '../config.js';
 import { vietQrBillingService } from './vietqrService.js';
+import { signWebhookPayload, verifyWebhookPayload, stripWebhookSignature } from './queueAuth.js';
 import type { SePayWebhookPayload } from './types.js';
+
+/**
+ * Cổng kiểm chứng phía worker: payload không có chữ ký hàng đợi hợp lệ
+ * (bị ghi thẳng vào Redis bởi bên thứ ba, hoặc bản ghi cũ trước khi có ký)
+ * bị bỏ qua — log rõ ràng, không ném lỗi để BullMQ không retry vô ích.
+ */
+async function processVerifiedWebhook(payload: SePayWebhookPayload): Promise<void> {
+    if (!verifyWebhookPayload(payload)) {
+        console.error('[Billing Webhook Queue] Dropped payload without valid queue signature (id=%s)', (payload as any)?.id);
+        return;
+    }
+    await vietQrBillingService.processWebhook(stripWebhookSignature(payload));
+}
 
 export interface IBillingWebhookQueue {
     addJob(payload: SePayWebhookPayload): Promise<void>;
@@ -38,7 +52,7 @@ export class BullMQBillingWebhookQueue implements IBillingWebhookQueue {
 
     async addJob(payload: SePayWebhookPayload): Promise<void> {
         const jobId = payload.id ? `sepay-${payload.id}` : undefined;
-        await this.queue.add('process-webhook', payload, {
+        await this.queue.add('process-webhook', signWebhookPayload(payload), {
             jobId,
             removeOnComplete: 1000,
             removeOnFail: 5000,
@@ -56,7 +70,7 @@ export class BullMQBillingWebhookQueue implements IBillingWebhookQueue {
         this.worker = new Worker(
             'sepay-webhooks',
             async (job) => {
-                await vietQrBillingService.processWebhook(job.data);
+                await processVerifiedWebhook(job.data);
             },
             { connection, concurrency: 5 }
         );
@@ -86,11 +100,14 @@ export class MemoryBillingWebhookQueue implements IBillingWebhookQueue {
     private isRunning = true;
 
     async addJob(payload: SePayWebhookPayload): Promise<void> {
+        // Ký ngay khi enqueue và kiểm chứng ở phía xử lý như BullMQ — cùng
+        // một cổng tin cậy cho cả hai loại hàng đợi.
+        const signed = signWebhookPayload(payload);
         // Asynchronously process without blocking caller
         setImmediate(async () => {
             if (!this.isRunning) return;
             try {
-                await vietQrBillingService.processWebhook(payload);
+                await processVerifiedWebhook(signed);
                 this.events.emit('completed', payload);
             } catch (err) {
                 console.error('[Memory Billing Webhook Queue] Error processing webhook:', err);

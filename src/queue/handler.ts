@@ -10,7 +10,10 @@ import {
 } from '../pipeline/clarify.js';
 import { dedupeVariants, pickVariants, scoreDraft } from '../pipeline/scriptVariants.js';
 import { generateScript } from '../pipeline/scriptGenerator.js';
-import { type videoScript } from '../llm/schema.js';
+import { videoRequestSchema, videoScriptSchema, type videoScript } from '../llm/schema.js';
+import { isSafeJobId, safeJobDir } from './jobPaths.js';
+import { resolveBgmPath } from '../security/uploadGuard.js';
+import { resolve, sep } from 'node:path';
 
 /**
  * Chế độ "Để AI quyết hết".
@@ -97,20 +100,64 @@ export async function autoDirectScript(
     return best.script;
 }
 
+/**
+ * Kiểm chứng lại dữ liệu job TẠI THỜI ĐIỂM DEQUEUE.
+ *
+ * Hàng đợi (Redis) không phải biên tin cậy: ai ghi được vào queue đều từng
+ * có toàn quyền pipeline vì handler dùng nguyên văn request/script/
+ * outputDir/bgmPath trong payload. Route tạo job đã validate + giam đường
+ * dẫn, nhưng payload trong queue có thể bị chèn/sửa sau đó. Vì vậy handler
+ * chuẩn hoá lại mọi trường trước khi chạy:
+ * - jobId phải theo khuôn an toàn; outputDir suy lại từ jobId (chỉ chấp
+ *   nhận thư mục trong tmp/ mà tên chứa jobId — khớp route `job-<id>` và
+ *   CLI `cli-job-<id>`), ngoài ra rơi về safeJobDir.
+ * - request/script parse lại bằng đúng zod schema của tầng route.
+ * - bgmPath qua resolveBgmPath (giam trong tmp/|assets/).
+ * Payload không hợp lệ → job fail với lỗi rõ ràng thay vì chạy bừa.
+ */
+export function revalidateJobData(data: JobData): JobData {
+    if (!isSafeJobId(data?.jobId)) {
+        throw new Error('JOB_REJECTED: jobId không hợp lệ trong payload hàng đợi');
+    }
+    const jobId = data.jobId;
+
+    const request = videoRequestSchema.parse(data.request);
+    const script = data.script ? videoScriptSchema.parse(data.script) : undefined;
+
+    const fallbackDir = safeJobDir(jobId);
+    let outputDir = fallbackDir ?? resolve(process.cwd(), 'tmp', `job-${jobId}`);
+    if (typeof data.outputDir === 'string' && data.outputDir) {
+        const root = resolve(process.cwd(), 'tmp');
+        const candidate = resolve(data.outputDir);
+        const base = candidate.split(sep).pop() ?? '';
+        if (candidate.startsWith(root + sep) && base.includes(jobId)) {
+            outputDir = candidate;
+        }
+    }
+
+    const bgmPath = data.bgmPath ? (resolveBgmPath(data.bgmPath) ?? undefined) : undefined;
+    const userId = typeof data.userId === 'string' && data.userId.length > 0 && data.userId.length <= 64
+        ? data.userId
+        : undefined;
+
+    return { ...data, jobId, request, script, outputDir, bgmPath, userId };
+}
+
 export async function processVideoJob(data: JobData, updateProgress: (p: JobProgress) => Promise<void>): Promise<fullPipelineResult> {
-    let script = data.script;
-    if (!script && data.autoDirect) {
-        script = await autoDirectScript(data, updateProgress);
+    const clean = revalidateJobData(data);
+    let script = clean.script;
+    if (!script && clean.autoDirect) {
+        script = await autoDirectScript(clean, updateProgress);
     }
 
     return await runFullPipeline({
-        request: data.request,
+        request: clean.request,
         script,
-        bgmPath: data.bgmPath,
-        skipPreview: data.skipPreview,
-        outputDir: data.outputDir,
-        jobId: data.jobId,
-        seed: data.seed,
+        bgmPath: clean.bgmPath,
+        skipPreview: clean.skipPreview,
+        outputDir: clean.outputDir,
+        jobId: clean.jobId,
+        seed: clean.seed,
         onProgress: (p) => {
             updateProgress(p).catch(err => console.error("Failed to update progress", err));
         }

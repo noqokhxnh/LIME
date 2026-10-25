@@ -151,3 +151,72 @@ describe('Module 11: Queue & Background Worker', () => {
         assert.ok(body.includes('data:'), 'SSE stream should contain data chunks');
     });
 });
+
+describe('Queue trust boundary (dedup jobId, re-validate khi dequeue, chữ ký webhook queue)', () => {
+    it('MemoryQueue: addJob trùng jobId ném JOB_ID_CONFLICT và không ghi đè job cũ', async () => {
+        const { MemoryQueue } = await import('../../src/queue/memoryQueue.js');
+        const { JobIdConflictError } = await import('../../src/queue/interfaces.js');
+        const q = new MemoryQueue();
+        const jobId = `conflict-${Date.now()}`;
+        const data: any = {
+            jobId,
+            request: { prompt: 'first', targetDurationSec: 10, aspectRatio: '16:9' },
+            outputDir: `/tmp/job-${jobId}`,
+        };
+        await q.addJob(jobId, data);
+        await assert.rejects(
+            () => q.addJob(jobId, { ...data, request: { prompt: 'hijack', targetDurationSec: 10, aspectRatio: '16:9' } }),
+            (err: any) => err instanceof JobIdConflictError || err?.code === 'JOB_ID_CONFLICT'
+        );
+        const record = await q.getJob(jobId);
+        assert.equal(record?.request?.prompt, 'first', 'Job gốc không được bị ghi đè');
+        await q.close();
+    });
+
+    it('revalidateJobData: jobId nguy hiểm bị loại, outputDir thoát tmp bị suy lại, bgm ngoài vùng bị bỏ', async () => {
+        const { revalidateJobData } = await import('../../src/queue/handler.js');
+        const { safeJobDir } = await import('../../src/queue/jobPaths.js');
+        const { join } = await import('node:path');
+
+        assert.throws(
+            () => revalidateJobData({ jobId: '../evil', request: { prompt: 'x' }, outputDir: '/tmp' } as any),
+            /JOB_REJECTED/
+        );
+        assert.throws(
+            () => revalidateJobData({ jobId: 'ok-id-1', request: { nope: true }, outputDir: '/tmp' } as any),
+            'request sai schema phải bị loại ở biên worker'
+        );
+
+        const jobId = 'forge-123';
+        const forged: any = {
+            jobId,
+            request: { prompt: 'legit prompt', targetDurationSec: 10, aspectRatio: '16:9', style: 'modern' },
+            outputDir: '/home/khxnh/evil',
+            bgmPath: '/etc/passwd',
+            userId: 'user-1',
+        };
+        const clean = revalidateJobData(forged);
+        assert.equal(clean.outputDir, safeJobDir(jobId));
+        assert.equal(clean.bgmPath, undefined);
+        assert.equal(clean.userId, 'user-1');
+
+        // Thư mục hợp lệ của route/CLI (trong tmp/, tên chứa jobId) được giữ nguyên
+        const legitDir = join(process.cwd(), 'tmp', `job-${jobId}`);
+        const clean2 = revalidateJobData({ ...forged, outputDir: legitDir, bgmPath: undefined });
+        assert.equal(clean2.outputDir, legitDir);
+    });
+
+    it('queueAuth: ký/kiểm chứng payload webhook hàng đợi, sửa nội dung là mất hiệu lực', async () => {
+        const { signWebhookPayload, verifyWebhookPayload, stripWebhookSignature } = await import('../../src/billing/queueAuth.js');
+        const payload: any = { id: 424242, transfer_amount: 149000, content: 'LIME TEST' };
+
+        assert.equal(verifyWebhookPayload(payload), false, 'Chưa ký → không hợp lệ');
+        const signed = signWebhookPayload(payload);
+        assert.equal(verifyWebhookPayload(signed), true);
+        assert.equal(verifyWebhookPayload({ ...signed, transfer_amount: 1 }), false, 'Sửa số tiền → chữ ký sai');
+        assert.equal(verifyWebhookPayload({ ...signed, _queueSig: 'deadbeef' }), false);
+        const stripped = stripWebhookSignature(signed);
+        assert.equal((stripped as any)._queueSig, undefined);
+        assert.equal(stripped.transfer_amount, 149000);
+    });
+});
