@@ -141,6 +141,7 @@ export async function getCurrentUser(
                  FROM sessions s
                  JOIN users u ON u.id = s.user_id
                  WHERE s.token_hash = $1 AND s.expires_at > NOW() AND u.deleted_at IS NULL
+                   AND (u.status IS NULL OR u.status <> 'banned')
                  LIMIT 1`,
                 [tokenHash]
             );

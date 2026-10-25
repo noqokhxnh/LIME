@@ -3,7 +3,7 @@ import type { FastifyInstance, FastifyRequest } from 'fastify';
 import bcrypt from 'bcryptjs';
 import { z } from 'zod';
 import { db } from '../database/index.js';
-import { createSession, deleteSession, getCurrentUser } from './session.js';
+import { createSession, deleteSession, getCurrentUser, revokeUserSessions } from './session.js';
 import { getConfig } from '../config.js';
 import { createRemoteJWKSet, jwtVerify } from 'jose';
 import { recordAuthEvent } from './loginAudit.js';
@@ -234,6 +234,14 @@ export async function authRoutes(app: FastifyInstance): Promise<void> {
             'UPDATE users SET password_hash = $1 WHERE id = $2',
             [passwordHash, user.id]
         );
+
+        // Đổi mật khẩu phải đuổi mọi phiên đang mở khác: trước đây các
+        // phiên cũ (kể cả phiên của kẻ đã chiếm tài khoản) vẫn sống tới
+        // hết TTL 7 ngày sau khi chủ tài khoản đổi mật khẩu. Cấp lại phiên
+        // cho chính request này để người dùng không bị đăng xuất khỏi
+        // thiết bị hiện tại.
+        await revokeUserSessions(user.id);
+        await createSession(user.id, reply);
 
         await recordAuthEvent({
             action: 'auth.password_changed',
