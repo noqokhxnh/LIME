@@ -2,6 +2,9 @@ import { describe, it, before, after } from 'node:test';
 import assert from 'node:assert/strict';
 import { type FastifyInstance } from 'fastify';
 import { buildApp } from '../../src/index.js';
+import { createTestSession } from '../../src/auth/session.js';
+const ADMIN_ID = '00000000-0000-4000-a000-000000000001';
+const authCookies = () => ({ vidtml_session: createTestSession(ADMIN_ID) });
 import { getQueue } from '../../src/queue/index.js';
 import { setLLMClient, type LLMClient } from '../../src/llm/client.js';
 import { setTTSClient, type TTSClient, generateSilence } from '../../src/pipeline/audioSysnthesis.js';
@@ -72,6 +75,7 @@ describe('Module 11: Queue & Background Worker', () => {
         const res = await app.inject({
             method: 'POST',
             url: '/api/pipeline',
+            cookies: authCookies(),
             payload: {
                 prompt: 'queue test prompt',
                 async: true,
@@ -96,7 +100,8 @@ describe('Module 11: Queue & Background Worker', () => {
         for (let i = 0; i < 120; i++) {
             const checkRes = await app.inject({
                 method: 'GET',
-                url: `/api/jobs/${jobId}`
+                url: `/api/jobs/${jobId}`,
+                cookies: authCookies()
             });
             assert.strictEqual(checkRes.statusCode, 200);
             const checkJson = checkRes.json();
@@ -120,6 +125,7 @@ describe('Module 11: Queue & Background Worker', () => {
         const res = await app.inject({
             method: 'POST',
             url: '/api/pipeline',
+            cookies: authCookies(),
             payload: {
                 prompt: 'sse test prompt',
                 async: true,
@@ -134,7 +140,8 @@ describe('Module 11: Queue & Background Worker', () => {
 
         const streamRes = await app.inject({
             method: 'GET',
-            url: `/api/jobs/${jobId}/events`
+            url: `/api/jobs/${jobId}/events`,
+            cookies: authCookies()
         });
 
         assert.strictEqual(streamRes.statusCode, 200);

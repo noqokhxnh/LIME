@@ -2,6 +2,9 @@ import { describe, it, before, after } from 'node:test';
 import assert from 'node:assert/strict';
 import { type FastifyInstance } from 'fastify';
 import { buildApp } from '../../src/index.js';
+import { createTestSession } from '../../src/auth/session.js';
+const ADMIN_ID = '00000000-0000-4000-a000-000000000001';
+const authCookies = () => ({ vidtml_session: createTestSession(ADMIN_ID) });
 import { setLLMClient, resetLLMClient, type LLMClient } from '../../src/llm/client.js';
 import { setTTSClient, resetTTSClient, generateSilence, type TTSClient } from '../../src/pipeline/audioSysnthesis.js';
 import { validatePrompt } from '../../src/security/promptGuard.js';
@@ -132,6 +135,7 @@ describe('Module 10: Security Guards', () => {
             const res1 = await app.inject({
                 method: 'POST',
                 url: '/api/generate',
+                cookies: authCookies(),
                 remoteAddress: ip,
                 payload: { prompt: 'video request 1', async: true, targetDurationSec: 15, aspectRatio: '16:9', language: 'en', style: 'modern' }
             });
@@ -140,6 +144,7 @@ describe('Module 10: Security Guards', () => {
             const res2 = await app.inject({
                 method: 'POST',
                 url: '/api/generate',
+                cookies: authCookies(),
                 remoteAddress: ip,
                 payload: { prompt: 'video request 2', async: true, targetDurationSec: 15, aspectRatio: '16:9', language: 'en', style: 'modern' }
             });
@@ -149,6 +154,7 @@ describe('Module 10: Security Guards', () => {
             const res3 = await app.inject({
                 method: 'POST',
                 url: '/api/generate',
+                cookies: authCookies(),
                 remoteAddress: ip,
                 payload: { prompt: 'video request 3', async: true, targetDurationSec: 15, aspectRatio: '16:9', language: 'en', style: 'modern' }
             });
@@ -166,6 +172,7 @@ describe('Module 10: Security Guards', () => {
                 const res = await app.inject({
                     method: 'POST',
                     url: '/api/generate',
+                cookies: authCookies(),
                     remoteAddress: ip,
                     payload: { prompt: `quota video request ${i}`, async: false, targetDurationSec: 15, aspectRatio: '16:9', language: 'en', style: 'modern' }
                 });
@@ -175,6 +182,7 @@ describe('Module 10: Security Guards', () => {
             const res11 = await app.inject({
                 method: 'POST',
                 url: '/api/generate',
+                cookies: authCookies(),
                 remoteAddress: ip,
                 payload: { prompt: 'quota video request 11', async: false, targetDurationSec: 15, aspectRatio: '16:9', language: 'en', style: 'modern' }
             });

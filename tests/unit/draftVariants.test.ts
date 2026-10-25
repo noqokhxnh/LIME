@@ -2,6 +2,10 @@ import { describe, it, before, after } from 'node:test';
 import assert from 'node:assert/strict';
 import { type FastifyInstance } from 'fastify';
 import { buildApp } from '../../src/index.js';
+import { createTestSession } from '../../src/auth/session.js';
+
+const ADMIN_ID = '00000000-0000-4000-a000-000000000001';
+const authCookies = () => ({ vidtml_session: createTestSession(ADMIN_ID) });
 import { setLLMClient, resetLLMClient, type LLMClient } from '../../src/llm/client.js';
 
 /**
@@ -97,6 +101,7 @@ describe('Module HITL: API sinh nhiều phương án', () => {
         const response = await app.inject({
             method: 'POST',
             url: '/api/script/draft',
+            cookies: authCookies(),
             payload: {
                 ...baseRequest,
                 variantCount: 3,
@@ -131,6 +136,7 @@ describe('Module HITL: API sinh nhiều phương án', () => {
         const response = await app.inject({
             method: 'POST',
             url: '/api/script/draft',
+            cookies: authCookies(),
             payload: { ...baseRequest, variantCount: 1 },
         });
 
@@ -146,6 +152,7 @@ describe('Module HITL: API sinh nhiều phương án', () => {
         const response = await app.inject({
             method: 'POST',
             url: '/api/script/draft',
+            cookies: authCookies(),
             payload: { ...baseRequest, variantCount: 2 },
         });
 
@@ -161,6 +168,7 @@ describe('Module HITL: API sinh nhiều phương án', () => {
         const response = await app.inject({
             method: 'POST',
             url: '/api/script/clarify',
+            cookies: authCookies(),
             payload: { prompt: baseRequest.prompt },
         });
 
@@ -181,6 +189,7 @@ describe('Module HITL: API sinh nhiều phương án', () => {
         const response = await app.inject({
             method: 'POST',
             url: '/api/script/clarify',
+            cookies: authCookies(),
             payload: { prompt: 'ngan' },
         });
         assert.equal(response.statusCode, 400);
@@ -190,6 +199,7 @@ describe('Module HITL: API sinh nhiều phương án', () => {
         const response = await app.inject({
             method: 'POST',
             url: '/api/pipeline',
+            cookies: authCookies(),
             payload: { ...baseRequest, async: true, script: { scenes: 'không phải mảng' } },
         });
 
@@ -204,6 +214,7 @@ describe('Module HITL: API sinh nhiều phương án', () => {
         const response = await app.inject({
             method: 'POST',
             url: '/api/pipeline',
+            cookies: authCookies(),
             payload: {
                 ...baseRequest,
                 async: true,

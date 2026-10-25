@@ -193,6 +193,7 @@ describe('Module 9: Fastify API Server & Health Endpoint (src/index.ts)', () => 
             const response = await app.inject({
                 method: 'POST',
                 url: '/api/script/draft',
+                cookies: { vidtml_session: createTestSession('00000000-0000-4000-a000-000000000001') },
                 payload: {
                     prompt: 'ngan',
                     aspectRatio: '16:9',
@@ -210,10 +211,23 @@ describe('Module 9: Fastify API Server & Health Endpoint (src/index.ts)', () => 
     });
 
     describe('TC-API-005: Endpoint thực thi pipeline (POST /api/pipeline)', () => {
+        const ADMIN_ID = '00000000-0000-4000-a000-000000000001';
+        const adminCookies = () => ({ vidtml_session: createTestSession(ADMIN_ID) });
+
+        it('phải từ chối 401 khi khách ẩn danh tạo job', async () => {
+            const response = await app.inject({
+                method: 'POST',
+                url: '/api/pipeline',
+                payload: { prompt: 'Video ẩn danh', async: true },
+            });
+            assert.strictEqual(response.statusCode, 401);
+        });
+
         it('phải trả về lỗi 400 khi thiếu thông số videoRequest', async () => {
             const response = await app.inject({
                 method: 'POST',
                 url: '/api/pipeline',
+                cookies: adminCookies(),
                 payload: {},
             });
 
@@ -226,6 +240,7 @@ describe('Module 9: Fastify API Server & Health Endpoint (src/index.ts)', () => 
             const response = await app.inject({
                 method: 'POST',
                 url: '/api/pipeline',
+                cookies: adminCookies(),
                 payload: {
                     prompt: 'Video gioi thieu du lich Ha Noi 3 canh',
                     aspectRatio: '16:9',
