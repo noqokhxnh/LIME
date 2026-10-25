@@ -20,8 +20,10 @@ const createOrderSchema = z.object({
 
 export function verifyApiKey(authHeader?: string, expectedKey?: string): boolean {
     if (!expectedKey) {
-        // If no SEPAY_API_KEY is set in environment (e.g. dev/test mode without key)
-        return true;
+        // Fail-closed: chưa cấu hình key thì không có credential nào hợp lệ.
+        // (Trước đây trả true — webhook không secret trở thành endpoint mở,
+        // ai cũng giả mạo được giao dịch nạp tiền.)
+        return false;
     }
     if (!authHeader) return false;
 
@@ -53,7 +55,8 @@ export function verifyHmacSignature(
     secret: string | undefined
 ): { valid: boolean; reason?: string } {
     if (!secret) {
-        return { valid: true };
+        // Fail-closed: không có secret thì không chữ ký nào được coi là hợp lệ.
+        return { valid: false, reason: 'SECRET_NOT_CONFIGURED' };
     }
     if (!signatureHeader || !timestampHeader || rawBody === undefined || rawBody === null) {
         return { valid: false, reason: 'MISSING_SIGNATURE_HEADERS' };
@@ -369,6 +372,12 @@ export async function billingRoutes(app: FastifyInstance): Promise<void> {
                 console.warn('[SePay Webhook] Unauthorized attempt with invalid or missing API key.');
                 return reply.status(401).send({ error: 'UNAUTHORIZED_API_KEY' });
             }
+        } else {
+            // Fail-closed: server chưa cấu hình bất kỳ credential webhook nào
+            // (SEPAY_WEBHOOK_SECRET / SEPAY_API_KEY đều trống) → từ chối thay
+            // vì xử lý payload không xác thực như giao dịch thật.
+            console.error('[SePay Webhook] Rejected: no webhook credential configured on server.');
+            return reply.status(401).send({ error: 'WEBHOOK_AUTH_NOT_CONFIGURED' });
         }
 
         const payload = (request.body as SePayWebhookPayload) || {};
@@ -398,8 +407,12 @@ export async function billingRoutes(app: FastifyInstance): Promise<void> {
         const config = getConfig();
 
         const isAdmin = user ? await isUserAdmin(user.id) : false;
-        if (!config.SEPAY_TEST_MODE && !isAdmin) {
-            return reply.status(403).send({ error: 'FORBIDDEN', message: 'Chỉ Admin mới có thể mô phỏng webhook.' });
+        // Bắt buộc CẢ HAI: SEPAY_TEST_MODE bật VÀ người gọi là admin.
+        // Trước đây là OR — chỉ cần một phía đúng: bật test mode là bất kỳ ai
+        // cũng giả lập được giao dịch nạp tiền; là admin thì mô phỏng được
+        // ngay trên production.
+        if (!config.SEPAY_TEST_MODE || !isAdmin) {
+            return reply.status(403).send({ error: 'FORBIDDEN', message: 'Mô phỏng webhook yêu cầu SEPAY_TEST_MODE bật và tài khoản Admin.' });
         }
 
         const body = (request.body as any) || {};

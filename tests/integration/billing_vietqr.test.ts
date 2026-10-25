@@ -11,6 +11,22 @@ import { SEPAY_OFFICIAL_IPS } from '../../src/billing/constants.js';
 import { getBillingWebhookQueue, MemoryBillingWebhookQueue } from '../../src/billing/queue.js';
 import { initDatabase, db } from '../../src/database/index.js';
 import { getConfig, resetConfig } from '../../src/config.js';
+import { createTestSession } from '../../src/auth/session.js';
+
+const SUPER_ADMIN_ID = '00000000-0000-4000-a000-000000000001';
+
+// Webhook nay fail-closed: test nao goi endpoint webhook qua HTTP phai cau
+// hinh SEPAY_API_KEY va gui kem header Authorization.
+const TEST_WEBHOOK_API_KEY = 'test_webhook_api_key_123';
+function enableTestApiKey() {
+    process.env.SEPAY_API_KEY = TEST_WEBHOOK_API_KEY;
+    resetConfig();
+}
+function disableTestApiKey() {
+    delete process.env.SEPAY_API_KEY;
+    resetConfig();
+}
+const apiKeyHeaders = { authorization: `Apikey ${TEST_WEBHOOK_API_KEY}` };
 
 describe('VietQR & SePay Billing Test Suite', () => {
     const testUserId = '00000000-0000-0000-0000-000000000001';
@@ -228,25 +244,42 @@ describe('VietQR & SePay Billing Test Suite', () => {
         assert.equal(verifyApiKey('Apikey', secretKey), false);
         assert.equal(verifyApiKey(undefined, secretKey), false);
 
-        // Test with Fastify route injection
-        const app = fastify();
-        await app.register(fastifyCookie);
-        await app.register(billingRoutes);
+        // Test with Fastify route injection (server có cấu hình API key)
+        enableTestApiKey();
+        try {
+            const app = fastify();
+            await app.register(fastifyCookie);
+            await app.register(billingRoutes);
 
-        const res = await app.inject({
-            method: 'POST',
-            url: '/api/billing/vietqr/webhook',
-            payload: {
-                id: 99999,
-                reference_code: 'FT_PING',
-                transfer_type: 'in',
-                transfer_amount: 1000,
-                content: 'PING TEST',
-            },
-        });
-        assert.equal(res.statusCode, 200);
-        assert.deepEqual(JSON.parse(res.payload), { success: true });
-        await app.close();
+            const res = await app.inject({
+                method: 'POST',
+                url: '/api/billing/vietqr/webhook',
+                headers: apiKeyHeaders,
+                payload: {
+                    id: 99999,
+                    reference_code: 'FT_PING',
+                    transfer_type: 'in',
+                    transfer_amount: 1000,
+                    content: 'PING TEST',
+                },
+            });
+            assert.equal(res.statusCode, 200);
+            assert.deepEqual(JSON.parse(res.payload), { success: true });
+
+            // Key sai → 401
+            const badRes = await app.inject({
+                method: 'POST',
+                url: '/api/billing/vietqr/webhook',
+                headers: { authorization: 'Apikey wrong_key' },
+                payload: { id: 99998, transfer_type: 'in', transfer_amount: 1000, content: 'PING TEST' },
+            });
+            assert.equal(badRes.statusCode, 401);
+            assert.equal(JSON.parse(badRes.payload).error, 'UNAUTHORIZED_API_KEY');
+
+            await app.close();
+        } finally {
+            disableTestApiKey();
+        }
     });
 
     it('T08: Webhook Speed SLA - Reconciliation Execution Completes Under 1000ms', async () => {
@@ -400,6 +433,7 @@ describe('VietQR & SePay Billing Test Suite', () => {
     });
 
     it('P02: Point 2 - Sub-50ms SLA Fast Response via Asynchronous Webhook Queue', async () => {
+        enableTestApiKey();
         const app = fastify();
         await app.register(fastifyCookie);
         await app.register(billingRoutes);
@@ -411,6 +445,7 @@ describe('VietQR & SePay Billing Test Suite', () => {
         const res = await app.inject({
             method: 'POST',
             url: '/api/billing/vietqr/webhook',
+            headers: apiKeyHeaders,
             payload: {
                 id: 80003,
                 reference_code: 'FT_QUEUE_TEST',
@@ -436,6 +471,7 @@ describe('VietQR & SePay Billing Test Suite', () => {
         assert.equal(updatedOrder?.status, 'paid');
 
         await app.close();
+        disableTestApiKey();
     });
 
     it('P03: Point 3 - Fallback Memo Parsing When code Is null (Spaces, Hyphens, Bank Noise)', async () => {
@@ -479,6 +515,7 @@ describe('VietQR & SePay Billing Test Suite', () => {
     });
 
     it('P04: Point 4 - Content-Type application/x-www-form-urlencoded Webhook Parsing', async () => {
+        enableTestApiKey();
         const app = fastify();
         await app.register(fastifyCookie);
         await app.register(billingRoutes);
@@ -499,6 +536,7 @@ describe('VietQR & SePay Billing Test Suite', () => {
             url: '/api/billing/vietqr/webhook',
             headers: {
                 'content-type': 'application/x-www-form-urlencoded',
+                ...apiKeyHeaders,
             },
             payload: formBody,
         });
@@ -516,6 +554,7 @@ describe('VietQR & SePay Billing Test Suite', () => {
         assert.equal(updated?.status, 'paid');
 
         await app.close();
+        disableTestApiKey();
     });
 
     it('P05: Point 5 - SePay Official IP Allowlist (7 IPv4 + 2 IPv6)', async () => {
@@ -533,7 +572,7 @@ describe('VietQR & SePay Billing Test Suite', () => {
         const oldAllowlistEnabled = process.env.SEPAY_IP_ALLOWLIST_ENABLED;
         try {
             process.env.SEPAY_IP_ALLOWLIST_ENABLED = 'true';
-            resetConfig();
+            enableTestApiKey();
 
             const app = fastify({ trustProxy: true });
             await app.register(fastifyCookie);
@@ -545,6 +584,7 @@ describe('VietQR & SePay Billing Test Suite', () => {
                 url: '/api/billing/vietqr/webhook',
                 headers: {
                     'x-forwarded-for': '172.236.138.20',
+                    ...apiKeyHeaders,
                 },
                 payload: {
                     id: 80008,
@@ -575,7 +615,7 @@ describe('VietQR & SePay Billing Test Suite', () => {
             await app.close();
         } finally {
             process.env.SEPAY_IP_ALLOWLIST_ENABLED = oldAllowlistEnabled || 'false';
-            resetConfig();
+            disableTestApiKey();
         }
     });
 
@@ -607,6 +647,13 @@ describe('VietQR & SePay Billing Test Suite', () => {
         // 4. Missing headers
         assert.equal(verifyHmacSignature(undefined, String(nowSec), testBody, testSecret).valid, false);
         assert.equal(verifyHmacSignature(validSig, undefined, testBody, testSecret).valid, false);
+
+        // 4b. Fail-closed khi chưa cấu hình credential: không secret → chữ ký
+        // không hợp lệ; không API key → mọi key đều bị từ chối.
+        assert.equal(verifyHmacSignature(validSig, String(nowSec), testBody, undefined).valid, false);
+        assert.equal(verifyHmacSignature(validSig, String(nowSec), testBody, undefined).reason, 'SECRET_NOT_CONFIGURED');
+        assert.equal(verifyApiKey('Apikey anything', undefined), false);
+        assert.equal(verifyApiKey(undefined, undefined), false);
 
         // 5. Test Fastify webhook endpoint with HMAC enforcement
         const oldSecret = process.env.SEPAY_WEBHOOK_SECRET;
@@ -666,9 +713,20 @@ describe('VietQR & SePay Billing Test Suite', () => {
 
             const order = await vietQrBillingService.createOrder(testUserId, 'creator');
 
+            // Gate mới: bắt buộc CẢ test mode VÀ admin.
+            // (a) Test mode bật nhưng không có session admin → 403
+            const anonRes = await app.inject({
+                method: 'POST',
+                url: '/api/billing/admin/simulate-test-webhook',
+                payload: { pay_code: order.pay_code, amount_vnd: 149000 },
+            });
+            assert.equal(anonRes.statusCode, 403, 'Không đăng nhập admin phải bị chặn kể cả khi test mode bật');
+
+            const adminCookies = { vidtml_session: createTestSession(SUPER_ADMIN_ID) };
             const simRes = await app.inject({
                 method: 'POST',
                 url: '/api/billing/admin/simulate-test-webhook',
+                cookies: adminCookies,
                 payload: {
                     pay_code: order.pay_code,
                     amount_vnd: 149000,
@@ -687,8 +745,51 @@ describe('VietQR & SePay Billing Test Suite', () => {
             assert.equal(paidOrder?.status, 'paid');
 
             await app.close();
+
+            // (b) Admin đăng nhập nhưng test mode TẮT → 403 (không mô phỏng trên production)
+            process.env.SEPAY_TEST_MODE = 'false';
+            resetConfig();
+            const app2 = fastify();
+            await app2.register(fastifyCookie);
+            await app2.register(billingRoutes);
+            const prodRes = await app2.inject({
+                method: 'POST',
+                url: '/api/billing/admin/simulate-test-webhook',
+                cookies: { vidtml_session: createTestSession(SUPER_ADMIN_ID) },
+                payload: { pay_code: order.pay_code, amount_vnd: 149000 },
+            });
+            assert.equal(prodRes.statusCode, 403, 'Admin vẫn bị chặn khi SEPAY_TEST_MODE tắt');
+            await app2.close();
         } finally {
             process.env.SEPAY_TEST_MODE = oldTestMode || 'false';
+            resetConfig();
+        }
+    });
+
+    it('P08: Webhook fail-closed khi server chưa cấu hình secret lẫn API key', async () => {
+        const oldSecret = process.env.SEPAY_WEBHOOK_SECRET;
+        const oldKey = process.env.SEPAY_API_KEY;
+        try {
+            delete process.env.SEPAY_WEBHOOK_SECRET;
+            delete process.env.SEPAY_API_KEY;
+            resetConfig();
+
+            const app = fastify();
+            await app.register(fastifyCookie);
+            await app.register(billingRoutes);
+
+            const res = await app.inject({
+                method: 'POST',
+                url: '/api/billing/vietqr/webhook',
+                payload: { id: 990000002, transfer_type: 'in', transfer_amount: 149000, content: 'FAKE TOPUP' },
+            });
+            assert.equal(res.statusCode, 401, 'Chưa cấu hình credential thì webhook phải từ chối, không xử lý');
+            assert.equal(JSON.parse(res.payload).error, 'WEBHOOK_AUTH_NOT_CONFIGURED');
+
+            await app.close();
+        } finally {
+            if (oldSecret) process.env.SEPAY_WEBHOOK_SECRET = oldSecret; else delete process.env.SEPAY_WEBHOOK_SECRET;
+            if (oldKey) process.env.SEPAY_API_KEY = oldKey; else delete process.env.SEPAY_API_KEY;
             resetConfig();
         }
     });
