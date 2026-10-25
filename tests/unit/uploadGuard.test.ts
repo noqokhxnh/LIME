@@ -12,6 +12,9 @@ import {
     ALLOWED_MIME_TYPES,
     MAX_FILE_SIZE_BYTES,
 } from '../../src/security/uploadGuard.js';
+import { isSafeJobId, safeJobDir, jobWorkDirs } from '../../src/queue/jobPaths.js';
+import { resolveBgmPath } from '../../src/security/uploadGuard.js';
+import { join, resolve } from 'node:path';
 
 // ============================================================
 // UNIT TEST MODULE: src/security/uploadGuard.ts
@@ -419,5 +422,39 @@ describe('Module: uploadGuard (src/security/uploadGuard.ts)', () => {
                 rmSync(abs, { force: true });
             }
         });
+    });
+});
+
+describe('Path confinement: jobPaths + resolveBgmPath', () => {
+    it('isSafeJobId chấp nhận UUID và id tự đặt an toàn, chặn traversal', () => {
+        assert.equal(isSafeJobId('123e4567-e89b-42d3-a456-426614174000'), true);
+        assert.equal(isSafeJobId('job-retry-recovery'), true);
+        assert.equal(isSafeJobId('../etc'), false);
+        assert.equal(isSafeJobId('a/b'), false);
+        assert.equal(isSafeJobId('..'), false);
+        assert.equal(isSafeJobId(''), false);
+        assert.equal(isSafeJobId('a'.repeat(81)), false);
+        assert.equal(isSafeJobId(42), false);
+        assert.equal(isSafeJobId(undefined), false);
+    });
+
+    it('safeJobDir/jobWorkDirs luôn nằm trong tmp/ và rỗng khi id xấu', () => {
+        const root = resolve(process.cwd(), 'tmp');
+        const dir = safeJobDir('abc-123');
+        assert.ok(dir && dir.startsWith(root));
+        assert.equal(safeJobDir('../../etc'), null);
+        assert.deepEqual(jobWorkDirs('../../etc'), []);
+        const dirs = jobWorkDirs('abc-123');
+        assert.equal(dirs.length, 2);
+        assert.ok(dirs.every((d) => d.startsWith(root)));
+    });
+
+    it('resolveBgmPath chỉ nhận file trong tmp/ hoặc assets/', () => {
+        assert.equal(resolveBgmPath(join('tmp', 'job-x', 'bgm.mp3')), resolve(process.cwd(), 'tmp', 'job-x', 'bgm.mp3'));
+        assert.equal(resolveBgmPath(join('assets', 'bgm.mp3')), resolve(process.cwd(), 'assets', 'bgm.mp3'));
+        assert.equal(resolveBgmPath('/etc/passwd'), null);
+        assert.equal(resolveBgmPath(join('tmp', '..', '.env')), null);
+        assert.equal(resolveBgmPath(''), null);
+        assert.equal(resolveBgmPath(undefined), null);
     });
 });

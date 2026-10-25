@@ -31,7 +31,8 @@ import { IVideoQueue } from "./queue/interfaces.js";
 import { resolveJobVideoPath } from "./queue/jobVideo.js";
 import { validatePrompt } from "./security/promptGuard.js";
 import { rateLimiter } from "./security/rateLimiter.js";
-import { validateUploadedFile, generateSafeFilePath } from "./security/uploadGuard.js";
+import { validateUploadedFile, generateSafeFilePath, resolveBgmPath } from "./security/uploadGuard.js";
+import { isSafeJobId, safeJobDir } from "./queue/jobPaths.js";
 import { getBrandKitByUserId, upsertBrandKit } from "./database/brandKit.js";
 import { getCatalog, listBlueprints, listMotionBlocks } from "./templates/index.js";
 import { adminRoutes } from "./admin/routes.js";
@@ -698,12 +699,21 @@ export async function buildApp(options: { logger?: boolean, queue?: IVideoQueue 
             return { error: "Concurrency limit exceeded" };
         }
 
-        const bgmPath = body.bgmPath as string | undefined;
+        // bgmPath đi thẳng vào ffmpeg: chỉ chấp nhận file trong tmp/ hoặc
+        // assets/ (resolveBgmPath) — ngoài ra bỏ qua như không có BGM.
+        const bgmPath = resolveBgmPath(body.bgmPath) ?? undefined;
         const skipPreview = Boolean(body.skipPreview);
         const autoDirect = Boolean(body.autoDirect || body.mode === 'auto');
         const autoAnswers = body.answers;
         const requestedRotation = Number(body.variantRotation ?? 0);
         const variantRotation = Number.isFinite(requestedRotation) ? Math.max(0, Math.floor(requestedRotation)) : 0;
+        // jobId do client gửi được dùng làm khoá hàng đợi VÀ tên thư mục
+        // tmp/job-<jobId>: ký tự đường dẫn (`/`, `..`) sẽ thành traversal
+        // khi đọc/xoá artifact — từ chối ngay tại cổng.
+        if (body.jobId !== undefined && !isSafeJobId(body.jobId)) {
+            reply.status(400);
+            return { error: "Invalid jobId" };
+        }
         const jobId = body.jobId || v4();
         const defaultSeed = hashString32(jobId);
         const seed = parseSeedSafe(reqData.seed ?? body.seed, defaultSeed);
@@ -948,7 +958,7 @@ export async function buildApp(options: { logger?: boolean, queue?: IVideoQueue 
             reply.status(404);
             return { error: "Job not found" };
         }
-        const htmlPath = job?.result?.finalHtmlPath ?? join(process.cwd(), "tmp", `job-${jobId}`, "index.html");
+        const htmlPath = job?.result?.finalHtmlPath ?? join(safeJobDir(jobId) ?? join(process.cwd(), "tmp", "job-__invalid__"), "index.html");
         if (!existsSync(htmlPath)) {
             reply.status(404);
             return { error: "HTML bundle not found for job" };
@@ -968,7 +978,7 @@ export async function buildApp(options: { logger?: boolean, queue?: IVideoQueue 
             reply.status(404);
             return { error: "Job not found" };
         }
-        const audioPath = job?.result?.audio?.mixAudioPath ?? join(process.cwd(), "tmp", `job-${jobId}`, "mixed_audio.mp3");
+        const audioPath = job?.result?.audio?.mixAudioPath ?? join(safeJobDir(jobId) ?? join(process.cwd(), "tmp", "job-__invalid__"), "mixed_audio.mp3");
         if (!existsSync(audioPath)) {
             reply.status(404);
             return { error: "Audio file not found for job" };
@@ -988,8 +998,9 @@ export async function buildApp(options: { logger?: boolean, queue?: IVideoQueue 
             reply.status(404);
             return { error: "Job not found" };
         }
-        const workDir = job?.result?.workDir ?? join(process.cwd(), "tmp", `job-${jobId}`);
-        const previewPath = join(workDir, "previews", `${sceneId}.webp`);
+        const workDir = job?.result?.workDir ?? safeJobDir(jobId) ?? join(process.cwd(), "tmp", "job-__invalid__");
+        // sceneId cũng là một thành phần đường dẫn: khuôn an toàn như jobId.
+        const previewPath = isSafeJobId(sceneId) ? join(workDir, "previews", `${sceneId}.webp`) : join(workDir, "previews", "__invalid__.webp");
         if (!existsSync(previewPath)) {
             reply.status(404);
             return { error: "Preview thumbnail not found" };
