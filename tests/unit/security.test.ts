@@ -191,4 +191,64 @@ describe('Module 10: Security Guards', () => {
             assert.strictEqual(res11.json().error, 'Daily quota exceeded');
         });
     });
+
+    describe('Regression: traversal %2F vào route job + tin cậy header IP theo peer', () => {
+        it('jobId chứa %2F..%2F không đọc được file ngoài thư mục job (404)', async () => {
+            // Fastify giải mã %2F thành '/' trong params — lớp giam đường dẫn
+            // (safeJobDir) phải chặn: trước đây jobId đi thẳng vào join().
+            for (const encoded of ['x%2F..%2F..%2Fsecret', '%2e%2e%2f%2e%2e%2fdata']) {
+                const res = await app.inject({
+                    method: 'GET',
+                    url: `/api/jobs/${encoded}/html`,
+                    cookies: authCookies(),
+                });
+                assert.strictEqual(res.statusCode, 404, `Traversal ${encoded} phải 404, nhận ${res.statusCode}`);
+                assert.ok(!res.body.includes('lime_maintenance'), 'Không được lộ nội dung file ngoài');
+            }
+            const preview = await app.inject({
+                method: 'GET',
+                url: '/api/jobs/somejob/preview/%2e%2e%2fsecret',
+                cookies: authCookies(),
+            });
+            assert.strictEqual(preview.statusCode, 404);
+        });
+
+        it('maintenance sync: không còn secret dự phòng viết cứng — chưa cấu hình env thì ném lỗi', async () => {
+            const { maintenanceTracker } = await import('../../src/admin/maintenanceTracker.js');
+            const oldCf = process.env.CF_MAINTENANCE_SYNC_SECRET;
+            const oldPlain = process.env.MAINTENANCE_SYNC_SECRET;
+            try {
+                delete process.env.CF_MAINTENANCE_SYNC_SECRET;
+                delete process.env.MAINTENANCE_SYNC_SECRET;
+                await assert.rejects(
+                    () => maintenanceTracker.syncFromCloudflare(),
+                    /Chưa cấu hình MAINTENANCE_SYNC_SECRET/
+                );
+            } finally {
+                if (oldCf) process.env.CF_MAINTENANCE_SYNC_SECRET = oldCf;
+                if (oldPlain) process.env.MAINTENANCE_SYNC_SECRET = oldPlain;
+            }
+        });
+
+        it('extractClientIp: chỉ tin header chuyển tiếp khi peer là proxy/tunnel nội bộ', async () => {
+            const { extractClientIp } = await import('../../src/security/pageViewTracker.js');
+            const forged = {
+                ip: '8.8.8.8',
+                headers: { 'cf-connecting-ip': '203.0.113.77', 'x-forwarded-for': '203.0.113.78' },
+            } as any;
+            assert.strictEqual(extractClientIp(forged), '8.8.8.8', 'Client nối thẳng không được giả mạo IP qua header');
+
+            const viaProxy = {
+                ip: '127.0.0.1',
+                headers: { 'cf-connecting-ip': '203.0.113.77' },
+            } as any;
+            assert.strictEqual(extractClientIp(viaProxy), '203.0.113.77', 'Peer loopback (tunnel) thì header được tin');
+
+            const garbage = {
+                ip: '127.0.0.1',
+                headers: { 'cf-connecting-ip': 'not-an-ip; DROP TABLE' },
+            } as any;
+            assert.strictEqual(extractClientIp(garbage), '127.0.0.1', 'Header không phải IP hợp lệ bị bỏ qua');
+        });
+    });
 });
