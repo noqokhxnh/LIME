@@ -45,15 +45,12 @@ ALTER TABLE users ADD COLUMN IF NOT EXISTS status VARCHAR(20) NOT NULL DEFAULT '
 ALTER TABLE users ADD COLUMN IF NOT EXISTS deleted_at TIMESTAMPTZ;
 ALTER TABLE users ADD COLUMN IF NOT EXISTS preferences JSONB DEFAULT '{}'::jsonb;
 
--- Super Admin promotion for khanh2k5xxx@gmail.com
-UPDATE users
-SET role = 'admin',
-    tier = 'enterprise',
-    credits = GREATEST(credits, 10000),
-    total_credits = GREATEST(total_credits, 10000),
-    status = 'active',
-    updated_at = NOW()
-WHERE LOWER(email) = 'khanh2k5xxx@gmail.com';
+-- (Đã bỏ) Startup promotion: bản UPDATE từng tự nâng tài khoản theo email
+-- lên admin/enterprise/10000 credit + status='active' ở MỌI lần khởi động —
+-- nó đảo ngược mọi quyết định thu hồi quyền/khoá tài khoản của admin và tự
+-- kích hoạt lại cả tài khoản đã bị ban ngay lần restart sau. Nâng quyền
+-- super admin chỉ còn qua callback Google đã xác thực (auth/routes.ts)
+-- hoặc thao tác SQL thủ công của chủ hệ thống.
 
 -- System Settings
 CREATE TABLE IF NOT EXISTS system_settings (

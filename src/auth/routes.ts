@@ -9,7 +9,11 @@ import { createRemoteJWKSet, jwtVerify } from 'jose';
 import { recordAuthEvent } from './loginAudit.js';
 import { systemSettings } from '../admin/systemSettings.js';
 
-/** Email Super Admin tối cao — luôn được phép đăng ký dù chức năng đăng ký bị tắt. */
+/** Email Super Admin tối cao. CHỈ còn được tôn trọng ở callback Google (nơi
+ * Google đã xác thực quyền sở hữu hộp thư bằng ID token + email_verified).
+ * Đăng ký bằng mật khẩu KHÔNG còn cấp quyền theo email này: bất kỳ ai cũng
+ * đăng ký được bằng địa chỉ của người khác vì email không hề được xác thực,
+ * và sẽ chiếm trọn tài khoản admin ngay khi bảng users chưa có dòng đó. */
 const SUPER_ADMIN_EMAIL = 'khanh2k5xxx@gmail.com';
 
 /** Số credit tặng cho người dùng mới theo cấu hình quản trị (thay cho 20 viết cứng). */
@@ -51,17 +55,17 @@ export async function authRoutes(app: FastifyInstance): Promise<void> {
         }
         const { username, password } = parsed.data;
         const email = parsed.data.email.toLowerCase();
-        const isAdmin = email === SUPER_ADMIN_EMAIL;
 
-        // Tôn trọng công tắc "cho phép đăng ký" của quản trị viên.
-        if (!isAdmin && !systemSettings.get().registrationEnabled) {
+        // Tôn trọng công tắc "cho phép đăng ký" của quản trị viên — áp dụng
+        // cho mọi email, không ngoại lệ (xem ghi chú ở SUPER_ADMIN_EMAIL).
+        if (!systemSettings.get().registrationEnabled) {
             return reply.status(403).send({ error: 'Chức năng đăng ký đang tạm đóng.' });
         }
 
         const passwordHash = await bcrypt.hash(password, 12);
-        const role = isAdmin ? 'admin' : 'user';
-        const tier = isAdmin ? 'enterprise' : 'free';
-        const credits = isAdmin ? 10000 : freeCreditsForNewUser();
+        const role = 'user';
+        const tier = 'free';
+        const credits = freeCreditsForNewUser();
         const totalCredits = credits;
         try {
             const result = await db.query(
@@ -404,7 +408,7 @@ export async function authRoutes(app: FastifyInstance): Promise<void> {
             // 2. Nếu chưa có google_id, tìm theo email để liên kết
             if (!user) {
                 const emailResult = await db.query(
-                    'SELECT id, username, email, google_id, created_at FROM users WHERE LOWER(email) = LOWER($1) LIMIT 1',
+                    'SELECT id, username, email, google_id, password_hash, created_at FROM users WHERE LOWER(email) = LOWER($1) LIMIT 1',
                     [email]
                 );
                 user = emailResult.rows[0];
@@ -412,6 +416,17 @@ export async function authRoutes(app: FastifyInstance): Promise<void> {
 
             if (user && user.google_id && user.google_id !== googleId) {
                 return redirectAuthError('Email is already linked to a different Google account');
+            }
+
+            if (user && !user.google_id && user.password_hash) {
+                // Tài khoản mật khẩu có sẵn: KHÔNG tự liên kết Google theo
+                // email. Nếu kẻ tấn công đăng ký trước bằng email của nạn
+                // nhân (email đăng ký không được xác thực) thì lần đăng nhập
+                // Google đầu tiên của nạn nhân sẽ gắn Google ID vào tài
+                // khoản của kẻ tấn công và nạn nhân bị chiếm quyền truy cập
+                // (pre-hijacking). Chủ tài khoản phải đăng nhập bằng mật
+                // khẩu trước; việc liên kết cần chứng minh mật khẩu đó.
+                return redirectAuthError('Email is already registered with a password. Sign in with your password first.');
             }
 
             if (user && !user.google_id) {

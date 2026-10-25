@@ -881,6 +881,16 @@ export async function adminRoutes(app: FastifyInstance, opts?: { queue?: IVideoQ
             };
         }
 
+        // Super Admin tối cao được bảo vệ như ở PATCH (không hạ quyền/khoá):
+        // một admin thường KHÔNG được đặt lại mật khẩu của Super Admin —
+        // nếu không, quyền admin là đủ để chiếm tài khoản tối cao rồi đăng
+        // nhập bằng mật khẩu mới. Super Admin tự đổi mật khẩu qua trang cá
+        // nhân (yêu cầu mật khẩu hiện tại).
+        if (isSuperAdminAccount(target)) {
+            reply.status(400);
+            return { error: "Không thể đặt lại mật khẩu của Super Admin tối cao." };
+        }
+
         const config = getConfig();
 
         // Validate mật khẩu mới (nếu admin tự nhập) trước khi kiểm tra hạ tầng.
