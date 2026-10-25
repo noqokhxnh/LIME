@@ -767,8 +767,22 @@ export async function buildApp(options: { logger?: boolean, queue?: IVideoQueue 
     app.post("/api/generate", handlePipelineRequest);
     app.post("/api/pipeline", handlePipelineRequest);
 
-    app.get("/api/jobs", async () => {
-        const jobs = await queue.getJobs();
+    // Job thuộc về người tạo ra nó: chi tiết và artifact (html/audio/video/
+    // preview/download/SSE) chỉ chủ sở hữu hoặc admin mới đọc được. Job cũ
+    // tạo trước khi có auth (không có userId) thì người dùng đã đăng nhập
+    // nào cũng đọc được, nhưng khách ẩn danh thì không — trước đây các route
+    // này public hoàn toàn, lộ prompt/script/video của mọi user cho bất kỳ
+    // ai biết hoặc đoán được jobId.
+    const canReadJob = (user: { id: string; role: string }, job: { userId?: string } | null | undefined) =>
+        !job?.userId || job.userId === user.id || user.role === "admin";
+
+    app.get("/api/jobs", async (request: FastifyRequest, reply: FastifyReply) => {
+        const user = await getCurrentUser(request);
+        if (!user) {
+            reply.status(401);
+            return { error: "Authentication required" };
+        }
+        const jobs = (await queue.getJobs()).filter((j) => canReadJob(user, j));
         // Mới nhất trước. Không dựa vào thứ tự của queue: memory queue trả theo
         // thứ tự chèn còn BullMQ trả theo từng state, nên client luôn nhận một
         // danh sách đã sắp xếp thay vì phải tự đoán.
@@ -792,8 +806,17 @@ export async function buildApp(options: { logger?: boolean, queue?: IVideoQueue 
 
     app.get("/api/jobs/:jobId", async (request: FastifyRequest<{ Params: { jobId: string } }>, reply: FastifyReply) => {
         const { jobId } = request.params;
+        const reader = await getCurrentUser(request);
+        if (!reader) {
+            reply.status(401);
+            return { error: "Authentication required" };
+        }
         const job = await queue.getJob(jobId);
         if (!job) {
+            reply.status(404);
+            return { error: "Job not found" };
+        }
+        if (!canReadJob(reader, job)) {
             reply.status(404);
             return { error: "Job not found" };
         }
@@ -820,6 +843,12 @@ export async function buildApp(options: { logger?: boolean, queue?: IVideoQueue 
 
     app.get("/api/jobs/:jobId/events", async (request: FastifyRequest<{ Params: { jobId: string } }>, reply: FastifyReply) => {
         const { jobId } = request.params;
+        const reader = await getCurrentUser(request);
+        if (!reader) {
+            reply.status(401);
+            return { error: "Authentication required" };
+        }
+
         
         reply.raw.setHeader('Content-Type', 'text/event-stream');
         reply.raw.setHeader('Cache-Control', 'no-cache');
@@ -828,6 +857,12 @@ export async function buildApp(options: { logger?: boolean, queue?: IVideoQueue 
 
         const job = await queue.getJob(jobId);
         if (!job) {
+            reply.raw.write(`event: error\ndata: ${JSON.stringify({ error: 'Job not found' })}\n\n`);
+            reply.raw.end();
+            return;
+        }
+
+        if (!canReadJob(reader, job)) {
             reply.raw.write(`event: error\ndata: ${JSON.stringify({ error: 'Job not found' })}\n\n`);
             reply.raw.end();
             return;
@@ -882,7 +917,16 @@ export async function buildApp(options: { logger?: boolean, queue?: IVideoQueue 
 
     app.get("/api/jobs/:jobId/html", async (request: FastifyRequest<{ Params: { jobId: string } }>, reply: FastifyReply) => {
         const { jobId } = request.params;
+        const reader = await getCurrentUser(request);
+        if (!reader) {
+            reply.status(401);
+            return { error: "Authentication required" };
+        }
         const job = await queue.getJob(jobId);
+        if (!canReadJob(reader, job)) {
+            reply.status(404);
+            return { error: "Job not found" };
+        }
         const htmlPath = job?.result?.finalHtmlPath ?? join(process.cwd(), "tmp", `job-${jobId}`, "index.html");
         if (!existsSync(htmlPath)) {
             reply.status(404);
@@ -893,7 +937,16 @@ export async function buildApp(options: { logger?: boolean, queue?: IVideoQueue 
 
     app.get("/api/jobs/:jobId/audio", async (request: FastifyRequest<{ Params: { jobId: string } }>, reply: FastifyReply) => {
         const { jobId } = request.params;
+        const reader = await getCurrentUser(request);
+        if (!reader) {
+            reply.status(401);
+            return { error: "Authentication required" };
+        }
         const job = await queue.getJob(jobId);
+        if (!canReadJob(reader, job)) {
+            reply.status(404);
+            return { error: "Job not found" };
+        }
         const audioPath = job?.result?.audio?.mixAudioPath ?? join(process.cwd(), "tmp", `job-${jobId}`, "mixed_audio.mp3");
         if (!existsSync(audioPath)) {
             reply.status(404);
@@ -904,7 +957,16 @@ export async function buildApp(options: { logger?: boolean, queue?: IVideoQueue 
 
     app.get("/api/jobs/:jobId/preview/:sceneId", async (request: FastifyRequest<{ Params: { jobId: string; sceneId: string } }>, reply: FastifyReply) => {
         const { jobId, sceneId } = request.params;
+        const reader = await getCurrentUser(request);
+        if (!reader) {
+            reply.status(401);
+            return { error: "Authentication required" };
+        }
         const job = await queue.getJob(jobId);
+        if (!canReadJob(reader, job)) {
+            reply.status(404);
+            return { error: "Job not found" };
+        }
         const workDir = job?.result?.workDir ?? join(process.cwd(), "tmp", `job-${jobId}`);
         const previewPath = join(workDir, "previews", `${sceneId}.webp`);
         if (!existsSync(previewPath)) {
@@ -916,7 +978,16 @@ export async function buildApp(options: { logger?: boolean, queue?: IVideoQueue 
 
     app.get("/api/jobs/:jobId/video", async (request: FastifyRequest<{ Params: { jobId: string } }>, reply: FastifyReply) => {
         const { jobId } = request.params;
+        const reader = await getCurrentUser(request);
+        if (!reader) {
+            reply.status(401);
+            return { error: "Authentication required" };
+        }
         const job = await queue.getJob(jobId);
+        if (!canReadJob(reader, job)) {
+            reply.status(404);
+            return { error: "Job not found" };
+        }
         const videoPath = resolveJobVideoPath(job, jobId);
         if (!existsSync(videoPath)) {
             reply.status(404);
@@ -971,7 +1042,16 @@ export async function buildApp(options: { logger?: boolean, queue?: IVideoQueue 
 
     app.get("/api/jobs/:jobId/download", async (request: FastifyRequest<{ Params: { jobId: string } }>, reply: FastifyReply) => {
         const { jobId } = request.params;
+        const reader = await getCurrentUser(request);
+        if (!reader) {
+            reply.status(401);
+            return { error: "Authentication required" };
+        }
         const job = await queue.getJob(jobId);
+        if (!canReadJob(reader, job)) {
+            reply.status(404);
+            return { error: "Job not found" };
+        }
         const videoPath = resolveJobVideoPath(job, jobId);
         if (!existsSync(videoPath)) {
             reply.status(404);
