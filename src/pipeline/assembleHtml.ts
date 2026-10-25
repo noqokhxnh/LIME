@@ -4,6 +4,7 @@ import { videoScript, scene, durationMap, CharacterActionItem } from "../llm/sch
 import { BLOCK_HELPERS_JS } from "../templates/runtime/blockHelpers.js";
 import { DETERMINISTIC_RUNTIME_JS, hashString32, RNG, getSceneSeed } from "./rng.js";
 import { assertDeterministicScript } from "./compLinter.js";
+import { assertSceneCodePolicy } from "./codePolicy.js";
 import { subsetFontsForHtml } from "./fontSubset.js";
 import { CHARACTER_RUNTIME_JS } from "./character/runtime.js";
 import { KINETIC_TYPOGRAPHY_JS } from "./kineticTypography.js";
@@ -221,6 +222,11 @@ export async function assembleHTML(
 
     if (!options?.skipLint) {
         assertDeterministicScript(script);
+        // Cổng bảo mật riêng (không phải lint tất định): mã scene là dữ liệu
+        // không đáng tin chạy trong Chromium phía server — chặn nguyên thuỷ
+        // mạng và nạp mã động ngay ở biên assemble. Lớp thứ hai là
+        // networkGuard ở tầng Playwright.
+        assertSceneCodePolicy(script);
     }
 
     const seed = options?.seed !== undefined
