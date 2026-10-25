@@ -36,6 +36,17 @@ describe('VietQR & SePay Billing Test Suite', () => {
         const config = getConfig();
         if (config.DATABASE_URL) {
             await initDatabase();
+            // Super admin phải có hàng thật trong PostgreSQL: cổng admin của billing
+            // (isUserAdmin) tra bảng users chứ không dùng seed trong bộ nhớ của
+            // userStore, nên trên database rỗng "Gửi thử" sẽ 403 dù đã đăng nhập.
+            // Dùng đúng danh tính userStore tự tạo (xem SUPER_ADMIN_UUID) để hai
+            // chế độ in-memory/PostgreSQL khớp nhau, giống tests/unit/admin.test.ts.
+            await db.query(
+                `INSERT INTO users (id, username, email, password_hash, role, tier, credits, total_credits, status)
+                 VALUES ($1, 'khanh2k5xxx', 'khanh2k5xxx@gmail.com', NULL, 'admin', 'enterprise', 10000, 10000, 'active')
+                 ON CONFLICT DO NOTHING`,
+                [SUPER_ADMIN_ID]
+            );
             // Seed test users for foreign key satisfaction
             await db.query(
                 `INSERT INTO users (id, username, email)
