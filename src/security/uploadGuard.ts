@@ -502,3 +502,21 @@ export function resolveLogoPath(logoPath: string): string | null {
 
     return real;
 }
+
+/** Gốc cho phép của nhạc nền: file BGM hợp lệ chỉ nằm trong tmp/ (job/upload) hoặc assets/. */
+export const BGM_ROOTS = [resolve(process.cwd(), 'tmp'), resolve(process.cwd(), 'assets')];
+
+/**
+ * Chuẩn hoá đường dẫn nhạc nền (bgmPath) do client cung cấp.
+ *
+ * bgmPath được truyền thẳng cho ffmpeg (`-i <path>`) ở bước hoà âm: không
+ * giam thì bất kỳ file nào tiến trình đọc được (cấu hình, khoá, dữ liệu hệ
+ * thống) cũng bị ffmpeg mở và lỗi/đầu ra rò rỉ thông tin về file đó. Chỉ
+ * chấp nhận đường dẫn resolve nằm trong BGM_ROOTS; ngoài ra trả null để
+ * nơi gọi bỏ qua BGM thay vì dùng đường dẫn chưa kiểm chứng.
+ */
+export function resolveBgmPath(input: unknown): string | null {
+    if (typeof input !== 'string' || !input.trim()) return null;
+    const abs = resolve(process.cwd(), input.trim());
+    return BGM_ROOTS.some((root) => abs === root || abs.startsWith(root + sep)) ? abs : null;
+}

@@ -47,6 +47,7 @@ import { createTTSClient } from "../pipeline/audioSysnthesis.js";
 import { getLLMClientFactory } from "../llm/client.js";
 import { videoScriptSchema, type videoScript } from "../llm/schema.js";
 import type { IVideoQueue, JobUpdate } from "../queue/interfaces.js";
+import { jobWorkDirs } from "../queue/jobPaths.js";
 import { isJobVideoAvailable } from "../queue/jobVideo.js";
 import {
     isAllowedContainer,
@@ -1346,8 +1347,11 @@ export async function adminRoutes(app: FastifyInstance, opts?: { queue?: IVideoQ
         const removedFromQueue = queue ? await queue.removeJob(jobId) : false;
 
         // Thư mục làm việc thực tế là `tmp/job-<jobId>` (xem handlePipelineRequest).
-        // Vẫn dọn thêm `tmp/<jobId>` để tương thích dữ liệu cũ.
-        for (const workDir of [join(process.cwd(), "tmp", `job-${jobId}`), join(process.cwd(), "tmp", jobId)]) {
+        // Vẫn dọn thêm `tmp/<jobId>` để tương thích dữ liệu cũ. jobWorkDirs
+        // chỉ trả đường dẫn nằm trong tmp/ khi jobId theo khuôn an toàn —
+        // jobId chứa `..`/`/` thì bỏ qua xoá file (trước đây rmSync đệ quy
+        // theo thẳng jobId trong URL, trỏ đi đâu xoá đó).
+        for (const workDir of jobWorkDirs(jobId)) {
             if (existsSync(workDir)) {
                 try {
                     rmSync(workDir, { recursive: true, force: true });
