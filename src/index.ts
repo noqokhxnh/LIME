@@ -27,7 +27,7 @@ import { billingRoutes } from "./billing/routes.js";
 import { startBillingCron, stopBillingCron } from "./billing/cron.js";
 import { getQueue } from "./queue/index.js";
 import { processVideoJob } from "./queue/handler.js";
-import { IVideoQueue } from "./queue/interfaces.js";
+import { IVideoQueue, isJobIdConflict } from "./queue/interfaces.js";
 import { resolveJobVideoPath } from "./queue/jobVideo.js";
 import { validatePrompt } from "./security/promptGuard.js";
 import { rateLimiter } from "./security/rateLimiter.js";
@@ -816,6 +816,12 @@ export async function buildApp(options: { logger?: boolean, queue?: IVideoQueue 
                 jobIpMap.delete(jobId);
                 rateLimiter.releaseConcurrentJob(ip);
                 rateLimiter.refundDailyQuota(ip);
+                if (isJobIdConflict(err)) {
+                    // jobId client chọn đã tồn tại (có thể của người khác):
+                    // 409 thay vì âm thầm dedup/ghi đè.
+                    reply.status(409);
+                    return { error: "JOB_ID_CONFLICT", message: "jobId đã tồn tại, hãy dùng jobId khác." };
+                }
                 reply.status(500);
                 return { error: "Failed to enqueue job" };
             }

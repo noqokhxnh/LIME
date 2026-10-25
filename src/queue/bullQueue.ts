@@ -1,6 +1,6 @@
 import { Queue, Worker, QueueEvents, Job } from 'bullmq';
 import Redis from 'ioredis';
-import { IVideoQueue, JobData, JobRecord, JobProgress, JobUpdate } from './interfaces.js';
+import { IVideoQueue, JobData, JobRecord, JobProgress, JobUpdate, JobIdConflictError } from './interfaces.js';
 import { type fullPipelineResult } from '../pipeline/orchestrator.js';
 import { EventEmitter } from 'node:events';
 import { hashString32, parseSeedSafe } from '../pipeline/rng.js';
@@ -47,6 +47,14 @@ export class BullMQQueue implements IVideoQueue {
             data.seed = parseSeedSafe(data.request?.seed, hashString32(jobId));
         }
         data.cancelled = false;
+        // BullMQ tự dedup theo jobId: job thứ hai bị bỏ qua KHÔNG một tiếng
+        // động, nhưng route đã trừ quota và trả 202 cho client — và nếu id
+        // đó là của người khác thì đây là chiếm job. Kiểm tra tồn tại trước
+        // và ném JOB_ID_CONFLICT để route trả 409.
+        const existing = await this.queue.getJob(jobId);
+        if (existing) {
+            throw new JobIdConflictError(jobId);
+        }
         await this.queue.add('render', data, { jobId });
     }
 
