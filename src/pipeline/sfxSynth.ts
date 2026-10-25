@@ -6,6 +6,8 @@ import {
     timelineEventSchema,
 } from "../llm/schema.js";
 import { launchPreviewBrowser, loadAndPreparePage } from "./preview.js";
+import { installNetworkGuard } from "./networkGuard.js";
+import { dirname, resolve } from "node:path";
 import { RNG, hashString32 } from "./rng.js";
 
 export {
@@ -619,6 +621,7 @@ export async function extractTimelineEventsFromHtml(
     const browser = existingBrowser ?? (await launchPreviewBrowser());
     try {
         const page = await browser.newPage();
+        await installNetworkGuard(page, { fileRoots: [dirname(resolve(htmlPath))] });
         await loadAndPreparePage(page, htmlPath, 1920, 1080);
         const events = await extractTimelineEventsFromPage(page);
         await page.close();

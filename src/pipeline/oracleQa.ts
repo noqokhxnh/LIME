@@ -13,6 +13,8 @@ import {
     loadAndPreparePage,
     seekToTimestamp,
 } from './preview.js';
+import { installNetworkGuard } from './networkGuard.js';
+import { dirname, resolve } from 'node:path';
 
 export interface DOMBox {
     left: number;
@@ -592,6 +594,7 @@ export async function createBrowserDOMSampler(
         const context = await browser.newContext({
             viewport: { width, height },
         });
+        await installNetworkGuard(context, { fileRoots: [dirname(resolve(htmlPath))] });
         page = await context.newPage();
     }
 
