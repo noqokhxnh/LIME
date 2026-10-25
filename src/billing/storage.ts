@@ -107,6 +107,9 @@ export interface IBillingStorage {
     expireStaleOrders(nowIso?: string): Promise<number>;
     findPaymentBySepayRef(sepayRef: string): Promise<Payment | null>;
     findUnmatchedPaymentBySepayRef(sepayRef: string): Promise<UnmatchedPayment | null>;
+    /** Khớp NGHIÊM NGẶT chỉ theo cột sepay_ref (= payload.id của SePay) — dùng cho kiểm tra trùng lặp idempotency. Finder cũ còn OR-match raw referenceCode dùng chung namespace với id nên có thể nhận nhầm giao dịch khác là "đã xử lý". */
+    findPaymentBySepayId(sepayId: string): Promise<Payment | null>;
+    findUnmatchedPaymentBySepayId(sepayId: string): Promise<UnmatchedPayment | null>;
     recordUnmatchedPayment(item: Omit<UnmatchedPayment, 'id' | 'created_at'>): Promise<UnmatchedPayment>;
     lockAndFulfillOrder(params: {
         orderId: string;
@@ -322,6 +325,45 @@ export class PostgresBillingStorage implements IBillingStorage {
                 OR (raw->>'reference_code' = $1 AND raw->>'reference_code' IS NOT NULL AND raw->>'reference_code' != '')
              LIMIT 1`,
             [sepayRef]
+        );
+        if (res.rows.length === 0) return null;
+        const r = res.rows[0];
+        return {
+            id: r.id,
+            sepay_ref: r.sepay_ref,
+            amount_vnd: r.amount_vnd,
+            content: r.content,
+            raw: r.raw,
+            status: r.status,
+            admin_note: r.admin_note,
+            resolved_by: r.resolved_by,
+            resolved_at: r.resolved_at ? new Date(r.resolved_at).toISOString() : null,
+            created_at: new Date(r.created_at).toISOString(),
+        };
+    }
+
+    async findPaymentBySepayId(sepayId: string): Promise<Payment | null> {
+        const res = await db.query(
+            `SELECT * FROM payments WHERE sepay_ref = $1 LIMIT 1`,
+            [sepayId]
+        );
+        if (res.rows.length === 0) return null;
+        const r = res.rows[0];
+        return {
+            id: r.id,
+            order_id: r.order_id,
+            sepay_ref: r.sepay_ref,
+            amount_vnd: r.amount_vnd,
+            raw: r.raw,
+            received_at: new Date(r.received_at).toISOString(),
+            result: r.result,
+        };
+    }
+
+    async findUnmatchedPaymentBySepayId(sepayId: string): Promise<UnmatchedPayment | null> {
+        const res = await db.query(
+            `SELECT * FROM unmatched_payments WHERE sepay_ref = $1 LIMIT 1`,
+            [sepayId]
         );
         if (res.rows.length === 0) return null;
         const r = res.rows[0];
@@ -1143,6 +1185,20 @@ export class InMemoryBillingStorage implements IBillingStorage {
         for (const u of this.unmatched.values()) {
             if (u.sepay_ref === sepayRef) return u;
             if (sepayRef && (u.raw?.referenceCode === sepayRef || u.raw?.reference_code === sepayRef)) return u;
+        }
+        return null;
+    }
+
+    async findPaymentBySepayId(sepayId: string): Promise<Payment | null> {
+        for (const p of this.payments.values()) {
+            if (p.sepay_ref === sepayId) return p;
+        }
+        return null;
+    }
+
+    async findUnmatchedPaymentBySepayId(sepayId: string): Promise<UnmatchedPayment | null> {
+        for (const u of this.unmatched.values()) {
+            if (u.sepay_ref === sepayId) return u;
         }
         return null;
     }

@@ -63,9 +63,10 @@ export async function syncSepayTransactions(): Promise<{ processed: number; matc
             if (!sepayId) continue;
             const bankRef = tx.reference_number ? String(tx.reference_number).trim() : '';
 
-            // Check if already processed
-            const existingPayment = await billingStorage.findPaymentBySepayRef(sepayId);
-            const existingUnmatched = await billingStorage.findUnmatchedPaymentBySepayRef(sepayId);
+            // Check if already processed — khớp nghiêm ngặt theo khoá đã lưu
+            // (sepay_ref), tránh nhận nhầm qua raw referenceCode của bản ghi khác.
+            const existingPayment = await billingStorage.findPaymentBySepayId(sepayId);
+            const existingUnmatched = await billingStorage.findUnmatchedPaymentBySepayId(sepayId);
             if (existingPayment || existingUnmatched) {
                 skipped++;
                 continue;

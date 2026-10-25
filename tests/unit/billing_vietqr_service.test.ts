@@ -344,6 +344,44 @@ describe('VietQrBillingService — các nhánh nghiệp vụ', () => {
             assert.equal(second.result, 'idempotent_duplicate_unmatched_ref');
         });
 
+        it('id của giao dịch mới trùng referenceCode của giao dịch cũ ⇒ KHÔNG bị nuốt như trùng lặp', async () => {
+            // Namespace va chạm: id (khoá idempotency) và referenceCode (mã tham
+            // chiếu ngân hàng) là hai không gian khác nhau. Finder cũ OR-match
+            // raw referenceCode khiến giao dịch B bị nhận nhầm là bản sao của A.
+            const orderA = await vietQrBillingService.createOrder(USER_A, 'creator');
+            const orderB = await vietQrBillingService.createOrder(USER_A, 'creator');
+            const sharedRef = uniqueRef('COLLIDE');
+
+            const txA = await vietQrBillingService.processWebhook({
+                id: uniqueRef('TXA'),
+                referenceCode: sharedRef,
+                transfer_type: 'in',
+                transfer_amount: 149000,
+                content: `THANH TOAN ${orderA.pay_code}`,
+            });
+            assert.equal(txA.result, 'matched');
+
+            // Giao dịch B: id của nó tình cờ bằng referenceCode của giao dịch A
+            const txB = await vietQrBillingService.processWebhook({
+                id: sharedRef,
+                transfer_type: 'in',
+                transfer_amount: 149000,
+                content: `THANH TOAN ${orderB.pay_code}`,
+            });
+            assert.equal(txB.result, 'matched', 'Giao dịch B phải được xử lý, không bị bỏ qua như trùng lặp');
+            const orderBAfter = await billingStorage.findOrderById(orderB.order_id);
+            assert.equal(orderBAfter?.status, 'paid');
+
+            // Nhưng phát lại đúng id của B thì vẫn là trùng lặp thật
+            const replayB = await vietQrBillingService.processWebhook({
+                id: sharedRef,
+                transfer_type: 'in',
+                transfer_amount: 149000,
+                content: `THANH TOAN ${orderB.pay_code}`,
+            });
+            assert.equal(replayB.result, 'idempotent_duplicate_ref');
+        });
+
         it('mã hợp lệ nhưng không có đơn nào ⇒ ghi vào sổ chưa khớp', async () => {
             const code = `LIME${randomCodeSuffix()}`;
             const ref = uniqueRef('NOORDER');

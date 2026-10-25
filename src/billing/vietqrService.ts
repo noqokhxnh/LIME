@@ -238,12 +238,16 @@ export class VietQrBillingService {
         }
         const sepayRef = rawId;
 
-        // 3. Layer 1 Idempotency Check: if SePay transaction ID already exists, do nothing
-        const existingPayment = await billingStorage.findPaymentBySepayRef(sepayRef);
+        // 3. Layer 1 Idempotency Check: if SePay transaction ID already exists, do nothing.
+        // Dùng finder NGHIÊM NGẶT theo cột sepay_ref: finder cũ OR-match cả raw
+        // referenceCode của bản ghi khác — một giao dịch có referenceCode trùng
+        // id của giao dịch này sẽ bị nhận nhầm là trùng lặp và bị bỏ qua
+        // (mất tiền nạp). referenceCode chỉ là fallback khi payload thiếu id.
+        const existingPayment = await billingStorage.findPaymentBySepayId(sepayRef);
         if (existingPayment) {
             return { success: true, result: 'idempotent_duplicate_ref' };
         }
-        const existingUnmatched = await billingStorage.findUnmatchedPaymentBySepayRef(sepayRef);
+        const existingUnmatched = await billingStorage.findUnmatchedPaymentBySepayId(sepayRef);
         if (existingUnmatched) {
             return { success: true, result: 'idempotent_duplicate_unmatched_ref' };
         }
