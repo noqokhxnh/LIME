@@ -7,6 +7,7 @@ import { db } from '../database/index.js';
 import { billingStorage } from './storage.js';
 import { SUPPORTED_BANKS } from './banks.js';
 import { helpdeskStore } from '../helpdesk/store.js';
+import { userStore } from '../admin/userStore.js';
 
 import { vietQrBillingService } from './vietqrService.js';
 import { getBillingWebhookQueue } from './queue.js';
@@ -119,7 +120,13 @@ export function verifyIpAllowlist(clientIp: string | undefined, customAllowlist?
 async function isUserAdmin(userId: string): Promise<boolean> {
     const config = getConfig();
     if (!config.DATABASE_URL) {
-        return true; // Dev mode
+        // Trước đây không có DATABASE_URL thì trả true cho MỌI user
+        // ("dev mode") — fail-open: bất kỳ ai đăng nhập cũng qua được các
+        // cổng admin dùng hàm này (kể cả simulate webhook) mỗi khi chạy
+        // không DB. Nay tra userStore (kho mà session fallback dùng) và
+        // chỉ công nhận admin thật, chưa bị khoá/xoá.
+        const u = await userStore.findById(userId);
+        return Boolean(u && u.role === 'admin' && u.status !== 'banned' && !u.deletedAt);
     }
     try {
         const res = await db.query('SELECT role FROM users WHERE id = $1 LIMIT 1', [userId]);
