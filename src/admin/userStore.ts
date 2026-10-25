@@ -219,7 +219,10 @@ function ensureLoaded(): void {
     inMemoryUsers.set(superAdmin.email.toLowerCase(), superAdmin);
 
     try {
-        if (existsSync(STORAGE_FILE)) {
+        // Khi đã có DATABASE_URL, Postgres là nguồn sự thật duy nhất: không
+        // nạp users.json (bản sao bóng có thể chứa user đã bị xoá/khoá ở DB
+        // và cả hash mật khẩu) vào bộ nhớ nữa.
+        if (!getConfig().DATABASE_URL && existsSync(STORAGE_FILE)) {
             const raw = readFileSync(STORAGE_FILE, "utf8");
             const parsed = JSON.parse(raw);
             if (Array.isArray(parsed)) {
@@ -238,6 +241,9 @@ function ensureLoaded(): void {
 
 function saveToDisk(): void {
     if (isTestEnv) return;
+    // Có DATABASE_URL thì không ghi bản sao bóng users.json ra đĩa (tránh
+    // tồn đọng PII/hash mật khẩu ngoài DB và tránh nạp lại dữ liệu cũ).
+    if (getConfig().DATABASE_URL) return;
     try {
         const dir = join(process.cwd(), "data");
         if (!existsSync(dir)) {

@@ -172,11 +172,19 @@ export const maintenanceTracker = {
     },
 
     async syncFromCloudflare(
-        secretKey: string = process.env.CF_MAINTENANCE_SYNC_SECRET || process.env.MAINTENANCE_SYNC_SECRET || "lime_maintenance_secret_2026"
+        secretKey: string = process.env.CF_MAINTENANCE_SYNC_SECRET || process.env.MAINTENANCE_SYNC_SECRET || ""
     ): Promise<{
         syncedCount: number;
         total: number;
     }> {
+        // Không còn secret dự phòng viết cứng trong source: giá trị fallback
+        // cũ ("lime_maintenance_secret_2026") nằm ngay trong repo — ai đọc
+        // được code cũng gọi được endpoint đồng bộ. Chưa cấu hình env thì
+        // báo lỗi rõ ràng để admin tự set MAINTENANCE_SYNC_SECRET /
+        // CF_MAINTENANCE_SYNC_SECRET.
+        if (!secretKey) {
+            throw new Error("Chưa cấu hình MAINTENANCE_SYNC_SECRET / CF_MAINTENANCE_SYNC_SECRET — không thể đồng bộ maintenance logs.");
+        }
         if (ongoingSyncPromise) {
             return ongoingSyncPromise;
         }
