@@ -190,7 +190,7 @@ describe('Queue trust boundary (dedup jobId, re-validate khi dequeue, chữ ký 
         const jobId = 'forge-123';
         const forged: any = {
             jobId,
-            request: { prompt: 'legit prompt', targetDurationSec: 10, aspectRatio: '16:9' },
+            request: { prompt: 'legit prompt', targetDurationSec: 10, aspectRatio: '16:9', style: 'modern' },
             outputDir: '/home/khxnh/evil',
             bgmPath: '/etc/passwd',
             userId: 'user-1',
