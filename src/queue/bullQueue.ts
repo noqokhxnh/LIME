@@ -166,6 +166,14 @@ export class BullMQQueue implements IVideoQueue {
         const concurrency = Number.isFinite(configured) && configured > 0 ? configured : 2;
         this.worker = new Worker('video-generation', async (job: Job<JobData>) => {
             return await handler(job.data, async (p) => {
+                // Admin huỷ job đang chạy chỉ sửa được bản ghi trong Redis —
+                // job đang chạy giữ bản sao data cũ nên không tự thấy cờ.
+                // Đọc lại bản ghi ở mỗi lần báo tiến độ: thấy cờ cancelled
+                // thì dừng pipeline ngay thay vì render hết rồi mới biết.
+                const fresh = job.id ? await this.queue.getJob(job.id) : undefined;
+                if (fresh?.data?.cancelled) {
+                    throw new Error('JOB_CANCELLED');
+                }
                 await job.updateProgress(p as any);
             });
         }, {
