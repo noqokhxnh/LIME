@@ -194,6 +194,48 @@ describe('Helpdesk Ticketing (user side) Test Suite', () => {
         assert.ok(!itemIds.includes(mine.id), 'Danh sách của user B không được chứa ticket của user A');
     });
 
+    it('Ticket mồ côi (chủ bị xoá, userId null): user thường bị 404 cả đọc lẫn trả lời, admin vẫn xem được', async () => {
+        const USER_C_ID = '00000000-0000-4000-b000-000000000022';
+        let ticketId = '';
+        if (config.DATABASE_URL) {
+            await db.query(
+                `INSERT INTO users (id, username, email) VALUES ($1, $2, $3) ON CONFLICT (id) DO NOTHING`,
+                [USER_C_ID, 'useticketb0000c', 'useticketb0000c@test.email']
+            );
+        }
+        await userStore.upsertUser({ id: USER_C_ID, username: 'useticketb0000c', email: 'useticketb0000c@test.email' });
+        const tokenC = createTestSession(USER_C_ID);
+        const created = await inject('POST', '/api/support/tickets', tokenC, {
+            subject: `${TAG} Ticket cua nguoi dung sap bi xoa`,
+            body: `${TAG} Noi dung hoi thoai rieng tu.`,
+            category: 'other',
+        });
+        assert.strictEqual(created.statusCode, 200, created.body);
+        ticketId = created.json().ticket.id;
+        createdTicketIds.push(ticketId);
+
+        if (config.DATABASE_URL) {
+            // Xoá cứng tài khoản → khoá ngoại tickets.user_id ON DELETE SET NULL
+            await db.query(`DELETE FROM users WHERE id = $1`, [USER_C_ID]);
+            const check = await db.query(`SELECT user_id FROM tickets WHERE id = $1`, [ticketId]);
+            assert.strictEqual(check.rows[0].user_id, null, 'Ticket phải thành mồ côi sau khi chủ bị xoá');
+        }
+
+        // Người dùng khác không đọc / không trả lời được ticket không chủ
+        const read = await userB('GET', `/api/support/tickets/${ticketId}`);
+        assert.strictEqual(read.statusCode, 404, 'Ticket mồ côi phải 404 với user thường');
+        const post = await userB('POST', `/api/support/tickets/${ticketId}/messages`, { body: `${TAG} chiem ticket` });
+        assert.strictEqual(post.statusCode, 404, 'Không được trả lời vào ticket mồ côi');
+
+        // Admin vẫn xử lý được ticket mồ côi
+        const adminRead = await admin('GET', `/api/support/tickets/${ticketId}`);
+        assert.strictEqual(adminRead.statusCode, 200, 'Admin vẫn xem được ticket mồ côi');
+
+        if (config.DATABASE_URL) {
+            await db.query(`DELETE FROM tickets WHERE id = $1`, [ticketId]);
+        }
+    });
+
     it('Ghi chú nội bộ (isInternal) của admin không lộ cho user', async () => {
         const ticket = await createTicket({ subject: `${TAG} Sự cố về hành vi người dùng`, category: 'account' });
 
