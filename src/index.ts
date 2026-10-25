@@ -37,6 +37,7 @@ import { getBrandKitByUserId, upsertBrandKit } from "./database/brandKit.js";
 import { getCatalog, listBlueprints, listMotionBlocks } from "./templates/index.js";
 import { adminRoutes } from "./admin/routes.js";
 import { supportRoutes } from "./helpdesk/routes.js";
+import { helpdeskStore } from "./helpdesk/store.js";
 import { systemSettings } from "./admin/systemSettings.js";
 import { announcementsStore } from "./admin/announcements.js";
 import { pageViewTracker } from "./security/pageViewTracker.js";
@@ -96,19 +97,47 @@ export async function buildApp(options: { logger?: boolean, queue?: IVideoQueue 
         },
     });
 
-    // Đăng ký phục vụ tệp tĩnh ảnh đính kèm ticket từ thư mục tmp/uploads/tickets
-    // (headers bảo mật giống thư mục logos: sandbox CSP — vẫn thấy ảnh nhưng không chạy script)
+    // File đính kèm ticket KHÔNG còn phục vụ tĩnh công khai: ảnh chụp màn
+    // hình hỗ trợ có thể chứa thông tin tài khoản, trước đây ai có URL
+    // (UUID khó đoán nhưng rò qua log/history/chia sẻ) đều tải được mà
+    // không cần đăng nhập. Nay qua route kiểm quyền: chỉ chủ ticket hoặc
+    // admin đã đăng nhập mới tải được; headers bảo mật giữ như bản tĩnh cũ.
     const ticketsDir = join(process.cwd(), "tmp", "uploads", "tickets");
     mkdirSync(ticketsDir, { recursive: true });
-    await app.register(fastifyStatic, {
-        root: ticketsDir,
-        prefix: "/uploads/tickets/",
-        decorateReply: false,
-        setHeaders: (res) => {
-            res.header("Content-Security-Policy", "default-src 'none'; style-src 'unsafe-inline'; sandbox");
-            res.header("X-Content-Type-Options", "nosniff");
-            res.header("X-Frame-Options", "DENY");
-        },
+    app.get("/uploads/tickets/:filename", async (request: FastifyRequest<{ Params: { filename: string } }>, reply: FastifyReply) => {
+        const user = await getCurrentUser(request);
+        if (!user) {
+            reply.status(401);
+            return { error: "Authentication required" };
+        }
+        const { filename } = request.params;
+        const ATTACHMENT_TYPES: Record<string, string> = {
+            png: "image/png",
+            jpg: "image/jpeg",
+            jpeg: "image/jpeg",
+            svg: "image/svg+xml",
+            webp: "image/webp",
+        };
+        const ext = filename.split(".").pop()?.toLowerCase() || "";
+        if (!/^[A-Za-z0-9][A-Za-z0-9._-]*$/.test(filename) || !ATTACHMENT_TYPES[ext]) {
+            reply.status(404);
+            return { error: "Not found" };
+        }
+        const ticket = await helpdeskStore.findTicketByAttachment(filename);
+        if (!ticket || (ticket.userId !== user.id && user.role !== "admin")) {
+            reply.status(404);
+            return { error: "Not found" };
+        }
+        const filePath = join(ticketsDir, filename);
+        if (!existsSync(filePath)) {
+            reply.status(404);
+            return { error: "Not found" };
+        }
+        reply.header("Content-Security-Policy", "default-src 'none'; style-src 'unsafe-inline'; sandbox");
+        reply.header("X-Content-Type-Options", "nosniff");
+        reply.header("X-Frame-Options", "DENY");
+        reply.type(ATTACHMENT_TYPES[ext]);
+        return reply.send(createReadStream(filePath));
     });
 
     app.addHook("preHandler", async (request, reply) => {
@@ -307,9 +336,17 @@ export async function buildApp(options: { logger?: boolean, queue?: IVideoQueue 
             allowSandboxPayments: sys.allowSandboxPayments,
         };
 
+        // preferences thô chứa elevenlabsApiKey dạng rõ: bản sao trả về
+        // phải che như field đã dẫn xuất ở trên — trước đây key rời server
+        // nguyên vẹn qua userPreferences dù UI coi nó là trường mật khẩu.
+        const safePreferences = { ...(user?.preferences || {}) } as Record<string, unknown>;
+        if (safePreferences.elevenlabsApiKey) {
+            safePreferences.elevenlabsApiKey = "••••••••";
+        }
+
         return {
             settings: currentSettings,
-            userPreferences: user?.preferences || {},
+            userPreferences: safePreferences,
             providers: {
                 llm: ["deepseek", "gemini", "claude", "openai", "9router"],
                 tts: ["edge", "vieneu", "openai", "google", "elevenlabs"],
@@ -385,7 +422,10 @@ export async function buildApp(options: { logger?: boolean, queue?: IVideoQueue 
 
         return {
             success: true,
-            preferences: newPrefs,
+            preferences: {
+                ...newPrefs,
+                ...(newPrefs.elevenlabsApiKey ? { elevenlabsApiKey: "••••••••" } : {}),
+            },
         };
     });
 
@@ -577,11 +617,14 @@ export async function buildApp(options: { logger?: boolean, queue?: IVideoQueue 
                     .map(entry => entry.reason?.message ?? String(entry.reason))
                     .slice(0, 3)
                     .join(' | ');
+                // Chi tiết lỗi chứa văn bản thô của nhà cung cấp LLM (thân
+                // phản hồi, đôi khi cả JSON đầy đủ) — chỉ ghi log phía
+                // server, không trả cho client.
+                console.error('[draft] Không sinh đủ phương án:', details.slice(0, 2000));
                 reply.status(502);
                 return {
                     success: false,
                     error: 'Không sinh đủ phương án khác nhau. Vui lòng thử lại.',
-                    details: details.slice(0, 2000),
                 };
             }
 
@@ -611,7 +654,10 @@ export async function buildApp(options: { logger?: boolean, queue?: IVideoQueue 
             reply.status(400);
             return {
                 success: false,
-                error: err.message,
+                // Chỉ chuyển tiếp lỗi validation nội bộ (Zod); lỗi khác có
+                // thể chứa văn bản thô của nhà cung cấp — trả thông điệp
+                // chung thay vì rò rỉ chi tiết upstream.
+                error: err?.name === 'ZodError' ? err.message : 'Yêu cầu không hợp lệ. Vui lòng kiểm tra lại dữ liệu.',
             };
         }
     });
@@ -649,7 +695,9 @@ export async function buildApp(options: { logger?: boolean, queue?: IVideoQueue 
             answers: result.answers,
             confidence: result.confidence,
             questions: buildQuestionViews(result),
-            error: result.error,
+            // result.error chứa thông điệp thô của nhà cung cấp LLM khi
+            // phân loại thất bại — thay bằng thông điệp chung.
+            error: result.error ? 'Không gọi được AI để phân loại; đang dùng đáp án mặc định.' : result.error,
         };
     });
 
@@ -995,6 +1043,12 @@ export async function buildApp(options: { logger?: boolean, queue?: IVideoQueue 
             reply.status(404);
             return { error: "HTML bundle not found for job" };
         }
+        // HTML này do pipeline sinh từ kịch bản LLM viết — không tin cậy
+        // như trang của app. CSP "sandbox allow-scripts" cho script chạy
+        // (xem trước animation) nhưng trong origin mờ: không đọc được
+        // cookie, không gọi API bằng phiên của người dùng, không chạm
+        // DOM của trang cha. Cố ý KHÔNG có allow-same-origin.
+        reply.header("Content-Security-Policy", "sandbox allow-scripts");
         reply.type("text/html; charset=utf-8").send(createReadStream(htmlPath));
     });
 
