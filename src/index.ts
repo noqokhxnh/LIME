@@ -480,6 +480,12 @@ export async function buildApp(options: { logger?: boolean, queue?: IVideoQueue 
     };
 
     app.post("/api/script/draft", async (request: FastifyRequest, reply: FastifyReply) => {
+        // Sinh nháp kịch bản gọi LLM thật — bắt buộc đăng nhập như tạo job.
+        const authUser = await getCurrentUser(request);
+        if (!authUser) {
+            reply.status(401);
+            return { error: "Authentication required" };
+        }
         const body = (request.body as any) ?? {};
         try {
             const normalized = normalizeVideoRequestBody(body);
@@ -604,6 +610,12 @@ export async function buildApp(options: { logger?: boolean, queue?: IVideoQueue 
      * sinh xong 3 phương án mới biết cần hỏi gì.
      */
     app.post("/api/script/clarify", async (request: FastifyRequest, reply: FastifyReply) => {
+        // Làm rõ prompt gọi LLM phân loại — bắt buộc đăng nhập như tạo job.
+        const authUser = await getCurrentUser(request);
+        if (!authUser) {
+            reply.status(401);
+            return { success: false, error: "Authentication required" };
+        }
         const body = (request.body as any) ?? {};
         const prompt = String(body.prompt ?? body.text ?? body.topic ?? '').trim();
         if (prompt.length < 10) {
@@ -628,6 +640,15 @@ export async function buildApp(options: { logger?: boolean, queue?: IVideoQueue 
     }));
 
     const handlePipelineRequest = async (request: FastifyRequest, reply: FastifyReply) => {
+        // Tạo video đốt LLM/TTS/render thật: bắt buộc đăng nhập. Trước đây
+        // khách ẩn danh tạo job thoải mái (chỉ bị giới hạn theo IP), đốt chi
+        // phí API, lấp đầy hàng đợi và sinh job không chủ. Gate đặt trước mọi
+        // bước trừ quota/validation để request ẩn danh không tiêu tốn gì.
+        const authUser = await getCurrentUser(request);
+        if (!authUser) {
+            reply.status(401);
+            return { error: "Authentication required" };
+        }
         const body = (request.body as any) || {};
         const isAsync = Boolean(body.async || (request.query as any)?.async === 'true');
 
@@ -687,9 +708,9 @@ export async function buildApp(options: { logger?: boolean, queue?: IVideoQueue 
         const defaultSeed = hashString32(jobId);
         const seed = parseSeedSafe(reqData.seed ?? body.seed, defaultSeed);
 
-        // Xác định chủ job để cổng quản trị hiển thị/tìm kiếm theo người dùng.
-        const currentUser = await getCurrentUser(request);
-        const userId = currentUser?.id;
+        // Chủ job = người dùng đã xác thực ở đầu handler (hiển thị/tìm kiếm
+        // ở cổng quản trị và là căn cứ ownership cho các route đọc job).
+        const userId = authUser.id;
 
         const outputDir = join(process.cwd(), "tmp", `job-${jobId}`);
 
