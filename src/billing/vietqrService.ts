@@ -45,14 +45,14 @@ export class VietQrBillingService {
             throw new Error('PLAN_INACTIVE');
         }
 
-        // Cancel previous pending or claimed orders of this user
-        await billingStorage.cancelActiveOrdersForUser(userId);
-
         const payCode = await this.generateUniquePayCode(config.PAY_CODE_PREFIX || 'LIME');
         const ttlMinutes = config.ORDER_TTL_MINUTES || 15;
         const expiresAt = new Date(Date.now() + ttlMinutes * 60 * 1000).toISOString();
 
-        const order = await billingStorage.createOrder({
+        // Huỷ đơn active cũ + tạo đơn mới trong MỘT thao tác nguyên tử của
+        // storage (replaceActiveOrder): trước đây là hai lệnh rời nhau, hai
+        // request đồng thời có thể cùng lọt qua và để lại hai đơn active.
+        const order = await billingStorage.replaceActiveOrder({
             user_id: userId,
             plan_id: plan.id,
             amount_vnd: plan.price_vnd,
@@ -130,6 +130,16 @@ export class VietQrBillingService {
         }
         if (order.user_id !== userId) {
             throw new Error('FORBIDDEN');
+        }
+
+        // Đơn đã quá hạn (kể cả claimed đã hết gia hạn) thì nút "tôi đã
+        // chuyển khoản" không hồi sinh được nữa: tiền về muộn đi đường
+        // unmatched cho admin duyệt, tránh claim kéo dài hạn vô hạn.
+        if (
+            (order.status === 'pending' || order.status === 'claimed') &&
+            new Date(order.expires_at).getTime() <= Date.now()
+        ) {
+            throw new Error('ORDER_EXPIRED');
         }
 
         if (order.status === 'claimed') {
@@ -241,6 +251,22 @@ export class VietQrBillingService {
         // 4. Extract amount
         const amount = Number(payload.transferAmount || payload.transfer_amount || payload.amount_in || 0);
 
+        // Số tiền phải hữu hạn và > 0: NaN làm mọi phép so sánh thành false
+        // và trượt thẳng xuống nhánh "đủ tiền" — gói bị kích hoạt bởi một
+        // giao dịch không có số tiền thật. Ghi unmatched để admin đối soát
+        // thay vì cho khớp đơn.
+        if (!Number.isFinite(amount) || amount <= 0) {
+            await billingStorage.recordUnmatchedPayment({
+                sepay_ref: sepayRef,
+                amount_vnd: 0,
+                content: (payload.content || payload.description || '').toString(),
+                raw: payload,
+                status: 'pending',
+                admin_note: 'Số tiền giao dịch không hợp lệ (thiếu/NaN/không dương)',
+            });
+            return { success: true, result: 'unmatched_invalid_amount' };
+        }
+
         // 5. Extract pay_code
         const prefix = config.PAY_CODE_PREFIX || 'LIME';
         const payCode = this.extractPayCode(payload, prefix);
@@ -297,6 +323,21 @@ export class VietQrBillingService {
                 admin_note: `Thanh toán cho order đã ${order.status} (${order.id})`,
             });
             return { success: true, result: `unmatched_order_${order.status}` };
+        }
+
+        // Đơn còn ghi pending/claimed nhưng hạn thanh toán đã qua (cron
+        // chưa kịp lật sang 'expired'): tiền về muộn đi đường unmatched
+        // cho admin duyệt tay, không tự kích hoạt gói.
+        if (new Date(order.expires_at).getTime() <= Date.now()) {
+            await billingStorage.recordUnmatchedPayment({
+                sepay_ref: sepayRef,
+                amount_vnd: amount,
+                content: rawContent,
+                raw: payload,
+                status: 'pending',
+                admin_note: `Thanh toán cho order đã hết hạn (${order.id})`,
+            });
+            return { success: true, result: 'unmatched_order_expired' };
         }
 
         // Order is pending or claimed
