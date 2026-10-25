@@ -7,6 +7,7 @@ import { createTestSession } from '../../src/auth/session.js';
 import { getConfig } from '../../src/config.js';
 import { db, initDatabase } from '../../src/database/index.js';
 import { systemSettings, validateSettingsPatch } from '../../src/admin/systemSettings.js';
+import { userStore } from '../../src/admin/userStore.js';
 import { MemoryQueue } from '../../src/queue/memoryQueue.js';
 import { setLLMClientFactory, resetLLMClientFactory } from '../../src/llm/client.js';
 
@@ -24,6 +25,8 @@ import { setLLMClientFactory, resetLLMClientFactory } from '../../src/llm/client
  */
 
 const ADMIN_ID = '00000000-0000-4000-a000-000000000001';
+/** Người dùng thường dùng cho kiểm thử maintenanceMode (cần phiên hợp lệ để đọc /api/jobs). */
+const REGULAR_ID = '00000000-0000-4000-a000-0000000000fe';
 
 /** Hậu tố duy nhất mỗi lần chạy để không đụng dữ liệu cũ. */
 const RUN = `${Date.now().toString(36)}${Math.floor(Math.random() * 1e4).toString(36)}`;
@@ -73,6 +76,22 @@ describe('Admin Settings Test Suite', () => {
         app = await buildApp({ logger: false });
         await app.ready();
         adminToken = createTestSession(ADMIN_ID);
+
+        // Một tài khoản người dùng thường có thật: /api/jobs nay bắt buộc đăng nhập
+        // nên không thể dùng khách ẩn danh để kiểm chứng "mở lại sau bảo trì".
+        if (config.DATABASE_URL) {
+            await db.query(
+                `INSERT INTO users (id, username, email, password_hash, role, tier, credits, total_credits, status, plan_id)
+                 VALUES ($1,$2,$3,$4,'user','free',20,300,'active',NULL)
+                 ON CONFLICT (id) DO NOTHING`,
+                [REGULAR_ID, `st_${TOKEN}_regular`, `settingstest_${TOKEN}_regular@example.com`, null]
+            );
+        }
+        await userStore.upsertUser({
+            id: REGULAR_ID,
+            username: `st_${TOKEN}_regular`,
+            email: `settingstest_${TOKEN}_regular@example.com`,
+        });
     });
 
     after(async () => {
@@ -80,6 +99,13 @@ describe('Admin Settings Test Suite', () => {
         // Trả cài đặt về trạng thái ban đầu để không ảnh hưởng test khác.
         systemSettings.update(original);
         resetLLMClientFactory();
+        if (config.DATABASE_URL) {
+            try {
+                await db.query('DELETE FROM users WHERE id = $1', [REGULAR_ID]);
+            } catch {
+                /* bỏ qua */
+            }
+        }
     });
 
     // ------------------------------------------------------------------
@@ -220,9 +246,10 @@ describe('Admin Settings Test Suite', () => {
 
         it('Chặn API người dùng thường nhưng vẫn cho admin và các route thiết yếu', async () => {
             await adminPut('/api/admin/settings', { maintenanceMode: true });
+            const userToken = createTestSession(REGULAR_ID);
 
-            // Người dùng thường (không phiên) → 503.
-            const blocked = await app.inject({ method: 'GET', url: '/api/jobs' });
+            // Người dùng thường (đã đăng nhập, không phải admin) → 503.
+            const blocked = await app.inject({ method: 'GET', url: '/api/jobs', cookies: { vidtml_session: userToken } });
             assert.strictEqual(blocked.statusCode, 503, blocked.body);
 
             // Admin vẫn dùng được.
@@ -237,7 +264,7 @@ describe('Admin Settings Test Suite', () => {
 
             // Tắt bảo trì → người dùng thường vào lại được.
             await adminPut('/api/admin/settings', { maintenanceMode: false });
-            const reopened = await app.inject({ method: 'GET', url: '/api/jobs' });
+            const reopened = await app.inject({ method: 'GET', url: '/api/jobs', cookies: { vidtml_session: userToken } });
             assert.strictEqual(reopened.statusCode, 200, reopened.body);
         });
     });

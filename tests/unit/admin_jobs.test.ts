@@ -511,10 +511,22 @@ describe('Admin Jobs Management Test Suite', () => {
         assert.strictEqual(detail.json().result?.videoAvailable, false);
 
         // Và route phục vụ tệp phải khớp với cờ trên: từ chối job mất tệp, phục vụ được job còn tệp.
-        const missingRes = await app.inject({ method: 'GET', url: `/api/jobs/${goneJob}/video` });
+        // Route đọc job nay bắt buộc đăng nhập: khách ẩn danh -> 401, chủ sở hữu -> xử lý như cũ.
+        const anonymousRes = await app.inject({ method: 'GET', url: `/api/jobs/${goneJob}/video` });
+        assert.strictEqual(anonymousRes.statusCode, 401, 'Ẩn danh không được tải video của job');
+
+        const missingRes = await app.inject({
+            method: 'GET',
+            url: `/api/jobs/${goneJob}/video`,
+            cookies: { vidtml_session: userToken },
+        });
         assert.strictEqual(missingRes.statusCode, 404, 'Job mất tệp phải trả 404');
 
-        const servingRes = await app.inject({ method: 'GET', url: `/api/jobs/${availableJob}/video` });
+        const servingRes = await app.inject({
+            method: 'GET',
+            url: `/api/jobs/${availableJob}/video`,
+            cookies: { vidtml_session: userToken },
+        });
         assert.strictEqual(servingRes.statusCode, 200, servingRes.body);
         assert.strictEqual(servingRes.headers['content-type'], 'video/mp4');
         // Trình duyệt không được giữ video cũ: phải revalidate bằng ETag.
@@ -525,6 +537,7 @@ describe('Admin Jobs Management Test Suite', () => {
         const revalidated = await app.inject({
             method: 'GET',
             url: `/api/jobs/${availableJob}/video`,
+            cookies: { vidtml_session: userToken },
             headers: { 'if-none-match': etag },
         });
         assert.strictEqual(revalidated.statusCode, 304, 'ETag khớp phải trả 304 thay vì tải lại');
