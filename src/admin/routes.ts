@@ -2151,6 +2151,37 @@ export async function adminRoutes(app: FastifyInstance, opts?: { queue?: IVideoQ
                 });
             }
 
+            // Kiểm lại trạng thái ĐƠN tại thời điểm ra quyết định — không
+            // tin snapshot lúc tạo yêu cầu: nếu trong lúc chờ duyệt, tiền
+            // về và đơn đã paid/kích hoạt thì luật lúc tạo ("đơn đã thanh
+            // toán không hoàn qua kênh này", validateRefundRequest) phải
+            // được áp lại; nếu không user vừa giữ gói vừa nhận tiền hoàn.
+            if (nextStatus === "approved" || nextStatus === "refunded") {
+                const orderNow = await billingStorage.findOrderById(refund.orderId);
+                if (orderNow && orderNow.status === "paid") {
+                    return reply.status(409).send({
+                        error: "Đơn này đã được thanh toán và kích hoạt sau khi yêu cầu hoàn tiền được tạo, nên không thể hoàn qua kênh này nữa.",
+                    });
+                }
+            }
+
+            // Chặn hoàn hai lần cho cùng một đơn qua hai ticket song song:
+            // sổ hoàn tiền khoá theo (source=ticket) nên hai ticket khác
+            // nhau cho cùng một đơn không tự va chạm — phải kiểm theo ĐƠN.
+            if (nextStatus === "refunded") {
+                const refundedTickets = await helpdeskStore.listRefundRequests({ status: "refunded", limit: 200 });
+                const alreadyRefunded = refundedTickets.items.some((t) => {
+                    if (t.id === ticket.id) return false;
+                    const p = getRefundPayload(t);
+                    return p?.orderId === refund.orderId;
+                });
+                if (alreadyRefunded) {
+                    return reply.status(409).send({
+                        error: "Đơn này đã có yêu cầu khác hoàn tiền xong — không hoàn hai lần cho cùng một đơn.",
+                    });
+                }
+            }
+
             const nowIso = new Date().toISOString();
             const adminEmail = check.user?.email || "admin";
             let refundId = refund.refundId;
