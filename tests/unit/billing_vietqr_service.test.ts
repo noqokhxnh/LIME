@@ -349,7 +349,6 @@ describe('VietQrBillingService — các nhánh nghiệp vụ', () => {
             // chiếu ngân hàng) là hai không gian khác nhau. Finder cũ OR-match
             // raw referenceCode khiến giao dịch B bị nhận nhầm là bản sao của A.
             const orderA = await vietQrBillingService.createOrder(USER_A, 'creator');
-            const orderB = await vietQrBillingService.createOrder(USER_A, 'creator');
             const sharedRef = uniqueRef('COLLIDE');
 
             const txA = await vietQrBillingService.processWebhook({
@@ -360,6 +359,10 @@ describe('VietQrBillingService — các nhánh nghiệp vụ', () => {
                 content: `THANH TOAN ${orderA.pay_code}`,
             });
             assert.equal(txA.result, 'matched');
+
+            // Tạo đơn B SAU khi A đã trả — tạo đơn mới sẽ huỷ đơn đang chờ của
+            // cùng user (replaceActiveOrder), làm nhiễu kịch bản nếu tạo trước.
+            const orderB = await vietQrBillingService.createOrder(USER_A, 'creator');
 
             // Giao dịch B: id của nó tình cờ bằng referenceCode của giao dịch A
             const txB = await vietQrBillingService.processWebhook({
