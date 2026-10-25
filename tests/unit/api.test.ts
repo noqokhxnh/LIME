@@ -2,6 +2,7 @@ import { describe, it, before, after } from 'node:test';
 import assert from 'node:assert/strict';
 import { type FastifyInstance } from 'fastify';
 import { buildApp } from '../../src/index.js';
+import { createTestSession } from '../../src/auth/session.js';
 import { setLLMClient, resetLLMClient, type LLMClient } from '../../src/llm/client.js';
 import { setTTSClient, resetTTSClient, generateSilence, type TTSClient } from '../../src/pipeline/audioSysnthesis.js';
 
@@ -245,10 +246,22 @@ describe('Module 9: Fastify API Server & Health Endpoint (src/index.ts)', () => 
     });
 
     describe('TC-API-006: Endpoint truy xuất danh sách và chi tiết công việc (GET /api/jobs)', () => {
+        const ADMIN_ID = '00000000-0000-4000-a000-000000000001';
+        const adminCookies = () => ({ vidtml_session: createTestSession(ADMIN_ID) });
+
+        it('phải từ chối 401 khi khách ẩn danh đọc danh sách và chi tiết job', async () => {
+            const list = await app.inject({ method: 'GET', url: '/api/jobs' });
+            assert.strictEqual(list.statusCode, 401);
+
+            const detail = await app.inject({ method: 'GET', url: '/api/jobs/non-existent-uuid' });
+            assert.strictEqual(detail.statusCode, 401);
+        });
+
         it('phải trả về danh sách các công việc đã ghi nhận', async () => {
             const response = await app.inject({
                 method: 'GET',
                 url: '/api/jobs',
+                cookies: adminCookies(),
             });
 
             assert.strictEqual(response.statusCode, 200);
@@ -260,6 +273,7 @@ describe('Module 9: Fastify API Server & Health Endpoint (src/index.ts)', () => 
             const response = await app.inject({
                 method: 'GET',
                 url: '/api/jobs/non-existent-uuid',
+                cookies: adminCookies(),
             });
 
             assert.strictEqual(response.statusCode, 404);
