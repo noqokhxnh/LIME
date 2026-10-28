@@ -609,3 +609,225 @@ function initFlipWords() {
 
     window.addEventListener('resize', syncWidth);
 }
+
+
+// =========================================================
+// TEMPLATES PLAYER (Concept 4) — chuyển mẫu, phân cảnh, phát thử
+// =========================================================
+(function initTemplatePlayer() {
+    const listEl = document.getElementById('tplp-list');
+    if (!listEl) return;
+
+    const TEMPLATES = [
+        {
+            cat: 'SaaS · Tech', ratio: '16:9', style: 'modern', durLabel: '25–40s', totalSec: 30,
+            prompt: 'Giới thiệu nền tảng AI SaaS đột phá: tự động phân tích dữ liệu, giao diện trực quan, biểu đồ tăng trưởng 300% và nút kêu gọi dùng thử miễn phí.',
+            active: 2,
+            scenes: [
+                { label: 'Mở đầu', art: 'win' },
+                { label: 'Vấn đề', art: 'lines' },
+                { label: 'Biểu đồ', art: 'num', text: '+300%' },
+                { label: 'Tính năng', art: 'bars' },
+                { label: 'CTA', art: 'cta', text: 'Dùng thử miễn phí' }
+            ]
+        },
+        {
+            cat: 'Lập trình', ratio: '16:9', style: 'modern', durLabel: '20–30s', totalSec: 25,
+            prompt: 'Kể câu chuyện lập trình viên thức trắng đêm trước ngày ra mắt, gõ lệnh git trong terminal, dòng code chạy liên tục, khoảnh khắc build thành công và con số tăng vọt ăn mừng chiến thắng.',
+            active: 1,
+            scenes: [
+                { label: 'Mở đầu', art: 'term', text: '02:14<br>đêm trước ra mắt' },
+                { label: 'Gõ lệnh', art: 'term', text: '$ git commit<br>$ npm run build' },
+                { label: 'Build thành công', art: 'check' },
+                { label: 'Kết thúc · diff', art: 'diff' }
+            ]
+        },
+        {
+            cat: 'Người que', ratio: '9:16', style: 'stickman', durLabel: '30–45s', totalSec: 40,
+            prompt: 'Video người que hoạt hình: một nhân vật que màu vàng tươi tò mò đặt câu hỏi, suy luận logic qua các biểu tượng vẽ tay đơn giản và thốt lên đầy hào hứng khi đã hiểu ra vấn đề.',
+            active: 2,
+            scenes: [
+                { label: 'Xuất hiện', art: 'stick' },
+                { label: 'Đặt câu hỏi', art: 'bubble', text: 'Sao lại vậy?' },
+                { label: 'Giải thích', art: 'bubble', text: 'À, ra là vậy!' },
+                { label: 'Ví dụ thực tế', art: 'stick' },
+                { label: 'Chốt ý', art: 'lines' },
+                { label: 'CTA', art: 'cta', text: 'Xem tiếp trên Shorts' }
+            ]
+        },
+        {
+            cat: 'Quảng cáo', ratio: '9:16', style: 'modern', durLabel: '15s', totalSec: 15,
+            prompt: 'Quảng cáo dọc điện thoại giảm giá bùng nổ, chữ SALE khổng lồ chớp nháy bắt mắt trên nền chuyển màu rực rỡ, con số phần trăm giảm giá đập mạnh thị giác và nút mua ngay nổi bật ở cuối.',
+            active: 0,
+            scenes: [
+                { label: 'Hook', art: 'sale', text: 'FLASH SALE' },
+                { label: 'Sản phẩm', art: 'phone' },
+                { label: 'CTA cuối video', art: 'cta', text: 'Mua ngay' }
+            ]
+        },
+        {
+            cat: 'Giáo dục', ratio: '16:9', style: 'minimal', durLabel: '60s', totalSec: 60,
+            prompt: 'Tạo một bài giảng kiến thức chuẩn chỉnh về chủ đề khoa học tự nhiên, bố cục thông tin mạch lạc khoa học, có biểu đồ so sánh trực quan, các bước thực hiện đánh số thứ tự rõ ràng.',
+            active: 0,
+            scenes: [
+                { label: 'Tiêu đề bài', art: 'slide' },
+                { label: 'Khái niệm', art: 'lines' },
+                { label: 'Nội dung chính', art: 'slide' },
+                { label: 'Ví dụ minh hoạ', art: 'slide' },
+                { label: 'Bài tập', art: 'lines' },
+                { label: 'Thực hành', art: 'slide' },
+                { label: 'Tóm tắt', art: 'slide' },
+                { label: 'Kết thúc', art: 'cta', text: 'Hẹn gặp bài sau' }
+            ]
+        },
+        {
+            cat: 'SaaS · Tech', ratio: '16:9', style: 'modern', durLabel: '40s', totalSec: 40,
+            prompt: 'Biến bộ slide thuyết trình gọi vốn khô khan thành một video pitch deck chuyển động mượt mà, biểu đồ cột doanh thu tăng trưởng theo quý, dòng tiền dự phóng và lời kêu gọi đầu tư đầy tự tin.',
+            active: 2,
+            scenes: [
+                { label: 'Vấn đề', art: 'lines' },
+                { label: 'Giải pháp', art: 'win' },
+                { label: 'Số liệu', art: 'bars' },
+                { label: 'Thị trường', art: 'num', text: '+180%' },
+                { label: 'Kêu gọi vốn', art: 'cta', text: 'Kêu gọi Series A' }
+            ]
+        }
+    ];
+
+    const START_FRAC = 0.4;
+    const arts = document.querySelectorAll('.tplp-art');
+    const items = listEl.querySelectorAll('.tplp-item');
+    const scenesEl = document.getElementById('tplp-scenes');
+    const scenesMeta = document.getElementById('tplp-scenes-meta');
+    const chipEl = document.getElementById('tplp-chip');
+    const promptEl = document.getElementById('tplp-prompt-text');
+    const ctaEl = document.getElementById('tplp-cta');
+    const tcEl = document.getElementById('tplp-tc');
+    const qEl = document.getElementById('tplp-q');
+    const fillEl = document.getElementById('tplp-fill');
+    const knobEl = document.getElementById('tplp-knob');
+    const playBtn = document.getElementById('tplp-play');
+    const icPlay = playBtn.querySelector('.tplp-ic-play');
+    const icPause = playBtn.querySelector('.tplp-ic-pause');
+    const nowEl = listEl.querySelector('.tplp-now');
+
+    let cur = 0;
+    let frac = START_FRAC;
+    let playing = false;
+    let rafId = null;
+    let lastTs = null;
+
+    function fmt(sec) {
+        sec = Math.max(0, Math.round(sec));
+        return String(Math.floor(sec / 60)).padStart(2, '0') + ':' + String(sec % 60).padStart(2, '0');
+    }
+
+    function artHTML(sc) {
+        switch (sc.art) {
+            case 'win': return '<div class="tplp-m-win"><i></i><i></i><i></i></div>';
+            case 'lines': return '<div class="tplp-m-lines"><i></i><i></i><i></i></div>';
+            case 'num': return '<div class="tplp-m-num">' + sc.text + '</div>';
+            case 'bars': return '<div class="tplp-m-bars"><i></i><i></i><i></i><i></i><i></i></div>';
+            case 'cta': return '<div class="tplp-m-cta"><span>' + sc.text + '</span></div>';
+            case 'term': return '<div class="tplp-m-term">' + sc.text + '</div>';
+            case 'check': return '<div class="tplp-m-check">✓</div>';
+            case 'diff': return '<div class="tplp-m-diff"><span class="tplp-plus">+ 124 additions</span><span class="tplp-minus">− 12 deletions</span></div>';
+            case 'stick': return '<div class="tplp-m-stick"></div>';
+            case 'bubble': return '<div class="tplp-m-bubble"><span>' + sc.text + '</span></div>';
+            case 'sale': return '<div class="tplp-m-sale">' + sc.text + '</div>';
+            case 'phone': return '<div class="tplp-m-phone"></div>';
+            case 'slide': return '<div class="tplp-m-slide"><i></i><i></i><i></i></div>';
+            default: return '';
+        }
+    }
+
+    function activeSceneIdx() {
+        const n = TEMPLATES[cur].scenes.length;
+        return Math.min(n - 1, Math.floor(frac * n));
+    }
+
+    function renderScenes() {
+        const t = TEMPLATES[cur];
+        scenesEl.style.setProperty('--tplp-cols', t.scenes.length);
+        scenesEl.innerHTML = t.scenes.map((sc, i) =>
+            '<button type="button" class="tplp-sc" data-sc="' + i + '">' +
+            '<span class="tplp-sc-art">' + artHTML(sc) + '</span>' +
+            '<span class="tplp-sc-lab"><span class="tplp-sc-no">SC ' + (i + 1) + '</span><span>' + sc.label + '</span></span>' +
+            '</button>').join('');
+        scenesEl.querySelectorAll('.tplp-sc').forEach(btn => {
+            btn.addEventListener('click', () => {
+                stopPlay();
+                const i = Number(btn.getAttribute('data-sc'));
+                frac = (i + 0.5) / TEMPLATES[cur].scenes.length;
+                renderProgress();
+            });
+        });
+    }
+
+    function renderProgress() {
+        const t = TEMPLATES[cur];
+        const pct = (frac * 100).toFixed(1) + '%';
+        fillEl.style.width = pct;
+        knobEl.style.left = pct;
+        tcEl.textContent = fmt(frac * t.totalSec) + ' / ' + fmt(t.totalSec);
+        const ai = activeSceneIdx();
+        scenesEl.querySelectorAll('.tplp-sc').forEach((el, i) => el.classList.toggle('is-on', i === ai));
+    }
+
+    function stopPlay() {
+        playing = false;
+        lastTs = null;
+        if (rafId) cancelAnimationFrame(rafId);
+        rafId = null;
+        icPlay.style.display = '';
+        icPause.style.display = 'none';
+    }
+
+    function tick(ts) {
+        if (!playing) return;
+        if (lastTs == null) lastTs = ts;
+        const dt = (ts - lastTs) / 1000;
+        lastTs = ts;
+        frac += dt / 5; // phát thử: chạy hết mẫu trong ~5 giây
+        if (frac >= 1) {
+            frac = 1;
+            renderProgress();
+            setTimeout(() => { stopPlay(); frac = START_FRAC; renderProgress(); }, 550);
+            return;
+        }
+        renderProgress();
+        rafId = requestAnimationFrame(tick);
+    }
+
+    playBtn.addEventListener('click', () => {
+        if (playing) { stopPlay(); return; }
+        if (frac >= 1) frac = START_FRAC;
+        playing = true;
+        icPlay.style.display = 'none';
+        icPause.style.display = '';
+        rafId = requestAnimationFrame(tick);
+    });
+
+    function select(i, keepFrac) {
+        stopPlay();
+        cur = i;
+        if (!keepFrac) frac = START_FRAC;
+        const t = TEMPLATES[cur];
+        arts.forEach(a => a.classList.toggle('is-on', Number(a.getAttribute('data-art')) === cur));
+        items.forEach((it, j) => it.classList.toggle('is-on', j === cur));
+        const onInfo = items[cur].querySelector('.tplp-info');
+        if (nowEl && onInfo && nowEl.parentElement !== onInfo) onInfo.appendChild(nowEl);
+        chipEl.textContent = t.cat;
+        promptEl.textContent = '“' + t.prompt + '”';
+        ctaEl.setAttribute('data-prompt', t.prompt);
+        ctaEl.setAttribute('data-style', t.style);
+        ctaEl.setAttribute('data-ratio', t.ratio);
+        qEl.textContent = '1080p · ' + t.ratio + ' · Có giọng đọc AI';
+        scenesMeta.textContent = t.scenes.length + ' phân cảnh · tổng ' + t.durLabel;
+        renderScenes();
+        renderProgress();
+    }
+
+    items.forEach((it, i) => it.addEventListener('click', () => select(i)));
+    select(0);
+})();
