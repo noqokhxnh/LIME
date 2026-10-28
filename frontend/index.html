@@ -768,14 +768,23 @@
                             </svg>
                             <span>Lưu ảnh QR</span>
                         </button>
-                        <a href="https://vietqr.net" target="_blank" rel="noopener noreferrer" class="vietqr-btn-sub">
+                        <button type="button" id="vietqr-guide-btn" class="vietqr-btn-sub" aria-expanded="false" aria-controls="vietqr-guide-panel">
                             <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor"
                                 stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
                                 <circle cx="12" cy="12" r="10"></circle>
                                 <path d="m9 12 2 2 4-4"></path>
                             </svg>
                             <span>HD Quét mã</span>
-                        </a>
+                        </button>
+                    </div>
+                    <div id="vietqr-guide-panel" class="vietqr-guide-panel" hidden>
+                        <p class="vietqr-guide-title">Cách quét mã thanh toán</p>
+                        <ol class="vietqr-guide-steps">
+                            <li>Mở app ngân hàng của bạn, chọn tính năng quét mã QR.</li>
+                            <li>Đưa camera vào mã QR bên trên, hoặc bấm "Lưu ảnh QR" rồi tải ảnh lên trong app ngân hàng.</li>
+                            <li>Kiểm tra đúng số tiền và giữ nguyên nội dung ở ô Lời nhắn / Memo, không sửa và không thêm ký tự.</li>
+                            <li>Xác nhận chuyển khoản, quay lại trang này và chờ hệ thống tự kích hoạt, thường trong khoảng 30 giây.</li>
+                        </ol>
                     </div>
                 </div>
 
@@ -868,7 +877,7 @@
                                 Số tiền
                             </span>
                             <div class="vietqr-field-content">
-                                <span class="vietqr-field-val amount" id="vietqr-val-amount" data-copy="149000">149.000
+                                <span class="vietqr-field-val amount" id="vietqr-val-amount" data-copy="99000">99.000
                                     đ</span>
                                 <button type="button" class="vietqr-copy-btn" data-target="vietqr-val-amount"
                                     title="Sao chép số tiền">

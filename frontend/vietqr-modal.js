@@ -414,6 +414,18 @@
         const dlBtn = document.getElementById('vietqr-download-btn');
         if (dlBtn) dlBtn.addEventListener('click', downloadQR);
 
+        // Guide button: toggle inline scan instructions (no navigation away from payment)
+        const guideBtn = document.getElementById('vietqr-guide-btn');
+        const guidePanel = document.getElementById('vietqr-guide-panel');
+        if (guideBtn && guidePanel) {
+            guideBtn.addEventListener('click', () => {
+                const willShow = guidePanel.hasAttribute('hidden');
+                if (willShow) guidePanel.removeAttribute('hidden');
+                else guidePanel.setAttribute('hidden', '');
+                guideBtn.setAttribute('aria-expanded', willShow ? 'true' : 'false');
+            });
+        }
+
         // Submit confirmation button
         const submitBtn = document.getElementById('vietqr-submit-btn');
         if (submitBtn) submitBtn.addEventListener('click', handlePaymentConfirmation);
