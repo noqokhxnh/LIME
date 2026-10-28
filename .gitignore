@@ -24,3 +24,6 @@ videos/
 data/*
 # OpenCode local state
 .opencode/
+
+# Backup env chứa secret (lime-activate-secrets.sh)
+.env.bak-*

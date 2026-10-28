@@ -1,7 +1,7 @@
 // Cấu hình base URL tự động nhận diện nếu mở trực tiếp hay qua server
-const API_BASE = (window.location.origin && window.location.origin.includes(':3000'))
-    ? ''
-    : 'http://localhost:3000';
+const API_BASE = (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1')
+    ? ((window.location.origin && window.location.origin.includes(':3000')) ? '' : 'http://localhost:3000')
+    : '';
 
 // Auth Elements
 const loginOpenBtn = document.getElementById('login-open-btn');

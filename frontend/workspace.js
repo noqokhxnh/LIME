@@ -1,8 +1,8 @@
 // LIME Workspace v2 — Premiere-style 4-workspace editor logic
 // Base URL auto-detection
-const API_BASE = (window.location.origin && window.location.origin.includes(':3000'))
-    ? ''
-    : 'http://localhost:3000';
+const API_BASE = (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1')
+    ? ((window.location.origin && window.location.origin.includes(':3000')) ? '' : 'http://localhost:3000')
+    : '';
 
 /* ================= AUTH ================= */
 const loginOpenBtn = document.getElementById('login-open-btn');
