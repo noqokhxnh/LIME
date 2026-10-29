@@ -1,6 +1,7 @@
 name: Task / Issue
 description: Issue phải tái hiện được và có acceptance đo được. Thiếu mục bắt buộc thì không nhận.
-title: "[area] "body:
+title: "[area] "
+body:
   - type: markdown
     attributes:
       value: |
