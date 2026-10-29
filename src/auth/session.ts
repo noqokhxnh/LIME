@@ -9,6 +9,8 @@ export const inMemorySessions = new Map<string, { userId: string; expiresAt: Dat
 export interface AuthUser {
     id: string;
     username: string;
+    /** Tên hiển thị (display_name trong DB), fallback về username. */
+    name?: string;
     email: string;
     role: 'user' | 'admin';
     tier: string;
@@ -24,6 +26,26 @@ export interface AuthUser {
 
 function hashToken(token: string): string {
     return createHash('sha256').update(token).digest('hex');
+}
+
+/** Username tự sinh cho tài khoản Google cũ: `google_<id>_<hex>`. */
+const GOOGLE_PLACEHOLDER_USERNAME = /^google_[A-Za-z0-9]+_[0-9a-f]+$/i;
+
+/**
+ * Tên hiển thị ưu tiên `display_name`; nếu chưa có (tài khoản Google tạo
+ * trước khi bổ sung cột) thì dùng phần trước @ của email thay vì để lộ
+ * username dạng `google_...`. Lần đăng nhập Google kế tiếp sẽ điền tên thật.
+ */
+export function resolveDisplayName(
+    username: string,
+    email: string,
+    displayName?: string | null
+): string {
+    if (displayName) return displayName;
+    if (GOOGLE_PLACEHOLDER_USERNAME.test(username)) {
+        return email.split('@')[0] || username;
+    }
+    return username;
 }
 
 export function createTestSession(userId: string): string {
@@ -136,7 +158,7 @@ export async function getCurrentUser(
     if (config.DATABASE_URL) {
         try {
             const result = await db.query(
-                `SELECT u.id, u.username, u.email, u.role, u.tier, u.credits, u.total_credits, u.status,
+                `SELECT u.id, u.username, u.display_name, u.email, u.role, u.tier, u.credits, u.total_credits, u.status,
                         u.plan_id, u.plan_expires_at, u.preferences, u.created_at
                  FROM sessions s
                  JOIN users u ON u.id = s.user_id
@@ -159,6 +181,7 @@ export async function getCurrentUser(
                 return {
                     id: u.id,
                     username: u.username,
+                    name: u.name || resolveDisplayName(u.username, u.email),
                     email: u.email,
                     role: u.role,
                     tier: u.tier,
@@ -182,6 +205,7 @@ export async function getCurrentUser(
     return {
         id: user.id,
         username: user.username,
+        name: resolveDisplayName(user.username, user.email, user.display_name),
         email: user.email,
         role: user.role === 'admin' ? 'admin' : 'user',
         tier: user.tier || 'free',

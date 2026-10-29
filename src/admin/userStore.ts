@@ -79,7 +79,7 @@ export const ADMIN_USERS_EXPORT_MAX = 10000;
  * bảng `users` — đó là lý do bảng quản trị luôn hiển thị "N/A" và "Chưa đăng nhập".
  */
 const USER_SELECT_SQL = `
-    u.id, u.username, u.email, u.role, u.tier, u.credits, u.total_credits, u.status,
+    u.id, u.username, u.display_name, u.email, u.role, u.tier, u.credits, u.total_credits, u.status,
     u.google_id, u.plan_id, u.plan_expires_at, u.created_at, u.updated_at, u.deleted_at,
     ll.ip_address AS last_login_ip,
     ll.created_at AS last_login_at,
@@ -164,7 +164,7 @@ function buildAdminUserWhere(params: AdminUserQuery): { whereClause: string; val
         values.push(`%${search}%`);
         const i = values.length;
         conditions.push(
-            `(username ILIKE $${i} OR email ILIKE $${i} OR id::text ILIKE $${i}` +
+            `(username ILIKE $${i} OR display_name ILIKE $${i} OR email ILIKE $${i} OR id::text ILIKE $${i}` +
                 ` OR COALESCE(last_login_ip, '') ILIKE $${i}` +
                 ` OR COALESCE(signup_ip, '') ILIKE $${i}` +
                 ` OR COALESCE(last_location, '') ILIKE $${i}` +
@@ -262,11 +262,19 @@ function formatUserRow(row: any): AdminUserRecord {
     const credits = Number(row.credits ?? 20);
     const totalCredits = Math.max(Number(row.total_credits ?? 20), 1);
     const creditPercent = Math.min(100, Math.max(0, Math.round((credits / totalCredits) * 100)));
+    const username = row.username || row.email?.split("@")[0] || "user";
+    const emailLocalPart = row.email?.split("@")[0] || "";
+    // Tài khoản Google cũ có username `google_<id>_<hex>`; nếu chưa có
+    // display_name thì hiển thị phần trước @ của email thay vì ID.
+    const fallbackName =
+        /^google_[A-Za-z0-9]+_[0-9a-f]+$/i.test(username) && emailLocalPart
+            ? emailLocalPart
+            : username;
 
     return {
         id: row.id,
-        username: row.username || row.email?.split("@")[0] || "user",
-        name: row.username || row.email?.split("@")[0] || "User",
+        username,
+        name: row.display_name || fallbackName || "User",
         email: row.email,
         role: row.role === "admin" ? "admin" : "user",
         tier: row.tier || "free",

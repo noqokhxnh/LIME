@@ -181,8 +181,8 @@ async function handleLogin() {
         }
         loginMessage.textContent = '';
         loginModal.classList.remove('show');
-        setWsUser(data.username);
-        log(`Đăng nhập thành công: ${data.username}`, 'success');
+        setWsUser(data.name || data.username);
+        log(`Đăng nhập thành công: ${data.name || data.username}`, 'success');
     } catch (err) {
         loginMessage.textContent = 'Không thể kết nối tới server';
     } finally {
@@ -282,8 +282,8 @@ async function handleRegister() {
         }
         registerMessage.textContent = '';
         loginModal.classList.remove('show');
-        setWsUser(data.username);
-        log(`Đăng ký thành công: ${data.username}`, 'success');
+        setWsUser(data.name || data.username);
+        log(`Đăng ký thành công: ${data.name || data.username}`, 'success');
     } catch (err) {
         registerMessage.textContent = 'Không thể kết nối tới server';
     } finally {
@@ -1839,7 +1839,7 @@ async function checkCurrentUser() {
         if (!res.ok) { window.location.href = '/?auth=open'; return; }
         const data = await res.json();
         const user = data.user || data;
-        setWsUser(user.username, user.role);
+        setWsUser(user.name || user.username, user.role);
     } catch (err) { window.location.href = '/?auth=open'; }
 }
 
