@@ -17,6 +17,7 @@ import {
     getSafeAreaBounds,
     isBoxWithinSafeArea,
     getKaraokeLayerBounds,
+    getNominalCaptionBand,
 } from "./karaoke.js";
 import { WordTiming } from "./wordTiming.js";
 
@@ -272,8 +273,18 @@ export async function assembleHTML(
     const karaokeCss = karaokeEnabled ? renderKaraokeCss(karaokeConfig) : "";
     const karaokeJs = karaokeEnabled ? renderKaraokeJs() : "";
 
+    // Dải caption danh nghĩa (#110) — công bố cho template/LLM biết vùng cấm đáy.
+    const captionBand = karaokeEnabled ? getNominalCaptionBand(width, height, karaokeConfig) : null;
+    const captionBandPct = captionBand
+        ? Math.round((captionBand.height / height) * 1000) / 10
+        : 0;
+
     const safeAreaGuideHtml = options?.safeArea
-        ? `\n    <!-- Safe Area Debug Overlay (QA Guide) -->\n    <div id="lime-safe-area-guide" class="lime-safe-area-guide" aria-hidden="true">\n        <div class="safe-area-label">SAFE AREA 80% (10% V / 10% H)</div>\n    </div>`
+        ? `\n    <!-- Safe Area Debug Overlay (QA Guide) -->\n    <div id="lime-safe-area-guide" class="lime-safe-area-guide" aria-hidden="true">\n        <div class="safe-area-label">SAFE AREA 80% (10% V / 10% H)</div>\n    </div>${
+              captionBand
+                  ? `\n    <!-- Caption Band Debug Overlay (#110) -->\n    <div id="lime-caption-band-guide" class="lime-caption-band-guide" aria-hidden="true">\n        <span>CAPTION BAND — KHÔNG ĐẶT CTA/NỘI DUNG</span>\n    </div>`
+                  : ""
+          }`
         : "";
 
     const safeAreaGuideCss = options?.safeArea
@@ -301,6 +312,37 @@ export async function assembleHTML(
     letter-spacing: 0.5px;
     text-transform: uppercase;
 }
+${captionBand ? `/* Caption Band Debug Overlay (#110) — dải đáy dành riêng cho phụ đề */
+.lime-caption-band-guide {
+    position: absolute;
+    left: 0;
+    right: 0;
+    top: ${captionBand.top}px;
+    height: ${captionBand.height}px;
+    background: repeating-linear-gradient(
+        45deg,
+        rgba(255, 214, 10, 0.18),
+        rgba(255, 214, 10, 0.18) 10px,
+        rgba(255, 214, 10, 0.08) 10px,
+        rgba(255, 214, 10, 0.08) 20px
+    );
+    border-top: 2px dashed rgba(255, 214, 10, 0.85);
+    box-sizing: border-box;
+    pointer-events: none;
+    z-index: 99998;
+}
+.lime-caption-band-guide span {
+    position: absolute;
+    top: 4px;
+    left: 8px;
+    font-size: 11px;
+    font-family: monospace;
+    font-weight: 700;
+    color: rgba(255, 214, 10, 0.95);
+    letter-spacing: 0.5px;
+    text-transform: uppercase;
+}
+` : ""}
 `
         : "";
 
@@ -394,6 +436,10 @@ ${s.js}
             width: 100%;
             height: 100%;
             overflow: hidden;
+            /* Dải caption (#110): nội dung chính neo phía trên mốc này. */
+            --lime-caption-band-px: ${captionBand?.height ?? 0}px;
+            --lime-caption-band-top-px: ${captionBand?.top ?? height}px;
+            --lime-caption-band-pct: ${captionBandPct}%;
         }
 
         /* Isolated blending stack for scenes */

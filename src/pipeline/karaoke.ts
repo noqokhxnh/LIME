@@ -60,6 +60,36 @@ export function isBoxWithinSafeArea(
 }
 
 /**
+ * Dải caption (caption band) — vùng khung hình bị phụ đề chiếm dụng.
+ *
+ * Đây là nguồn sự thật duy nhất cho cả hai phía:
+ *  - layout/prompt: biết đáy khung còn bao nhiêu chỗ cho nội dung;
+ *  - Oracle QA: so bounding box thật của phần tử scene với bounding box thật
+ *    của caption sau layout (không dùng hằng số 12%).
+ */
+export interface CaptionBand {
+    left: number;
+    top: number;
+    width: number;
+    height: number;
+    bottom: number;
+    /** `measured` = đo từ DOM sau layout; `nominal` = ước lượng từ config. */
+    source: "measured" | "nominal";
+}
+
+/** Số dòng tối đa giả định khi ước lượng dải caption (1/2/3 dòng). */
+export const KARAOKE_MAX_LINES = 3;
+
+function parseFontSizePx(fontSize: string | number | undefined): number {
+    if (typeof fontSize === "number" && Number.isFinite(fontSize) && fontSize > 0) return fontSize;
+    if (typeof fontSize === "string") {
+        const parsed = Number.parseFloat(fontSize);
+        if (Number.isFinite(parsed) && parsed > 0) return parsed;
+    }
+    return 32;
+}
+
+/**
  * Lấy bounding box danh nghĩa của layer Karaoke theo cấu hình khung hình
  */
 export function getKaraokeLayerBounds(
@@ -119,6 +149,92 @@ export const DEFAULT_KARAOKE_CONFIG: Required<KaraokeConfig> = {
     fontSize: "32px",
     bottomOffsetPercent: 12,
 };
+
+/**
+ * Ước lượng dải caption từ cấu hình (dùng cho prompt/layout trước khi render).
+ *
+ * Chiều cao layer được suy từ font-size thật × line-height × số dòng tối đa
+ * + padding dọc của `.karaoke-cue`, thay vì hằng số 80px/12% cũ. Đây chỉ là
+ * giá trị danh nghĩa — QA vẫn phải đo bounding box thật sau layout.
+ */
+export function getNominalCaptionBand(
+    frameWidth: number,
+    frameHeight: number,
+    options?: KaraokeConfig
+): CaptionBand {
+    const config = { ...DEFAULT_KARAOKE_CONFIG, ...options };
+    const fontPx = parseFontSizePx(config.fontSize);
+    const lineHeight = 1.35;
+    const paddingY = 24; // 12px top + 12px bottom của .karaoke-cue
+    const layerHeight = Math.round(fontPx * lineHeight * KARAOKE_MAX_LINES + paddingY);
+    const bounds = getKaraokeLayerBounds(
+        frameWidth,
+        frameHeight,
+        config.bottomOffsetPercent,
+        layerHeight
+    );
+
+    return {
+        ...bounds,
+        bottom: bounds.top + bounds.height,
+        source: "nominal",
+    };
+}
+
+/**
+ * Dải caption đo được từ bounding box thật của cue đang hiển thị sau layout.
+ * Truyền thẳng `getBoundingClientRect()` của `.karaoke-cue.is-active`.
+ */
+export function getCaptionBandFromRect(rect: {
+    left: number;
+    top: number;
+    width: number;
+    height: number;
+}): CaptionBand {
+    return {
+        left: rect.left,
+        top: rect.top,
+        width: rect.width,
+        height: rect.height,
+        bottom: rect.top + rect.height,
+        source: "measured",
+    };
+}
+
+/**
+ * Tỉ lệ diện tích của `box` bị dải caption che (0..1).
+ */
+export function captionOverlapRatio(
+    box: { left: number; top: number; width: number; height: number },
+    band: CaptionBand
+): number {
+    const boxArea = box.width * box.height;
+    if (boxArea <= 0) return 0;
+
+    const interWidth = Math.max(
+        0,
+        Math.min(box.left + box.width, band.left + band.width) - Math.max(box.left, band.left)
+    );
+    const interHeight = Math.max(
+        0,
+        Math.min(box.top + box.height, band.bottom) - Math.max(box.top, band.top)
+    );
+
+    return (interWidth * interHeight) / boxArea;
+}
+
+/**
+ * Phần tử nội dung có bị caption che quá `minOverlapRatio` diện tích không.
+ * Mặc định 10%: chạm nhẹ vào padding/bo góc của caption không tính là vi phạm,
+ * nhưng CTA bị che một nửa thì chắc chắn fail.
+ */
+export function boxOverlapsCaptionBand(
+    box: { left: number; top: number; width: number; height: number },
+    band: CaptionBand,
+    minOverlapRatio = 0.1
+): boolean {
+    return captionOverlapRatio(box, band) >= minOverlapRatio;
+}
 
 /**
  * Xây dựng timeline dữ liệu karaoke cho toàn bộ kịch bản

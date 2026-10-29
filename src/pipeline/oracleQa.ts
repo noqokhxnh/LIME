@@ -14,6 +14,7 @@ import {
     seekToTimestamp,
 } from './preview.js';
 import { installNetworkGuard } from './networkGuard.js';
+import { getCaptionBandFromRect, captionOverlapRatio } from './karaoke.js';
 import { dirname, resolve } from 'node:path';
 
 export interface DOMBox {
@@ -60,6 +61,31 @@ export interface FramingLegResult {
     reason?: string;
 }
 
+/** Một phần tử nội dung của scene kèm nhãn để báo lỗi cho LLM/user. */
+export interface CaptionContentElement {
+    label: string;
+    box: DOMBox;
+}
+
+/**
+ * Ảnh chụp tại một thời điểm: bounding box thật của caption đang hiển thị
+ * (null nếu scene không có cue) + các phần tử nội dung của scene đang active.
+ */
+export interface CaptionBandSample {
+    caption: DOMBox | null;
+    elements: CaptionContentElement[];
+}
+
+export type CaptionBandSampler = (timeSec: number, sceneId: string) => Promise<CaptionBandSample | null>;
+
+export interface CaptionLegResult {
+    status: 'pass' | 'warn' | 'fail';
+    /** Số mẫu có caption thực sự hiển thị (bỏ qua mẫu không có cue). */
+    sampledFrames?: number;
+    violations?: string[];
+    reason?: string;
+}
+
 export interface AudioLegResult {
     status: 'pass' | 'warn' | 'fail';
     peakDbfs?: number;
@@ -86,6 +112,7 @@ export interface QAReport {
         continuity: ContinuityLegResult;
         curves: CurvesLegResult;
         framing: FramingLegResult;
+        caption: CaptionLegResult;
         audio: AudioLegResult;
     };
     createdAt: string;
@@ -104,6 +131,8 @@ export interface OracleQaOptions {
     attempt?: number;
     domSampler?: DOMSampler;
     batchDomSampler?: BatchDOMSampler;
+    /** Lấy bbox thật của caption + phần tử nội dung tại thời điểm t (issue #110). */
+    captionSampler?: CaptionBandSampler;
     audioAnalyzer?: (audioPath: string) => Promise<AudioStats>;
     page?: Page;
     hasShutterBlur?: boolean;
@@ -463,6 +492,84 @@ export async function checkFramingLeg(
 }
 
 /**
+ * Leg 4b: Caption band (vùng cấm caption — issue #110)
+ *
+ * Không hard-code 12%: mỗi mẫu lấy bounding box THẬT của `.karaoke-cue.is-active`
+ * sau layout (1/2/3 dòng, font-size, 16:9 hay 9:16 đều khác nhau) rồi so với
+ * bounding box của các phần tử nội dung trong scene đang active.
+ *
+ * Fail khi phần tử nội dung (CTA, tiêu đề, ảnh, chữ) bị caption che >= 10% diện
+ * tích. Phần tử trang trí nền được sampler bỏ qua nếu khai báo `data-caption-exempt`
+ * hoặc phủ gần kín khung (background full-bleed).
+ */
+export async function checkCaptionBandLeg(
+    scenes: scene[],
+    durations: Record<string, number>,
+    captionSampler: CaptionBandSampler,
+    options?: { stepSec?: number; minOverlapRatio?: number }
+): Promise<CaptionLegResult> {
+    const step = options?.stepSec ?? 0.5;
+    const minOverlapRatio = options?.minOverlapRatio ?? 0.1;
+    let runningTime = 0;
+    let sampledFrames = 0;
+
+    // Gộp theo scene + phần tử, giữ mức che lớn nhất để báo cáo không bị nhiễu
+    // bởi cùng một CTA xuất hiện ở nhiều mốc thời gian.
+    const worst = new Map<string, { sceneId: string; label: string; ratio: number; timeSec: number }>();
+
+    for (const s of scenes) {
+        const dur = durations[s.id] ?? s.duration ?? 3.0;
+        const startTime = runningTime;
+        runningTime += dur;
+
+        const sampleTimes: number[] = [];
+        for (let t = startTime; t <= startTime + dur; t += step) {
+            sampleTimes.push(t);
+        }
+        if (sampleTimes.length < 3) {
+            sampleTimes.length = 0;
+            sampleTimes.push(startTime, startTime + dur / 2, startTime + dur);
+        }
+
+        for (const t of sampleTimes) {
+            const sample = await captionSampler(t, s.id);
+            if (!sample || !sample.caption) continue;
+            sampledFrames++;
+
+            const band = getCaptionBandFromRect(sample.caption);
+            for (const el of sample.elements) {
+                const ratio = captionOverlapRatio(el.box, band);
+                if (ratio < minOverlapRatio) continue;
+
+                const key = `${s.id}::${el.label}`;
+                const prev = worst.get(key);
+                if (!prev || ratio > prev.ratio) {
+                    worst.set(key, { sceneId: s.id, label: el.label, ratio, timeSec: t });
+                }
+            }
+        }
+    }
+
+    if (worst.size > 0) {
+        const violations = Array.from(worst.values())
+            .sort((a, b) => b.ratio - a.ratio)
+            .map(
+                (v) =>
+                    `Scene '${v.sceneId}': '${v.label}' bị caption che ${(v.ratio * 100).toFixed(0)}% diện tích tại t=${v.timeSec.toFixed(2)}s`
+            );
+
+        return {
+            status: 'fail',
+            sampledFrames,
+            violations,
+            reason: `Phát hiện ${violations.length} phần tử nội dung xâm phạm dải caption: ${violations.slice(0, 3).join('; ')}`,
+        };
+    }
+
+    return { status: 'pass', sampledFrames };
+}
+
+/**
  * Phân tích âm thanh bằng ffmpeg volumedetect và silencedetect
  */
 export async function analyzeAudioFile(audioPath: string): Promise<AudioStats> {
@@ -581,6 +688,7 @@ export async function createBrowserDOMSampler(
 ): Promise<{
     domSampler: DOMSampler;
     batchDomSampler: BatchDOMSampler;
+    captionSampler: CaptionBandSampler;
     cleanup: () => Promise<void>;
     hasShutterBlur: boolean;
 }> {
@@ -657,13 +765,94 @@ export async function createBrowserDOMSampler(
         return res[selector] ?? null;
     };
 
+    /**
+     * Đo bbox thật của caption đang hiển thị + các phần tử nội dung của scene.
+     * Chạy trong page để tránh N lần round-trip mỗi mẫu.
+     */
+    const captionSampler: CaptionBandSampler = async (timeSec: number, sceneId: string) => {
+        await seekOnce(timeSec);
+        // Lưu ý: KHÔNG khai báo helper function bên trong page.evaluate — tsx/esbuild
+        // chèn `__name()` vào closure và gây ReferenceError trong browser context.
+        return page.evaluate((sid: string) => {
+            const activeCue = document.querySelector('#lime-karaoke .karaoke-cue.is-active');
+            if (!activeCue) return { caption: null, elements: [] as any[] };
+            const cr = activeCue.getBoundingClientRect();
+            const caption = {
+                left: cr.left,
+                top: cr.top,
+                right: cr.right,
+                bottom: cr.bottom,
+                width: cr.width,
+                height: cr.height,
+            };
+
+            const root =
+                document.getElementById(sid) ||
+                (document.querySelector(`[data-scene="${sid}"]`) as HTMLElement | null);
+            if (!root) return { caption, elements: [] as any[] };
+
+            const frameArea = window.innerWidth * window.innerHeight;
+            const selector =
+                'button, a, img, svg, h1, h2, h3, h4, h5, h6, p, li, [data-caption-check]';
+            const elements: Array<{
+                label: string;
+                box: { left: number; top: number; right: number; bottom: number; width: number; height: number };
+            }> = [];
+
+            for (const el of Array.from(root.querySelectorAll(selector))) {
+                // Trang trí nền khai báo miễn trừ, hoặc nằm trong vùng miễn trừ.
+                if (el.closest('[data-caption-exempt]')) continue;
+                if (el.closest('#lime-karaoke')) continue;
+                if (el.getAttribute('aria-hidden') === 'true') continue;
+
+                // Chỉ lấy phần tử lá để không báo trùng wrapper bao quanh nội dung.
+                if (el.querySelector(selector)) continue;
+
+                const cs = window.getComputedStyle(el);
+                if (
+                    cs.display === 'none' ||
+                    cs.visibility === 'hidden' ||
+                    parseFloat(cs.opacity || '1') <= 0.01
+                ) {
+                    continue;
+                }
+
+                const r = el.getBoundingClientRect();
+                if (r.width <= 0 || r.height <= 0) continue;
+
+                // Ảnh/video phủ gần kín khung là background full-bleed, không phải nội dung.
+                const isFullBleed = (r.width * r.height) / frameArea >= 0.8;
+                const isExplicitCheck = el.hasAttribute('data-caption-check');
+                if (isFullBleed && !isExplicitCheck) continue;
+
+                const text = (el.textContent || '').trim().replace(/\s+/g, ' ').slice(0, 32);
+                const label = el.id
+                    ? `#${el.id}`
+                    : `${el.tagName.toLowerCase()}${text ? ` "${text}"` : ''}`;
+                elements.push({
+                    label,
+                    box: {
+                        left: r.left,
+                        top: r.top,
+                        right: r.right,
+                        bottom: r.bottom,
+                        width: r.width,
+                        height: r.height,
+                    },
+                });
+            }
+
+            return { caption, elements };
+        }, sceneId);
+    };
+
     const cleanup = async () => {
         if (browser) {
             await browser.close().catch(() => {});
         }
     };
 
-    return { domSampler, batchDomSampler, cleanup, hasShutterBlur };
+    return { domSampler, batchDomSampler, captionSampler, cleanup, hasShutterBlur };
 }
 
 /**
@@ -692,6 +881,7 @@ export async function runOracleQa(options: OracleQaOptions): Promise<QAReport> {
     // Chuẩn bị DOM sampler
     let domSampler = options.domSampler;
     let batchDomSampler = options.batchDomSampler;
+    let captionSampler = options.captionSampler;
     let cleanupBrowser: (() => Promise<void>) | null = null;
     let hasShutterBlur = options.hasShutterBlur ?? false;
 
@@ -706,6 +896,7 @@ export async function runOracleQa(options: OracleQaOptions): Promise<QAReport> {
                 );
                 domSampler = browserSetup.domSampler;
                 batchDomSampler = browserSetup.batchDomSampler;
+                captionSampler = captionSampler ?? browserSetup.captionSampler;
                 cleanupBrowser = browserSetup.cleanup;
                 if (options.hasShutterBlur === undefined) {
                     hasShutterBlur = browserSetup.hasShutterBlur;
@@ -739,6 +930,7 @@ export async function runOracleQa(options: OracleQaOptions): Promise<QAReport> {
     let continuityLeg: ContinuityLegResult;
     let curvesLeg: CurvesLegResult;
     let framingLeg: FramingLegResult;
+    let captionLeg: CaptionLegResult;
 
     try {
         // 2. Leg 2: Continuity
@@ -771,6 +963,21 @@ export async function runOracleQa(options: OracleQaOptions): Promise<QAReport> {
             height,
             batchDomSampler
         );
+
+        // 4b. Leg 4b: Caption band — đo bbox thật sau layout (#110)
+        if (captionSampler) {
+            try {
+                captionLeg = await checkCaptionBandLeg(scenes, durations, captionSampler);
+            } catch (captionErr: any) {
+                // Lỗi đo đạc không được biến thành fail job: hạ xuống warn để vẫn render.
+                captionLeg = {
+                    status: 'warn',
+                    reason: `Không đo được dải caption: ${captionErr?.message || captionErr}`,
+                };
+            }
+        } else {
+            captionLeg = { status: 'pass', sampledFrames: 0 };
+        }
     } finally {
         if (cleanupBrowser) {
             await cleanupBrowser();
@@ -794,6 +1001,7 @@ export async function runOracleQa(options: OracleQaOptions): Promise<QAReport> {
         continuity: continuityLeg,
         curves: curvesLeg,
         framing: framingLeg,
+        caption: captionLeg,
         audio: audioLeg,
     };
 

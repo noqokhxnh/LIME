@@ -630,49 +630,91 @@ export async function generateSilence(outputPath: string, durationSec: number): 
 
 // ---------------------------------------------------------------- Main
 
+export interface DurationBudget {
+    /** Độ dài từng cảnh — KHÔNG bị sửa (giữ đúng độ dài TTS thật). */
+    sceneDurations: durationMap;
+    actualTotalSec: number;
+    targetSec: number;
+    /** > 0: narration ngắn hơn mục tiêu; < 0: vượt mục tiêu. */
+    deficitSec: number;
+    /** actualTotalSec / targetSec (0 khi target <= 0). */
+    coverageRatio: number;
+    status: "ok" | "short" | "over" | "invalid";
+    warning?: string;
+}
+
 /**
- * Bù khoảng lặng vào CUỐI video để tổng thời lượng cảnh khớp `targetDurationSec`.
+ * Đánh giá ngân sách thời lượng của video so với `targetDurationSec`.
  *
- * Toàn bộ phần thiếu được gộp vào cảnh CUỐI: giữ nguyên tương phản độ dài giữa các
- * cảnh nên không phá luật nhịp điệu của Oracle QA (CV >= 0.3, ratio shot dài/ngắn >= 4),
- * đồng thời lời thoại của mọi cảnh vẫn phát trọn vẹn nên timing karaoke không đổi.
- *
- * Bỏ qua (trả về nguyên trạng, `applied = false`) khi:
- *  - không có cảnh / không có target, hoặc thiếu quá ít (< `minDeficitSec`), hoặc
- *  - narration quá ngắn (< `minCoverageRatio` × target): lúc đó bù khoảng lặng sẽ biến
- *    video thành gần như im lặng — trường hợp này để prompt và cảnh báo cận dưới lo.
+ * #107: `targetDurationSec` chỉ còn là **trần mềm**. Trước đây toàn bộ phần thiếu
+ * được dồn vào cảnh cuối và nối thêm `tail__gap.mp3`, khiến end card đứng hình +
+ * im lặng nhiều giây. Nay:
+ *  - Không cảnh nào bị kéo dài, không sinh khoảng lặng cuối.
+ *  - Không dùng `timeScale` để giãn timeline: TTS và wordTimings đã cố định, kéo
+ *    hình sẽ lệch karaoke/đồng bộ.
+ *  - Thiếu nhiều thì chỉ trả về cảnh báo để caller log và báo user.
  */
-export function padScenesToTarget(
+export function assessDurationBudget(
     sceneDurations: durationMap,
     targetDurationSec: number,
-    options?: { minDeficitSec?: number; minCoverageRatio?: number }
-): {
-    paddedDurations: durationMap;
-    tailGapSec: number;
-    lastSceneId: string | null;
-    deficitSec: number;
-    applied: boolean;
-} {
+    options?: { toleranceRatio?: number }
+): DurationBudget {
     const ids = Object.keys(sceneDurations);
-    const currentTotal = ids.reduce((acc, id) => acc + (sceneDurations[id] || 0), 0);
-    const deficitSec = Math.round((targetDurationSec - currentTotal) * 100) / 100;
-    const minDeficitSec = options?.minDeficitSec ?? 0.25;
-    const minCoverageRatio = options?.minCoverageRatio ?? 0.25;
+    const actualTotalSec =
+        Math.round(ids.reduce((acc, id) => acc + (sceneDurations[id] || 0), 0) * 100) / 100;
+    const targetSec = Math.max(0, targetDurationSec);
+    const toleranceRatio = options?.toleranceRatio ?? 0.25;
 
-    const applied =
-        ids.length > 0 &&
-        targetDurationSec > 0 &&
-        deficitSec >= minDeficitSec &&
-        currentTotal >= targetDurationSec * minCoverageRatio;
-
-    if (!applied) {
-        return { paddedDurations: { ...sceneDurations }, tailGapSec: 0, lastSceneId: null, deficitSec, applied: false };
+    if (ids.length === 0 || targetSec <= 0) {
+        return {
+            sceneDurations: { ...sceneDurations },
+            actualTotalSec,
+            targetSec,
+            deficitSec: 0,
+            coverageRatio: 0,
+            status: "invalid",
+        };
     }
 
-    const lastSceneId = ids[ids.length - 1];
-    const paddedDurations: durationMap = { ...sceneDurations };
-    paddedDurations[lastSceneId] = Math.round(((sceneDurations[lastSceneId] || 0) + deficitSec) * 100) / 100;
-    return { paddedDurations, tailGapSec: deficitSec, lastSceneId, deficitSec, applied: true };
+    const deficitSec = Math.round((targetSec - actualTotalSec) * 100) / 100;
+    const coverageRatio = Math.round((actualTotalSec / targetSec) * 1000) / 1000;
+
+    if (coverageRatio < 1 - toleranceRatio) {
+        return {
+            sceneDurations: { ...sceneDurations },
+            actualTotalSec,
+            targetSec,
+            deficitSec,
+            coverageRatio,
+            status: "short",
+            warning: `Narration chỉ đạt ${actualTotalSec}s/${targetSec}s (${Math.round(
+                coverageRatio * 100
+            )}%) — giữ nguyên độ dài thật, không bù khoảng lặng.`,
+        };
+    }
+
+    if (coverageRatio > 1 + toleranceRatio) {
+        return {
+            sceneDurations: { ...sceneDurations },
+            actualTotalSec,
+            targetSec,
+            deficitSec,
+            coverageRatio,
+            status: "over",
+            warning: `Narration vượt mục tiêu: ${actualTotalSec}s/${targetSec}s (${Math.round(
+                coverageRatio * 100
+            )}%).`,
+        };
+    }
+
+    return {
+        sceneDurations: { ...sceneDurations },
+        actualTotalSec,
+        targetSec,
+        deficitSec,
+        coverageRatio,
+        status: "ok",
+    };
 }
 
 export interface AudioSynthesisOptions {
@@ -682,7 +724,7 @@ export interface AudioSynthesisOptions {
     voice?: string;
     language?: string;
     bgmVolume?: number;
-    /** Thời lượng mục tiêu (giây) — bù khoảng lặng khi narration ngắn hơn mục tiêu. */
+    /** Thời lượng mục tiêu (giây) — trần mềm, chỉ dùng để đánh giá/cảnh báo (#107). */
     targetDurationSec?: number;
     ttsProvider?: 'edge' | 'elevenlabs' | 'openai' | 'google' | 'vieneu' | string;
     onProgress?: (message: string, progress?: number) => void;
@@ -761,18 +803,17 @@ export async function synthesizeAudio(options: AudioSynthesisOptions): Promise<A
         );
     }
 
-    // Bù khoảng lặng để tổng thời lượng khớp mục tiêu (video không ngắn hơn mức đặt trước).
+    // #107: targetDurationSec là trần mềm. Không dồn deficit vào cảnh cuối, không
+    // chèn khoảng lặng cuối — chỉ log để caller biết video ngắn hơn mục tiêu.
     const target = targetDurationSec ?? 0;
-    const padding = padScenesToTarget(sceneDurations, target);
-    if (padding.applied && padding.lastSceneId) {
-        sceneDurations[padding.lastSceneId] = padding.paddedDurations[padding.lastSceneId];
+    const budget = assessDurationBudget(sceneDurations, target);
+    if (budget.status === "short" || budget.status === "over") {
+        onProgress?.(`[Audio] Cảnh báo: ${budget.warning}`, 84);
+    } else if (target > 0 && budget.deficitSec >= 0.25) {
         onProgress?.(
-            `[Audio] Narration ngắn hơn mục tiêu ${padding.deficitSec.toFixed(1)}s — bù khoảng lặng ở cảnh cuối để đủ ${target}s`,
-            84
-        );
-    } else if (target > 0 && padding.deficitSec >= 0.25) {
-        onProgress?.(
-            `[Audio] Cảnh báo: narration chỉ đạt ${(target - padding.deficitSec).toFixed(1)}s/${target}s — quá ngắn để bù an toàn, giữ nguyên độ dài thực.`,
+            `[Audio] Narration ${budget.actualTotalSec}s ngắn hơn mục tiêu ${target}s (${Math.round(
+                budget.coverageRatio * 100
+            )}%) — giữ nguyên, không chèn khoảng lặng.`,
             84
         );
     }
@@ -781,11 +822,6 @@ export async function synthesizeAudio(options: AudioSynthesisOptions): Promise<A
     const fullVoicePath = join(outputDir, "full_voice.mp3");
 
     const concatFiles: string[] = script.scenes.map((s) => audioFiles[s.id]);
-    if (padding.applied && padding.tailGapSec > 0.01) {
-        const tailGapPath = join(audioDir, "tail__gap.mp3");
-        await generateSilence(tailGapPath, padding.tailGapSec);
-        concatFiles.push(tailGapPath);
-    }
 
     await withRetry(
         () => concatAudios(concatFiles, fullVoicePath),
