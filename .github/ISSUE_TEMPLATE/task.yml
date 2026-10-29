@@ -1,0 +1,76 @@
+name: Task / Issue
+description: Issue phải tái hiện được và có acceptance đo được. Thiếu mục bắt buộc thì không nhận.
+title: "[area] "body:
+  - type: markdown
+    attributes:
+      value: |
+        Trước khi tạo issue, đọc `CONTRIBUTING.md` và kiểm tra lại các claim trong code
+        tại đúng commit bạn đang chạy. Issue không có repro + test fail sẽ bị đóng.
+
+  - type: textarea
+    id: problem
+    attributes:
+      label: Vấn đề / mục tiêu
+      description: Mô tả hành vi hiện tại và hành vi mong muốn. Nêu rõ đây là bug, thiếu tính năng, hay nợ kỹ thuật.
+      placeholder: "Hiện tại... Mong muốn..."
+    validations:
+      required: true
+
+  - type: input
+    id: repro
+    attributes:
+      label: Job/script tái hiện
+      description: Job ID, link file script JSON, brief, hoặc các bước tối thiểu để tái hiện. Không chấp nhận "video mẫu" chung chung.
+      placeholder: "job_id=... / script=... / brief=..."
+    validations:
+      required: true
+
+  - type: input
+    id: commit
+    attributes:
+      label: Commit SHA đã kiểm chứng
+      description: Commit mà bạn thực sự đọc code/chạy repro. Line number sẽ lệch, tên hàm + SHA thì không.
+      placeholder: "951052f"
+    validations:
+      required: true
+
+  - type: textarea
+    id: failing-test
+    attributes:
+      label: Test/fixture đang fail
+      description: Tên test, lệnh chạy, hoặc fixture tối thiểu đang fail. Nếu chưa có test, ghi rõ "chưa có" và mô tả cách đo thủ công.
+      placeholder: |
+        tests/unit/xxx.test.ts
+        hoặc: npm run test:unit -- ...
+    validations:
+      required: true
+
+  - type: textarea
+    id: acceptance
+    attributes:
+      label: Acceptance đo được
+      description: Phải có ngưỡng/con số và cách đo. Không dùng "mượt mà", "chuyên nghiệp", "ổn định hơn".
+      placeholder: |
+        - 10/10 video benchmark không còn ...
+        - Thời gian render tăng <= 20%
+        - QA report có trường ... với giá trị ...
+    validations:
+      required: true
+
+  - type: textarea
+    id: non-goals
+    attributes:
+      label: Non-goals
+      description: Những gì issue này KHÔNG làm, để tránh phình scope.
+      placeholder: "Không bao gồm ... (tách issue riêng)"
+    validations:
+      required: true
+
+  - type: textarea
+    id: context
+    attributes:
+      label: Bối cảnh kỹ thuật / file liên quan
+      description: Tên module/hàm, issue liên quan, rủi ro đã biết (SSRF, license, determinism...).
+      placeholder: "src/pipeline/..., liên quan #..."
+    validations:
+      required: false
