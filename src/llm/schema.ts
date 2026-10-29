@@ -64,6 +64,8 @@ export const sceneSchema = z.object({
         })
         .optional(),
     subject: z.string().optional(),
+    /** Từ khoá tìm ảnh stock thật (Pixabay) cho scene — hệ thống điền vào {{SCENE_IMAGE}} */
+    footageQuery: z.string().max(120).optional(),
     characterActions: z.array(characterActionItemSchema).optional(),
 });
 
