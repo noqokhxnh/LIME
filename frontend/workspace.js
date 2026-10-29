@@ -367,6 +367,7 @@ const project = { scenes: [], durationSec: 15, topic: '', jobId: null, resolutio
 const promptInput = document.getElementById('prompt-input');
 const promptCharCount = document.getElementById('prompt-char-count');
 const durationInput = document.getElementById('duration-input');
+const tempoSelect = document.getElementById('tempo-select');
 const voiceSelect = document.getElementById('voice-select');
 const primaryBtn = document.getElementById('btn-primary');
 const btnSpinner = document.getElementById('btn-spinner');
@@ -872,6 +873,7 @@ function buildBasePayload(prompt) {
         targetDurationSec,
         language: 'vi',
         style: activeStyle,
+        tempo: tempoSelect ? tempoSelect.value : 'auto',
         ttsProvider: providerForVoice(voice),
         voice,
     };

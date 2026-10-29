@@ -9,6 +9,14 @@ import {
     checkRhythm,
 } from '../llm/schema.js';
 import {
+    type Tempo,
+    type TempoBudgetDeviation,
+    type BeatAlignment,
+    resolveTempoProfile,
+    measureTempoBudget,
+    measureBeatAlignment,
+} from '../llm/tempo.js';
+import {
     launchPreviewBrowser,
     loadAndPreparePage,
     seekToTimestamp,
@@ -40,6 +48,17 @@ export interface RhythmLegResult {
     ratio?: number;
     nearStillSec?: number;
     reason?: string;
+    /** Tempo đã dùng để chấm (#117). */
+    tempo?: Tempo;
+    /** Ngưỡng thực tế áp dụng — để báo cáo tự giải thích được. */
+    thresholds?: { minRatio: number; minCv: number };
+    /**
+     * Độ lệch so với dải độ dài scene đã khai của tempo. `null` khi tempo không
+     * khai báo dải (auto). Metric dùng để hiệu chuẩn trên nhiều video thật.
+     */
+    budgetDeviation?: TempoBudgetDeviation | null;
+    /** Số scene thật vs số beat dự kiến của story spine. */
+    beatAlignment?: BeatAlignment | null;
 }
 
 export interface ContinuityLegResult {
@@ -136,24 +155,41 @@ export interface OracleQaOptions {
     audioAnalyzer?: (audioPath: string) => Promise<AudioStats>;
     page?: Page;
     hasShutterBlur?: boolean;
+    /** Tempo đã chọn cho video (#117) — mặc định lấy từ script, rồi 'auto'. */
+    tempo?: Tempo;
+    /** Thời lượng mục tiêu — dùng cho metric beat alignment. */
+    targetDurationSec?: number;
 }
 
 /**
- * Leg 1: Rhythm
- * Đo CV của độ dài các shot và tỉ số max/min từ checkRhythm.
- * - Fail nếu CV < 0.3 hoặc ratio < 4.
- * - Warn nếu thiếu đoạn near-still >= 1.5s.
+ * Leg 1: Rhythm (#117)
+ *
+ * Ngưỡng lấy từ profile của `tempo` đã chọn — cùng nguồn với prompt sinh kịch
+ * bản và validate schema. `auto` giữ nguyên 4 / 0.3 nên không regression.
+ *
+ * Ngoài fail cứng theo CV/ratio, leg còn trả hai metric chẩn đoán:
+ *  - `budgetDeviation`: độ lệch so với dải độ dài scene mà tempo đã khai;
+ *  - `beatAlignment`: số scene thật vs số beat story spine dự kiến.
+ * Hai metric này chỉ gây `warn` với tempo khai báo rõ (không phải auto) để
+ * tránh đổi hành vi mặc định khi chưa có baseline ~10 video thật.
  */
 export function checkRhythmLeg(
     scenes: scene[],
-    durations?: Record<string, number>
+    durations?: Record<string, number>,
+    options?: { tempo?: Tempo; targetDurationSec?: number }
 ): RhythmLegResult {
+    const tempo: Tempo = options?.tempo ?? 'auto';
+    const profile = resolveTempoProfile(tempo);
+    const thresholds = { minRatio: profile.minRatio, minCv: profile.minCv };
+
     if (!scenes || scenes.length <= 1) {
         return {
             status: 'pass',
             cv: 0,
             ratio: 1,
             nearStillSec: 0,
+            tempo,
+            thresholds,
         };
     }
 
@@ -162,44 +198,85 @@ export function checkRhythmLeg(
         duration: durations?.[s.id] ?? s.duration ?? 0,
     }));
 
-    const rhythm = checkRhythm(scenesWithDurations);
+    const rhythm = checkRhythm(scenesWithDurations, thresholds);
+    const measuredDurations = scenesWithDurations
+        .map((s) => s.duration)
+        .filter((d) => Number.isFinite(d) && d > 0);
+    const budgetDeviation = measureTempoBudget(measuredDurations, tempo);
+    const totalDuration =
+        options?.targetDurationSec ??
+        measuredDurations.reduce((sum, d) => sum + d, 0);
+    const beatAlignment =
+        totalDuration > 0
+            ? measureBeatAlignment(scenes.length, totalDuration, tempo)
+            : null;
+
+    const roundedCv = Math.round(rhythm.cv * 100) / 100;
+    const roundedRatio = Math.round(rhythm.ratio * 100) / 100;
+    const base = {
+        cv: roundedCv,
+        ratio: roundedRatio,
+        tempo,
+        thresholds,
+        budgetDeviation,
+        beatAlignment,
+    };
 
     const failReasons: string[] = [];
-    if (rhythm.cv < 0.3) {
+    if (rhythm.cv < profile.minCv) {
         failReasons.push(
-            `Hệ số biến thiên độ dài cảnh (CV) là ${rhythm.cv.toFixed(2)} (< 0.3, vi phạm quy tắc chống nhịp điệu đều uniform cadence)`
+            `Hệ số biến thiên độ dài cảnh (CV) là ${rhythm.cv.toFixed(2)} (< ${profile.minCv} cho tempo '${tempo}', vi phạm quy tắc chống nhịp điệu đều uniform cadence)`
         );
     }
-    if (rhythm.ratio < 4) {
+    if (rhythm.ratio < profile.minRatio) {
         failReasons.push(
-            `Tỉ số shot dài nhất / ngắn nhất là ${rhythm.ratio.toFixed(2)} (< 4, thiếu sự tương phản nhịp độ)`
+            `Tỉ số shot dài nhất / ngắn nhất là ${rhythm.ratio.toFixed(2)} (< ${profile.minRatio} cho tempo '${tempo}', thiếu sự tương phản nhịp độ)`
         );
     }
 
     if (failReasons.length > 0) {
         return {
+            ...base,
             status: 'fail',
-            cv: Math.round(rhythm.cv * 100) / 100,
-            ratio: Math.round(rhythm.ratio * 100) / 100,
             nearStillSec: rhythm.hasNearStill ? 1.5 : 0,
             reason: failReasons.join('; '),
         };
     }
 
+    const warnReasons: string[] = [];
     if (!rhythm.hasNearStill) {
+        warnReasons.push(
+            'Kịch bản thiếu khoảng nghỉ tĩnh (near-still >= 1.5s) để người xem tiếp thu nội dung'
+        );
+    }
+
+    // Chỉ cảnh báo ngân sách/beat khi người dùng khai báo tempo rõ ràng — với
+    // `auto` đây mới là metric thu thập baseline, chưa đủ dữ liệu để chấm.
+    if (profile.id !== 'auto') {
+        if (budgetDeviation && budgetDeviation.outOfRangeRatio > 0.5) {
+            warnReasons.push(
+                `Quá nửa số cảnh (${budgetDeviation.outOfRangeScenes}/${measuredDurations.length}) nằm ngoài dải ${budgetDeviation.range.min}–${budgetDeviation.range.max}s của tempo '${tempo}' (lệch trung bình ${budgetDeviation.meanAbsSec}s/cảnh)`
+            );
+        }
+        if (beatAlignment && beatAlignment.score < 0.5) {
+            warnReasons.push(
+                `Số cảnh (${beatAlignment.actualScenes}) lệch xa story spine dự kiến (${beatAlignment.plannedScenes} beat) cho tempo '${tempo}'`
+            );
+        }
+    }
+
+    if (warnReasons.length > 0) {
         return {
+            ...base,
             status: 'warn',
-            cv: Math.round(rhythm.cv * 100) / 100,
-            ratio: Math.round(rhythm.ratio * 100) / 100,
-            nearStillSec: 0,
-            reason: 'Kịch bản thiếu khoảng nghỉ tĩnh (near-still >= 1.5s) để người xem tiếp thu nội dung',
+            nearStillSec: rhythm.hasNearStill ? 1.5 : 0,
+            reason: warnReasons.join('; '),
         };
     }
 
     return {
+        ...base,
         status: 'pass',
-        cv: Math.round(rhythm.cv * 100) / 100,
-        ratio: Math.round(rhythm.ratio * 100) / 100,
         nearStillSec: 1.5,
     };
 }
@@ -875,8 +952,12 @@ export async function runOracleQa(options: OracleQaOptions): Promise<QAReport> {
     const boundaries = script.boundaries || [];
     const durations = audioResult?.scencesDuration || {};
 
-    // 1. Leg 1: Rhythm
-    const rhythmLeg = checkRhythmLeg(scenes, durations);
+    // 1. Leg 1: Rhythm — ngưỡng theo tempo của video (#117)
+    const tempo: Tempo = options.tempo ?? script.tempo ?? 'auto';
+    const rhythmLeg = checkRhythmLeg(scenes, durations, {
+        tempo,
+        targetDurationSec: options.targetDurationSec,
+    });
 
     // Chuẩn bị DOM sampler
     let domSampler = options.domSampler;

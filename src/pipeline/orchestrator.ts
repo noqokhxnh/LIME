@@ -292,6 +292,8 @@ export async function runFullPipeline(option: orchestratorOptions): Promise<full
                     batchDomSampler: option.batchDomSampler,
                     audioAnalyzer: option.audioAnalyzer,
                     hasShutterBlur: option.skipShutterBlur ? false : undefined,
+                    tempo: request.tempo,
+                    targetDurationSec: request.targetDurationSec,
                 });
                 timing["oracle_qa"] = Date.now() - phaseStart;
                 qaStatus = qaReport.qaStatus;

@@ -66,6 +66,7 @@ export const FAST: string[] = [
     'tests/unit/spec_b_deterministic_contract.test.ts',
     'tests/unit/spec_e_event_sound.test.ts',
     'tests/unit/spec_f_procedural_character.test.ts',
+    'tests/unit/tempo.test.ts',
     'tests/unit/support_tickets.test.ts',
     'tests/unit/refund_requests.test.ts',
     'tests/unit/templates.test.ts',

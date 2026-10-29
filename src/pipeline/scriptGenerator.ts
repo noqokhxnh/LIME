@@ -10,7 +10,7 @@ import {
     formatSelectedCatalogPrompt,
     formatStorySpinePrompt,
 } from "../templates/prompt.js";
-import { allocateBeats } from "../templates/storySpine.js";
+import { formatTempoPrompt, plannedSceneCount } from "../llm/tempo.js";
 import { getNominalCaptionBand, type KaraokeConfig } from "./karaoke.js";
 import {
     formatStyleMenuForPrompt,
@@ -112,7 +112,7 @@ export function buildUserPrompt(request: videoRequest, preset: string): string {
     const wordBudget = narrationWordBudget(request.targetDurationSec, request.language, request.ttsProvider);
     const wordTarget = narrationWordTarget(request.targetDurationSec, request.language, request.ttsProvider);
     const wordFloor = narrationWordFloor(request.targetDurationSec, request.language, request.ttsProvider);
-    const sceneCount = Math.max(1, allocateBeats(request.targetDurationSec).length);
+    const sceneCount = Math.max(1, plannedSceneCount(request.targetDurationSec, request.tempo));
     const perSceneWords = Math.max(8, Math.round(wordTarget / sceneCount));
 
     // Dải caption (#110): suy từ preset khung hình + cấu hình karaoke, không hard-code 12%.
@@ -143,6 +143,8 @@ ${request.motionBlockIds?.length ? `Motion Blocks: ${request.motionBlockIds.join
 ${styleDetails}
 ${opuscarLayer ? `\n${opuscarLayer}\n` : ''}
 ${storySpine}
+
+${formatTempoPrompt(request.tempo, request.targetDurationSec)}
 
 ${toolkit}
 
@@ -362,6 +364,9 @@ export async function generateScript(
                         parsedData.boundaries = [];
                     }
                 }
+                // Đóng dấu tempo TRƯỚC khi validate (#117): schema dùng đúng profile
+                // tempo để chấm rhythm, nếu không kịch bản 'slow' sẽ bị loại oan.
+                parsedData.tempo = request.tempo;
             }
             const validation = validateScript(parsedData);
             if (!validation.valid || !validation.data) {
