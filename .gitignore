@@ -5,6 +5,7 @@ tmp/
 __pycache__/
 *.pyc
 *.mp4
+!frontend/hero.mp4
 *.mp3
 *.wav
 !assets/audio/**
