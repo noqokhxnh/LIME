@@ -34,7 +34,7 @@ export async function syncSepayTransactions(): Promise<{ processed: number; matc
         const url = 'https://my.sepay.vn/userapi/transactions/list?limit=50';
         const res = await fetch(url, {
             headers: {
-                Authorization: `Apikey ${config.SEPAY_API_KEY}`,
+                Authorization: `Bearer ${config.SEPAY_API_KEY}`,
                 'Content-Type': 'application/json',
             },
         });
