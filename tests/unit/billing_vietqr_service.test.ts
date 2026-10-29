@@ -11,6 +11,7 @@ import assert from 'node:assert/strict';
 import { randomUUID } from 'node:crypto';
 import { vietQrBillingService } from '../../src/billing/vietqrService.js';
 import { billingStorage } from '../../src/billing/storage.js';
+import { cycleAmount, resolveCycleEntitlement, yearlyMonthlyPrice } from '../../src/billing/pricing.js';
 import { initDatabase, db } from '../../src/database/index.js';
 import { getConfig } from '../../src/config.js';
 import type { Order, Plan } from '../../src/billing/types.js';
@@ -120,6 +121,56 @@ describe('VietQrBillingService — các nhánh nghiệp vụ', () => {
                 () => vietQrBillingService.createOrder(USER_A, 'pro'),
                 /PLAN_INACTIVE/,
             );
+        });
+    });
+
+    describe('giá gói năm (billing cycle)', () => {
+        it('giá tháng khi trả năm = giảm 20% và làm tròn nghìn đồng', () => {
+            assert.equal(yearlyMonthlyPrice(99000), 79000);
+            assert.equal(yearlyMonthlyPrice(149000), 119000);
+            assert.equal(yearlyMonthlyPrice(499000), 399000);
+            assert.equal(cycleAmount(99000, 'month'), 99000);
+            assert.equal(cycleAmount(99000, 'year'), 948000);
+            assert.equal(cycleAmount(499000, 'year'), 4788000);
+        });
+
+        it('gói năm cộng 365 ngày và quota gấp 12 lần gói tháng', () => {
+            const entitlement = resolveCycleEntitlement(
+                fakePlan({ price_vnd: 99000, quota_video: 150, days: 30 }),
+                'year',
+            );
+            assert.deepEqual(entitlement, { amount: 948000, days: 365, quota: 1800 });
+        });
+
+        it('createOrder(cycle=year) tạo đơn đúng giá năm và lưu cycle vào đơn', async () => {
+            mock.method(billingStorage, 'getPlanById', async () => fakePlan({ price_vnd: 99000 }));
+            const order = await vietQrBillingService.createOrder(USER_B, 'pro', 'year');
+
+            assert.equal(order.cycle, 'year');
+            assert.equal(order.amount_vnd, 948000);
+            assert.ok(order.qr_content.includes('948000'), 'QR phải mã hoá số tiền gói năm');
+
+            const stored = await billingStorage.findOrderById(order.order_id);
+            assert.equal(stored?.cycle, 'year');
+            assert.equal(stored?.amount_vnd, 948000);
+        });
+
+        it('thanh toán đơn gói năm ⇒ kích hoạt 365 ngày (không phải 30)', async () => {
+            mock.method(billingStorage, 'getPlanById', async () => fakePlan({ price_vnd: 99000, days: 30 }));
+            const order = await vietQrBillingService.createOrder(USER_B, 'pro', 'year');
+
+            const result = await vietQrBillingService.processWebhook({
+                id: uniqueRef('SEPAY-YEAR'),
+                transfer_type: 'in',
+                transfer_amount: 948000,
+                content: `THANH TOAN ${order.pay_code}`,
+            });
+            assert.equal(result.result, 'matched');
+
+            const expiry = await billingStorage.getUserPlanExpiry(USER_B);
+            assert.ok(expiry, 'phải có hạn gói sau thanh toán');
+            const days = (new Date(expiry).getTime() - Date.now()) / (24 * 60 * 60 * 1000);
+            assert.ok(days > 360, `hạn gói phải ~365 ngày, nhận ${days.toFixed(1)} ngày`);
         });
     });
 

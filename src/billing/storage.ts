@@ -3,6 +3,7 @@ import { existsSync, readFileSync, writeFileSync, mkdirSync, unlinkSync } from '
 import { join } from 'node:path';
 import { db } from '../database/index.js';
 import { getConfig } from '../config.js';
+import { normalizeCycle } from './pricing.js';
 import type {
     Plan,
     Order,
@@ -39,7 +40,7 @@ export const DEFAULT_PLANS: Plan[] = [
     {
         id: 'pro',
         name: 'Gói Pro',
-        price_vnd: 249000,
+        price_vnd: 99000,
         quota_video: 150,
         days: 30,
         is_active: true,
@@ -98,7 +99,6 @@ export interface IBillingStorage {
     getPlans(): Promise<Plan[]>;
     getPlanById(id: string): Promise<Plan | null>;
     createOrder(order: Omit<Order, 'id' | 'created_at'>): Promise<Order>;
-    replaceActiveOrder(order: Omit<Order, 'id' | 'created_at'>): Promise<Order>;
     findOrderById(id: string): Promise<Order | null>;
     findOrderByPayCode(payCode: string): Promise<Order | null>;
     findPendingOrderByUserId(userId: string): Promise<Order | null>;
@@ -203,41 +203,13 @@ export class PostgresBillingStorage implements IBillingStorage {
     async createOrder(order: Omit<Order, 'id' | 'created_at'>): Promise<Order> {
         const id = randomUUID();
         const res = await db.query(
-            `INSERT INTO orders (id, user_id, plan_id, amount_vnd, pay_code, status, expires_at)
-             VALUES ($1, $2, $3, $4, $5, $6, $7)
+            `INSERT INTO orders (id, user_id, plan_id, cycle, amount_vnd, pay_code, status, expires_at)
+             VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
              RETURNING *`,
-            [id, order.user_id, order.plan_id, order.amount_vnd, order.pay_code, order.status, order.expires_at]
+            [id, order.user_id, order.plan_id, normalizeCycle(order.cycle), order.amount_vnd, order.pay_code, order.status, order.expires_at]
         );
         const r = res.rows[0];
         return this.mapOrder(r);
-    }
-
-    async replaceActiveOrder(order: Omit<Order, 'id' | 'created_at'>): Promise<Order> {
-        const client = await db.connect();
-        try {
-            await client.query('BEGIN');
-            // Khoá cố vấn theo user: hai lần tạo đơn đồng thời cho cùng một
-            // user phải xếp hàng nhau, không cùng huỷ-rồi-chèn song song.
-            await client.query('SELECT pg_advisory_xact_lock(hashtext($1))', [order.user_id]);
-            await client.query(
-                `UPDATE orders SET status = 'cancelled' WHERE user_id = $1 AND status IN ('pending', 'claimed')`,
-                [order.user_id]
-            );
-            const id = randomUUID();
-            const res = await client.query(
-                `INSERT INTO orders (id, user_id, plan_id, amount_vnd, pay_code, status, expires_at)
-                 VALUES ($1, $2, $3, $4, $5, $6, $7)
-                 RETURNING *`,
-                [id, order.user_id, order.plan_id, order.amount_vnd, order.pay_code, order.status, order.expires_at]
-            );
-            await client.query('COMMIT');
-            return this.mapOrder(res.rows[0]);
-        } catch (err) {
-            await client.query('ROLLBACK');
-            throw err;
-        } finally {
-            client.release();
-        }
     }
 
     async findOrderById(id: string): Promise<Order | null> {
@@ -974,6 +946,7 @@ export class PostgresBillingStorage implements IBillingStorage {
             id: r.id,
             user_id: r.user_id,
             plan_id: r.plan_id,
+            cycle: normalizeCycle(r.cycle),
             amount_vnd: r.amount_vnd,
             pay_code: r.pay_code,
             status: r.status,
@@ -1038,7 +1011,11 @@ export class InMemoryBillingStorage implements IBillingStorage {
             if (existsSync(this.filePath)) {
                 const data = JSON.parse(readFileSync(this.filePath, 'utf-8'));
                 if (data.orders) {
-                    for (const o of data.orders) this.orders.set(o.id, o);
+                    for (const o of data.orders) {
+                        // Dữ liệu cũ (trước khi có gói năm) không có `cycle`.
+                        o.cycle = normalizeCycle(o.cycle);
+                        this.orders.set(o.id, o);
+                    }
                 }
                 if (data.payments) {
                     for (const p of data.payments) this.payments.set(p.id, p);
@@ -1097,24 +1074,6 @@ export class InMemoryBillingStorage implements IBillingStorage {
             created_at: new Date().toISOString(),
         };
         this.orders.set(id, created);
-        this.saveToDisk();
-        return created;
-    }
-
-    async replaceActiveOrder(order: Omit<Order, 'id' | 'created_at'>): Promise<Order> {
-        // Một thao tác đồng bộ trọn vẹn (không await ở giữa) nên không có
-        // khe cho request khác chen vào giữa bước huỷ và bước tạo.
-        for (const o of this.orders.values()) {
-            if (o.user_id === order.user_id && (o.status === 'pending' || o.status === 'claimed')) {
-                o.status = 'cancelled';
-            }
-        }
-        const created: Order = {
-            ...order,
-            id: randomUUID(),
-            created_at: new Date().toISOString(),
-        };
-        this.orders.set(created.id, created);
         this.saveToDisk();
         return created;
     }

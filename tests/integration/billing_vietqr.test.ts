@@ -135,7 +135,7 @@ describe('VietQR & SePay Billing Test Suite', () => {
             id: 10002,
             reference_code: refCode,
             transfer_type: 'in',
-            transfer_amount: 249000,
+            transfer_amount: orderRes.amount_vnd,
             content: `THANH TOAN ${orderRes.pay_code}`,
         };
 
@@ -158,7 +158,7 @@ describe('VietQR & SePay Billing Test Suite', () => {
             id: 10003,
             reference_code: 'FT2628710003A',
             transfer_type: 'in',
-            transfer_amount: 249000,
+            transfer_amount: orderRes.amount_vnd,
             content: `TIEN VAO ${orderRes.pay_code}`,
         });
 
@@ -167,7 +167,7 @@ describe('VietQR & SePay Billing Test Suite', () => {
             id: 10004,
             reference_code: 'FT2628710003B',
             transfer_type: 'in',
-            transfer_amount: 249000,
+            transfer_amount: orderRes.amount_vnd,
             content: `CHUYEN NHAM LAN 2 ${orderRes.pay_code}`,
         });
 
@@ -408,7 +408,7 @@ describe('VietQR & SePay Billing Test Suite', () => {
             reference_code: '', // Empty bank ref
             referenceCode: null,
             transfer_type: 'in',
-            transfer_amount: 149000,
+            transfer_amount: orderA.amount_vnd,
             content: `THANH TOAN ${orderA.pay_code}`,
         };
 
@@ -417,7 +417,7 @@ describe('VietQR & SePay Billing Test Suite', () => {
             reference_code: '', // Also empty bank ref!
             referenceCode: null,
             transfer_type: 'in',
-            transfer_amount: 249000,
+            transfer_amount: orderB.amount_vnd,
             content: `THANH TOAN ${orderB.pay_code}`,
         };
 

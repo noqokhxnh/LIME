@@ -14,25 +14,34 @@
         template: 'compact2',
     };
 
-    // Plan pricing details
+    // Plan pricing details — giá THÁNG là nguồn duy nhất; giá năm suy ra theo
+    // cùng công thức với backend (giảm 20%, làm tròn nghìn đồng, ×12 tháng).
     const PLAN_PRICES = {
         pro: {
             name: 'Gói Pro',
             monthly: 99000,
-            yearly: 948000, // 79k/tháng x 12
-            monthlyLabel: '99.000 đ',
-            yearlyLabel: '948.000 đ',
             features: '200 token / tháng · Giọng đọc đa dạng · Brand kit & Chèn watermark riêng',
         },
         max: {
             name: 'Gói Max',
             monthly: 499000,
-            yearly: 4788000, // 399k/tháng x 12
-            monthlyLabel: '499.000 đ',
-            yearlyLabel: '4.788.000 đ',
             features: 'Mở khoá toàn bộ giới hạn · Không giới hạn token · Chèn watermark riêng & 4K Turbo',
         }
     };
+
+    const YEARLY_DISCOUNT = 0.2;
+    const YEARLY_MONTHS = 12;
+
+    /** Giá/tháng khi trả trọn năm (khớp `yearlyMonthlyPrice` ở backend). */
+    function yearlyMonthlyPrice(monthlyPrice) {
+        return Math.max(1000, Math.round((monthlyPrice * (1 - YEARLY_DISCOUNT)) / 1000) * 1000);
+    }
+
+    /** Số tiền tạm tính ở client trước khi backend chốt đơn (backend luôn là nguồn đúng). */
+    function estimatedAmount(planId, cycle) {
+        const plan = PLAN_PRICES[planId] || PLAN_PRICES.pro;
+        return cycle === 'year' ? yearlyMonthlyPrice(plan.monthly) * YEARLY_MONTHS : plan.monthly;
+    }
 
     let currentOrder = {
         id: '',
@@ -43,6 +52,7 @@
         expireAt: 0,
         timerInterval: null,
         pollInterval: null,
+        requestSeq: 0,
     };
 
     function getModal() {
@@ -138,21 +148,29 @@
         currentOrder.timerInterval = setInterval(updateTick, 1000);
     }
 
-    function switchCycle(cycle) {
-        currentOrder.cycle = cycle;
-        const plan = PLAN_PRICES[currentOrder.plan] || PLAN_PRICES.pro;
-        currentOrder.amount = (cycle === 'year') ? plan.yearly : plan.monthly;
+    function switchCycle(cycle, options = {}) {
+        const normalized = cycle === 'year' ? 'year' : 'month';
+        const changed = currentOrder.cycle !== normalized;
+        currentOrder.cycle = normalized;
+        currentOrder.amount = estimatedAmount(currentOrder.plan, normalized);
 
+        const plan = PLAN_PRICES[currentOrder.plan] || PLAN_PRICES.pro;
         const planMetaTitle = document.querySelector('.vietqr-plan-meta h3');
         const planMetaDesc = document.querySelector('.vietqr-plan-meta p');
         if (planMetaTitle) planMetaTitle.textContent = plan.name;
         if (planMetaDesc) planMetaDesc.textContent = plan.features;
 
         document.querySelectorAll('.vietqr-cycle-btn').forEach(btn => {
-            btn.classList.toggle('active', btn.getAttribute('data-cycle') === cycle);
+            btn.classList.toggle('active', btn.getAttribute('data-cycle') === normalized);
         });
 
         updateQRDisplay();
+
+        // Đổi chu kỳ = mua gói khác ⇒ phải tạo lại đơn ở backend để số tiền
+        // trên QR khớp đúng `amount_vnd` mà webhook sẽ đối soát.
+        if (!options.silent && (changed || !currentOrder.id)) {
+            syncOrder().catch((e) => console.warn('[VietQR] syncOrder error:', e));
+        }
     }
 
     function copyToClipboard(text, btnEl) {
@@ -177,13 +195,13 @@
         });
     }
 
-    async function requestBackendOrder(planId) {
+    async function requestBackendOrder(planId, cycle) {
         try {
             const res = await fetch('/api/billing/vietqr/order', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 credentials: 'include',
-                body: JSON.stringify({ plan_id: planId }),
+                body: JSON.stringify({ plan_id: planId, cycle: cycle === 'year' ? 'year' : 'month' }),
             });
 
             if (res.status === 401) {
@@ -262,6 +280,49 @@
         clearInterval(currentOrder.timerInterval);
     }
 
+    /**
+     * Tạo/đổi đơn ở backend cho (gói, chu kỳ) hiện tại rồi vẽ lại QR + số tiền.
+     * Chỉ phản hồi của lần gọi MỚI NHẤT được áp dụng (`requestSeq`) để tránh
+     * người dùng bấm "Năm/Tháng" liên tục làm số tiền nhảy về đơn cũ.
+     */
+    async function syncOrder() {
+        const seq = ++currentOrder.requestSeq;
+        const backendOrder = await requestBackendOrder(currentOrder.plan, currentOrder.cycle);
+        if (seq !== currentOrder.requestSeq) return;
+        if (!backendOrder) return; // Giữ số tiền tạm tính; modal vẫn dùng được offline
+
+        currentOrder.id = backendOrder.order_id;
+        currentOrder.code = backendOrder.pay_code;
+        currentOrder.amount = backendOrder.amount_vnd;
+        if (backendOrder.cycle === 'year' || backendOrder.cycle === 'month') {
+            currentOrder.cycle = backendOrder.cycle;
+        }
+
+        if (backendOrder.bank_account) {
+            BANK_CONFIG.accountNo = backendOrder.bank_account;
+        }
+        if (backendOrder.bank_code) {
+            BANK_CONFIG.bankId = backendOrder.bank_code;
+        }
+
+        // Sync countdown timer with server expires_at
+        if (backendOrder.expires_at) {
+            const remainSec = Math.max(60, Math.floor((new Date(backendOrder.expires_at).getTime() - Date.now()) / 1000));
+            startTimer(remainSec);
+        }
+
+        updateQRDisplay();
+
+        // Override QR image if backend provides direct URL
+        const qrImg = document.getElementById('vietqr-img');
+        if (qrImg && backendOrder.qr_image) {
+            qrImg.src = backendOrder.qr_image;
+        }
+
+        // Start polling every 3s
+        startPollingStatus(backendOrder.order_id);
+    }
+
     async function openModal(options = {}) {
         const modal = getModal();
         if (!modal) return;
@@ -282,46 +343,20 @@
         // Initialize state
         currentOrder.plan = (options.plan === 'max') ? 'max' : 'pro';
         currentOrder.code = options.code || generateOrderCode();
-        const initialCycle = options.cycle || (document.querySelector('.bill-toggle span.on')?.getAttribute('data-period') === 'year' ? 'year' : 'month');
+        currentOrder.id = '';
+        const landingCycle = document.querySelector('.bill-toggle span.on')?.getAttribute('data-period');
+        const initialCycle = options.cycle || (landingCycle === 'year' ? 'year' : 'month');
 
-        switchCycle(initialCycle);
+        switchCycle(initialCycle, { silent: true });
         startTimer(900); // Default 15 mins
 
         modal.classList.add('show');
         modal.setAttribute('aria-hidden', 'false');
         document.body.style.overflow = 'hidden';
 
-        // Connect with backend API
-        const backendOrder = await requestBackendOrder(currentOrder.plan);
-        if (backendOrder) {
-            currentOrder.id = backendOrder.order_id;
-            currentOrder.code = backendOrder.pay_code;
-            currentOrder.amount = backendOrder.amount_vnd;
-
-            if (backendOrder.bank_account) {
-                BANK_CONFIG.accountNo = backendOrder.bank_account;
-            }
-            if (backendOrder.bank_code) {
-                BANK_CONFIG.bankId = backendOrder.bank_code;
-            }
-
-            // Sync countdown timer with server expires_at
-            if (backendOrder.expires_at) {
-                const remainSec = Math.max(60, Math.floor((new Date(backendOrder.expires_at).getTime() - Date.now()) / 1000));
-                startTimer(remainSec);
-            }
-
-            updateQRDisplay();
-
-            // Override QR image if backend provides direct URL
-            const qrImg = document.getElementById('vietqr-img');
-            if (qrImg && backendOrder.qr_image) {
-                qrImg.src = backendOrder.qr_image;
-            }
-
-            // Start polling every 3s
-            startPollingStatus(backendOrder.order_id);
-        }
+        // Connect with backend API (backend chốt số tiền cuối cùng cho chu kỳ đã chọn)
+        stopPollingStatus();
+        await syncOrder();
     }
 
     function closeModal() {
@@ -329,6 +364,8 @@
         if (!modal) return;
         modal.classList.remove('show');
         modal.setAttribute('aria-hidden', 'true');
+        // Huỷ các phản hồi syncOrder còn đang bay để chúng không bật lại timer/polling.
+        currentOrder.requestSeq++;
         clearInterval(currentOrder.timerInterval);
         stopPollingStatus();
         document.body.style.overflow = '';

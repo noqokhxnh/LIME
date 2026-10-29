@@ -10,10 +10,18 @@ export interface Plan {
 
 export type OrderStatus = 'pending' | 'claimed' | 'paid' | 'expired' | 'cancelled';
 
+/**
+ * Chu kỳ thanh toán của đơn:
+ *  - `month`: trả theo tháng (đúng giá niêm yết `plans.price_vnd`);
+ *  - `year` : trả trọn 12 tháng, hưởng chiết khấu 20% (làm tròn nghìn đồng).
+ */
+export type BillingCycle = 'month' | 'year';
+
 export interface Order {
     id: string;
     user_id: string;
     plan_id: string;
+    cycle: BillingCycle;
     amount_vnd: number;
     pay_code: string;
     status: OrderStatus;
@@ -167,11 +175,14 @@ export interface SimulateWebhookRequest {
 
 export interface CreateOrderRequest {
     plan_id: string;
+    /** Mặc định `month` khi client cũ không gửi. */
+    cycle?: BillingCycle;
 }
 
 export interface CreateOrderResponse {
     order_id: string;
     pay_code: string;
+    cycle: BillingCycle;
     amount_vnd: number;
     qr_content: string;
     qr_image: string;
@@ -183,6 +194,7 @@ export interface CreateOrderResponse {
 
 export interface OrderStatusResponse {
     status: OrderStatus;
+    cycle?: BillingCycle;
     amount_vnd: number;
     pay_code: string;
     expires_at: string;

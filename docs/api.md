@@ -932,8 +932,9 @@ Returns available subscription plans (`creator`, `pro`, `max`).
 
 ### `POST /api/billing/vietqr/order` 🔒
 Creates a VietQR order for the authenticated user (enforcing 1 active pending order per user).
-- **Body**: `{ "plan_id": "creator" }`
-- **Response**: `{ order_id, pay_code, amount_vnd, qr_content, qr_image, expires_at, bank_account, bank_code, bank_name }`
+- **Body**: `{ "plan_id": "pro", "cycle": "month" }` — `cycle` (`month` | `year`) tuỳ chọn, mặc định `month`.
+  - `year`: trả trọn 12 tháng, giảm 20% so với giá tháng (làm tròn nghìn đồng) ⇒ Pro 99.000 đ/tháng ⇒ **948.000 đ/năm**; kích hoạt **365 ngày**, quota gói × 12.
+- **Response**: `{ order_id, pay_code, cycle, amount_vnd, qr_content, qr_image, expires_at, bank_account, bank_code, bank_name }`
 
 ### `GET /api/billing/vietqr/order/:id` 🔒
 Polls the order status (`pending` | `claimed` | `paid` | `expired` | `cancelled`).

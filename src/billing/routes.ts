@@ -10,12 +10,15 @@ import { helpdeskStore } from '../helpdesk/store.js';
 import { userStore } from '../admin/userStore.js';
 
 import { vietQrBillingService } from './vietqrService.js';
+import { normalizeCycle } from './pricing.js';
 import { getBillingWebhookQueue } from './queue.js';
 import { SEPAY_OFFICIAL_IPS } from './constants.js';
 import type { SePayWebhookPayload } from './types.js';
 
 const createOrderSchema = z.object({
     plan_id: z.string().min(1),
+    // Mặc định `month` để client cũ (không gửi cycle) giữ nguyên hành vi.
+    cycle: z.enum(['month', 'year']).optional(),
 });
 
 export function verifyApiKey(authHeader?: string, expectedKey?: string): boolean {
@@ -245,7 +248,7 @@ export async function billingRoutes(app: FastifyInstance): Promise<void> {
         }
 
         try {
-            const orderRes = await vietQrBillingService.createOrder(user.id, parsed.data.plan_id);
+            const orderRes = await vietQrBillingService.createOrder(user.id, parsed.data.plan_id, parsed.data.cycle);
             return reply.status(200).send(orderRes);
         } catch (err: any) {
             if (err.message === 'PLAN_NOT_FOUND') {
@@ -270,7 +273,7 @@ export async function billingRoutes(app: FastifyInstance): Promise<void> {
             return reply.status(400).send({ error: 'MISSING_PLAN_ID' });
         }
         try {
-            const orderRes = await vietQrBillingService.createOrder(user.id, planId);
+            const orderRes = await vietQrBillingService.createOrder(user.id, planId, normalizeCycle(body.cycle));
             return reply.status(200).send({ success: true, order: orderRes });
         } catch (err: any) {
             return reply.status(400).send({ error: err.message });
@@ -417,7 +420,14 @@ export async function billingRoutes(app: FastifyInstance): Promise<void> {
 
         const body = (request.body as any) || {};
         const payCode = body.pay_code;
-        const amount = Number(body.amount_vnd || 149000);
+        // Không truyền số tiền ⇒ lấy đúng số tiền của đơn (gói tháng/năm khác nhau),
+        // tránh admin "Gửi thử" đơn gói năm mà bị chuyển thành underpaid.
+        let amount = Number(body.amount_vnd || 0);
+        if (!amount && payCode) {
+            const order = await billingStorage.findOrderByPayCode(payCode).catch(() => null);
+            amount = order ? order.amount_vnd : 0;
+        }
+        if (!amount) amount = 149000;
         const testId = body.id || Math.floor(100000 + Math.random() * 900000);
         const refCode = body.reference_code || `SIM_${Date.now()}`;
         const content = body.content || (payCode ? `CHUYEN TIEN ${payCode}` : 'SIMULATION TEST WITHOUT CODE');

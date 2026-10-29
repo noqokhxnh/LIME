@@ -2,7 +2,9 @@ import { randomBytes } from 'node:crypto';
 import { getConfig } from '../config.js';
 import { billingStorage } from './storage.js';
 import { generateNapasQrString, generateQrImageUrl, getBankBin } from './napas.js';
+import { normalizeCycle, resolveCycleEntitlement } from './pricing.js';
 import type {
+    BillingCycle,
     CreateOrderResponse,
     OrderStatusResponse,
     SePayWebhookPayload,
@@ -34,8 +36,10 @@ export class VietQrBillingService {
     /**
      * Creates a new VietQR billing order for a user.
      * Enforces the 1 pending order per user rule.
+     *
+     * @param cycle `month` (giá tháng) hoặc `year` (trả trọn năm, -20%).
      */
-    async createOrder(userId: string, planId: string): Promise<CreateOrderResponse> {
+    async createOrder(userId: string, planId: string, cycle: BillingCycle = 'month'): Promise<CreateOrderResponse> {
         const config = getConfig();
         const plan = await billingStorage.getPlanById(planId);
         if (!plan) {
@@ -45,17 +49,22 @@ export class VietQrBillingService {
             throw new Error('PLAN_INACTIVE');
         }
 
+        const normalizedCycle = normalizeCycle(cycle);
+        const entitlement = resolveCycleEntitlement(plan, normalizedCycle);
+
         const payCode = await this.generateUniquePayCode(config.PAY_CODE_PREFIX || 'LIME');
         const ttlMinutes = config.ORDER_TTL_MINUTES || 15;
         const expiresAt = new Date(Date.now() + ttlMinutes * 60 * 1000).toISOString();
 
-        // Huỷ đơn active cũ + tạo đơn mới trong MỘT thao tác nguyên tử của
-        // storage (replaceActiveOrder): trước đây là hai lệnh rời nhau, hai
-        // request đồng thời có thể cùng lọt qua và để lại hai đơn active.
-        const order = await billingStorage.replaceActiveOrder({
+        // Tạo đơn mới, KHÔNG huỷ các đơn pending/claimed cũ của user:
+        // đơn cũ sống tới hết hạn (ORDER_TTL_MINUTES) để user đã kịp quét
+        // mã cũ và đang chuyển khoản vẫn được webhook khớp theo pay_code.
+        // Đơn hiển thị cho user là đơn mới nhất (findPendingOrderByUserId).
+        const order = await billingStorage.createOrder({
             user_id: userId,
             plan_id: plan.id,
-            amount_vnd: plan.price_vnd,
+            cycle: normalizedCycle,
+            amount_vnd: entitlement.amount,
             pay_code: payCode,
             status: 'pending',
             expires_at: expiresAt,
@@ -67,14 +76,14 @@ export class VietQrBillingService {
         const qrContent = generateNapasQrString({
             bankBin,
             bankAccount: config.BANK_ACCOUNT || '0982618707',
-            amount: plan.price_vnd,
+            amount: entitlement.amount,
             memo: payCode,
         });
 
         const qrImage = generateQrImageUrl({
             bankCode: config.BANK_CODE || 'MB',
             bankAccount: config.BANK_ACCOUNT || '0982618707',
-            amount: plan.price_vnd,
+            amount: entitlement.amount,
             memo: payCode,
             accountName: config.BANK_ACCOUNT_NAME,
         });
@@ -82,7 +91,8 @@ export class VietQrBillingService {
         return {
             order_id: order.id,
             pay_code: payCode,
-            amount_vnd: plan.price_vnd,
+            cycle: normalizedCycle,
+            amount_vnd: entitlement.amount,
             qr_content: qrContent,
             qr_image: qrImage,
             expires_at: expiresAt,
@@ -108,6 +118,7 @@ export class VietQrBillingService {
 
         return {
             status: order.status,
+            cycle: normalizeCycle(order.cycle),
             amount_vnd: order.amount_vnd,
             pay_code: order.pay_code,
             expires_at: order.expires_at,
@@ -358,8 +369,13 @@ export class VietQrBillingService {
 
         // Matched or Overpaid transfer (amount >= order.amount_vnd)
         const plan = await billingStorage.getPlanById(order.plan_id);
-        const planDays = plan ? plan.days : 30;
-        const quotaVideo = plan ? plan.quota_video : 0;
+        // Quyền lợi chốt theo chu kỳ của đơn (gói năm: 365 ngày, quota × 12),
+        // không phải theo giá tháng hiện tại của gói.
+        const entitlement = plan
+            ? resolveCycleEntitlement(plan, normalizeCycle(order.cycle))
+            : { amount: order.amount_vnd, days: 30, quota: 0 };
+        const planDays = entitlement.days;
+        const quotaVideo = entitlement.quota;
         const paymentResult = amount > order.amount_vnd ? 'overpaid' : 'matched';
 
         const fulfillRes = await billingStorage.lockAndFulfillOrder({

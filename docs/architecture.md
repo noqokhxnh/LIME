@@ -357,7 +357,7 @@ LIME includes an integrated Brand Kit engine for creator branding:
 
 LIME integrates automated banking payment gateway support for the Vietnamese market:
 - **Specification**: Complete technical specification in `docs/dac-ta-thanh-toan-vietqr.pdf`.
-- **Plans**: `creator` (149k VND, 50 videos), `pro` (249k VND, 150 videos), `max` (499k VND, 500 videos).
+- **Plans**: `creator` (149k VND, 50 videos), `pro` (99k VND, 150 videos), `max` (499k VND, 500 videos).
 - **Payment Lifecycle**: `pending` → `claimed` ("Tôi đã chuyển khoản") → `paid` (or `expired`/`cancelled`).
 - **SePay Webhook Integration**: Sub-50ms immediate acknowledgment, queuing background verification into BullMQ (`sepay-webhooks`). HMAC-SHA256 signature verification, anti-replay timestamp validation, and IP allowlist enforcement.
 - **Admin Reconciliation**: Admin portal views for unmatched bank transfers, duplicate payments, manual resolution, and bank refund recording.
