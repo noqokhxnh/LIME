@@ -53,6 +53,7 @@ export const FAST: string[] = [
     'tests/unit/cdp_capture.test.ts',
     'tests/unit/config.test.ts',
     'tests/unit/captionBand.test.ts',
+    'tests/unit/cli.test.ts',
     'tests/unit/duration.test.ts',
     'tests/unit/durationBudget.test.ts',
     'tests/unit/draftVariants.test.ts',
