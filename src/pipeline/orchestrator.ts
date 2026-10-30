@@ -48,6 +48,11 @@ export interface orchestratorOptions {
      * Âm lượng track SFX (Spec E)
      */
     sfxVolume?: number;
+    /**
+     * Biến vi phạm lint GSAP (#41) thành fail thay vì warn-only. Mặc định tắt
+     * trong giai đoạn hiệu chuẩn; env `LIME_GSAP_LINT_STRICT=1` cũng bật.
+     */
+    gsapLintStrict?: boolean;
 }
 
 export interface fullPipelineResult extends pipelineResult {
@@ -294,6 +299,7 @@ export async function runFullPipeline(option: orchestratorOptions): Promise<full
                     hasShutterBlur: option.skipShutterBlur ? false : undefined,
                     tempo: request.tempo,
                     targetDurationSec: request.targetDurationSec,
+                    gsapLintStrict: option.gsapLintStrict,
                 });
                 timing["oracle_qa"] = Date.now() - phaseStart;
                 qaStatus = qaReport.qaStatus;
