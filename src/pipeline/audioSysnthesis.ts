@@ -864,6 +864,9 @@ export async function synthesizeAudio(options: AudioSynthesisOptions): Promise<A
         totalDurationSec,
         mixAudioPath,
         wordTimings: sceneWordTimings,
+        // #107: mang số liệu ngân sách ra khỏi hàm để result/QA report giải thích
+        // được vì sao video ngắn hơn target thay vì bù khoảng lặng.
+        durationBudget: budget,
     };
 }
 

@@ -486,6 +486,19 @@ export interface AudioResult {
     wordTimings?: Record<string, WordTiming[]>,
     sfxPath?: string,
     hasSfx?: boolean,
+    /**
+     * #107: ngân sách thời lượng so với `targetDurationSec` (trần mềm).
+     * Không cảnh nào bị kéo dài và không có khoảng lặng cuối — caller đọc
+     * `deficitSec` / `coverageRatio` để báo cho user biết video ngắn hơn mục tiêu.
+     */
+    durationBudget?: {
+        actualTotalSec: number;
+        targetSec: number;
+        deficitSec: number;
+        coverageRatio: number;
+        status: 'ok' | 'short' | 'over' | 'invalid';
+        warning?: string;
+    },
     loudness?: {
         integratedLufs: number;
         truePeakDbtp: number;
