@@ -54,6 +54,7 @@ export const FAST: string[] = [
     'tests/unit/config.test.ts',
     'tests/unit/captionBand.test.ts',
     'tests/unit/cli.test.ts',
+    'tests/unit/composition.test.ts',
     'tests/unit/duration.test.ts',
     'tests/unit/durationBudget.test.ts',
     'tests/unit/draftVariants.test.ts',

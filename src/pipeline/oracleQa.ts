@@ -86,6 +86,13 @@ export interface FramingLegResult {
 export interface CaptionContentElement {
     label: string;
     box: DOMBox;
+    /**
+     * Đường dẫn tương đối trong cây DOM của scene (vd `0/2/1`) — dùng để bỏ qua
+     * cặp phần tử lồng nhau (cha/con) khi đo chồng lấn bố cục (#111).
+     */
+    path?: string;
+    /** Loại phần tử: chữ (text) hay media/control (img, svg, video...). */
+    kind?: 'text' | 'media';
 }
 
 /**
@@ -158,6 +165,7 @@ export interface QAReport {
         curves: CurvesLegResult;
         framing: FramingLegResult;
         caption: CaptionLegResult;
+        composition: CompositionLegResult;
         audio: AudioLegResult;
         code: CodeLintLegResult;
     };
@@ -179,6 +187,11 @@ export interface OracleQaOptions {
     batchDomSampler?: BatchDOMSampler;
     /** Lấy bbox thật của caption + phần tử nội dung tại thời điểm t (issue #110). */
     captionSampler?: CaptionBandSampler;
+    /**
+     * Lấy phần tử nội dung của scene để đo bố cục (#111). Mặc định dùng chung
+     * `captionSampler` — sampler này trả phần tử cả khi scene không có phụ đề.
+     */
+    contentSampler?: CaptionBandSampler;
     audioAnalyzer?: (audioPath: string) => Promise<AudioStats>;
     page?: Page;
     hasShutterBlur?: boolean;
@@ -191,6 +204,8 @@ export interface OracleQaOptions {
      * chuẩn; env `LIME_GSAP_LINT_STRICT=1` cũng bật.
      */
     gsapLintStrict?: boolean;
+    /** Biến vi phạm bố cục (#111) thành fail thay vì warn-only. */
+    compositionStrict?: boolean;
 }
 
 /**
@@ -679,6 +694,313 @@ export async function checkCaptionBandLeg(
 }
 
 /**
+ * Một cặp phần tử chồng lấn (chỉ tính chữ–chữ, đã loại cha/con).
+ */
+export interface CompositionOverlap {
+    a: string;
+    b: string;
+    /** Diện tích giao / diện tích phần tử nhỏ hơn. */
+    ratio: number;
+    timeSec: number;
+}
+
+/**
+ * Điểm bố cục của một scene (#111). Ghi vào QA report để hiệu chuẩn ngưỡng
+ * trước khi bật fail cứng.
+ */
+export interface CompositionSceneScore {
+    sceneId: string;
+    /** Thời điểm lấy mẫu đại diện (giây, toàn video). */
+    sampledAt: number;
+    elementCount: number;
+    /** Diện tích union bbox của nội dung / diện tích khung. */
+    contentCoverage: number;
+    /** Tỉ lệ diện tích nội dung theo 1/3 dọc của khung (0..1). */
+    verticalDistribution: { top: number; middle: number; bottom: number };
+    /** Trọng tâm nội dung, chuẩn hoá 0..1 theo khung. */
+    centroid: { x: number; y: number };
+    maxTextOverlap: number;
+    overlaps: CompositionOverlap[];
+    violations: string[];
+    status: 'pass' | 'warn' | 'fail';
+}
+
+export interface CompositionLegResult {
+    status: 'pass' | 'warn' | 'fail';
+    strict: boolean;
+    thresholds: {
+        minOverlapRatio: number;
+        bottomHeavyRatio: number;
+        minElements: number;
+        minContentCoverage: number;
+    };
+    scenes: CompositionSceneScore[];
+    violations: string[];
+    reason?: string;
+}
+
+export interface CompositionOptions {
+    /** Tỉ lệ giao / diện tích phần tử nhỏ hơn để coi là chồng lấn. Mặc định 0.25. */
+    minOverlapRatio?: number;
+    /** Tỉ lệ diện tích dồn vào 1/3 dưới để coi là dồn đáy. Mặc định 0.6. */
+    bottomHeavyRatio?: number;
+    /** Số phần tử tối thiểu mới chấm dồn đáy. Mặc định 3. */
+    minElements?: number;
+    /** Độ phủ nội dung tối thiểu để chấm dồn đáy (tránh 3 icon tí xíu). Mặc định 0.02. */
+    minContentCoverage?: number;
+    strict?: boolean;
+}
+
+const COMPOSITION_DEFAULTS = {
+    minOverlapRatio: 0.25,
+    bottomHeavyRatio: 0.6,
+    minElements: 3,
+    minContentCoverage: 0.02,
+};
+
+function clipBox(box: DOMBox, width: number, height: number) {
+    const left = Math.max(0, box.left);
+    const top = Math.max(0, box.top);
+    const right = Math.min(width, box.right);
+    const bottom = Math.min(height, box.bottom);
+    return {
+        left,
+        top,
+        right,
+        bottom,
+        width: Math.max(0, right - left),
+        height: Math.max(0, bottom - top),
+    };
+}
+
+function isAncestorPath(a?: string, b?: string): boolean {
+    if (!a || !b || a === b) return false;
+    return b.startsWith(`${a}/`) || a.startsWith(`${b}/`);
+}
+
+/**
+ * Đo bố cục của một scene từ danh sách phần tử nội dung (đã có bbox thật).
+ *
+ * v1 chỉ chấm hai lỗi có thể bảo vệ được bằng số liệu:
+ *  1. Chồng lấn chữ–chữ (bỏ qua cha/con và media, vì text đè lên ảnh/svg là
+ *     chủ ý thiết kế).
+ *  2. Dồn đáy: >= 3 phần tử và >= 60% diện tích nội dung nằm ở 1/3 dưới khung
+ *     (2/3 trên trống) — đúng lỗi của scene 3 video mẫu "Mộc Ca-phê".
+ *
+ * Phân bố dọc và trọng tâm vẫn được trả về để hiệu chuẩn; chưa dùng để chấm vì
+ * các job thật cho thấy bố cục dồn 1/3 trên là chủ ý (poster/9:16).
+ */
+export function measureComposition(
+    sceneId: string,
+    elements: CaptionContentElement[],
+    width: number,
+    height: number,
+    options?: CompositionOptions,
+    timeSec = 0
+): CompositionSceneScore {
+    const cfg = { ...COMPOSITION_DEFAULTS, ...options };
+    const frameArea = Math.max(1, width * height);
+
+    const visible = elements
+        .map((el) => ({ ...el, box: clipBox(el.box, width, height) }))
+        .filter((el) => el.box.width > 0 && el.box.height > 0);
+
+    const violations: string[] = [];
+    const overlaps: CompositionOverlap[] = [];
+    let maxTextOverlap = 0;
+
+    for (let i = 0; i < visible.length; i++) {
+        for (let j = i + 1; j < visible.length; j++) {
+            const a = visible[i];
+            const b = visible[j];
+            if (a.kind === 'media' || b.kind === 'media') continue;
+            if (isAncestorPath(a.path, b.path)) continue;
+
+            const interW = Math.max(0, Math.min(a.box.right, b.box.right) - Math.max(a.box.left, b.box.left));
+            const interH = Math.max(0, Math.min(a.box.bottom, b.box.bottom) - Math.max(a.box.top, b.box.top));
+            const inter = interW * interH;
+            if (inter <= 0) continue;
+
+            const areaA = a.box.width * a.box.height;
+            const areaB = b.box.width * b.box.height;
+            const smaller = Math.min(areaA, areaB);
+            if (smaller < frameArea * 0.002) continue;
+
+            const ratio = inter / smaller;
+            if (ratio < cfg.minOverlapRatio) continue;
+            maxTextOverlap = Math.max(maxTextOverlap, ratio);
+            overlaps.push({ a: a.label, b: b.label, ratio, timeSec });
+            violations.push(
+                `Scene '${sceneId}': '${a.label}' và '${b.label}' chồng lấn ${(ratio * 100).toFixed(0)}% diện tích tại t=${timeSec.toFixed(2)}s`
+            );
+        }
+    }
+
+    // Phân bố dọc + trọng tâm, tính theo diện tích nhìn thấy.
+    const thirds = { top: 0, middle: 0, bottom: 0 };
+    let totalArea = 0;
+    let cx = 0;
+    let cy = 0;
+    let unionLeft = Infinity;
+    let unionTop = Infinity;
+    let unionRight = -Infinity;
+    let unionBottom = -Infinity;
+
+    for (const el of visible) {
+        const area = el.box.width * el.box.height;
+        if (area <= 0) continue;
+        const centerY = (el.box.top + el.box.bottom) / 2 / height;
+        const idx = centerY < 1 / 3 ? 'top' : centerY < 2 / 3 ? 'middle' : 'bottom';
+        thirds[idx] += area;
+        totalArea += area;
+        cx += ((el.box.left + el.box.right) / 2) * area;
+        cy += ((el.box.top + el.box.bottom) / 2) * area;
+        unionLeft = Math.min(unionLeft, el.box.left);
+        unionTop = Math.min(unionTop, el.box.top);
+        unionRight = Math.max(unionRight, el.box.right);
+        unionBottom = Math.max(unionBottom, el.box.bottom);
+    }
+
+    const distribution =
+        totalArea > 0
+            ? {
+                  top: thirds.top / totalArea,
+                  middle: thirds.middle / totalArea,
+                  bottom: thirds.bottom / totalArea,
+              }
+            : { top: 0, middle: 0, bottom: 0 };
+
+    const contentCoverage =
+        totalArea > 0
+            ? ((unionRight - unionLeft) * (unionBottom - unionTop)) / frameArea
+            : 0;
+
+    if (
+        visible.length >= cfg.minElements &&
+        contentCoverage >= cfg.minContentCoverage &&
+        distribution.bottom >= cfg.bottomHeavyRatio &&
+        distribution.top + distribution.middle < 1 - cfg.bottomHeavyRatio + 1e-6
+    ) {
+        violations.push(
+            `Scene '${sceneId}': ${(distribution.bottom * 100).toFixed(0)}% nội dung dồn vào 1/3 dưới khung (2/3 trên trống) — phân bố top/middle/bottom = ${(
+                distribution.top * 100
+            ).toFixed(0)}/${(distribution.middle * 100).toFixed(0)}/${(distribution.bottom * 100).toFixed(0)}%`
+        );
+    }
+
+    return {
+        sceneId,
+        sampledAt: timeSec,
+        elementCount: visible.length,
+        contentCoverage: Math.round(contentCoverage * 1000) / 1000,
+        verticalDistribution: {
+            top: Math.round(distribution.top * 1000) / 1000,
+            middle: Math.round(distribution.middle * 1000) / 1000,
+            bottom: Math.round(distribution.bottom * 1000) / 1000,
+        },
+        centroid: {
+            x: totalArea > 0 ? Math.round((cx / totalArea / width) * 1000) / 1000 : 0.5,
+            y: totalArea > 0 ? Math.round((cy / totalArea / height) * 1000) / 1000 : 0.5,
+        },
+        maxTextOverlap: Math.round(maxTextOverlap * 1000) / 1000,
+        overlaps,
+        violations,
+        status: violations.length === 0 ? 'pass' : cfg.strict ? 'fail' : 'warn',
+    };
+}
+
+/**
+ * Leg 6: Composition (#111) — đo bố cục thật từ bbox phần tử sau layout.
+ *
+ * Lấy mẫu ở 60% và 85% thời lượng scene (sau animation vào) và chọn mẫu có
+ * nhiều phần tử nhất. Mặc định warn-only; `strict` biến vi phạm thành fail.
+ */
+export async function checkCompositionLeg(
+    scenes: scene[],
+    durations: Record<string, number>,
+    contentSampler: CaptionBandSampler,
+    width: number,
+    height: number,
+    options?: CompositionOptions
+): Promise<CompositionLegResult> {
+    const strict = options?.strict === true;
+    const thresholds = {
+        minOverlapRatio: options?.minOverlapRatio ?? COMPOSITION_DEFAULTS.minOverlapRatio,
+        bottomHeavyRatio: options?.bottomHeavyRatio ?? COMPOSITION_DEFAULTS.bottomHeavyRatio,
+        minElements: options?.minElements ?? COMPOSITION_DEFAULTS.minElements,
+        minContentCoverage:
+            options?.minContentCoverage ?? COMPOSITION_DEFAULTS.minContentCoverage,
+    };
+
+    const scores: CompositionSceneScore[] = [];
+    const violations: string[] = [];
+    let runningTime = 0;
+
+    for (const s of scenes) {
+        const dur = durations[s.id] ?? s.duration ?? 3.0;
+        const startTime = runningTime;
+        runningTime += dur;
+
+        const sampleTimes = [startTime + dur * 0.6, startTime + dur * 0.85];
+        let best: { elements: CaptionContentElement[]; timeSec: number } | null = null;
+
+        for (const t of sampleTimes) {
+            let sample: CaptionBandSample | null = null;
+            try {
+                sample = await contentSampler(t, s.id);
+            } catch {
+                sample = null;
+            }
+            const elements = sample?.elements ?? [];
+            if (!best || elements.length >= best.elements.length) {
+                best = { elements, timeSec: t };
+            }
+        }
+
+        if (!best || best.elements.length === 0) {
+            scores.push({
+                sceneId: s.id,
+                sampledAt: best?.timeSec ?? startTime,
+                elementCount: 0,
+                contentCoverage: 0,
+                verticalDistribution: { top: 0, middle: 0, bottom: 0 },
+                centroid: { x: 0.5, y: 0.5 },
+                maxTextOverlap: 0,
+                overlaps: [],
+                violations: [],
+                status: 'pass',
+            });
+            continue;
+        }
+
+        const score = measureComposition(
+            s.id,
+            best.elements,
+            width,
+            height,
+            { ...options, strict },
+            best.timeSec
+        );
+        scores.push(score);
+        violations.push(...score.violations);
+    }
+
+    if (violations.length === 0) {
+        return { status: 'pass', strict, thresholds, scenes: scores, violations: [] };
+    }
+
+    const summary = `Phát hiện ${violations.length} lỗi bố cục: ${violations.slice(0, 3).join('; ')}`;
+    return {
+        status: strict ? 'fail' : 'warn',
+        strict,
+        thresholds,
+        scenes: scores,
+        violations,
+        reason: strict ? summary : `${summary} (warn-only; bật compositionStrict để chặn render)`,
+    };
+}
+
+/**
  * Phân tích âm thanh bằng ffmpeg volumedetect và silencedetect
  */
 export async function analyzeAudioFile(audioPath: string): Promise<AudioStats> {
@@ -896,6 +1218,8 @@ export async function createBrowserDOMSampler(
     domSampler: DOMSampler;
     batchDomSampler: BatchDOMSampler;
     captionSampler: CaptionBandSampler;
+    /** Cùng nguồn đo với captionSampler, dùng cho leg composition (#111). */
+    contentSampler: CaptionBandSampler;
     cleanup: () => Promise<void>;
     hasShutterBlur: boolean;
 }> {
@@ -982,20 +1306,25 @@ export async function createBrowserDOMSampler(
         // chèn `__name()` vào closure và gây ReferenceError trong browser context.
         return page.evaluate((sid: string) => {
             const activeCue = document.querySelector('#lime-karaoke .karaoke-cue.is-active');
-            if (!activeCue) return { caption: null, elements: [] as any[] };
-            const cr = activeCue.getBoundingClientRect();
-            const caption = {
-                left: cr.left,
-                top: cr.top,
-                right: cr.right,
-                bottom: cr.bottom,
-                width: cr.width,
-                height: cr.height,
-            };
+            const caption = activeCue
+                ? (() => {
+                      const cr = activeCue.getBoundingClientRect();
+                      return {
+                          left: cr.left,
+                          top: cr.top,
+                          right: cr.right,
+                          bottom: cr.bottom,
+                          width: cr.width,
+                          height: cr.height,
+                      };
+                  })()
+                : null;
 
             const root =
                 document.getElementById(sid) ||
                 (document.querySelector(`[data-scene="${sid}"]`) as HTMLElement | null);
+            // Không có cue vẫn phải trả phần tử nội dung: leg composition (#111)
+            // đo bố cục cả ở scene không có phụ đề.
             if (!root) return { caption, elements: [] as any[] };
 
             const frameArea = window.innerWidth * window.innerHeight;
@@ -1007,6 +1336,8 @@ export async function createBrowserDOMSampler(
             const MEDIA_TAGS = ['IMG', 'SVG', 'VIDEO', 'CANVAS', 'BUTTON', 'A', 'INPUT', 'SELECT', 'TEXTAREA'];
             const elements: Array<{
                 label: string;
+                path: string;
+                kind: 'text' | 'media';
                 box: { left: number; top: number; right: number; bottom: number; width: number; height: number };
             }> = [];
 
@@ -1048,8 +1379,21 @@ export async function createBrowserDOMSampler(
                 const label = el.id
                     ? `#${el.id}`
                     : `${el.tagName.toLowerCase()}${text ? ` "${text}"` : ''}`;
+
+                // Đường dẫn DOM để phân biệt cha/con khi đo chồng lấn.
+                const pathParts: number[] = [];
+                let cursor: Element | null = el;
+                while (cursor && cursor !== root) {
+                    const parent: Element | null = cursor.parentElement;
+                    if (!parent) break;
+                    pathParts.unshift(Array.prototype.indexOf.call(parent.children, cursor));
+                    cursor = parent;
+                }
+
                 elements.push({
                     label,
+                    path: pathParts.join('/'),
+                    kind: isMedia ? 'media' : 'text',
                     box: {
                         left: r.left,
                         top: r.top,
@@ -1071,7 +1415,14 @@ export async function createBrowserDOMSampler(
         }
     };
 
-    return { domSampler, batchDomSampler, captionSampler, cleanup, hasShutterBlur };
+    return {
+        domSampler,
+        batchDomSampler,
+        captionSampler,
+        contentSampler: captionSampler,
+        cleanup,
+        hasShutterBlur,
+    };
 }
 
 /**
@@ -1105,6 +1456,7 @@ export async function runOracleQa(options: OracleQaOptions): Promise<QAReport> {
     let domSampler = options.domSampler;
     let batchDomSampler = options.batchDomSampler;
     let captionSampler = options.captionSampler;
+    let contentSampler = options.contentSampler;
     let cleanupBrowser: (() => Promise<void>) | null = null;
     let hasShutterBlur = options.hasShutterBlur ?? false;
 
@@ -1120,6 +1472,7 @@ export async function runOracleQa(options: OracleQaOptions): Promise<QAReport> {
                 domSampler = browserSetup.domSampler;
                 batchDomSampler = browserSetup.batchDomSampler;
                 captionSampler = captionSampler ?? browserSetup.captionSampler;
+                contentSampler = contentSampler ?? browserSetup.contentSampler;
                 cleanupBrowser = browserSetup.cleanup;
                 if (options.hasShutterBlur === undefined) {
                     hasShutterBlur = browserSetup.hasShutterBlur;
@@ -1154,6 +1507,7 @@ export async function runOracleQa(options: OracleQaOptions): Promise<QAReport> {
     let curvesLeg: CurvesLegResult;
     let framingLeg: FramingLegResult;
     let captionLeg: CaptionLegResult;
+    let compositionLeg: CompositionLegResult;
 
     try {
         // 2. Leg 2: Continuity
@@ -1201,6 +1555,52 @@ export async function runOracleQa(options: OracleQaOptions): Promise<QAReport> {
         } else {
             captionLeg = { status: 'pass', sampledFrames: 0 };
         }
+
+        // 4c. Leg 4c: Composition — đo bố cục từ bbox thật (#111)
+        const layoutSampler = contentSampler ?? captionSampler;
+        if (layoutSampler) {
+            try {
+                compositionLeg = await checkCompositionLeg(
+                    scenes,
+                    durations,
+                    layoutSampler,
+                    width,
+                    height,
+                    {
+                        strict:
+                            options.compositionStrict ??
+                            process.env.LIME_COMPOSITION_STRICT === '1',
+                    }
+                );
+            } catch (compErr: any) {
+                compositionLeg = {
+                    status: 'warn',
+                    strict: false,
+                    thresholds: {
+                        minOverlapRatio: 0.25,
+                        bottomHeavyRatio: 0.6,
+                        minElements: 3,
+                        minContentCoverage: 0.02,
+                    },
+                    scenes: [],
+                    violations: [],
+                    reason: `Không đo được bố cục: ${compErr?.message || compErr}`,
+                };
+            }
+        } else {
+            compositionLeg = {
+                status: 'pass',
+                strict: false,
+                thresholds: {
+                    minOverlapRatio: 0.25,
+                    bottomHeavyRatio: 0.6,
+                    minElements: 3,
+                    minContentCoverage: 0.02,
+                },
+                scenes: [],
+                violations: [],
+            };
+        }
     } finally {
         if (cleanupBrowser) {
             await cleanupBrowser();
@@ -1230,6 +1630,7 @@ export async function runOracleQa(options: OracleQaOptions): Promise<QAReport> {
         curves: curvesLeg,
         framing: framingLeg,
         caption: captionLeg,
+        composition: compositionLeg,
         audio: audioLeg,
         code: codeLeg,
     };

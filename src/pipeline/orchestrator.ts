@@ -53,6 +53,11 @@ export interface orchestratorOptions {
      * trong giai đoạn hiệu chuẩn; env `LIME_GSAP_LINT_STRICT=1` cũng bật.
      */
     gsapLintStrict?: boolean;
+    /**
+     * Biến vi phạm bố cục (#111) thành fail thay vì warn-only. Mặc định tắt;
+     * env `LIME_COMPOSITION_STRICT=1` cũng bật.
+     */
+    compositionStrict?: boolean;
 }
 
 export interface fullPipelineResult extends pipelineResult {
@@ -300,6 +305,7 @@ export async function runFullPipeline(option: orchestratorOptions): Promise<full
                     tempo: request.tempo,
                     targetDurationSec: request.targetDurationSec,
                     gsapLintStrict: option.gsapLintStrict,
+                    compositionStrict: option.compositionStrict,
                 });
                 timing["oracle_qa"] = Date.now() - phaseStart;
                 qaStatus = qaReport.qaStatus;
