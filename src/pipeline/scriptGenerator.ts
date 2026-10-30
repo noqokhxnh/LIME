@@ -169,10 +169,11 @@ ${catalogSummary}
    - Falling below ${wordFloor} words is under-delivery: the video then ends up shorter than the target and the shortfall is reported to the user. No silence padding is added, so expand the explanation instead of shortening it.
    - Prefer fewer, punchier sentences, but never drop below the floor.
 6. Caption band (karaoke safe zone — applies to BOTH 16:9 and 9:16):
-   - The bottom ${captionBandPct}% of the frame (${captionBand.height}px at ${presetSize}) is reserved for burned-in karaoke subtitles.
-   - NEVER place CTAs, titles, faces, or interactive elements inside that band. Anchor primary content above it, e.g. \`bottom: calc(var(--lime-caption-band-px) + 32px)\`.
+   - The bottom ${captionBandPct}% of the frame (from y=${captionBand.top}px to y=${frameHeight}px at ${presetSize}) is reserved for burned-in karaoke subtitles.
+   - NEVER place CTAs, titles, brand lockups, footers, addresses, or interactive elements inside that band.
+   - Keep the lowest content edge above y=${captionBand.top}px. The safe way is \`bottom: calc(var(--lime-caption-clearance-px) + 24px)\` — NOT just the band height.
    - Full-bleed decorative backgrounds may extend into the band only when the element carries \`data-caption-exempt\`.
-   - On 9:16 the band is proportionally taller — keep the CTA comfortably above the bottom edge.
+   - On 9:16 the band is proportionally taller — keep the CTA and the brand footer comfortably above the bottom edge.
 
 Remember to output ONLY valid JSON matching the schema, with GSAP animation code included.`;
 }

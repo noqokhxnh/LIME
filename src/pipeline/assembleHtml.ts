@@ -440,6 +440,8 @@ ${s.js}
             --lime-caption-band-px: ${captionBand?.height ?? 0}px;
             --lime-caption-band-top-px: ${captionBand?.top ?? height}px;
             --lime-caption-band-pct: ${captionBandPct}%;
+            /* Khoảng cách từ đáy khung lên mép trên dải caption — dùng cho bottom: calc(...) */
+            --lime-caption-clearance-px: ${captionBand ? height - captionBand.top : 0}px;
         }
 
         /* Isolated blending stack for scenes */

@@ -869,21 +869,33 @@ export async function createBrowserDOMSampler(
             if (!root) return { caption, elements: [] as any[] };
 
             const frameArea = window.innerWidth * window.innerHeight;
-            const selector =
-                'button, a, img, svg, h1, h2, h3, h4, h5, h6, p, li, [data-caption-check]';
+            // Không dùng whitelist theo tag: LLM hay đặt CTA/nhãn trong <div>/<span>
+            // (ví dụ `.brand-title`) nên whitelist cũ bỏ sót và QA cho pass oan.
+            // Thay vào đó lấy mọi phần tử "mang nội dung":
+            //  - có text node trực tiếp (không phải wrapper bao quanh), hoặc
+            //  - là media/control (img, svg, video, canvas, button, a, input...).
+            const MEDIA_TAGS = ['IMG', 'SVG', 'VIDEO', 'CANVAS', 'BUTTON', 'A', 'INPUT', 'SELECT', 'TEXTAREA'];
             const elements: Array<{
                 label: string;
                 box: { left: number; top: number; right: number; bottom: number; width: number; height: number };
             }> = [];
 
-            for (const el of Array.from(root.querySelectorAll(selector))) {
+            for (const el of Array.from(root.querySelectorAll('*'))) {
                 // Trang trí nền khai báo miễn trừ, hoặc nằm trong vùng miễn trừ.
                 if (el.closest('[data-caption-exempt]')) continue;
                 if (el.closest('#lime-karaoke')) continue;
                 if (el.getAttribute('aria-hidden') === 'true') continue;
 
-                // Chỉ lấy phần tử lá để không báo trùng wrapper bao quanh nội dung.
-                if (el.querySelector(selector)) continue;
+                const isMedia = MEDIA_TAGS.includes(el.tagName.toUpperCase());
+                let hasDirectText = false;
+                for (const node of Array.from(el.childNodes)) {
+                    if (node.nodeType === 3 && (node.textContent || '').trim().length > 0) {
+                        hasDirectText = true;
+                        break;
+                    }
+                }
+                // Bỏ wrapper: chỉ có element con, không có text trực tiếp.
+                if (!hasDirectText && !isMedia) continue;
 
                 const cs = window.getComputedStyle(el);
                 if (
