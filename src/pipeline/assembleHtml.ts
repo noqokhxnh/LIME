@@ -1,6 +1,7 @@
 import { existsSync, mkdirSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
-import { videoScript, scene, durationMap, CharacterActionItem } from "../llm/schema.js";
+import { videoScript, scene, durationMap, CharacterActionItem, SceneCamera } from "../llm/schema.js";
+import { resolveCamera, type ResolvedCamera } from "./camera.js";
 import { BLOCK_HELPERS_JS } from "../templates/runtime/blockHelpers.js";
 import { DETERMINISTIC_RUNTIME_JS, hashString32, RNG, getSceneSeed } from "./rng.js";
 import { assertDeterministicScript } from "./compLinter.js";
@@ -235,7 +236,7 @@ export async function assembleHTML(
         : (options?.jobId ? hashString32(options.jobId) : (hashString32(script.id || script.title || "vidtml-seed") >>> 0));
 
     const imageMap = options?.imageMap || {};
-    const processedScenes: { id: string; html: string; css: string; js: string; duration: number; characterActions?: CharacterActionItem[] }[] = [];
+    const processedScenes: { id: string; html: string; css: string; js: string; duration: number; characterActions?: CharacterActionItem[]; camera: ResolvedCamera }[] = [];
 
     for (const scene of script.scenes) {
         const sceneDur = durations[scene.id] ?? 3.0;
@@ -260,6 +261,7 @@ export async function assembleHTML(
             js: processed.js,
             duration: sceneDur,
             characterActions: scene.characterActions,
+            camera: resolveCamera(scene.camera as SceneCamera | undefined),
         });
     }
 
@@ -358,6 +360,7 @@ ${captionBand ? `/* Caption Band Debug Overlay (#110) — dải đáy dành riê
 try {
     window.__sceneSeeds[${sceneIdLiteral}] = ${sceneSeed};
     window.__sceneCharacterActions[${sceneIdLiteral}] = ${characterActionsLiteral};
+    window.__sceneCameras[${sceneIdLiteral}] = ${JSON.stringify(s.camera)};
     let __capturedSceneTl_${safeId} = null;
     const __origTimeline_${safeId} = gsap.timeline;
     gsap.timeline = function(...args) {
@@ -506,6 +509,7 @@ ${safeAreaGuideHtml}
         window.__sceneDurations = {};
         window.__sceneSeeds = {};
         window.__sceneCharacterActions = {};
+        window.__sceneCameras = {};
         window.__totalDuration = 0;
 
         if (window.__masterTimeline) {
@@ -545,6 +549,29 @@ ${safeAreaGuideHtml}
 
             window.__masterTimeline.set('#' + sceneId, { zIndex: 10 }, startTime);
             window.__masterTimeline.add(tl, startTime);
+
+            // Camera layer (#122): pipeline-owned tween, seek-safe, ease 'none'.
+            // Không dùng tween của LLM nên tua tới đâu cũng ra đúng một khung hình.
+            var cam = window.__sceneCameras[sceneId];
+            if (cam && cam.move !== 'locked') {
+                window.__masterTimeline.fromTo(
+                    '#' + sceneId,
+                    {
+                        scale: cam.from.scale,
+                        xPercent: cam.from.xPercent,
+                        yPercent: cam.from.yPercent
+                    },
+                    {
+                        scale: cam.to.scale,
+                        xPercent: cam.to.xPercent,
+                        yPercent: cam.to.yPercent,
+                        duration: duration,
+                        ease: 'none'
+                    },
+                    startTime
+                );
+            }
+
             window.__masterTimeline.set('#' + sceneId, { opacity: 0, zIndex: 1 }, endTime);
 
             window.__totalDuration += duration;

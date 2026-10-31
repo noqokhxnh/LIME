@@ -1,5 +1,6 @@
 import { z } from 'zod';
 import type { WordTiming } from '../pipeline/wordTiming.js';
+import { CAMERA_MOVE_IDS } from '../pipeline/camera.js';
 import { resolveTempoProfile, tempoSchema } from './tempo.js';
 export type { WordTiming };
 export { TEMPO_IDS, TEMPO_PROFILES, tempoSchema, type Tempo, type TempoProfile } from './tempo.js';
@@ -48,6 +49,17 @@ export const characterActionItemSchema = z.object({
 });
 export type CharacterActionItem = z.infer<typeof characterActionItemSchema>;
 
+/**
+ * Camera contract (#122): LLM khai move + cường độ, pipeline thi hành tween.
+ * Vocabulary lõi nằm ở `src/pipeline/camera.ts` để assemble và QA dùng chung.
+ */
+export const cameraMoveSchema = z.enum([...CAMERA_MOVE_IDS]);
+export const sceneCameraSchema = z.object({
+    move: cameraMoveSchema,
+    intensity: z.number().min(0).max(1).optional(),
+});
+export type SceneCamera = z.infer<typeof sceneCameraSchema>;
+
 export const sceneSchema = z.object({
     id: z.string(),
     title: z.string(),
@@ -65,6 +77,11 @@ export const sceneSchema = z.object({
             to: z.number(),
         })
         .optional(),
+    /**
+     * Camera move của scene (#122). Không khai → `locked`, giữ nguyên hành vi
+     * của kịch bản cũ.
+     */
+    camera: sceneCameraSchema.optional(),
     subject: z.string().optional(),
     /** Từ khoá tìm ảnh stock thật (Pixabay) cho scene — hệ thống điền vào {{SCENE_IMAGE}} */
     footageQuery: z.string().max(120).optional(),

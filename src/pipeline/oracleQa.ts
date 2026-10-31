@@ -24,6 +24,7 @@ import {
 import { installNetworkGuard } from './networkGuard.js';
 import { getCaptionBandFromRect, captionOverlapRatio } from './karaoke.js';
 import { lintGsapCode } from './gsapLinter.js';
+import { resolveCamera } from './camera.js';
 import type { ViolationType } from './compLinter.js';
 import { dirname, resolve } from 'node:path';
 
@@ -722,6 +723,8 @@ export interface CompositionSceneScore {
     maxTextOverlap: number;
     overlaps: CompositionOverlap[];
     violations: string[];
+    /** Camera đã khai cho scene (#122) — report-only, để đối chiếu với HTML. */
+    camera?: { move: string; intensity: number } | null;
     status: 'pass' | 'warn' | 'fail';
 }
 
@@ -958,6 +961,7 @@ export async function checkCompositionLeg(
         }
 
         if (!best || best.elements.length === 0) {
+            const emptyCam = resolveCamera(s.camera);
             scores.push({
                 sceneId: s.id,
                 sampledAt: best?.timeSec ?? startTime,
@@ -968,6 +972,10 @@ export async function checkCompositionLeg(
                 maxTextOverlap: 0,
                 overlaps: [],
                 violations: [],
+                camera: {
+                    move: emptyCam.move,
+                    intensity: emptyCam.intensity,
+                },
                 status: 'pass',
             });
             continue;
@@ -981,6 +989,8 @@ export async function checkCompositionLeg(
             { ...options, strict },
             best.timeSec
         );
+        const cam = resolveCamera(s.camera);
+        score.camera = { move: cam.move, intensity: cam.intensity };
         scores.push(score);
         violations.push(...score.violations);
     }

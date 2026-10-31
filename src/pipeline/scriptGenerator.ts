@@ -174,6 +174,11 @@ ${catalogSummary}
    - Keep the lowest content edge above y=${captionBand.top}px. The safe way is \`bottom: calc(var(--lime-caption-clearance-px) + 24px)\` — NOT just the band height.
    - Full-bleed decorative backgrounds may extend into the band only when the element carries \`data-caption-exempt\`.
    - On 9:16 the band is proportionally taller — keep the CTA and the brand footer comfortably above the bottom edge.
+7. Camera grammar (#122):
+   - EVERY scene declares \`camera: { "move": ..., "intensity": 0.3..0.8 }\`.
+   - Allowed moves: \`locked | push-in | pull-back | pan-left | pan-right | tilt-up | tilt-down\`.
+   - Use a moving camera on most scenes; \`locked\` only for a frame meant to be read as a still (summary, QR, CTA).
+   - NEVER animate \`scale\`/\`x\`/\`y\` on \`#sceneId\` yourself — the pipeline applies \`camera\` as a seek-safe tween. Animate child elements only.
 
 Remember to output ONLY valid JSON matching the schema, with GSAP animation code included.`;
 }

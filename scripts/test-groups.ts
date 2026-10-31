@@ -99,6 +99,7 @@ export const HEAVY_SHARDS: string[][] = [
     [
         'tests/unit/spec_c_oracle_qa.test.ts',
         'tests/unit/preview.test.ts',
+        'tests/unit/camera.test.ts',
         'tests/unit/spec_g_karaoke_vertical.test.ts',
         'tests/unit/spec_h_font_subset.test.ts',
     ],

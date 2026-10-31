@@ -182,6 +182,14 @@ When narrative or explanatory context benefits from a human anchor, character gu
 ]
 ```
 
+## 8.1 CAMERA CONTRACT (#122)
+
+Every scene MUST declare `camera`:
+- `move`: one of `locked`, `push-in`, `pull-back`, `pan-left`, `pan-right`, `tilt-up`, `tilt-down`.
+- `intensity`: 0..1 (default 0.5). Keep it between 0.3 and 0.8; 1 is the maximum.
+- Use a moving camera on most scenes. `locked` only when the frame is meant to be read as a still (summary card, QR code, CTA).
+- The pipeline applies `camera` itself as a seek-safe tween on the scene container. NEVER animate `scale`, `x` or `y` on `#sceneId` in `jsCode` — animate child elements instead.
+
 ## 9. OUTPUT FORMAT
 You MUST respond with a single valid JSON object matching this exact schema. DO NOT include any markdown explanations, commentary, or text outside the JSON.
 
@@ -205,6 +213,7 @@ You MUST respond with a single valid JSON object matching this exact schema. DO 
             "backgroundColor": "#0b0c10",
             "duration": 2.5,
             "nearStill": { "from": 1.0, "to": 2.8 },
+            "camera": { "move": "push-in", "intensity": 0.5 },
             "footageQuery": "barista pouring latte art in a cozy coffee shop",
             "characterActions": [
                 {
@@ -227,7 +236,8 @@ You MUST respond with a single valid JSON object matching this exact schema. DO 
             "jsCode": "(function() {...})();",
             "transition": "none",
             "backgroundColor": "#0b0c10",
-            "duration": 10.5
+            "duration": 10.5,
+            "camera": { "move": "pan-right", "intensity": 0.4 }
         }
     ],
     "boundaries": [

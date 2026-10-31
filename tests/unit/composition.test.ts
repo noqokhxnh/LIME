@@ -183,6 +183,7 @@ function makeScript(): videoScript {
                 backgroundColor: '#000',
                 duration: 8,
                 nearStill: { from: 1, to: 3 },
+                camera: { move: 'push-in', intensity: 0.7 },
             },
         ],
         boundaries: [],
@@ -225,6 +226,14 @@ describe('Leg composition trong Oracle QA (#111)', () => {
         assert.equal(report.valid, true);
         assert.equal(report.legs.composition.scenes.length, 2);
         assert.equal(report.legs.composition.scenes[1].sceneId, 's2');
+        assert.deepEqual(report.legs.composition.scenes[1].camera, {
+            move: 'push-in',
+            intensity: 0.7,
+        });
+        assert.deepEqual(report.legs.composition.scenes[0].camera, {
+            move: 'locked',
+            intensity: 0.5,
+        });
         assert.ok(report.warnings.some((w) => w.includes('COMPOSITION')));
         assert.equal(report.errors.length, 0);
     });
