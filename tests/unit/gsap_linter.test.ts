@@ -201,6 +201,9 @@ function makeScript(jsCode: string): videoScript {
                 transition: "fade",
                 backgroundColor: "#000",
                 duration: 2,
+                // Fixture #41: scene 1 không có code → miễn STATIC_TOO_LONG (#124)
+                // để các test cũ vẫn chỉ đo đúng rule chúng quan tâm.
+                nearStill: { from: 0, to: 2 },
             },
             {
                 id: "s2",

@@ -47,12 +47,18 @@ export interface GsapTweenInfo {
     /** Target tĩnh (selector/identifier). null = target động, không phân tích. */
     target: string | null;
     props: string[];
+    /** Giá trị `ease` dạng literal (đã lowercase); null = mặc định GSAP. */
+    ease: string | null;
     start: number;
     end: number;
     /** repeat: -1 → không xác định được điểm kết thúc. */
     unbounded: boolean;
     /** Không resolve được start/duration → bỏ khỏi phân tích chồng lấn. */
     resolvable: boolean;
+    /** Resolve được thời điểm bắt đầu (position + delay là literal). */
+    startKnown: boolean;
+    /** Resolve được duration (không phải biểu thức động như `dur - 1.2`). */
+    durationKnown: boolean;
     line: number;
     column: number;
 }
@@ -369,6 +375,16 @@ function extractAnimatedProps(vars: any): string[] {
     return props;
 }
 
+/** Đọc `ease` dạng literal; biểu thức động (vd ease: someVar) → null. */
+function extractEase(vars: any): string | null {
+    const value = findVarsProp(vars, "ease");
+    if (!value) return null;
+    if (value.type === "Literal" && typeof value.value === "string") {
+        return value.value.trim().toLowerCase();
+    }
+    return null;
+}
+
 function parsePositionString(raw: string): { base: "prevStart" | "prevEnd"; offset: number } | null {
     const s = raw.trim();
     if (s === "<") return { base: "prevStart", offset: 0 };
@@ -404,8 +420,11 @@ export function collectGsapTweens(nodes: any[], code: string): GsapTweenInfo[] {
         const vars = getVarsObject(node);
         const target = extractTarget(node.arguments?.[0]);
         const props = extractAnimatedProps(vars);
+        const ease = extractEase(vars);
 
         let resolvable = true;
+        let startKnown = true;
+        let durationKnown = true;
         let unbounded = false;
 
         // duration + repeat
@@ -413,8 +432,12 @@ export function collectGsapTweens(nodes: any[], code: string): GsapTweenInfo[] {
         const durationNode = findVarsProp(vars, "duration");
         if (durationNode) {
             const parsed = readNumber(durationNode);
-            if (parsed === null) resolvable = false;
-            else duration = parsed;
+            if (parsed === null) {
+                resolvable = false;
+                durationKnown = false;
+            } else {
+                duration = parsed;
+            }
         }
         const repeat = readNumber(findVarsProp(vars, "repeat"));
         if (repeat === -1) {
@@ -424,9 +447,11 @@ export function collectGsapTweens(nodes: any[], code: string): GsapTweenInfo[] {
             duration = duration * (1 + repeat) + repeatDelay * repeat;
         }
 
-        const delay = readNumber(findVarsProp(vars, "delay")) ?? 0;
-        if (findVarsProp(vars, "delay") && readNumber(findVarsProp(vars, "delay")) === null) {
+        const delayNode = findVarsProp(vars, "delay");
+        const delay = readNumber(delayNode) ?? 0;
+        if (delayNode && readNumber(delayNode) === null) {
             resolvable = false;
+            startKnown = false;
         }
 
         // start
@@ -447,6 +472,7 @@ export function collectGsapTweens(nodes: any[], code: string): GsapTweenInfo[] {
                 const pos = parsePositionString(positionArg.value);
                 if (!pos) {
                     resolvable = false;
+                    startKnown = false;
                     start = cursor.lastEnd + delay;
                 } else if (pos.base === "prevStart") {
                     start = cursor.lastStart + pos.offset + delay;
@@ -455,6 +481,7 @@ export function collectGsapTweens(nodes: any[], code: string): GsapTweenInfo[] {
                 }
             } else {
                 resolvable = false;
+                startKnown = false;
                 start = cursor.lastEnd + delay;
             }
 
@@ -464,10 +491,13 @@ export function collectGsapTweens(nodes: any[], code: string): GsapTweenInfo[] {
         tweens.push({
             target,
             props,
+            ease,
             start,
             end: start + duration,
             unbounded,
             resolvable: resolvable && target !== null && props.length > 0,
+            startKnown,
+            durationKnown,
             line: node.loc?.start.line ?? 0,
             column: node.loc?.start.column ?? 0,
         });
@@ -511,6 +541,253 @@ export function findOverlappingTweens(
                 source: "gsap-linter",
             });
         }
+    }
+
+    return violations;
+}
+
+// ---------------------------------------------------------------------------
+// Anti-slop motion grammar (#124)
+// ---------------------------------------------------------------------------
+
+/**
+ * Thuộc tính "chuyển động biểu đạt" — animate bằng ease tuyến tính là dấu hiệu
+ * slideshow: phần tử trượt/phóng đều đều như máy, không có gia tốc.
+ */
+const EXPRESSIVE_MOTION_PROPS = new Set(["x", "y", "scale", "scaleX", "scaleY"]);
+
+/** GSAP coi `none` và `linear` là cùng một thứ. */
+const LINEAR_EASES = new Set(["none", "linear", "linear.none"]);
+
+/** Khoảng lặng tối đa (giây) trước khi báo STATIC_TOO_LONG. */
+const DEFAULT_STATIC_GAP_SEC = 1;
+
+export interface MotionLintUnit {
+    code: string;
+    /** Dòng bắt đầu của unit trong file gốc (script inline trong HTML). */
+    lineOffset?: number;
+}
+
+export interface SceneMotionLintInput {
+    sceneId: string;
+    /** Độ dài scene (giây); không có → bỏ qua STATIC_TOO_LONG. */
+    duration?: number;
+    /** Scene khai đứng yên có chủ đích → miễn STATIC_TOO_LONG. */
+    nearStill?: { from: number; to: number };
+    /** Camera move đã khai (#122); camera chạy thì scene không còn "chỉ fade". */
+    cameraMove?: string;
+    units: MotionLintUnit[];
+}
+
+export interface SceneMotionLintOptions {
+    /** Ngưỡng im lặng (giây) trước khi báo STATIC_TOO_LONG. Mặc định 1. */
+    staticGapSec?: number;
+}
+
+interface UnitTween extends GsapTweenInfo {
+    unit: MotionLintUnit;
+    /** Dòng trong unit (chưa cộng lineOffset). */
+    unitLine: number;
+}
+
+function parseTweenNodes(code: string): any[] | null {
+    let ast: acorn.Node;
+    try {
+        ast = acorn.parse(code, {
+            ecmaVersion: 2022,
+            sourceType: "script",
+            locations: true,
+        }) as acorn.Node;
+    } catch {
+        // Cú pháp hỏng do scriptValidator xử lý; trả null để caller biết là
+        // "không đọc được", khác với "scene không có tween nào".
+        return null;
+    }
+    const nodes: any[] = [];
+    walk(ast, (node: any) => {
+        if (isGsapTweenCall(node) && node.callee?.property?.name !== "add") {
+            nodes.push(node);
+        }
+    });
+    return nodes;
+}
+
+/**
+ * Chấm ngữ pháp chuyển động của MỘT scene trên toàn bộ code của scene
+ * (`jsCode` + các `<script>` inline trong `htmlCode`).
+ *
+ * Cả 4 rule đều warn-only: caller quyết định warn/fail (cùng cơ chế
+ * `gsapLintStrict` của #41).
+ */
+export function lintSceneMotion(
+    input: SceneMotionLintInput,
+    options?: SceneMotionLintOptions
+): LintViolation[] {
+    const gapSec = options?.staticGapSec ?? DEFAULT_STATIC_GAP_SEC;
+    const sceneSelector = `#${input.sceneId}`;
+    const violations: LintViolation[] = [];
+
+    const tweens: UnitTween[] = [];
+    let parseFailed = false;
+    for (const unit of input.units) {
+        if (!unit.code || !unit.code.trim()) continue;
+        const nodes = parseTweenNodes(unit.code);
+        if (nodes === null) {
+            parseFailed = true;
+            continue;
+        }
+        for (const tween of collectGsapTweens(nodes, unit.code)) {
+            tweens.push({
+                ...tween,
+                unit,
+                unitLine: tween.line,
+                line: tween.line + (unit.lineOffset ?? 0),
+            });
+        }
+    }
+
+    const report = (
+        type: ViolationType,
+        message: string,
+        tween?: UnitTween,
+        line = 1
+    ): void => {
+        const unitLine = tween?.unitLine ?? line;
+        violations.push({
+            type,
+            message,
+            line: tween?.line ?? line,
+            column: tween?.column ?? 0,
+            snippet:
+                (tween?.unit.code.split("\n")[unitLine - 1] ??
+                    input.units[0]?.code.split("\n")[line - 1] ??
+                    "").trim(),
+            sceneId: input.sceneId,
+            source: "gsap-linter",
+        });
+    };
+
+    const expressiveProps = (tween: GsapTweenInfo): string[] =>
+        tween.props.filter((prop) => EXPRESSIVE_MOTION_PROPS.has(prop));
+
+    // 1. LINEAR_EASE — chuyển động biểu đạt chạy đều đều như máy.
+    for (const tween of tweens) {
+        if (!tween.ease || !LINEAR_EASES.has(tween.ease)) continue;
+        const props = expressiveProps(tween);
+        if (props.length === 0) continue;
+        // Camera layer (#122) do pipeline gắn và cố ý dùng ease 'none' để seek-safe;
+        // animate container scene là lỗi khác, đã có MOVE_LIBRARY_BYPASS.
+        if (tween.target === sceneSelector) continue;
+        report(
+            "LINEAR_EASE",
+            `Tween "${props.join(", ")}" dùng ease '${tween.ease}' — chuyển động biểu đạt cần ease có gia tốc (power2.out, back.out, …), ease tuyến tính đọc như slideshow`,
+            tween
+        );
+    }
+
+    // 2. FADE_ONLY_SCENE — scene chỉ biết mờ dần, không có chuyển động thật.
+    const animated = tweens.filter((tween) => tween.props.length > 0);
+    const cameraMoving = !!input.cameraMove && input.cameraMove !== "locked";
+    if (animated.length > 0 && !cameraMoving) {
+        const fadeOnly = animated.every((tween) =>
+            tween.props.every((prop) => prop === "opacity" || prop === "autoAlpha")
+        );
+        if (fadeOnly) {
+            report(
+                "FADE_ONLY_SCENE",
+                `Scene chỉ có tween opacity (${animated.length} tween) — không có chuyển động nào khác; thêm transform/scale hoặc chuyển động nền thay vì chỉ fade`,
+                animated[0]
+            );
+        }
+    }
+
+    // 3. STATIC_TOO_LONG — scene đứng yên quá lâu giữa các tween.
+    const duration = input.duration;
+    if (
+        !input.nearStill &&
+        typeof duration === "number" &&
+        Number.isFinite(duration) &&
+        duration > 0
+    ) {
+        // Không đoán khi start không resolve được hoặc parse hỏng.
+        const trustworthy = !parseFailed && tweens.every((tween) => tween.startKnown);
+        if (trustworthy) {
+            const intervals = tweens
+                .map((tween) => {
+                    // duration động (`dur - 1.2`) hoặc loop vô hạn: coi như phủ tới
+                    // cuối scene — ambient chạy dài, không phải scene đứng yên.
+                    const end =
+                        tween.durationKnown && !tween.unbounded
+                            ? tween.end
+                            : Math.max(tween.start, duration);
+                    return [tween.start, end] as [number, number];
+                })
+                .sort((a, b) => a[0] - b[0]);
+            const merged: Array<[number, number]> = [];
+            for (const interval of intervals) {
+                const last = merged[merged.length - 1];
+                if (last && interval[0] <= last[1] + OVERLAP_EPSILON) {
+                    last[1] = Math.max(last[1], interval[1]);
+                } else {
+                    merged.push([interval[0], interval[1]]);
+                }
+            }
+
+            let gap: { from: number; to: number } = { from: 0, to: duration };
+            if (merged.length > 0) {
+                gap = { from: 0, to: Math.min(merged[0][0], duration) };
+                for (let i = 1; i < merged.length; i += 1) {
+                    const from = merged[i - 1][1];
+                    const to = merged[i][0];
+                    if (to - from > gap.to - gap.from) gap = { from, to };
+                }
+                const tailFrom = Math.min(merged[merged.length - 1][1], duration);
+                if (duration - tailFrom > gap.to - gap.from) {
+                    gap = { from: tailFrom, to: duration };
+                }
+            }
+
+            const gapLength = Math.max(0, gap.to - gap.from);
+            if (gapLength > gapSec + OVERLAP_EPSILON) {
+                // Chọn tween gần khoảng lặng nhất để chỉ đúng dòng cần sửa.
+                let anchor: UnitTween | undefined;
+                let best = Number.POSITIVE_INFINITY;
+                for (const tween of tweens) {
+                    const distance = Math.min(
+                        Math.abs(tween.end - gap.from),
+                        Math.abs(tween.start - gap.to)
+                    );
+                    if (distance < best) {
+                        best = distance;
+                        anchor = tween;
+                    }
+                }
+                const where =
+                    tweens.length === 0
+                        ? `Scene không có tween nào trong ${duration.toFixed(1)}s`
+                        : `Không có chuyển động mới trong ${gapLength.toFixed(1)}s (${gap.from.toFixed(1)}–${gap.to.toFixed(1)}s / scene ${duration.toFixed(1)}s)`;
+                report(
+                    "STATIC_TOO_LONG",
+                    `${where} — scene dừng quá lâu; thêm tween hoặc khai nearStill nếu đứng yên có chủ đích`,
+                    anchor
+                );
+            }
+        }
+    }
+
+    // 4. MOVE_LIBRARY_BYPASS — tự animate container thay vì khai scene.camera.
+    for (const tween of tweens) {
+        if (tween.target !== sceneSelector) continue;
+        const props = expressiveProps(tween);
+        if (props.length === 0) continue;
+        // Transform + fade cùng lúc là transition vào/ra, không phải camera.
+        // Chỉ transform thuần trên container mới là "tự làm camera".
+        if (tween.props.some((prop) => prop === "opacity" || prop === "autoAlpha")) continue;
+        report(
+            "MOVE_LIBRARY_BYPASS",
+            `Tự animate "${props.join(", ")}" trên container scene ${sceneSelector} — khai scene.camera (push-in, pan-left, …) để pipeline điều khiển thay vì tự animate container`,
+            tween
+        );
     }
 
     return violations;

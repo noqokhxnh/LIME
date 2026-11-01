@@ -444,6 +444,8 @@ describe('Workstream WS-C (Spec C): Oracle QA Pipeline & Auto Validation', () =>
                     id: 's1',
                     title: 'Intro',
                     duration: 2.0,
+                    // Scene tĩnh có chủ đích: không có JS, chỉ giữ hình + narration.
+                    nearStill: { from: 0, to: 2.0 },
                     subject: '#hero',
                     voiceOverText: 'Chào mừng bạn.',
                     visualDescription: '',

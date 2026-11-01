@@ -23,7 +23,7 @@ import {
 } from './preview.js';
 import { installNetworkGuard } from './networkGuard.js';
 import { getCaptionBandFromRect, captionOverlapRatio } from './karaoke.js';
-import { lintGsapCode } from './gsapLinter.js';
+import { lintGsapCode, lintSceneMotion, type MotionLintUnit } from './gsapLinter.js';
 import { resolveCamera } from './camera.js';
 import type { ViolationType } from './compLinter.js';
 import { dirname, resolve } from 'node:path';
@@ -1155,7 +1155,7 @@ export function extractInlineScripts(htmlCode: string): Array<{ code: string; st
  */
 export function checkGsapLintLeg(
     script: videoScript,
-    options?: { strict?: boolean }
+    options?: { strict?: boolean; durations?: Record<string, number> }
 ): CodeLintLegResult {
     const strict = options?.strict === true;
     const violations: CodeLintViolation[] = [];
@@ -1179,8 +1179,13 @@ export function checkGsapLintLeg(
     lintUnit(script.globalSetupJs, undefined);
     for (const scene of script.scenes || []) {
         lintUnit(scene.jsCode, scene.id);
+        const motionUnits: MotionLintUnit[] = [];
+        if (scene.jsCode && scene.jsCode.trim()) {
+            motionUnits.push({ code: scene.jsCode });
+        }
         for (const block of extractInlineScripts(scene.htmlCode || '')) {
             lintedUnits += 1;
+            motionUnits.push({ code: block.code, lineOffset: block.startLine - 1 });
             const result = lintGsapCode(block.code, scene.id);
             for (const v of result.violations) {
                 violations.push({
@@ -1191,6 +1196,25 @@ export function checkGsapLintLeg(
                     message: v.message,
                 });
             }
+        }
+
+        // Ngữ pháp chuyển động (#124) cần nhìn cả scene, không phải từng unit:
+        // FADE_ONLY_SCENE và STATIC_TOO_LONG chỉ đúng khi gộp jsCode + script inline.
+        const motionViolations = lintSceneMotion({
+            sceneId: scene.id,
+            duration: options?.durations?.[scene.id] ?? scene.duration,
+            nearStill: scene.nearStill,
+            cameraMove: scene.camera?.move,
+            units: motionUnits,
+        });
+        for (const v of motionViolations) {
+            violations.push({
+                sceneId: scene.id,
+                rule: v.type,
+                line: v.line,
+                column: v.column,
+                message: v.message,
+            });
         }
     }
 
@@ -1631,6 +1655,7 @@ export async function runOracleQa(options: OracleQaOptions): Promise<QAReport> {
     // 6. Leg 6: Lint code GSAP (#41) — warn-only trừ khi bật strict
     const codeLeg = checkGsapLintLeg(script, {
         strict: options.gsapLintStrict ?? process.env.LIME_GSAP_LINT_STRICT === '1',
+        durations,
     });
 
     // Tổng hợp kết quả từ các legs
