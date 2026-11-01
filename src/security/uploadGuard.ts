@@ -20,6 +20,46 @@ export const ALLOWED_MIME_TYPES = ['image/png', 'image/jpeg', 'image/svg+xml', '
 /** Giới hạn kích thước file tối đa: 5MB */
 export const MAX_FILE_SIZE_BYTES = 5 * 1024 * 1024;
 
+// ============================================================
+// THƯ VIỆN ASSET (#103) — ảnh + video người dùng tự upload
+//
+// Asset là nguồn hình/video thật do chính người dùng tải lên (logo sản
+// phẩm, ảnh chụp thật, clip quay tay…) để LLM chèn vào kịch bản thay vì
+// chỉ dùng ảnh stock Pixabay. Khác brand-kit ở 2 điểm:
+//   1. Cho phép cả VIDEO (MP4/WEBM) chứ không chỉ ảnh.
+//   2. Giới hạn rộng hơn: ảnh ≤ 10MB, video ≤ 200MB (brand-kit chỉ 5MB).
+// Bảo mật vẫn 3 tầng y hệt brand-kit: MIME whitelist + magic bytes + SVG
+// sanitize, cộng UUID filename và giam đường dẫn trong tmp/uploads/assets.
+// ============================================================
+
+/** Danh sách MIME type VIDEO được phép trong thư viện asset */
+export const ALLOWED_VIDEO_MIME_TYPES = ['video/mp4', 'video/webm'];
+
+/** Giới hạn kích thước ảnh asset: 10MB */
+export const MAX_IMAGE_ASSET_BYTES = 10 * 1024 * 1024;
+
+/** Giới hạn kích thước video asset: 200MB */
+export const MAX_VIDEO_ASSET_BYTES = 200 * 1024 * 1024;
+
+/** Tất cả MIME type được phép trong thư viện asset (ảnh + video) */
+export const ALLOWED_ASSET_MIME_TYPES = [...ALLOWED_MIME_TYPES, ...ALLOWED_VIDEO_MIME_TYPES];
+
+/** Thư mục duy nhất được phép chứa file asset (ảnh/video) của người dùng */
+export const ASSETS_DIR = resolve(process.cwd(), 'tmp', 'uploads', 'assets');
+
+/** Lấy đường dẫn canonical của ASSETS_DIR (giải quyết symlinks như /tmp -> /private/tmp) */
+export function getCanonicalAssetsDir(): string {
+    mkdirSync(ASSETS_DIR, { recursive: true });
+    try {
+        return realpathSync(ASSETS_DIR);
+    } catch {
+        return ASSETS_DIR;
+    }
+}
+
+/** Tên file asset hợp lệ: ký tự an toàn + đuôi ảnh/video cho phép */
+const SAFE_ASSET_FILENAME = /^[A-Za-z0-9][A-Za-z0-9._-]*\.(png|jpg|jpeg|svg|webp|mp4|webm)$/i;
+
 /**
  * Kiểm tra "magic bytes" — chữ ký nhị phân ở đầu file.
  * Đây là cách đáng tin cậy nhất để xác định định dạng thật của file,
@@ -78,6 +118,28 @@ export function validateMagicBytes(buffer: Buffer, mime: string): boolean {
         // Kiểm tra bằng cách xem nội dung có chứa thẻ <svg hoặc <?xml không.
         const text = buffer.slice(0, 512).toString('utf-8').trimStart();
         return text.includes('<svg') || text.includes('<?xml');
+    }
+
+    if (mime === 'video/mp4') {
+        // ISO BMFF (MP4): byte 4-7 là "ftyp" (đứng sau 4 byte kích thước box).
+        return (
+            buffer.length >= 8 &&
+            buffer[4] === 0x66 && // f
+            buffer[5] === 0x74 && // t
+            buffer[6] === 0x79 && // y
+            buffer[7] === 0x70    // p
+        );
+    }
+
+    if (mime === 'video/webm') {
+        // EBML (WebM/MKV): 4 byte đầu là 1A 45 DF A3.
+        return (
+            buffer.length >= 4 &&
+            buffer[0] === 0x1A &&
+            buffer[1] === 0x45 &&
+            buffer[2] === 0xDF &&
+            buffer[3] === 0xA3
+        );
     }
 
     // MIME type không nằm trong danh sách cho phép
@@ -332,6 +394,81 @@ export function validateUploadedFile(buffer: Buffer, mimeType: string): UploadVa
 }
 
 /**
+ * Kiểm tra toàn bộ tính hợp lệ của một ASSET (ảnh hoặc video) người dùng
+ * tải lên cho thư viện asset (#103).
+ *
+ * Khác `validateUploadedFile` (dành cho logo 5MB, chỉ ảnh) ở chỗ:
+ *   - Ảnh: PNG/JPEG/WEBP/SVG ≤ 10MB (SVG vẫn sanitize).
+ *   - Video: MP4/WEBM ≤ 200MB (magic bytes ftyp/EBML).
+ *
+ * @param buffer    Dữ liệu nhị phân của file
+ * @param mimeType  MIME type do client khai báo
+ * @returns Kết quả xác thực (giống UploadValidationResult)
+ */
+export function validateUploadedAsset(buffer: Buffer, mimeType: string): UploadValidationResult {
+    const isVideo = ALLOWED_VIDEO_MIME_TYPES.includes(mimeType);
+    const maxBytes = isVideo ? MAX_VIDEO_ASSET_BYTES : MAX_IMAGE_ASSET_BYTES;
+    const maxLabel = `${Math.round(maxBytes / 1024 / 1024)}MB`;
+
+    // Kiểm tra 1: Kích thước theo loại (ảnh/video)
+    if (buffer.length > maxBytes) {
+        return {
+            isValid: false,
+            reason: `Kích thước file vượt giới hạn tối đa ${maxLabel}`,
+        };
+    }
+
+    // Kiểm tra 2: MIME type nằm trong danh sách cho phép của asset
+    if (!ALLOWED_ASSET_MIME_TYPES.includes(mimeType)) {
+        return {
+            isValid: false,
+            reason: `Định dạng file "${mimeType}" không được hỗ trợ. Chỉ chấp nhận: ${ALLOWED_ASSET_MIME_TYPES.join(', ')}`,
+        };
+    }
+
+    // Kiểm tra 3: Magic bytes (chữ ký nhị phân thật của file)
+    if (!validateMagicBytes(buffer, mimeType)) {
+        return {
+            isValid: false,
+            reason: 'Nội dung file không khớp với định dạng được khai báo. File có thể bị giả mạo.',
+        };
+    }
+
+    // Kiểm tra 4 (chỉ với SVG): Sanitize để loại bỏ mã độc
+    if (mimeType === 'image/svg+xml') {
+        const sanitized = sanitizeSvg(buffer.toString('utf-8'));
+        return { isValid: true, sanitizedContent: sanitized };
+    }
+
+    return { isValid: true };
+}
+
+/**
+ * Tạo tên file asset ngẫu nhiên (UUID) an toàn, hỗ trợ cả ảnh lẫn video.
+ * Ánh xạ MIME → phần mở rộng để Chromium/ffmpeg nhận đúng định dạng.
+ *
+ * @param originalMime  MIME type của file để xác định phần mở rộng
+ * @param uploadDir     Thư mục lưu file (mặc định: tmp/uploads/assets)
+ * @returns Đường dẫn đầy đủ để lưu file
+ */
+export function generateSafeAssetFilePath(
+    originalMime: string,
+    uploadDir: string = ASSETS_DIR
+): string {
+    const extMap: Record<string, string> = {
+        'image/png': '.png',
+        'image/jpeg': '.jpg',
+        'image/svg+xml': '.svg',
+        'image/webp': '.webp',
+        'video/mp4': '.mp4',
+        'video/webm': '.webm',
+    };
+    const ext = extMap[originalMime] ?? '.bin';
+    mkdirSync(uploadDir, { recursive: true });
+    return join(uploadDir, `${uuidv4()}${ext}`);
+}
+
+/**
  * Tạo tên file ngẫu nhiên an toàn dựa trên UUID để lưu logo upload.
  * Tránh các lỗ hổng Path Traversal khi người dùng đặt tên file độc hại
  * như "../../etc/passwd" hoặc "../config.ts".
@@ -500,6 +637,55 @@ export function resolveLogoPath(logoPath: string): string | null {
         return null;
     }
 
+    return real;
+}
+
+/**
+ * Chuẩn hoá và kiểm tra đường dẫn asset do client cung cấp (#103).
+ *
+ * Chấp nhận 2 dạng đầu vào:
+ *   1. URL tĩnh do API upload trả về: "/uploads/assets/<uuid>.ext"
+ *   2. Đường dẫn tuyệt đối nằm trong ASSETS_DIR (tương thích bản ghi cũ)
+ *
+ * Chặn path traversal/LFI y hệt `resolveLogoPath`: canonicalize symlink, chỉ
+ * nhận file thường nằm gọn trong ASSETS_DIR với tên file an toàn.
+ *
+ * @param assetPath  Đường dẫn asset do client gửi lên
+ * @returns Đường dẫn tuyệt đối đã canonicalize nếu hợp lệ; ngược lại null.
+ */
+export function resolveAssetPath(assetPath: string): string | null {
+    if (typeof assetPath !== 'string' || !assetPath.trim()) return null;
+    const input = assetPath.trim();
+
+    let candidate: string;
+    if (input.startsWith('/uploads/assets/')) {
+        const name = basename(input);
+        if (!SAFE_ASSET_FILENAME.test(name)) return null;
+        candidate = join(ASSETS_DIR, name);
+    } else {
+        candidate = resolve(input);
+    }
+
+    let real: string;
+    try {
+        real = realpathSync(candidate);
+    } catch {
+        return null;
+    }
+
+    const canonicalAssetsDir = getCanonicalAssetsDir();
+    const relCanonical = relative(canonicalAssetsDir, real);
+    const relResolved = relative(ASSETS_DIR, real);
+    const isInsideCanonical = relCanonical && relCanonical !== '..' && !relCanonical.startsWith(`..${sep}`);
+    const isInsideResolved = relResolved && relResolved !== '..' && !relResolved.startsWith(`..${sep}`);
+    if (!isInsideCanonical && !isInsideResolved) return null;
+
+    if (!SAFE_ASSET_FILENAME.test(basename(real))) return null;
+    try {
+        if (!statSync(real).isFile()) return null;
+    } catch {
+        return null;
+    }
     return real;
 }
 
