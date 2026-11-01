@@ -386,6 +386,8 @@ const hitl = {
     auto: false,
     loading: false,
     error: '',
+    assets: [],
+    assetsLoaded: false,
 };
 const HITL_STORAGE_KEY = 'lime.hitl.v1';
 const HITL_CONFIDENCE_THRESHOLD = 0.8;
@@ -1470,7 +1472,8 @@ function renderBoard() {
             ? `Đang chọn: ${draft.label || draft.key} · ${draft.estimated ? Number(draft.estimated.totalDurationSec).toFixed(1) : '?'}s`
             : 'Chọn một phương án để duyệt';
     }
-    renderBoardEditor();
+    // Nạp thư viện ảnh trước khi vẽ bộ chọn asset từng cảnh (#103).
+    loadAssets().then(() => renderBoardEditor());
 }
 
 function autoGrow(el) {
@@ -1485,6 +1488,174 @@ function autoGrow(el) {
  * Chỉ cho sửa `voiceOverText`: tiêu đề và HTML đã được dựng theo style của
  * phương án; sửa tay phần đó sẽ phá layout mà không ai kiểm được.
  */
+/* ---------- Thư viện asset (#103): upload + chọn ảnh cho từng cảnh ---------- */
+
+function imageAssets() {
+    return (hitl.assets || []).filter(a => a && a.kind === 'image');
+}
+
+function imageAssetIds() {
+    return imageAssets().map(a => a.id);
+}
+
+async function loadAssets(force = false) {
+    if (hitl.assetsLoaded && !force) return hitl.assets || [];
+    try {
+        const res = await fetch(`${API_BASE}/api/assets`, { credentials: 'include' });
+        if (!res.ok) return hitl.assets || [];
+        const data = await res.json();
+        hitl.assets = Array.isArray(data.assets) ? data.assets : [];
+        hitl.assetsLoaded = true;
+        return hitl.assets;
+    } catch (e) {
+        return hitl.assets || [];
+    }
+}
+
+async function uploadAsset(file) {
+    const fd = new FormData();
+    fd.append('file', file);
+    const res = await fetch(`${API_BASE}/api/assets/upload`, {
+        method: 'POST', credentials: 'include', body: fd,
+    });
+    const data = await res.json().catch(() => ({}));
+    if (!res.ok || !data.success) throw new Error(data.error || 'Upload thất bại');
+    hitl.assets.unshift(data.asset);
+    return data.asset;
+}
+
+async function deleteAsset(id) {
+    const res = await fetch(`${API_BASE}/api/assets/${encodeURIComponent(id)}`, {
+        method: 'DELETE', credentials: 'include',
+    });
+    if (!res.ok) {
+        const data = await res.json().catch(() => ({}));
+        throw new Error(data.error || 'Xoá thất bại');
+    }
+    hitl.assets = (hitl.assets || []).filter(a => a.id !== id);
+    // Bỏ id khỏi mọi scene đang chọn để không render asset đã xoá.
+    (hitl.drafts || []).forEach(d => (d.script?.scenes || []).forEach(s => {
+        if (Array.isArray(s.assetIds)) s.assetIds = s.assetIds.filter(x => x !== id);
+    }));
+}
+
+function toggleSceneAsset(scene, id) {
+    if (!Array.isArray(scene.assetIds)) scene.assetIds = [];
+    const idx = scene.assetIds.indexOf(id);
+    if (idx >= 0) scene.assetIds.splice(idx, 1);
+    else scene.assetIds.push(id);
+    renderBoardEditor();
+    persistHitlDebounced();
+}
+
+function assetThumb(a, opts = {}) {
+    const { selected = false, deletable = false, onClick = null } = opts;
+    const el = document.createElement('div');
+    el.className = 'rb-asset' + (selected ? ' on' : '');
+    el.title = a.description || a.mimeType || '';
+    const img = document.createElement('img');
+    img.src = a.url;
+    img.alt = a.description || 'asset';
+    img.loading = 'lazy';
+    el.appendChild(img);
+    if (selected) {
+        const chk = document.createElement('span');
+        chk.className = 'rb-asset-check';
+        chk.textContent = '✓';
+        el.appendChild(chk);
+    }
+    if (deletable) {
+        const x = document.createElement('button');
+        x.type = 'button';
+        x.className = 'rb-asset-del';
+        x.textContent = '×';
+        x.title = 'Xoá asset';
+        x.addEventListener('click', async (ev) => {
+            ev.stopPropagation();
+            if (!window.confirm('Xoá asset này khỏi thư viện?')) return;
+            try { await deleteAsset(a.id); renderBoardEditor(); } catch (err) { alert(err.message); }
+        });
+        el.appendChild(x);
+    }
+    if (onClick) el.addEventListener('click', () => onClick(a.id));
+    return el;
+}
+
+/** Dải quản lý thư viện ảnh: upload + xoá (không gắn vào cảnh cụ thể). */
+function buildAssetLibraryStrip() {
+    const wrap = document.createElement('div');
+    wrap.className = 'rb-assets';
+
+    const head = document.createElement('div');
+    head.className = 'rb-assets-head';
+    head.innerHTML = '<b>Ảnh của bạn</b><span class="rb-assets-hint">Chọn ảnh cho từng cảnh bên dưới · chỉ ảnh (PNG/JPG/WEBP/SVG)</span>';
+
+    const uploadBtn = document.createElement('button');
+    uploadBtn.type = 'button';
+    uploadBtn.className = 'rb-assets-upload';
+    uploadBtn.textContent = '+ Upload ảnh';
+    const fileInput = document.createElement('input');
+    fileInput.type = 'file';
+    fileInput.hidden = true;
+    fileInput.accept = 'image/png,image/jpeg,image/webp,image/svg+xml';
+    fileInput.multiple = true;
+    uploadBtn.addEventListener('click', () => fileInput.click());
+    fileInput.addEventListener('change', async () => {
+        const files = Array.from(fileInput.files || []);
+        if (!files.length) return;
+        uploadBtn.disabled = true;
+        try {
+            for (const f of files) await uploadAsset(f);
+            renderBoardEditor();
+        } catch (err) {
+            alert(`Upload lỗi: ${err.message}`);
+        } finally {
+            uploadBtn.disabled = false;
+            fileInput.value = '';
+        }
+    });
+    head.appendChild(uploadBtn);
+    head.appendChild(fileInput);
+    wrap.appendChild(head);
+
+    const grid = document.createElement('div');
+    grid.className = 'rb-assets-grid';
+    const imgs = imageAssets();
+    if (!imgs.length) {
+        const empty = document.createElement('p');
+        empty.className = 'rb-assets-empty';
+        empty.textContent = 'Chưa có ảnh nào. Upload ảnh để dùng trong video.';
+        grid.appendChild(empty);
+    } else {
+        imgs.forEach(a => grid.appendChild(assetThumb(a, { selected: false, deletable: true })));
+    }
+    wrap.appendChild(grid);
+    return wrap;
+}
+
+/** Bộ chọn ảnh cho một cảnh: bấm để gắn/bỏ ảnh (scene.assetIds). */
+function buildSceneAssetPicker(scene) {
+    const imgs = imageAssets();
+    if (!imgs.length) return null;
+
+    const wrap = document.createElement('div');
+    wrap.className = 'rb-scene-assets';
+    const label = document.createElement('span');
+    label.className = 'rb-scene-assets-label';
+    const sel = Array.isArray(scene.assetIds) ? scene.assetIds : [];
+    label.textContent = `Ảnh: ${sel.length ? `${sel.length} ảnh đã chọn` : 'chưa chọn'}`;
+    wrap.appendChild(label);
+
+    const grid = document.createElement('div');
+    grid.className = 'rb-assets-grid';
+    imgs.forEach(a => grid.appendChild(assetThumb(a, {
+        selected: sel.includes(a.id),
+        onClick: (id) => { toggleSceneAsset(scene, id); },
+    })));
+    wrap.appendChild(grid);
+    return wrap;
+}
+
 function renderBoardEditor() {
     if (!rbEditor) return;
     const draft = selectedDraft();
@@ -1503,6 +1674,9 @@ function renderBoardEditor() {
     renderTotal();
     head.append(document.createTextNode('Sửa lời thoại'), totalSpan);
     rbEditor.appendChild(head);
+
+    // Thư viện ảnh người dùng (#103): upload/xoá ngay trên bàn duyệt.
+    rbEditor.appendChild(buildAssetLibraryStrip());
 
     scenes.forEach((scene, index) => {
         const row = document.createElement('div');
@@ -1525,6 +1699,14 @@ function renderBoardEditor() {
         });
 
         row.append(sceneHead, textarea);
+
+        // Cho đổi asset từng cảnh (#103).
+        const picker = buildSceneAssetPicker(scene);
+        if (picker) {
+            picker.style.gridColumn = '1 / -1';
+            row.appendChild(picker);
+        }
+
         rbEditor.appendChild(row);
         requestAnimationFrame(() => autoGrow(textarea));
     });
@@ -1549,11 +1731,14 @@ async function requestDrafts(nextRotation) {
     log(`Đang sinh 3 phương án cho: "${prompt}"`, 'info');
 
     try {
+        // Nạp thư viện ảnh để LLM chọn assetIds cho từng cảnh (#103).
+        await loadAssets();
         const payload = {
             ...buildBasePayload(prompt),
             variantCount: 3,
             variantRotation: hitl.rotation,
             answers: hitl.answers,
+            assetIds: imageAssetIds(),
         };
         const res = await fetch(`${API_BASE}/api/script/draft`, {
             method: 'POST', credentials: 'include',
@@ -1596,10 +1781,12 @@ async function startAutoDirect() {
     }
 
     const samePrompt = prompt === hitl.prompt;
+    await loadAssets();
     const payload = {
         ...buildBasePayload(prompt),
         async: true,
         mode: 'auto',
+        assetIds: imageAssetIds(),
     };
     if (samePrompt && hitl.answers) payload.answers = hitl.answers;
     if (samePrompt) payload.variantRotation = hitl.rotation;

@@ -167,11 +167,17 @@ export async function processVideoJob(data: JobData, updateProgress: (p: JobProg
 
     // Asset người dùng upload (#103): resolve id -> ảnh (đã kiểm ownership qua
     // user_id). Lỗi DB/đọc file không làm hỏng job — bỏ qua như không có asset.
+    // Gộp assetIds từ BOTH request (top-level) và từng scene trong script đã duyệt
+    // (HITL): route /api/script/draft trả scene.assetIds do LLM chọn, client gửi
+    // nguyên script lên render mà không kèm assetIds top-level.
     let assets: Awaited<ReturnType<typeof getAssetsByIdsForUser>> = [];
-    const assetIds = clean.request?.assetIds ?? [];
-    if (assetIds.length > 0 && clean.userId) {
+    const assetIdSet = new Set<string>(clean.request?.assetIds ?? []);
+    for (const scene of script?.scenes ?? []) {
+        for (const id of scene.assetIds ?? []) assetIdSet.add(id);
+    }
+    if (assetIdSet.size > 0 && clean.userId) {
         try {
-            assets = imageAssetsOnly(await getAssetsByIdsForUser(assetIds, clean.userId));
+            assets = imageAssetsOnly(await getAssetsByIdsForUser([...assetIdSet], clean.userId));
         } catch (err) {
             console.warn(`[Assets] Bỏ qua asset do lỗi resolve: ${(err as Error)?.message}`);
         }
