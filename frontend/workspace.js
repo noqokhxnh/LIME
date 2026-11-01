@@ -397,6 +397,9 @@ const project = { scenes: [], durationSec: 15, topic: '', jobId: null, resolutio
 /* ================= ELEMENTS ================= */
 const promptInput = document.getElementById('prompt-input');
 const promptCharCount = document.getElementById('prompt-char-count');
+const promptAssetsGrid = document.getElementById('prompt-assets-grid');
+const btnPromptAddAsset = document.getElementById('btn-prompt-add-asset');
+const promptAssetInput = document.getElementById('prompt-asset-input');
 const durationInput = document.getElementById('duration-input');
 const tempoSelect = document.getElementById('tempo-select');
 const voiceSelect = document.getElementById('voice-select');
@@ -1520,6 +1523,48 @@ async function uploadAsset(file) {
     return data.asset;
 }
 
+/** Dải asset ngay tab nhập prompt (#103): upload + xoá + hiện thẻ nhỏ. */
+function renderPromptAssets() {
+    if (!promptAssetsGrid) return;
+    const all = (hitl.assets || []).filter(a => a && a.id);
+    promptAssetsGrid.innerHTML = '';
+    if (!all.length) {
+        const empty = document.createElement('p');
+        empty.className = 'rb-assets-empty';
+        empty.textContent = 'Chưa có ảnh/video nào. Bấm + để thêm.';
+        promptAssetsGrid.appendChild(empty);
+        return;
+    }
+    all.forEach(a => promptAssetsGrid.appendChild(assetThumb(a, {
+        selected: false,
+        deletable: true,
+        onClick: null,
+    })));
+    // assetThumb có nút xoá nội bộ; thêm handler cập nhật lại dải sau khi xoá.
+    promptAssetsGrid.querySelectorAll('.rb-asset-del').forEach(btn => {
+        btn.addEventListener('click', () => setTimeout(renderPromptAssets, 100));
+    });
+}
+
+function initPromptAssetUpload() {
+    if (!btnPromptAddAsset || !promptAssetInput) return;
+    btnPromptAddAsset.addEventListener('click', () => promptAssetInput.click());
+    promptAssetInput.addEventListener('change', async () => {
+        const files = Array.from(promptAssetInput.files || []);
+        if (!files.length) return;
+        btnPromptAddAsset.disabled = true;
+        try {
+            for (const f of files) await uploadAsset(f);
+            renderPromptAssets();
+        } catch (err) {
+            alert(`Upload lỗi: ${err.message}`);
+        } finally {
+            btnPromptAddAsset.disabled = false;
+            promptAssetInput.value = '';
+        }
+    });
+}
+
 async function deleteAsset(id) {
     const res = await fetch(`${API_BASE}/api/assets/${encodeURIComponent(id)}`, {
         method: 'DELETE', credentials: 'include',
@@ -2039,6 +2084,8 @@ if (projName) projName.addEventListener('click', resetProject);
     restorePendingPrompt();
     restoreHitl();
     renderTimeline();
+    initPromptAssetUpload();
+    loadAssets().then(renderPromptAssets);
 
     const jobs = await fetchJobs();
     // Server có thể trả theo thứ tự chèn (memory queue) — luôn lấy video mới nhất.

@@ -80,6 +80,7 @@ export const FAST: string[] = [
     'tests/unit/styleMotionGrammar.test.ts',
     'tests/unit/llm_call_timeout.test.ts',
     'tests/unit/uploadGuard.test.ts',
+    'tests/unit/vision_caption.test.ts',
     'tests/unit/vieneuVoice.test.ts',
     'tests/unit/watermarkFilter.test.ts',
 ];

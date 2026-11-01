@@ -126,6 +126,23 @@ export async function getAssetsByIdsForUser(ids: string[], userId: string): Prom
     return result.rows.map(toAssetRow);
 }
 
+/**
+ * Ghi mô tả + tags do vision model sinh ra vào cột description/tags của asset.
+ * Trả true nếu có dòng bị cập nhật (asset tồn tại + thuộc user).
+ */
+export async function updateAssetCaption(
+    id: string,
+    userId: string,
+    description: string,
+    tags: string[]
+): Promise<boolean> {
+    const result = await db.query(
+        `UPDATE assets SET description = $3, tags = $4 WHERE id = $1 AND user_id = $2`,
+        [id, userId, description ?? '', tags ?? []]
+    );
+    return (result.rowCount ?? 0) > 0;
+}
+
 export interface AssetUsage {
     count: number;
     totalBytes: number;

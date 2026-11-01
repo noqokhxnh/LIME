@@ -180,6 +180,10 @@ body.ws .prompt-box textarea::placeholder{color:var(--wdim)}
 body.ws .prompt-foot{display:flex;justify-content:space-between;align-items:center;margin-top:8px}
 body.ws .prompt-foot span{font-size:11px;color:var(--wdim)}
 body.ws .prompt-foot span.warn{color:#FF9D5A}
+body.ws .prompt-assets{margin-top:8px;display:flex;flex-direction:column;gap:8px}
+body.ws .prompt-assets-head{display:flex;align-items:center;gap:8px}
+body.ws .prompt-assets-hint{font-size:10.5px;color:var(--wdim);flex:1;min-width:120px}
+body.ws .prompt-assets-grid{display:flex;flex-wrap:wrap;gap:6px}
 body.ws .btn-lime-sm{background:var(--wlime);color:var(--wink);border:none;font-weight:700;
   font-size:12.5px;padding:9px 16px;border-radius:8px;display:inline-flex;align-items:center;gap:8px}
 body.ws .btn-lime-sm:disabled{opacity:.6;cursor:wait}

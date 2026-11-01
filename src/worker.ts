@@ -3,6 +3,7 @@ import { getQueue } from './queue/index.js';
 import { processVideoJob } from './queue/handler.js';
 import { initDatabase } from './database/index.js';
 import { getBillingWebhookQueue } from './billing/queue.js';
+import { getAssetCaptionQueue } from './queue/assetCaption.js';
 
 async function startWorker() {
     const config = getConfig();
@@ -19,6 +20,10 @@ async function startWorker() {
     const billingQueue = await getBillingWebhookQueue();
     await billingQueue.startWorker();
     console.log('Worker listening for jobs on sepay-webhooks queue...');
+
+    const assetCaptionQueue = await getAssetCaptionQueue();
+    await assetCaptionQueue.startWorker();
+    console.log('Worker listening for jobs on asset-captioning queue...');
 }
 
 startWorker().catch(err => {

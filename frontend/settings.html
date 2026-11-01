@@ -572,16 +572,13 @@
                         <label class="form-label">Tải lên ảnh / video:</label>
                         <input type="file" id="asset-file-input" accept="image/png,image/jpeg,image/webp,image/svg+xml,video/mp4,video/webm" class="form-control" style="padding: 0.5rem;" multiple>
                     </div>
-                    <div class="form-group">
-                        <label class="form-label" for="asset-desc-input">Mô tả (tùy chọn):</label>
-                        <input type="text" id="asset-desc-input" class="form-control" placeholder="VD: logo sản phẩm, cảnh hoàng hôn…">
-                    </div>
                 </div>
                 <div style="margin-top: 1rem;">
                     <button id="btn-upload-asset" class="btn-save">
                         <span>Upload Asset</span>
                     </button>
                 </div>
+                <p class="card-subtitle" style="margin-top: .5rem;">Mô tả & tag được AI tự sinh sau khi upload.</p>
             </div>
 
             <div class="card-panel">
@@ -994,7 +991,6 @@
             const assetGrid = document.getElementById('asset-grid');
             const assetCountText = document.getElementById('asset-count-text');
             const assetFileInput = document.getElementById('asset-file-input');
-            const assetDescInput = document.getElementById('asset-desc-input');
             const btnUploadAsset = document.getElementById('btn-upload-asset');
 
             function formatBytes(n) {
@@ -1098,19 +1094,16 @@
                         LIMEUI.toast('Chọn ít nhất một file để upload', 'warning');
                         return;
                     }
-                    const desc = assetDescInput?.value?.trim() || '';
                     btnUploadAsset.disabled = true;
                     try {
                         for (const file of files) {
                             const fd = new FormData();
                             fd.append('file', file);
-                            const qs = desc ? `?description=${encodeURIComponent(desc)}` : '';
-                            const res = await fetch(`/api/assets/upload${qs}`, { method: 'POST', credentials: 'include', body: fd });
+                            const res = await fetch(`/api/assets/upload`, { method: 'POST', credentials: 'include', body: fd });
                             const data = await res.json().catch(() => ({}));
                             if (!res.ok || !data.success) throw new Error(data.error || 'Upload thất bại');
                         }
                         LIMEUI.toast(`Đã upload ${files.length} asset`, 'success');
-                        if (assetDescInput) assetDescInput.value = '';
                         if (assetFileInput) assetFileInput.value = '';
                         await loadAssets();
                     } catch (err) {

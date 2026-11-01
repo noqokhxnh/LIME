@@ -35,6 +35,7 @@ import { validateUploadedFile, generateSafeFilePath, resolveBgmPath, validateUpl
 import { isSafeJobId, safeJobDir } from "./queue/jobPaths.js";
 import { getBrandKitByUserId, upsertBrandKit } from "./database/brandKit.js";
 import { createAsset, listAssetsByUserId, getAssetByIdForUser, deleteAssetByIdForUser, getAssetsByIdsForUser, getAssetUsageForUser, cleanupOrphanedAssetFiles, type AssetKind, type AssetRow } from "./database/assets.js";
+import { getAssetCaptionQueue } from "./queue/assetCaption.js";
 import { getCatalog, listBlueprints, listMotionBlocks } from "./templates/index.js";
 import { adminRoutes } from "./admin/routes.js";
 import { supportRoutes } from "./helpdesk/routes.js";
@@ -1337,6 +1338,14 @@ export async function buildApp(options: { logger?: boolean, queue?: IVideoQueue 
                 tags,
                 fileSizeBytes: fileBuffer.length,
             });
+
+            // Mô tả asset tự động bằng vision model (#103): đẩy job nền gọi model,
+            // ghi description/tags vào DB. Không chặn response upload.
+            try {
+                await (await getAssetCaptionQueue()).addJob({ assetId: asset.id, userId: user.id });
+            } catch (err) {
+                console.warn(`[Assets] Không đẩy được job mô tả asset ${asset.id}: ${(err as Error)?.message}`);
+            }
 
             return { success: true, asset };
         } catch (err: any) {

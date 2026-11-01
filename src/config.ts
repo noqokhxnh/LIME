@@ -40,6 +40,14 @@ const envSchema = z.object({
         z.string().default('ag/gemini-3.8-flash-high')
     ),
 
+    // Mô hình vision (multimodal) dùng để tự mô tả asset ảnh/video (#103).
+    // Mặc định dùng cùng mô hình 9router đã cấu hình — ag/gemini-3.8-flash-high
+    // hỗ trợ ảnh + video nên đủ cho cả hai loại asset.
+    Vision_Model: z.preprocess(
+        (val) => val || process.env.VISION_MODEL || 'ag/gemini-3.8-flash-high',
+        z.string().default('ag/gemini-3.8-flash-high')
+    ),
+
     OpenAI_APIKEY: z.string().optional(),
     OpenAI_Model: z.string().default('gpt-5.3-codex'),
 
