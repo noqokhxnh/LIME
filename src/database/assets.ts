@@ -1,4 +1,7 @@
 import { db } from './index.js';
+import { readdirSync, statSync, unlinkSync } from 'node:fs';
+import { join, basename } from 'node:path';
+import { ASSETS_DIR } from '../security/uploadGuard.js';
 
 // ============================================================
 // MODULE TRUY CẬP DỮ LIỆU: THƯ VIỆN ASSET (#103)
@@ -123,6 +126,26 @@ export async function getAssetsByIdsForUser(ids: string[], userId: string): Prom
     return result.rows.map(toAssetRow);
 }
 
+export interface AssetUsage {
+    count: number;
+    totalBytes: number;
+}
+
+/**
+ * Đếm số asset và tổng dung lượng của một người dùng — dùng để áp hạn mức
+ * upload (quota) trước khi ghi file mới.
+ */
+export async function getAssetUsageForUser(userId: string): Promise<AssetUsage> {
+    const result = await db.query(
+        `SELECT COUNT(*)::int AS count, COALESCE(SUM(file_size_bytes), 0)::bigint AS total_bytes
+         FROM assets
+         WHERE user_id = $1`,
+        [userId]
+    );
+    const row = result.rows[0] ?? { count: 0, total_bytes: 0 };
+    return { count: Number(row.count ?? 0), totalBytes: Number(row.total_bytes ?? 0) };
+}
+
 /**
  * Xoá một asset theo id VÀ userId. Trả về true nếu xoá được, false nếu
  * không tồn tại hoặc thuộc người khác. KHÔNG tự xoá file trên đĩa — caller
@@ -134,4 +157,44 @@ export async function deleteAssetByIdForUser(id: string, userId: string): Promis
         [id, userId]
     );
     return (result.rowCount ?? 0) > 0;
+}
+
+const SAFE_ASSET_BASENAME = /^[A-Za-z0-9][A-Za-z0-9._-]*\.(png|jpg|jpeg|svg|webp|mp4|webm)$/i;
+
+/**
+ * Dọn file asset mồ côi: file nằm trong ASSETS_DIR nhưng không còn dòng DB
+ * tương ứng (upload xong nhưng createAsset lỗi, hoặc DB bị xoá trước khi xoá
+ * file). Chỉ xoá file khớp mẫu tên an toàn và đã tồn tại lâu hơn `graceMs`
+ * (mặc định 1 giờ — tránh xoá file đang upload dở). Trả về số file đã xoá.
+ */
+export async function cleanupOrphanedAssetFiles(graceMs = 60 * 60 * 1000): Promise<number> {
+    try {
+        const valid = new Set<string>();
+        const rows = await db.query(`SELECT file_path FROM assets`);
+        for (const row of rows.rows) {
+            const name = basename(String(row.file_path ?? ''));
+            if (name) valid.add(name);
+        }
+
+        let removed = 0;
+        const now = Date.now();
+        const names = readdirSync(ASSETS_DIR);
+        for (const name of names) {
+            if (!SAFE_ASSET_BASENAME.test(name)) continue;
+            if (valid.has(name)) continue;
+            const full = join(ASSETS_DIR, name);
+            try {
+                if (now - statSync(full).mtimeMs < graceMs) continue;
+                unlinkSync(full);
+                removed++;
+            } catch {
+                // File đã mất hoặc đang bận — bỏ qua.
+            }
+        }
+        if (removed > 0) console.log(`[Assets] Đã dọn ${removed} file asset mồ côi.`);
+        return removed;
+    } catch (err) {
+        console.warn('[Assets] Lỗi khi dọn asset mồ côi:', err);
+        return 0;
+    }
 }

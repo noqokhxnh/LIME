@@ -71,6 +71,10 @@ const envSchema = z.object({
     GOOGLE_CLIENT_SECRET: z.string().optional(),
     GOOGLE_REDIRECT_URI: z.string().default('http://localhost:3000/api/auth/google/callback'),
 
+    // Thư viện asset (#103): hạn mức tải lên theo tài khoản, chống lạm dụng ổ đĩa.
+    ASSET_MAX_COUNT_PER_USER: z.coerce.number().int().min(1).default(100),
+    ASSET_MAX_TOTAL_BYTES_PER_USER: z.coerce.number().int().min(1).default(1024 * 1024 * 1024), // 1GB
+
     // VietQR & SePay Billing Configuration
     SEPAY_API_KEY: z.string().optional(),
     SEPAY_WEBHOOK_SECRET: z.string().optional(),

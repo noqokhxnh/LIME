@@ -34,7 +34,7 @@ import { rateLimiter } from "./security/rateLimiter.js";
 import { validateUploadedFile, generateSafeFilePath, resolveBgmPath, validateUploadedAsset, generateSafeAssetFilePath, resolveAssetPath, MAX_VIDEO_ASSET_BYTES } from "./security/uploadGuard.js";
 import { isSafeJobId, safeJobDir } from "./queue/jobPaths.js";
 import { getBrandKitByUserId, upsertBrandKit } from "./database/brandKit.js";
-import { createAsset, listAssetsByUserId, getAssetByIdForUser, deleteAssetByIdForUser, getAssetsByIdsForUser, type AssetKind, type AssetRow } from "./database/assets.js";
+import { createAsset, listAssetsByUserId, getAssetByIdForUser, deleteAssetByIdForUser, getAssetsByIdsForUser, getAssetUsageForUser, cleanupOrphanedAssetFiles, type AssetKind, type AssetRow } from "./database/assets.js";
 import { imageAssetsOnly } from "./pipeline/assets.js";
 import { getCatalog, listBlueprints, listMotionBlocks } from "./templates/index.js";
 import { adminRoutes } from "./admin/routes.js";
@@ -1298,6 +1298,19 @@ export async function buildApp(options: { logger?: boolean, queue?: IVideoQueue 
                 return { error: validation.reason };
             }
 
+            // Quota theo tài khoản (#103): chặn trước khi ghi file lên đĩa để
+            // không tốn ổ đĩa khi đã vượt hạn mức (số lượng / tổng dung lượng).
+            const quota = getConfig();
+            const usage = await getAssetUsageForUser(user.id);
+            if (usage.count >= quota.ASSET_MAX_COUNT_PER_USER) {
+                reply.status(413);
+                return { error: `Đã đạt giới hạn ${quota.ASSET_MAX_COUNT_PER_USER} asset. Xóa bớt rồi thử lại.` };
+            }
+            if (usage.totalBytes + fileBuffer.length > quota.ASSET_MAX_TOTAL_BYTES_PER_USER) {
+                reply.status(413);
+                return { error: `Vượt tổng dung lượng thư viện cho phép (${Math.round(quota.ASSET_MAX_TOTAL_BYTES_PER_USER / 1024 / 1024)}MB).` };
+            }
+
             const kind: AssetKind = mimeType.startsWith('video/') ? 'video' : 'image';
             const savePath = generateSafeAssetFilePath(mimeType);
 
@@ -1567,6 +1580,13 @@ export async function startServer(): Promise<FastifyInstance> {
     }
     try {
         startBillingCron(app);
+
+        // Dọn asset mồ côi mỗi 30 phút (#103): file upload không có dòng DB.
+        const assetCleanupInterval = setInterval(() => {
+            cleanupOrphanedAssetFiles().catch(err => console.warn('[Assets] Cleanup cron error:', err));
+        }, 30 * 60 * 1000);
+        app.addHook('onClose', async () => clearInterval(assetCleanupInterval));
+
         await app.listen({ port: config.PORT, host: "0.0.0.0" });
         console.log(`Backend server listening at http://localhost:${config.PORT}`);
         return app;
