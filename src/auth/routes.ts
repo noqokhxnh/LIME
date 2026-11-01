@@ -3,19 +3,41 @@ import type { FastifyInstance, FastifyRequest } from 'fastify';
 import bcrypt from 'bcryptjs';
 import { z } from 'zod';
 import { db } from '../database/index.js';
-import { createSession, deleteSession, getCurrentUser } from './session.js';
+import { createSession, deleteSession, getCurrentUser, revokeUserSessions } from './session.js';
 import { getConfig } from '../config.js';
 import { createRemoteJWKSet, jwtVerify } from 'jose';
 import { recordAuthEvent } from './loginAudit.js';
 import { systemSettings } from '../admin/systemSettings.js';
 
-/** Email Super Admin tối cao — luôn được phép đăng ký dù chức năng đăng ký bị tắt. */
+/** Email Super Admin tối cao. CHỈ còn được tôn trọng ở callback Google (nơi
+ * Google đã xác thực quyền sở hữu hộp thư bằng ID token + email_verified).
+ * Đăng ký bằng mật khẩu KHÔNG còn cấp quyền theo email này: bất kỳ ai cũng
+ * đăng ký được bằng địa chỉ của người khác vì email không hề được xác thực,
+ * và sẽ chiếm trọn tài khoản admin ngay khi bảng users chưa có dòng đó. */
 const SUPER_ADMIN_EMAIL = 'khanh2k5xxx@gmail.com';
 
 /** Số credit tặng cho người dùng mới theo cấu hình quản trị (thay cho 20 viết cứng). */
 function freeCreditsForNewUser(): number {
     const value = Math.round(Number(systemSettings.get().freeCreditsOnRegister));
     return Number.isFinite(value) && value >= 0 ? value : 20;
+}
+
+/**
+ * Tên hiển thị lấy từ hồ sơ Google (`payload.name`). Google trả về tên thật
+ * của tài khoản, có thể chứa Unicode/emoji, nên chỉ chuẩn hoá khoảng trắng và
+ * cắt theo giới hạn cột `users.display_name` (100 ký tự). Nếu Google không
+ * trả tên, dùng phần trước @ của email làm phương án dự phòng.
+ */
+function googleDisplayName(payload: Record<string, unknown>, email: string): string {
+    const rawName = typeof payload.name === 'string' ? payload.name : '';
+    const fallback = email.split('@')[0] || 'Người dùng LIME';
+    const cleaned = (rawName || fallback)
+        .normalize('NFC')
+        .replace(/[\u0000-\u001F\u007F]/g, ' ')
+        .replace(/\s+/g, ' ')
+        .trim();
+    const chars = Array.from(cleaned);
+    return chars.length > 100 ? chars.slice(0, 100).join('').trim() : cleaned;
 }
 
 
@@ -51,17 +73,17 @@ export async function authRoutes(app: FastifyInstance): Promise<void> {
         }
         const { username, password } = parsed.data;
         const email = parsed.data.email.toLowerCase();
-        const isAdmin = email === SUPER_ADMIN_EMAIL;
 
-        // Tôn trọng công tắc "cho phép đăng ký" của quản trị viên.
-        if (!isAdmin && !systemSettings.get().registrationEnabled) {
+        // Tôn trọng công tắc "cho phép đăng ký" của quản trị viên — áp dụng
+        // cho mọi email, không ngoại lệ (xem ghi chú ở SUPER_ADMIN_EMAIL).
+        if (!systemSettings.get().registrationEnabled) {
             return reply.status(403).send({ error: 'Chức năng đăng ký đang tạm đóng.' });
         }
 
         const passwordHash = await bcrypt.hash(password, 12);
-        const role = isAdmin ? 'admin' : 'user';
-        const tier = isAdmin ? 'enterprise' : 'free';
-        const credits = isAdmin ? 10000 : freeCreditsForNewUser();
+        const role = 'user';
+        const tier = 'free';
+        const credits = freeCreditsForNewUser();
         const totalCredits = credits;
         try {
             const result = await db.query(
@@ -91,6 +113,7 @@ export async function authRoutes(app: FastifyInstance): Promise<void> {
             return reply.status(201).send({
                 id: user.id,
                 username: user.username,
+                name: user.display_name || user.username,
                 email: user.email,
                 role: user.role,
                 tier: user.tier,
@@ -115,7 +138,7 @@ export async function authRoutes(app: FastifyInstance): Promise<void> {
             return reply.status(400).send({ error: 'Invalid login data', details: parsed.error.flatten() });
         }
         const result = await db.query(
-            'SELECT id, username, email, password_hash, role, tier, credits, total_credits, created_at FROM users WHERE LOWER(username) = LOWER($1) OR LOWER(email) = LOWER($1) LIMIT 1',
+            'SELECT id, username, display_name, email, password_hash, role, tier, credits, total_credits, created_at FROM users WHERE LOWER(username) = LOWER($1) OR LOWER(email) = LOWER($1) LIMIT 1',
             [parsed.data.username]
         );
         const user = result.rows[0];
@@ -175,6 +198,7 @@ export async function authRoutes(app: FastifyInstance): Promise<void> {
         return {
             id: user.id,
             username: user.username,
+            name: user.display_name || user.username,
             email: user.email,
             role: user.role || 'user',
             tier: user.tier || 'free',
@@ -230,6 +254,14 @@ export async function authRoutes(app: FastifyInstance): Promise<void> {
             'UPDATE users SET password_hash = $1 WHERE id = $2',
             [passwordHash, user.id]
         );
+
+        // Đổi mật khẩu phải đuổi mọi phiên đang mở khác: trước đây các
+        // phiên cũ (kể cả phiên của kẻ đã chiếm tài khoản) vẫn sống tới
+        // hết TTL 7 ngày sau khi chủ tài khoản đổi mật khẩu. Cấp lại phiên
+        // cho chính request này để người dùng không bị đăng xuất khỏi
+        // thiết bị hiện tại.
+        await revokeUserSessions(user.id);
+        await createSession(user.id, reply);
 
         await recordAuthEvent({
             action: 'auth.password_changed',
@@ -394,9 +426,11 @@ export async function authRoutes(app: FastifyInstance): Promise<void> {
                 return redirectAuthError('Google email is not verified');
             }
 
+            const displayName = googleDisplayName(payload, email);
+
             // 1. Tìm user theo google_id
             let userResult = await db.query(
-                'SELECT id, username, email, google_id, created_at FROM users WHERE google_id = $1 LIMIT 1',
+                'SELECT id, username, display_name, email, google_id, created_at FROM users WHERE google_id = $1 LIMIT 1',
                 [googleId]
             );
             let user = userResult.rows[0];
@@ -404,7 +438,7 @@ export async function authRoutes(app: FastifyInstance): Promise<void> {
             // 2. Nếu chưa có google_id, tìm theo email để liên kết
             if (!user) {
                 const emailResult = await db.query(
-                    'SELECT id, username, email, google_id, created_at FROM users WHERE LOWER(email) = LOWER($1) LIMIT 1',
+                    'SELECT id, username, display_name, email, google_id, password_hash, created_at FROM users WHERE LOWER(email) = LOWER($1) LIMIT 1',
                     [email]
                 );
                 user = emailResult.rows[0];
@@ -414,10 +448,21 @@ export async function authRoutes(app: FastifyInstance): Promise<void> {
                 return redirectAuthError('Email is already linked to a different Google account');
             }
 
+            if (user && !user.google_id && user.password_hash) {
+                // Tài khoản mật khẩu có sẵn: KHÔNG tự liên kết Google theo
+                // email. Nếu kẻ tấn công đăng ký trước bằng email của nạn
+                // nhân (email đăng ký không được xác thực) thì lần đăng nhập
+                // Google đầu tiên của nạn nhân sẽ gắn Google ID vào tài
+                // khoản của kẻ tấn công và nạn nhân bị chiếm quyền truy cập
+                // (pre-hijacking). Chủ tài khoản phải đăng nhập bằng mật
+                // khẩu trước; việc liên kết cần chứng minh mật khẩu đó.
+                return redirectAuthError('Email is already registered with a password. Sign in with your password first.');
+            }
+
             if (user && !user.google_id) {
                 const linkedResult = await db.query(
-                    'UPDATE users SET google_id = $1, updated_at = NOW() WHERE id = $2 RETURNING id, username, email, created_at',
-                    [googleId, user.id]
+                    'UPDATE users SET google_id = $1, display_name = COALESCE(display_name, $3), updated_at = NOW() WHERE id = $2 RETURNING id, username, display_name, email, created_at',
+                    [googleId, user.id, displayName]
                 );
                 user = linkedResult.rows[0];
             }
@@ -439,11 +484,22 @@ export async function authRoutes(app: FastifyInstance): Promise<void> {
                 const credits = isAdmin ? 10000 : freeCreditsForNewUser();
                 const totalCredits = credits;
                 const createdResult = await db.query(
-                    'INSERT INTO users (id, username, email, password_hash, google_id, role, tier, credits, total_credits) VALUES ($1, $2, $3, NULL, $4, $5, $6, $7, $8) RETURNING id, username, email, created_at',
-                    [id, username, email, googleId, role, tier, credits, totalCredits]
+                    'INSERT INTO users (id, username, display_name, email, password_hash, google_id, role, tier, credits, total_credits) VALUES ($1, $2, $3, $4, NULL, $5, $6, $7, $8, $9) RETURNING id, username, display_name, email, created_at',
+                    [id, username, displayName, email, googleId, role, tier, credits, totalCredits]
                 );
                 user = createdResult.rows[0];
                 isNewGoogleUser = true;
+            }
+
+            // Tài khoản Google tạo trước khi có cột display_name vẫn mang
+            // username dạng "google_<id>_<hex>"; bổ sung tên thật từ hồ sơ
+            // Google ở lần đăng nhập kế tiếp để hồ sơ không hiển thị ID.
+            if (user && !user.display_name) {
+                const namedResult = await db.query(
+                    'UPDATE users SET display_name = $1, updated_at = NOW() WHERE id = $2 RETURNING id, username, display_name, email, created_at',
+                    [displayName, user.id]
+                );
+                user = namedResult.rows[0];
             }
 
             await createSession(user.id, reply);

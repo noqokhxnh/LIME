@@ -6,6 +6,7 @@ import { videoRequest, pipelineResult, pipelineProgess, progressCallback, pipeli
 import { generateScript } from "./scriptGenerator";
 import { estimateDuration } from "./estimateDuration";
 import { assembleHTML } from "./assembleHtml.js";
+import { buildSceneImageMap } from "./footage.js";
 import { generatePreviews, PreviewResult } from "./preview";
 import { synthesizeAudio } from "./audioSysnthesis.js";
 import { renderVideo } from "./renderer.js";
@@ -47,6 +48,16 @@ export interface orchestratorOptions {
      * Âm lượng track SFX (Spec E)
      */
     sfxVolume?: number;
+    /**
+     * Biến vi phạm lint GSAP (#41) thành fail thay vì warn-only. Mặc định tắt
+     * trong giai đoạn hiệu chuẩn; env `LIME_GSAP_LINT_STRICT=1` cũng bật.
+     */
+    gsapLintStrict?: boolean;
+    /**
+     * Biến vi phạm bố cục (#111) thành fail thay vì warn-only. Mặc định tắt;
+     * env `LIME_COMPOSITION_STRICT=1` cũng bật.
+     */
+    compositionStrict?: boolean;
 }
 
 export interface fullPipelineResult extends pipelineResult {
@@ -135,6 +146,18 @@ export async function runFullPipeline(option: orchestratorOptions): Promise<full
             }
             timing["estimate_duration"] = Date.now() - phaseStart;
 
+            // phase 2.5: footage — gắn ảnh stock thật cho scene có footageQuery.
+            // Chưa cấu hình PIXABAY_API_KEY hoặc API lỗi thì imageMap rỗng, job chạy như cũ.
+            let imageMap: Record<string, string[]> = {};
+            try {
+                imageMap = await buildSceneImageMap(script, {
+                    orientation: preset.width >= preset.height ? "horizontal" : "vertical",
+                    onProgress: (msg) => logProgress("html_assembly", 18, msg),
+                });
+            } catch (footageErr: any) {
+                logProgress("html_assembly", 18, `Warning: footage fetch skipped: ${footageErr?.message || footageErr}`);
+            }
+
             // phase 3: assemble html tam thoi de preview
             phaseStart = Date.now();
             logProgress("html_assembly", 20, "Assembling temporary HTML bundle");
@@ -151,6 +174,7 @@ export async function runFullPipeline(option: orchestratorOptions): Promise<full
                     format: request.format,
                     safeArea: request.safeArea,
                     karaoke: request.karaoke,
+                    imageMap,
                 }
             );
             timing["html_assembly"] = Date.now() - phaseStart;
@@ -213,6 +237,7 @@ export async function runFullPipeline(option: orchestratorOptions): Promise<full
                     format: request.format,
                     safeArea: request.safeArea,
                     karaoke: request.karaoke,
+                    imageMap,
                 }
             );
             timing["html_assembly"] = Date.now() - phaseStart;
@@ -277,6 +302,10 @@ export async function runFullPipeline(option: orchestratorOptions): Promise<full
                     batchDomSampler: option.batchDomSampler,
                     audioAnalyzer: option.audioAnalyzer,
                     hasShutterBlur: option.skipShutterBlur ? false : undefined,
+                    tempo: request.tempo,
+                    targetDurationSec: request.targetDurationSec,
+                    gsapLintStrict: option.gsapLintStrict,
+                    compositionStrict: option.compositionStrict,
                 });
                 timing["oracle_qa"] = Date.now() - phaseStart;
                 qaStatus = qaReport.qaStatus;

@@ -198,7 +198,16 @@ describe('BullMQQueue — hàng đợi render trên Redis thật', { skip: redis
             });
 
             await queue.addJob(jobId, jobData({ jobId }));
-            const failed = await waitForJob(queue, jobId, (r) => r?.status === 'failed', 'job thất bại');
+            // Chờ CẢ thông báo lỗi: trên runner CI tải nặng đã gặp trạng thái
+            // 'failed' hiện ra trước khi `failedReason` đọc được ở cùng một
+            // lần getJob (bản ghi chưa nhất quán tức thời) — chờ riêng status
+            // thì assert.match ăn phải undefined dù job fail đúng như thiết kế.
+            const failed = await waitForJob(
+                queue,
+                jobId,
+                (r) => r?.status === 'failed' && typeof r?.error === 'string' && r.error.length > 0,
+                'job thất bại kèm thông báo lỗi'
+            );
 
             assert.match(String(failed?.error), /mô phỏng lỗi render/);
         });

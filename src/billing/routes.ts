@@ -7,20 +7,26 @@ import { db } from '../database/index.js';
 import { billingStorage } from './storage.js';
 import { SUPPORTED_BANKS } from './banks.js';
 import { helpdeskStore } from '../helpdesk/store.js';
+import { userStore } from '../admin/userStore.js';
 
 import { vietQrBillingService } from './vietqrService.js';
+import { normalizeCycle } from './pricing.js';
 import { getBillingWebhookQueue } from './queue.js';
 import { SEPAY_OFFICIAL_IPS } from './constants.js';
 import type { SePayWebhookPayload } from './types.js';
 
 const createOrderSchema = z.object({
     plan_id: z.string().min(1),
+    // Mặc định `month` để client cũ (không gửi cycle) giữ nguyên hành vi.
+    cycle: z.enum(['month', 'year']).optional(),
 });
 
 export function verifyApiKey(authHeader?: string, expectedKey?: string): boolean {
     if (!expectedKey) {
-        // If no SEPAY_API_KEY is set in environment (e.g. dev/test mode without key)
-        return true;
+        // Fail-closed: chưa cấu hình key thì không có credential nào hợp lệ.
+        // (Trước đây trả true — webhook không secret trở thành endpoint mở,
+        // ai cũng giả mạo được giao dịch nạp tiền.)
+        return false;
     }
     if (!authHeader) return false;
 
@@ -52,7 +58,8 @@ export function verifyHmacSignature(
     secret: string | undefined
 ): { valid: boolean; reason?: string } {
     if (!secret) {
-        return { valid: true };
+        // Fail-closed: không có secret thì không chữ ký nào được coi là hợp lệ.
+        return { valid: false, reason: 'SECRET_NOT_CONFIGURED' };
     }
     if (!signatureHeader || !timestampHeader || rawBody === undefined || rawBody === null) {
         return { valid: false, reason: 'MISSING_SIGNATURE_HEADERS' };
@@ -119,7 +126,13 @@ export function verifyIpAllowlist(clientIp: string | undefined, customAllowlist?
 async function isUserAdmin(userId: string): Promise<boolean> {
     const config = getConfig();
     if (!config.DATABASE_URL) {
-        return true; // Dev mode
+        // Trước đây không có DATABASE_URL thì trả true cho MỌI user
+        // ("dev mode") — fail-open: bất kỳ ai đăng nhập cũng qua được các
+        // cổng admin dùng hàm này (kể cả simulate webhook) mỗi khi chạy
+        // không DB. Nay tra userStore (kho mà session fallback dùng) và
+        // chỉ công nhận admin thật, chưa bị khoá/xoá.
+        const u = await userStore.findById(userId);
+        return Boolean(u && u.role === 'admin' && u.status !== 'banned' && !u.deletedAt);
     }
     try {
         const res = await db.query('SELECT role FROM users WHERE id = $1 LIMIT 1', [userId]);
@@ -235,7 +248,7 @@ export async function billingRoutes(app: FastifyInstance): Promise<void> {
         }
 
         try {
-            const orderRes = await vietQrBillingService.createOrder(user.id, parsed.data.plan_id);
+            const orderRes = await vietQrBillingService.createOrder(user.id, parsed.data.plan_id, parsed.data.cycle);
             return reply.status(200).send(orderRes);
         } catch (err: any) {
             if (err.message === 'PLAN_NOT_FOUND') {
@@ -260,7 +273,7 @@ export async function billingRoutes(app: FastifyInstance): Promise<void> {
             return reply.status(400).send({ error: 'MISSING_PLAN_ID' });
         }
         try {
-            const orderRes = await vietQrBillingService.createOrder(user.id, planId);
+            const orderRes = await vietQrBillingService.createOrder(user.id, planId, normalizeCycle(body.cycle));
             return reply.status(200).send({ success: true, order: orderRes });
         } catch (err: any) {
             return reply.status(400).send({ error: err.message });
@@ -362,6 +375,12 @@ export async function billingRoutes(app: FastifyInstance): Promise<void> {
                 console.warn('[SePay Webhook] Unauthorized attempt with invalid or missing API key.');
                 return reply.status(401).send({ error: 'UNAUTHORIZED_API_KEY' });
             }
+        } else {
+            // Fail-closed: server chưa cấu hình bất kỳ credential webhook nào
+            // (SEPAY_WEBHOOK_SECRET / SEPAY_API_KEY đều trống) → từ chối thay
+            // vì xử lý payload không xác thực như giao dịch thật.
+            console.error('[SePay Webhook] Rejected: no webhook credential configured on server.');
+            return reply.status(401).send({ error: 'WEBHOOK_AUTH_NOT_CONFIGURED' });
         }
 
         const payload = (request.body as SePayWebhookPayload) || {};
@@ -391,13 +410,24 @@ export async function billingRoutes(app: FastifyInstance): Promise<void> {
         const config = getConfig();
 
         const isAdmin = user ? await isUserAdmin(user.id) : false;
-        if (!config.SEPAY_TEST_MODE && !isAdmin) {
-            return reply.status(403).send({ error: 'FORBIDDEN', message: 'Chỉ Admin mới có thể mô phỏng webhook.' });
+        // Bắt buộc CẢ HAI: SEPAY_TEST_MODE bật VÀ người gọi là admin.
+        // Trước đây là OR — chỉ cần một phía đúng: bật test mode là bất kỳ ai
+        // cũng giả lập được giao dịch nạp tiền; là admin thì mô phỏng được
+        // ngay trên production.
+        if (!config.SEPAY_TEST_MODE || !isAdmin) {
+            return reply.status(403).send({ error: 'FORBIDDEN', message: 'Mô phỏng webhook yêu cầu SEPAY_TEST_MODE bật và tài khoản Admin.' });
         }
 
         const body = (request.body as any) || {};
         const payCode = body.pay_code;
-        const amount = Number(body.amount_vnd || 149000);
+        // Không truyền số tiền ⇒ lấy đúng số tiền của đơn (gói tháng/năm khác nhau),
+        // tránh admin "Gửi thử" đơn gói năm mà bị chuyển thành underpaid.
+        let amount = Number(body.amount_vnd || 0);
+        if (!amount && payCode) {
+            const order = await billingStorage.findOrderByPayCode(payCode).catch(() => null);
+            amount = order ? order.amount_vnd : 0;
+        }
+        if (!amount) amount = 149000;
         const testId = body.id || Math.floor(100000 + Math.random() * 900000);
         const refCode = body.reference_code || `SIM_${Date.now()}`;
         const content = body.content || (payCode ? `CHUYEN TIEN ${payCode}` : 'SIMULATION TEST WITHOUT CODE');

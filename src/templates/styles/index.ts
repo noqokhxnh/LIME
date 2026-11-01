@@ -1,6 +1,19 @@
 import { readFileSync, existsSync } from 'node:fs';
 import { join, dirname } from 'node:path';
 import { fileURLToPath } from 'node:url';
+import {
+    fallbackMotionSpec,
+    formatStyleMotionPrompt,
+    parseStyleMotionSpec,
+    type StyleMotionSpec,
+} from './motionGrammar.js';
+
+export {
+    parseStyleMotionSpec,
+    formatStyleMotionPrompt,
+    fallbackMotionSpec,
+    type StyleMotionSpec,
+};
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const INDEX_PATH = join(__dirname, 'index.json');
@@ -67,6 +80,27 @@ export function formatStyleMenuForPrompt(): string {
     return _menuCache;
 }
 
+/** Cache motion spec theo slug — prompt và validator dùng chung, parse 1 lần. */
+const _motionSpecCache = new Map<string, StyleMotionSpec>();
+
+/**
+ * Motion grammar có cấu trúc của preset (#123): camera allow-list, motion quality
+ * và native moves. Preset thiếu §6 hoặc không map được → vocabulary lõi (#122).
+ */
+export function getStyleMotionSpec(slug: string): StyleMotionSpec {
+    if (!slug || typeof slug !== 'string') return fallbackMotionSpec();
+    const cached = _motionSpecCache.get(slug);
+    if (cached) return cached;
+    let spec: StyleMotionSpec;
+    try {
+        spec = parseStyleMotionSpec(getStylePrompt(slug));
+    } catch {
+        spec = fallbackMotionSpec();
+    }
+    _motionSpecCache.set(slug, spec);
+    return spec;
+}
+
 /**
  * Đóng gói nội dung STYLE.md của slug đã chọn thành một section hoàn chỉnh để inject
  * vào user prompt sinh script. Trả về chuỗi rỗng nếu slug không hợp lệ (lỗi pick
@@ -81,9 +115,11 @@ export function formatStyleSpecForPrompt(slug: string): string {
         return '';
     }
     const meta = listStyles().find((s) => s.slug === slug);
+    const motion = formatStyleMotionPrompt(getStyleMotionSpec(slug), slug);
     return [
         `--- OPUSCAR VISUAL STYLE LAYER (slug: ${slug}${meta ? ` — ${meta.name_en}` : ''}) ---`,
         content.trim(),
-        'NOTE: You MUST apply the style spec above as the DOMINANT visual veneer — typography, color logic, materials & rendering, motion quality and camera grammar. Where generic style instructions conflict, the opuscar spec wins; but JSON schema, narration word budget and production rules remain unchanged.',
+        motion,
+        'NOTE: You MUST apply the style spec above as the DOMINANT visual veneer — typography, color logic, materials & rendering, motion quality and camera grammar. Where generic style instructions conflict, the opuscar spec wins; but JSON schema, narration word budget and production rules remain unchanged. Every scene.camera.move MUST be in the allowed list above; validation rejects any other move.',
     ].join('\n\n');
 }

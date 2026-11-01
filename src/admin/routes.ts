@@ -47,6 +47,7 @@ import { createTTSClient } from "../pipeline/audioSysnthesis.js";
 import { getLLMClientFactory } from "../llm/client.js";
 import { videoScriptSchema, type videoScript } from "../llm/schema.js";
 import type { IVideoQueue, JobUpdate } from "../queue/interfaces.js";
+import { jobWorkDirs } from "../queue/jobPaths.js";
 import { isJobVideoAvailable } from "../queue/jobVideo.js";
 import {
     isAllowedContainer,
@@ -881,6 +882,16 @@ export async function adminRoutes(app: FastifyInstance, opts?: { queue?: IVideoQ
             };
         }
 
+        // Super Admin tối cao được bảo vệ như ở PATCH (không hạ quyền/khoá):
+        // một admin thường KHÔNG được đặt lại mật khẩu của Super Admin —
+        // nếu không, quyền admin là đủ để chiếm tài khoản tối cao rồi đăng
+        // nhập bằng mật khẩu mới. Super Admin tự đổi mật khẩu qua trang cá
+        // nhân (yêu cầu mật khẩu hiện tại).
+        if (isSuperAdminAccount(target)) {
+            reply.status(400);
+            return { error: "Không thể đặt lại mật khẩu của Super Admin tối cao." };
+        }
+
         const config = getConfig();
 
         // Validate mật khẩu mới (nếu admin tự nhập) trước khi kiểm tra hạ tầng.
@@ -1336,8 +1347,11 @@ export async function adminRoutes(app: FastifyInstance, opts?: { queue?: IVideoQ
         const removedFromQueue = queue ? await queue.removeJob(jobId) : false;
 
         // Thư mục làm việc thực tế là `tmp/job-<jobId>` (xem handlePipelineRequest).
-        // Vẫn dọn thêm `tmp/<jobId>` để tương thích dữ liệu cũ.
-        for (const workDir of [join(process.cwd(), "tmp", `job-${jobId}`), join(process.cwd(), "tmp", jobId)]) {
+        // Vẫn dọn thêm `tmp/<jobId>` để tương thích dữ liệu cũ. jobWorkDirs
+        // chỉ trả đường dẫn nằm trong tmp/ khi jobId theo khuôn an toàn —
+        // jobId chứa `..`/`/` thì bỏ qua xoá file (trước đây rmSync đệ quy
+        // theo thẳng jobId trong URL, trỏ đi đâu xoá đó).
+        for (const workDir of jobWorkDirs(jobId)) {
             if (existsSync(workDir)) {
                 try {
                     rmSync(workDir, { recursive: true, force: true });
@@ -2135,6 +2149,37 @@ export async function adminRoutes(app: FastifyInstance, opts?: { queue?: IVideoQ
                 return reply.status(409).send({
                     error: `Không thể chuyển yêu cầu từ trạng thái "${refund.status}" sang "${nextStatus}".`,
                 });
+            }
+
+            // Kiểm lại trạng thái ĐƠN tại thời điểm ra quyết định — không
+            // tin snapshot lúc tạo yêu cầu: nếu trong lúc chờ duyệt, tiền
+            // về và đơn đã paid/kích hoạt thì luật lúc tạo ("đơn đã thanh
+            // toán không hoàn qua kênh này", validateRefundRequest) phải
+            // được áp lại; nếu không user vừa giữ gói vừa nhận tiền hoàn.
+            if (nextStatus === "approved" || nextStatus === "refunded") {
+                const orderNow = await billingStorage.findOrderById(refund.orderId);
+                if (orderNow && orderNow.status === "paid") {
+                    return reply.status(409).send({
+                        error: "Đơn này đã được thanh toán và kích hoạt sau khi yêu cầu hoàn tiền được tạo, nên không thể hoàn qua kênh này nữa.",
+                    });
+                }
+            }
+
+            // Chặn hoàn hai lần cho cùng một đơn qua hai ticket song song:
+            // sổ hoàn tiền khoá theo (source=ticket) nên hai ticket khác
+            // nhau cho cùng một đơn không tự va chạm — phải kiểm theo ĐƠN.
+            if (nextStatus === "refunded") {
+                const refundedTickets = await helpdeskStore.listRefundRequests({ status: "refunded", limit: 200 });
+                const alreadyRefunded = refundedTickets.items.some((t) => {
+                    if (t.id === ticket.id) return false;
+                    const p = getRefundPayload(t);
+                    return p?.orderId === refund.orderId;
+                });
+                if (alreadyRefunded) {
+                    return reply.status(409).send({
+                        error: "Đơn này đã có yêu cầu khác hoàn tiền xong — không hoàn hai lần cho cùng một đơn.",
+                    });
+                }
             }
 
             const nowIso = new Date().toISOString();

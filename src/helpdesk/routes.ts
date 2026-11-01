@@ -341,7 +341,10 @@ export async function supportRoutes(app: FastifyInstance): Promise<void> {
         }
 
         const ticket = await helpdeskStore.getTicket(request.params.id);
-        if (!ticket || (ticket.userId && ticket.userId !== user.id && user.role !== "admin")) {
+        // Fail-closed: ticket mồ côi (userId null do chủ bị xoá — FK SET NULL)
+        // chỉ admin xem được; điều kiện cũ có `ticket.userId &&` khiến mọi
+        // người dùng đăng nhập đều đọc được ticket không chủ.
+        if (!ticket || (ticket.userId !== user.id && user.role !== "admin")) {
             reply.status(404);
             return { error: "Không tìm thấy yêu cầu hỗ trợ." };
         }
@@ -363,16 +366,11 @@ export async function supportRoutes(app: FastifyInstance): Promise<void> {
             }
 
             const ticket = await helpdeskStore.getTicket(request.params.id);
-            if (!ticket || (ticket.userId && ticket.userId !== user.id && user.role !== "admin")) {
+            // Fail-closed như route đọc: ticket không chủ (userId null) không
+            // mở cho người dùng thường đọc hay trả lời.
+            if (!ticket || (ticket.userId !== user.id && user.role !== "admin")) {
                 reply.status(404);
                 return { error: "Không tìm thấy yêu cầu hỗ trợ." };
-            }
-            if (ticket.userId && ticket.userId !== user.id) {
-                // Người dùng thường không thể viết vào ticket của người khác.
-                if (user.role !== "admin") {
-                    reply.status(404);
-                    return { error: "Không tìm thấy yêu cầu hỗ trợ." };
-                }
             }
             if (ticket.status === "closed") {
                 reply.status(409);

@@ -9,6 +9,24 @@ export interface JobProgress {
     message: string;
 }
 
+/**
+ * Ném ra khi addJob trùng jobId đã tồn tại. BullMQ vốn *âm thầm bỏ qua* job
+ * thứ hai khi jobId trùng (dedup) và MemoryQueue thì ghi đè — cả hai đều
+ * biến một jobId do client chọn thành công cụ chiếm/ghi đè job của người
+ * khác. Tầng route map lỗi này sang HTTP 409.
+ */
+export class JobIdConflictError extends Error {
+    readonly code = 'JOB_ID_CONFLICT';
+    constructor(jobId: string) {
+        super(`JOB_ID_CONFLICT: jobId already exists: ${jobId}`);
+        this.name = 'JobIdConflictError';
+    }
+}
+
+export function isJobIdConflict(err: unknown): boolean {
+    return err instanceof JobIdConflictError || (err as { code?: string } | null)?.code === 'JOB_ID_CONFLICT';
+}
+
 export interface JobData {
     jobId: string;
     /**

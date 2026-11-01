@@ -9,10 +9,24 @@ import {
     checkRhythm,
 } from '../llm/schema.js';
 import {
+    type Tempo,
+    type TempoBudgetDeviation,
+    type BeatAlignment,
+    resolveTempoProfile,
+    measureTempoBudget,
+    measureBeatAlignment,
+} from '../llm/tempo.js';
+import {
     launchPreviewBrowser,
     loadAndPreparePage,
     seekToTimestamp,
 } from './preview.js';
+import { installNetworkGuard } from './networkGuard.js';
+import { getCaptionBandFromRect, captionOverlapRatio } from './karaoke.js';
+import { lintGsapCode, lintSceneMotion, type MotionLintUnit } from './gsapLinter.js';
+import { resolveCamera } from './camera.js';
+import type { ViolationType } from './compLinter.js';
+import { dirname, resolve } from 'node:path';
 
 export interface DOMBox {
     left: number;
@@ -37,6 +51,17 @@ export interface RhythmLegResult {
     ratio?: number;
     nearStillSec?: number;
     reason?: string;
+    /** Tempo đã dùng để chấm (#117). */
+    tempo?: Tempo;
+    /** Ngưỡng thực tế áp dụng — để báo cáo tự giải thích được. */
+    thresholds?: { minRatio: number; minCv: number };
+    /**
+     * Độ lệch so với dải độ dài scene đã khai của tempo. `null` khi tempo không
+     * khai báo dải (auto). Metric dùng để hiệu chuẩn trên nhiều video thật.
+     */
+    budgetDeviation?: TempoBudgetDeviation | null;
+    /** Số scene thật vs số beat dự kiến của story spine. */
+    beatAlignment?: BeatAlignment | null;
 }
 
 export interface ContinuityLegResult {
@@ -58,10 +83,97 @@ export interface FramingLegResult {
     reason?: string;
 }
 
+/** Một phần tử nội dung của scene kèm nhãn để báo lỗi cho LLM/user. */
+export interface CaptionContentElement {
+    label: string;
+    box: DOMBox;
+    /**
+     * Đường dẫn tương đối trong cây DOM của scene (vd `0/2/1`) — dùng để bỏ qua
+     * cặp phần tử lồng nhau (cha/con) khi đo chồng lấn bố cục (#111).
+     */
+    path?: string;
+    /** Loại phần tử: chữ (text) hay media/control (img, svg, video...). */
+    kind?: 'text' | 'media';
+}
+
+/**
+ * Ảnh chụp tại một thời điểm: bounding box thật của caption đang hiển thị
+ * (null nếu scene không có cue) + các phần tử nội dung của scene đang active.
+ */
+export interface CaptionBandSample {
+    caption: DOMBox | null;
+    elements: CaptionContentElement[];
+}
+
+export type CaptionBandSampler = (timeSec: number, sceneId: string) => Promise<CaptionBandSample | null>;
+
+/**
+ * Một mẫu chuyển động của scene (#125): chữ ký transform/opacity của từng phần tử.
+ * Chỉ đo property hiển thị, không đo nội dung — đủ để biết scene có động hay không.
+ */
+export interface SceneMotionSample {
+    elements: Array<{ path: string; transform: string; opacity: string }>;
+}
+
+export type MotionSampler = (timeSec: number, sceneId: string) => Promise<SceneMotionSample | null>;
+
+export interface MotionCoverageScene {
+    sceneId: string;
+    /** 0..1 — tỉ lệ khoảng `intervalSec` có ít nhất một property thay đổi. */
+    coverage: number;
+    movingIntervals: number;
+    totalIntervals: number;
+    reason?: string;
+}
+
+/**
+ * Leg motion coverage — **report-only**: luôn `status: 'pass'`, chỉ ghi số liệu
+ * vào qa_report.json để hiệu chuẩn trước khi dùng làm tiêu chí fail.
+ */
+export interface MotionCoverageLegResult {
+    status: 'pass';
+    strict: false;
+    intervalSec: number;
+    scenes: MotionCoverageScene[];
+    reason?: string;
+}
+
+export interface CaptionLegResult {
+    status: 'pass' | 'warn' | 'fail';
+    /** Số mẫu có caption thực sự hiển thị (bỏ qua mẫu không có cue). */
+    sampledFrames?: number;
+    violations?: string[];
+    reason?: string;
+}
+
 export interface AudioLegResult {
     status: 'pass' | 'warn' | 'fail';
     peakDbfs?: number;
     quietSec?: number;
+    reason?: string;
+}
+
+/** Một vi phạm linter GSAP, kèm scene + dòng để retry/LLM sửa đúng chỗ. */
+export interface CodeLintViolation {
+    sceneId?: string;
+    rule: ViolationType;
+    line: number;
+    column?: number;
+    message: string;
+}
+
+/**
+ * Chân lint code GSAP (#41).
+ * Mặc định **warn-only**: job vẫn pass, vi phạm được ghi vào QA report để hiệu
+ * chuẩn. Bật `strict` (option `gsapLintStrict` hoặc env `LIME_GSAP_LINT_STRICT=1`)
+ * thì vi phạm trở thành fail và kích hoạt retry.
+ */
+export interface CodeLintLegResult {
+    status: 'pass' | 'warn' | 'fail';
+    strict: boolean;
+    /** Tổng số scene/jsCode đã lint (kể cả globalSetupJs). */
+    lintedUnits: number;
+    violations: CodeLintViolation[];
     reason?: string;
 }
 
@@ -84,7 +196,12 @@ export interface QAReport {
         continuity: ContinuityLegResult;
         curves: CurvesLegResult;
         framing: FramingLegResult;
+        caption: CaptionLegResult;
+        composition: CompositionLegResult;
         audio: AudioLegResult;
+        code: CodeLintLegResult;
+        /** Motion coverage (#125) — report-only, ghi số liệu để hiệu chuẩn. */
+        motion: MotionCoverageLegResult;
     };
     createdAt: string;
 }
@@ -102,27 +219,63 @@ export interface OracleQaOptions {
     attempt?: number;
     domSampler?: DOMSampler;
     batchDomSampler?: BatchDOMSampler;
+    /** Lấy bbox thật của caption + phần tử nội dung tại thời điểm t (issue #110). */
+    captionSampler?: CaptionBandSampler;
+    /**
+     * Lấy phần tử nội dung của scene để đo bố cục (#111). Mặc định dùng chung
+     * `captionSampler` — sampler này trả phần tử cả khi scene không có phụ đề.
+     */
+    contentSampler?: CaptionBandSampler;
+    /**
+     * Lấy chữ ký transform/opacity của scene tại thời điểm t (#125). Mặc định
+     * dùng sampler của browser; truyền vào để test không cần Chromium.
+     */
+    motionSampler?: MotionSampler;
     audioAnalyzer?: (audioPath: string) => Promise<AudioStats>;
     page?: Page;
     hasShutterBlur?: boolean;
+    /** Tempo đã chọn cho video (#117) — mặc định lấy từ script, rồi 'auto'. */
+    tempo?: Tempo;
+    /** Thời lượng mục tiêu — dùng cho metric beat alignment. */
+    targetDurationSec?: number;
+    /**
+     * Bật lint GSAP thành fail (#41). Mặc định warn-only trong giai đoạn hiệu
+     * chuẩn; env `LIME_GSAP_LINT_STRICT=1` cũng bật.
+     */
+    gsapLintStrict?: boolean;
+    /** Biến vi phạm bố cục (#111) thành fail thay vì warn-only. */
+    compositionStrict?: boolean;
 }
 
 /**
- * Leg 1: Rhythm
- * Đo CV của độ dài các shot và tỉ số max/min từ checkRhythm.
- * - Fail nếu CV < 0.3 hoặc ratio < 4.
- * - Warn nếu thiếu đoạn near-still >= 1.5s.
+ * Leg 1: Rhythm (#117)
+ *
+ * Ngưỡng lấy từ profile của `tempo` đã chọn — cùng nguồn với prompt sinh kịch
+ * bản và validate schema. `auto` giữ nguyên 4 / 0.3 nên không regression.
+ *
+ * Ngoài fail cứng theo CV/ratio, leg còn trả hai metric chẩn đoán:
+ *  - `budgetDeviation`: độ lệch so với dải độ dài scene mà tempo đã khai;
+ *  - `beatAlignment`: số scene thật vs số beat story spine dự kiến.
+ * Hai metric này chỉ gây `warn` với tempo khai báo rõ (không phải auto) để
+ * tránh đổi hành vi mặc định khi chưa có baseline ~10 video thật.
  */
 export function checkRhythmLeg(
     scenes: scene[],
-    durations?: Record<string, number>
+    durations?: Record<string, number>,
+    options?: { tempo?: Tempo; targetDurationSec?: number }
 ): RhythmLegResult {
+    const tempo: Tempo = options?.tempo ?? 'auto';
+    const profile = resolveTempoProfile(tempo);
+    const thresholds = { minRatio: profile.minRatio, minCv: profile.minCv };
+
     if (!scenes || scenes.length <= 1) {
         return {
             status: 'pass',
             cv: 0,
             ratio: 1,
             nearStillSec: 0,
+            tempo,
+            thresholds,
         };
     }
 
@@ -131,44 +284,85 @@ export function checkRhythmLeg(
         duration: durations?.[s.id] ?? s.duration ?? 0,
     }));
 
-    const rhythm = checkRhythm(scenesWithDurations);
+    const rhythm = checkRhythm(scenesWithDurations, thresholds);
+    const measuredDurations = scenesWithDurations
+        .map((s) => s.duration)
+        .filter((d) => Number.isFinite(d) && d > 0);
+    const budgetDeviation = measureTempoBudget(measuredDurations, tempo);
+    const totalDuration =
+        options?.targetDurationSec ??
+        measuredDurations.reduce((sum, d) => sum + d, 0);
+    const beatAlignment =
+        totalDuration > 0
+            ? measureBeatAlignment(scenes.length, totalDuration, tempo)
+            : null;
+
+    const roundedCv = Math.round(rhythm.cv * 100) / 100;
+    const roundedRatio = Math.round(rhythm.ratio * 100) / 100;
+    const base = {
+        cv: roundedCv,
+        ratio: roundedRatio,
+        tempo,
+        thresholds,
+        budgetDeviation,
+        beatAlignment,
+    };
 
     const failReasons: string[] = [];
-    if (rhythm.cv < 0.3) {
+    if (rhythm.cv < profile.minCv) {
         failReasons.push(
-            `Hệ số biến thiên độ dài cảnh (CV) là ${rhythm.cv.toFixed(2)} (< 0.3, vi phạm quy tắc chống nhịp điệu đều uniform cadence)`
+            `Hệ số biến thiên độ dài cảnh (CV) là ${rhythm.cv.toFixed(2)} (< ${profile.minCv} cho tempo '${tempo}', vi phạm quy tắc chống nhịp điệu đều uniform cadence)`
         );
     }
-    if (rhythm.ratio < 4) {
+    if (rhythm.ratio < profile.minRatio) {
         failReasons.push(
-            `Tỉ số shot dài nhất / ngắn nhất là ${rhythm.ratio.toFixed(2)} (< 4, thiếu sự tương phản nhịp độ)`
+            `Tỉ số shot dài nhất / ngắn nhất là ${rhythm.ratio.toFixed(2)} (< ${profile.minRatio} cho tempo '${tempo}', thiếu sự tương phản nhịp độ)`
         );
     }
 
     if (failReasons.length > 0) {
         return {
+            ...base,
             status: 'fail',
-            cv: Math.round(rhythm.cv * 100) / 100,
-            ratio: Math.round(rhythm.ratio * 100) / 100,
             nearStillSec: rhythm.hasNearStill ? 1.5 : 0,
             reason: failReasons.join('; '),
         };
     }
 
+    const warnReasons: string[] = [];
     if (!rhythm.hasNearStill) {
+        warnReasons.push(
+            'Kịch bản thiếu khoảng nghỉ tĩnh (near-still >= 1.5s) để người xem tiếp thu nội dung'
+        );
+    }
+
+    // Chỉ cảnh báo ngân sách/beat khi người dùng khai báo tempo rõ ràng — với
+    // `auto` đây mới là metric thu thập baseline, chưa đủ dữ liệu để chấm.
+    if (profile.id !== 'auto') {
+        if (budgetDeviation && budgetDeviation.outOfRangeRatio > 0.5) {
+            warnReasons.push(
+                `Quá nửa số cảnh (${budgetDeviation.outOfRangeScenes}/${measuredDurations.length}) nằm ngoài dải ${budgetDeviation.range.min}–${budgetDeviation.range.max}s của tempo '${tempo}' (lệch trung bình ${budgetDeviation.meanAbsSec}s/cảnh)`
+            );
+        }
+        if (beatAlignment && beatAlignment.score < 0.5) {
+            warnReasons.push(
+                `Số cảnh (${beatAlignment.actualScenes}) lệch xa story spine dự kiến (${beatAlignment.plannedScenes} beat) cho tempo '${tempo}'`
+            );
+        }
+    }
+
+    if (warnReasons.length > 0) {
         return {
+            ...base,
             status: 'warn',
-            cv: Math.round(rhythm.cv * 100) / 100,
-            ratio: Math.round(rhythm.ratio * 100) / 100,
-            nearStillSec: 0,
-            reason: 'Kịch bản thiếu khoảng nghỉ tĩnh (near-still >= 1.5s) để người xem tiếp thu nội dung',
+            nearStillSec: rhythm.hasNearStill ? 1.5 : 0,
+            reason: warnReasons.join('; '),
         };
     }
 
     return {
+        ...base,
         status: 'pass',
-        cv: Math.round(rhythm.cv * 100) / 100,
-        ratio: Math.round(rhythm.ratio * 100) / 100,
         nearStillSec: 1.5,
     };
 }
@@ -461,6 +655,400 @@ export async function checkFramingLeg(
 }
 
 /**
+ * Leg 4b: Caption band (vùng cấm caption — issue #110)
+ *
+ * Không hard-code 12%: mỗi mẫu lấy bounding box THẬT của `.karaoke-cue.is-active`
+ * sau layout (1/2/3 dòng, font-size, 16:9 hay 9:16 đều khác nhau) rồi so với
+ * bounding box của các phần tử nội dung trong scene đang active.
+ *
+ * Fail khi phần tử nội dung (CTA, tiêu đề, ảnh, chữ) bị caption che >= 10% diện
+ * tích. Phần tử trang trí nền được sampler bỏ qua nếu khai báo `data-caption-exempt`
+ * hoặc phủ gần kín khung (background full-bleed).
+ */
+export async function checkCaptionBandLeg(
+    scenes: scene[],
+    durations: Record<string, number>,
+    captionSampler: CaptionBandSampler,
+    options?: { stepSec?: number; minOverlapRatio?: number }
+): Promise<CaptionLegResult> {
+    const step = options?.stepSec ?? 0.5;
+    const minOverlapRatio = options?.minOverlapRatio ?? 0.1;
+    let runningTime = 0;
+    let sampledFrames = 0;
+
+    // Gộp theo scene + phần tử, giữ mức che lớn nhất để báo cáo không bị nhiễu
+    // bởi cùng một CTA xuất hiện ở nhiều mốc thời gian.
+    const worst = new Map<string, { sceneId: string; label: string; ratio: number; timeSec: number }>();
+
+    for (const s of scenes) {
+        const dur = durations[s.id] ?? s.duration ?? 3.0;
+        const startTime = runningTime;
+        runningTime += dur;
+
+        const sampleTimes: number[] = [];
+        for (let t = startTime; t <= startTime + dur; t += step) {
+            sampleTimes.push(t);
+        }
+        if (sampleTimes.length < 3) {
+            sampleTimes.length = 0;
+            sampleTimes.push(startTime, startTime + dur / 2, startTime + dur);
+        }
+
+        for (const t of sampleTimes) {
+            const sample = await captionSampler(t, s.id);
+            if (!sample || !sample.caption) continue;
+            sampledFrames++;
+
+            const band = getCaptionBandFromRect(sample.caption);
+            for (const el of sample.elements) {
+                const ratio = captionOverlapRatio(el.box, band);
+                if (ratio < minOverlapRatio) continue;
+
+                const key = `${s.id}::${el.label}`;
+                const prev = worst.get(key);
+                if (!prev || ratio > prev.ratio) {
+                    worst.set(key, { sceneId: s.id, label: el.label, ratio, timeSec: t });
+                }
+            }
+        }
+    }
+
+    if (worst.size > 0) {
+        const violations = Array.from(worst.values())
+            .sort((a, b) => b.ratio - a.ratio)
+            .map(
+                (v) =>
+                    `Scene '${v.sceneId}': '${v.label}' bị caption che ${(v.ratio * 100).toFixed(0)}% diện tích tại t=${v.timeSec.toFixed(2)}s`
+            );
+
+        return {
+            status: 'fail',
+            sampledFrames,
+            violations,
+            reason: `Phát hiện ${violations.length} phần tử nội dung xâm phạm dải caption: ${violations.slice(0, 3).join('; ')}`,
+        };
+    }
+
+    return { status: 'pass', sampledFrames };
+}
+
+/**
+ * Một cặp phần tử chồng lấn (chỉ tính chữ–chữ, đã loại cha/con).
+ */
+export interface CompositionOverlap {
+    a: string;
+    b: string;
+    /** Diện tích giao / diện tích phần tử nhỏ hơn. */
+    ratio: number;
+    timeSec: number;
+}
+
+/**
+ * Điểm bố cục của một scene (#111). Ghi vào QA report để hiệu chuẩn ngưỡng
+ * trước khi bật fail cứng.
+ */
+export interface CompositionSceneScore {
+    sceneId: string;
+    /** Thời điểm lấy mẫu đại diện (giây, toàn video). */
+    sampledAt: number;
+    elementCount: number;
+    /** Diện tích union bbox của nội dung / diện tích khung. */
+    contentCoverage: number;
+    /** Tỉ lệ diện tích nội dung theo 1/3 dọc của khung (0..1). */
+    verticalDistribution: { top: number; middle: number; bottom: number };
+    /** Trọng tâm nội dung, chuẩn hoá 0..1 theo khung. */
+    centroid: { x: number; y: number };
+    maxTextOverlap: number;
+    overlaps: CompositionOverlap[];
+    violations: string[];
+    /** Camera đã khai cho scene (#122) — report-only, để đối chiếu với HTML. */
+    camera?: { move: string; intensity: number } | null;
+    status: 'pass' | 'warn' | 'fail';
+}
+
+export interface CompositionLegResult {
+    status: 'pass' | 'warn' | 'fail';
+    strict: boolean;
+    thresholds: {
+        minOverlapRatio: number;
+        bottomHeavyRatio: number;
+        minElements: number;
+        minContentCoverage: number;
+    };
+    scenes: CompositionSceneScore[];
+    violations: string[];
+    reason?: string;
+}
+
+export interface CompositionOptions {
+    /** Tỉ lệ giao / diện tích phần tử nhỏ hơn để coi là chồng lấn. Mặc định 0.25. */
+    minOverlapRatio?: number;
+    /** Tỉ lệ diện tích dồn vào 1/3 dưới để coi là dồn đáy. Mặc định 0.6. */
+    bottomHeavyRatio?: number;
+    /** Số phần tử tối thiểu mới chấm dồn đáy. Mặc định 3. */
+    minElements?: number;
+    /** Độ phủ nội dung tối thiểu để chấm dồn đáy (tránh 3 icon tí xíu). Mặc định 0.02. */
+    minContentCoverage?: number;
+    strict?: boolean;
+}
+
+const COMPOSITION_DEFAULTS = {
+    minOverlapRatio: 0.25,
+    bottomHeavyRatio: 0.6,
+    minElements: 3,
+    minContentCoverage: 0.02,
+};
+
+function clipBox(box: DOMBox, width: number, height: number) {
+    const left = Math.max(0, box.left);
+    const top = Math.max(0, box.top);
+    const right = Math.min(width, box.right);
+    const bottom = Math.min(height, box.bottom);
+    return {
+        left,
+        top,
+        right,
+        bottom,
+        width: Math.max(0, right - left),
+        height: Math.max(0, bottom - top),
+    };
+}
+
+function isAncestorPath(a?: string, b?: string): boolean {
+    if (!a || !b || a === b) return false;
+    return b.startsWith(`${a}/`) || a.startsWith(`${b}/`);
+}
+
+/**
+ * Đo bố cục của một scene từ danh sách phần tử nội dung (đã có bbox thật).
+ *
+ * v1 chỉ chấm hai lỗi có thể bảo vệ được bằng số liệu:
+ *  1. Chồng lấn chữ–chữ (bỏ qua cha/con và media, vì text đè lên ảnh/svg là
+ *     chủ ý thiết kế).
+ *  2. Dồn đáy: >= 3 phần tử và >= 60% diện tích nội dung nằm ở 1/3 dưới khung
+ *     (2/3 trên trống) — đúng lỗi của scene 3 video mẫu "Mộc Ca-phê".
+ *
+ * Phân bố dọc và trọng tâm vẫn được trả về để hiệu chuẩn; chưa dùng để chấm vì
+ * các job thật cho thấy bố cục dồn 1/3 trên là chủ ý (poster/9:16).
+ */
+export function measureComposition(
+    sceneId: string,
+    elements: CaptionContentElement[],
+    width: number,
+    height: number,
+    options?: CompositionOptions,
+    timeSec = 0
+): CompositionSceneScore {
+    const cfg = { ...COMPOSITION_DEFAULTS, ...options };
+    const frameArea = Math.max(1, width * height);
+
+    const visible = elements
+        .map((el) => ({ ...el, box: clipBox(el.box, width, height) }))
+        .filter((el) => el.box.width > 0 && el.box.height > 0);
+
+    const violations: string[] = [];
+    const overlaps: CompositionOverlap[] = [];
+    let maxTextOverlap = 0;
+
+    for (let i = 0; i < visible.length; i++) {
+        for (let j = i + 1; j < visible.length; j++) {
+            const a = visible[i];
+            const b = visible[j];
+            if (a.kind === 'media' || b.kind === 'media') continue;
+            if (isAncestorPath(a.path, b.path)) continue;
+
+            const interW = Math.max(0, Math.min(a.box.right, b.box.right) - Math.max(a.box.left, b.box.left));
+            const interH = Math.max(0, Math.min(a.box.bottom, b.box.bottom) - Math.max(a.box.top, b.box.top));
+            const inter = interW * interH;
+            if (inter <= 0) continue;
+
+            const areaA = a.box.width * a.box.height;
+            const areaB = b.box.width * b.box.height;
+            const smaller = Math.min(areaA, areaB);
+            if (smaller < frameArea * 0.002) continue;
+
+            const ratio = inter / smaller;
+            if (ratio < cfg.minOverlapRatio) continue;
+            maxTextOverlap = Math.max(maxTextOverlap, ratio);
+            overlaps.push({ a: a.label, b: b.label, ratio, timeSec });
+            violations.push(
+                `Scene '${sceneId}': '${a.label}' và '${b.label}' chồng lấn ${(ratio * 100).toFixed(0)}% diện tích tại t=${timeSec.toFixed(2)}s`
+            );
+        }
+    }
+
+    // Phân bố dọc + trọng tâm, tính theo diện tích nhìn thấy.
+    const thirds = { top: 0, middle: 0, bottom: 0 };
+    let totalArea = 0;
+    let cx = 0;
+    let cy = 0;
+    let unionLeft = Infinity;
+    let unionTop = Infinity;
+    let unionRight = -Infinity;
+    let unionBottom = -Infinity;
+
+    for (const el of visible) {
+        const area = el.box.width * el.box.height;
+        if (area <= 0) continue;
+        const centerY = (el.box.top + el.box.bottom) / 2 / height;
+        const idx = centerY < 1 / 3 ? 'top' : centerY < 2 / 3 ? 'middle' : 'bottom';
+        thirds[idx] += area;
+        totalArea += area;
+        cx += ((el.box.left + el.box.right) / 2) * area;
+        cy += ((el.box.top + el.box.bottom) / 2) * area;
+        unionLeft = Math.min(unionLeft, el.box.left);
+        unionTop = Math.min(unionTop, el.box.top);
+        unionRight = Math.max(unionRight, el.box.right);
+        unionBottom = Math.max(unionBottom, el.box.bottom);
+    }
+
+    const distribution =
+        totalArea > 0
+            ? {
+                  top: thirds.top / totalArea,
+                  middle: thirds.middle / totalArea,
+                  bottom: thirds.bottom / totalArea,
+              }
+            : { top: 0, middle: 0, bottom: 0 };
+
+    const contentCoverage =
+        totalArea > 0
+            ? ((unionRight - unionLeft) * (unionBottom - unionTop)) / frameArea
+            : 0;
+
+    if (
+        visible.length >= cfg.minElements &&
+        contentCoverage >= cfg.minContentCoverage &&
+        distribution.bottom >= cfg.bottomHeavyRatio &&
+        distribution.top + distribution.middle < 1 - cfg.bottomHeavyRatio + 1e-6
+    ) {
+        violations.push(
+            `Scene '${sceneId}': ${(distribution.bottom * 100).toFixed(0)}% nội dung dồn vào 1/3 dưới khung (2/3 trên trống) — phân bố top/middle/bottom = ${(
+                distribution.top * 100
+            ).toFixed(0)}/${(distribution.middle * 100).toFixed(0)}/${(distribution.bottom * 100).toFixed(0)}%`
+        );
+    }
+
+    return {
+        sceneId,
+        sampledAt: timeSec,
+        elementCount: visible.length,
+        contentCoverage: Math.round(contentCoverage * 1000) / 1000,
+        verticalDistribution: {
+            top: Math.round(distribution.top * 1000) / 1000,
+            middle: Math.round(distribution.middle * 1000) / 1000,
+            bottom: Math.round(distribution.bottom * 1000) / 1000,
+        },
+        centroid: {
+            x: totalArea > 0 ? Math.round((cx / totalArea / width) * 1000) / 1000 : 0.5,
+            y: totalArea > 0 ? Math.round((cy / totalArea / height) * 1000) / 1000 : 0.5,
+        },
+        maxTextOverlap: Math.round(maxTextOverlap * 1000) / 1000,
+        overlaps,
+        violations,
+        status: violations.length === 0 ? 'pass' : cfg.strict ? 'fail' : 'warn',
+    };
+}
+
+/**
+ * Leg 6: Composition (#111) — đo bố cục thật từ bbox phần tử sau layout.
+ *
+ * Lấy mẫu ở 60% và 85% thời lượng scene (sau animation vào) và chọn mẫu có
+ * nhiều phần tử nhất. Mặc định warn-only; `strict` biến vi phạm thành fail.
+ */
+export async function checkCompositionLeg(
+    scenes: scene[],
+    durations: Record<string, number>,
+    contentSampler: CaptionBandSampler,
+    width: number,
+    height: number,
+    options?: CompositionOptions
+): Promise<CompositionLegResult> {
+    const strict = options?.strict === true;
+    const thresholds = {
+        minOverlapRatio: options?.minOverlapRatio ?? COMPOSITION_DEFAULTS.minOverlapRatio,
+        bottomHeavyRatio: options?.bottomHeavyRatio ?? COMPOSITION_DEFAULTS.bottomHeavyRatio,
+        minElements: options?.minElements ?? COMPOSITION_DEFAULTS.minElements,
+        minContentCoverage:
+            options?.minContentCoverage ?? COMPOSITION_DEFAULTS.minContentCoverage,
+    };
+
+    const scores: CompositionSceneScore[] = [];
+    const violations: string[] = [];
+    let runningTime = 0;
+
+    for (const s of scenes) {
+        const dur = durations[s.id] ?? s.duration ?? 3.0;
+        const startTime = runningTime;
+        runningTime += dur;
+
+        const sampleTimes = [startTime + dur * 0.6, startTime + dur * 0.85];
+        let best: { elements: CaptionContentElement[]; timeSec: number } | null = null;
+
+        for (const t of sampleTimes) {
+            let sample: CaptionBandSample | null = null;
+            try {
+                sample = await contentSampler(t, s.id);
+            } catch {
+                sample = null;
+            }
+            const elements = sample?.elements ?? [];
+            if (!best || elements.length >= best.elements.length) {
+                best = { elements, timeSec: t };
+            }
+        }
+
+        if (!best || best.elements.length === 0) {
+            const emptyCam = resolveCamera(s.camera);
+            scores.push({
+                sceneId: s.id,
+                sampledAt: best?.timeSec ?? startTime,
+                elementCount: 0,
+                contentCoverage: 0,
+                verticalDistribution: { top: 0, middle: 0, bottom: 0 },
+                centroid: { x: 0.5, y: 0.5 },
+                maxTextOverlap: 0,
+                overlaps: [],
+                violations: [],
+                camera: {
+                    move: emptyCam.move,
+                    intensity: emptyCam.intensity,
+                },
+                status: 'pass',
+            });
+            continue;
+        }
+
+        const score = measureComposition(
+            s.id,
+            best.elements,
+            width,
+            height,
+            { ...options, strict },
+            best.timeSec
+        );
+        const cam = resolveCamera(s.camera);
+        score.camera = { move: cam.move, intensity: cam.intensity };
+        scores.push(score);
+        violations.push(...score.violations);
+    }
+
+    if (violations.length === 0) {
+        return { status: 'pass', strict, thresholds, scenes: scores, violations: [] };
+    }
+
+    const summary = `Phát hiện ${violations.length} lỗi bố cục: ${violations.slice(0, 3).join('; ')}`;
+    return {
+        status: strict ? 'fail' : 'warn',
+        strict,
+        thresholds,
+        scenes: scores,
+        violations,
+        reason: strict ? summary : `${summary} (warn-only; bật compositionStrict để chặn render)`,
+    };
+}
+
+/**
  * Phân tích âm thanh bằng ffmpeg volumedetect và silencedetect
  */
 export async function analyzeAudioFile(audioPath: string): Promise<AudioStats> {
@@ -569,6 +1157,128 @@ export async function checkAudioLeg(
 }
 
 /**
+ * Tách các block `<script>` inline trong htmlCode của scene.
+ *
+ * Bỏ qua `<script src=...>` (không có code để lint) và các block không phải
+ * JavaScript (`application/json`, `application/ld+json`...). Trả kèm số dòng
+ * bắt đầu để báo lỗi vẫn trỏ đúng vị trí trong htmlCode gốc.
+ */
+export function extractInlineScripts(htmlCode: string): Array<{ code: string; startLine: number }> {
+    const blocks: Array<{ code: string; startLine: number }> = [];
+    const re = /<script\b([^>]*)>([\s\S]*?)<\/script>/gi;
+    let match: RegExpExecArray | null;
+    while ((match = re.exec(htmlCode)) !== null) {
+        const attrs = match[1] || '';
+        const body = match[2] || '';
+        if (/\bsrc\s*=/i.test(attrs)) continue;
+        const typeMatch = /\btype\s*=\s*["']?([^"'\s>]+)/i.exec(attrs);
+        const type = typeMatch?.[1]?.toLowerCase();
+        if (type && !/^(text\/javascript|application\/javascript|module|text\/ecmascript)$/.test(type)) {
+            continue;
+        }
+        if (!body.trim()) continue;
+        const startLine = htmlCode.slice(0, match.index).split('\n').length;
+        blocks.push({ code: body, startLine });
+    }
+    return blocks;
+}
+
+/**
+ * Chân lint code GSAP (#41).
+ *
+ * Lint `globalSetupJs`, `jsCode` từng scene và các block `<script>` inline trong
+ * `htmlCode`. Ở giai đoạn hiệu chuẩn leg này **warn-only** — job vẫn pass và
+ * vi phạm được ghi vào QA report. Bật `strict` thì vi phạm thành `fail` để
+ * kích hoạt retry sinh kịch bản.
+ */
+export function checkGsapLintLeg(
+    script: videoScript,
+    options?: { strict?: boolean; durations?: Record<string, number> }
+): CodeLintLegResult {
+    const strict = options?.strict === true;
+    const violations: CodeLintViolation[] = [];
+    let lintedUnits = 0;
+
+    const lintUnit = (code: string, sceneId?: string) => {
+        if (!code || !code.trim()) return;
+        lintedUnits += 1;
+        const result = lintGsapCode(code, sceneId);
+        for (const v of result.violations) {
+            violations.push({
+                sceneId,
+                rule: v.type,
+                line: v.line,
+                column: v.column,
+                message: v.message,
+            });
+        }
+    };
+
+    lintUnit(script.globalSetupJs, undefined);
+    for (const scene of script.scenes || []) {
+        lintUnit(scene.jsCode, scene.id);
+        const motionUnits: MotionLintUnit[] = [];
+        if (scene.jsCode && scene.jsCode.trim()) {
+            motionUnits.push({ code: scene.jsCode });
+        }
+        for (const block of extractInlineScripts(scene.htmlCode || '')) {
+            lintedUnits += 1;
+            motionUnits.push({ code: block.code, lineOffset: block.startLine - 1 });
+            const result = lintGsapCode(block.code, scene.id);
+            for (const v of result.violations) {
+                violations.push({
+                    sceneId: scene.id,
+                    rule: v.type,
+                    line: (v.line || 0) + block.startLine - 1,
+                    column: v.column,
+                    message: v.message,
+                });
+            }
+        }
+
+        // Ngữ pháp chuyển động (#124) cần nhìn cả scene, không phải từng unit:
+        // FADE_ONLY_SCENE và STATIC_TOO_LONG chỉ đúng khi gộp jsCode + script inline.
+        const motionViolations = lintSceneMotion({
+            sceneId: scene.id,
+            duration: options?.durations?.[scene.id] ?? scene.duration,
+            nearStill: scene.nearStill,
+            cameraMove: scene.camera?.move,
+            units: motionUnits,
+        });
+        for (const v of motionViolations) {
+            violations.push({
+                sceneId: scene.id,
+                rule: v.type,
+                line: v.line,
+                column: v.column,
+                message: v.message,
+            });
+        }
+    }
+
+    if (violations.length === 0) {
+        return { status: 'pass', strict, lintedUnits, violations: [] };
+    }
+
+    const preview = violations
+        .slice(0, 3)
+        .map((v) => `${v.sceneId ?? 'global'}: ${v.rule} (dòng ${v.line})`)
+        .join('; ');
+    const suffix = violations.length > 3 ? `; +${violations.length - 3} vi phạm khác` : '';
+    const summary = `${violations.length} vi phạm GSAP — ${preview}${suffix}`;
+
+    return {
+        status: strict ? 'fail' : 'warn',
+        strict,
+        lintedUnits,
+        violations,
+        reason: strict
+            ? summary
+            : `${summary} (warn-only; bật gsapLintStrict để chặn render)`,
+    };
+}
+
+/**
  * Tạo DOMSampler dựa trên Playwright headless browser
  */
 export async function createBrowserDOMSampler(
@@ -579,6 +1289,11 @@ export async function createBrowserDOMSampler(
 ): Promise<{
     domSampler: DOMSampler;
     batchDomSampler: BatchDOMSampler;
+    captionSampler: CaptionBandSampler;
+    /** Cùng nguồn đo với captionSampler, dùng cho leg composition (#111). */
+    contentSampler: CaptionBandSampler;
+    /** Chữ ký transform/opacity của scene, dùng cho motion coverage (#125). */
+    motionSampler: MotionSampler;
     cleanup: () => Promise<void>;
     hasShutterBlur: boolean;
 }> {
@@ -592,6 +1307,7 @@ export async function createBrowserDOMSampler(
         const context = await browser.newContext({
             viewport: { width, height },
         });
+        await installNetworkGuard(context, { fileRoots: [dirname(resolve(htmlPath))] });
         page = await context.newPage();
     }
 
@@ -654,13 +1370,281 @@ export async function createBrowserDOMSampler(
         return res[selector] ?? null;
     };
 
+    /**
+     * Đo bbox thật của caption đang hiển thị + các phần tử nội dung của scene.
+     * Chạy trong page để tránh N lần round-trip mỗi mẫu.
+     */
+    const captionSampler: CaptionBandSampler = async (timeSec: number, sceneId: string) => {
+        await seekOnce(timeSec);
+        // Lưu ý: KHÔNG khai báo helper function bên trong page.evaluate — tsx/esbuild
+        // chèn `__name()` vào closure và gây ReferenceError trong browser context.
+        return page.evaluate((sid: string) => {
+            const activeCue = document.querySelector('#lime-karaoke .karaoke-cue.is-active');
+            const caption = activeCue
+                ? (() => {
+                      const cr = activeCue.getBoundingClientRect();
+                      return {
+                          left: cr.left,
+                          top: cr.top,
+                          right: cr.right,
+                          bottom: cr.bottom,
+                          width: cr.width,
+                          height: cr.height,
+                      };
+                  })()
+                : null;
+
+            const root =
+                document.getElementById(sid) ||
+                (document.querySelector(`[data-scene="${sid}"]`) as HTMLElement | null);
+            // Không có cue vẫn phải trả phần tử nội dung: leg composition (#111)
+            // đo bố cục cả ở scene không có phụ đề.
+            if (!root) return { caption, elements: [] as any[] };
+
+            const frameArea = window.innerWidth * window.innerHeight;
+            // Không dùng whitelist theo tag: LLM hay đặt CTA/nhãn trong <div>/<span>
+            // (ví dụ `.brand-title`) nên whitelist cũ bỏ sót và QA cho pass oan.
+            // Thay vào đó lấy mọi phần tử "mang nội dung":
+            //  - có text node trực tiếp (không phải wrapper bao quanh), hoặc
+            //  - là media/control (img, svg, video, canvas, button, a, input...).
+            const MEDIA_TAGS = ['IMG', 'SVG', 'VIDEO', 'CANVAS', 'BUTTON', 'A', 'INPUT', 'SELECT', 'TEXTAREA'];
+            const elements: Array<{
+                label: string;
+                path: string;
+                kind: 'text' | 'media';
+                box: { left: number; top: number; right: number; bottom: number; width: number; height: number };
+            }> = [];
+
+            for (const el of Array.from(root.querySelectorAll('*'))) {
+                // Trang trí nền khai báo miễn trừ, hoặc nằm trong vùng miễn trừ.
+                if (el.closest('[data-caption-exempt]')) continue;
+                if (el.closest('#lime-karaoke')) continue;
+                if (el.getAttribute('aria-hidden') === 'true') continue;
+
+                const isMedia = MEDIA_TAGS.includes(el.tagName.toUpperCase());
+                let hasDirectText = false;
+                for (const node of Array.from(el.childNodes)) {
+                    if (node.nodeType === 3 && (node.textContent || '').trim().length > 0) {
+                        hasDirectText = true;
+                        break;
+                    }
+                }
+                // Bỏ wrapper: chỉ có element con, không có text trực tiếp.
+                if (!hasDirectText && !isMedia) continue;
+
+                const cs = window.getComputedStyle(el);
+                if (
+                    cs.display === 'none' ||
+                    cs.visibility === 'hidden' ||
+                    parseFloat(cs.opacity || '1') <= 0.01
+                ) {
+                    continue;
+                }
+
+                const r = el.getBoundingClientRect();
+                if (r.width <= 0 || r.height <= 0) continue;
+
+                // Ảnh/video phủ gần kín khung là background full-bleed, không phải nội dung.
+                const isFullBleed = (r.width * r.height) / frameArea >= 0.8;
+                const isExplicitCheck = el.hasAttribute('data-caption-check');
+                if (isFullBleed && !isExplicitCheck) continue;
+
+                const text = (el.textContent || '').trim().replace(/\s+/g, ' ').slice(0, 32);
+                const label = el.id
+                    ? `#${el.id}`
+                    : `${el.tagName.toLowerCase()}${text ? ` "${text}"` : ''}`;
+
+                // Đường dẫn DOM để phân biệt cha/con khi đo chồng lấn.
+                const pathParts: number[] = [];
+                let cursor: Element | null = el;
+                while (cursor && cursor !== root) {
+                    const parent: Element | null = cursor.parentElement;
+                    if (!parent) break;
+                    pathParts.unshift(Array.prototype.indexOf.call(parent.children, cursor));
+                    cursor = parent;
+                }
+
+                elements.push({
+                    label,
+                    path: pathParts.join('/'),
+                    kind: isMedia ? 'media' : 'text',
+                    box: {
+                        left: r.left,
+                        top: r.top,
+                        right: r.right,
+                        bottom: r.bottom,
+                        width: r.width,
+                        height: r.height,
+                    },
+                });
+            }
+
+            return { caption, elements };
+        }, sceneId);
+    };
+
     const cleanup = async () => {
         if (browser) {
             await browser.close().catch(() => {});
         }
     };
 
-    return { domSampler, batchDomSampler, cleanup, hasShutterBlur };
+    /**
+     * Chữ ký transform/opacity của mọi phần tử trong scene tại thời điểm t.
+     * `path` là chỉ số phần tử trong DOM (ổn định giữa các lần seek vì DOM không
+     * đổi cấu trúc) — đủ để so hai mốc liên tiếp.
+     */
+    const motionSampler: MotionSampler = async (timeSec: number, sceneId: string) => {
+        await seekOnce(timeSec);
+        return page.evaluate((sid: string) => {
+            const root =
+                document.getElementById(sid) ||
+                (document.querySelector(`[data-scene="${sid}"]`) as HTMLElement | null);
+            if (!root) return null;
+
+            const elements: Array<{ path: string; transform: string; opacity: string }> = [];
+            let index = 0;
+            for (const el of Array.from(root.querySelectorAll('*'))) {
+                if (el.closest('#lime-karaoke')) continue;
+                const cs = window.getComputedStyle(el);
+                elements.push({
+                    path: String(index),
+                    transform: cs.transform,
+                    opacity: cs.opacity,
+                });
+                index += 1;
+            }
+            return { elements };
+        }, sceneId);
+    };
+
+    return {
+        domSampler,
+        batchDomSampler,
+        captionSampler,
+        contentSampler: captionSampler,
+        motionSampler,
+        cleanup,
+        hasShutterBlur,
+    };
+}
+
+/**
+ * Tỉ lệ khoảng thời gian có chuyển động, từ chuỗi mẫu liên tiếp.
+ *
+ * Một khoảng được tính là "có chuyển động" khi bất kỳ phần tử nào đổi
+ * transform hoặc opacity so với mẫu trước. Số phần tử đổi (DOM thay đổi) cũng
+ * tính là có chuyển động.
+ */
+export function computeMotionCoverage(samples: SceneMotionSample[]): {
+    coverage: number;
+    movingIntervals: number;
+    totalIntervals: number;
+} {
+    if (samples.length < 2) {
+        return { coverage: 0, movingIntervals: 0, totalIntervals: 0 };
+    }
+
+    let moving = 0;
+    for (let i = 1; i < samples.length; i += 1) {
+        const prev = samples[i - 1].elements;
+        const next = samples[i].elements;
+        let changed = prev.length !== next.length;
+        if (!changed) {
+            for (let k = 0; k < prev.length; k += 1) {
+                if (
+                    prev[k].transform !== next[k].transform ||
+                    prev[k].opacity !== next[k].opacity
+                ) {
+                    changed = true;
+                    break;
+                }
+            }
+        }
+        if (changed) moving += 1;
+    }
+
+    const total = samples.length - 1;
+    return {
+        coverage: total > 0 ? moving / total : 0,
+        movingIntervals: moving,
+        totalIntervals: total,
+    };
+}
+
+/**
+ * Leg motion coverage (#125) — report-only, không bao giờ fail job.
+ *
+ * Với mỗi scene, lấy mẫu mỗi `intervalSec` giây trong đúng cửa sổ thời gian của
+ * scene rồi tính tỉ lệ khoảng có property thay đổi.
+ */
+export async function checkMotionCoverageLeg(
+    scenes: scene[],
+    durations: Record<string, number>,
+    sampler: MotionSampler,
+    intervalSec = 0.5
+): Promise<MotionCoverageLegResult> {
+    const results: MotionCoverageScene[] = [];
+    const step = intervalSec > 0 ? intervalSec : 0.5;
+    let sceneStart = 0;
+
+    for (const current of scenes) {
+        const duration = durations[current.id] ?? current.duration ?? 0;
+        if (!Number.isFinite(duration) || duration <= 0) {
+            results.push({
+                sceneId: current.id,
+                coverage: 0,
+                movingIntervals: 0,
+                totalIntervals: 0,
+                reason: 'không có duration',
+            });
+            continue;
+        }
+
+        const steps = Math.max(1, Math.ceil(duration / step));
+        const samples: SceneMotionSample[] = [];
+        let failure: string | undefined;
+        for (let i = 0; i <= steps; i += 1) {
+            const t = sceneStart + Math.min(duration, i * step);
+            try {
+                const sample = await sampler(t, current.id);
+                if (!sample) {
+                    failure = 'không tìm thấy scene trong DOM';
+                    break;
+                }
+                samples.push(sample);
+            } catch (err: any) {
+                failure = err?.message || String(err);
+                break;
+            }
+        }
+
+        if (failure) {
+            results.push({
+                sceneId: current.id,
+                coverage: 0,
+                movingIntervals: 0,
+                totalIntervals: 0,
+                reason: failure,
+            });
+        } else {
+            const stats = computeMotionCoverage(samples);
+            results.push({
+                sceneId: current.id,
+                coverage: Math.round(stats.coverage * 1000) / 1000,
+                movingIntervals: stats.movingIntervals,
+                totalIntervals: stats.totalIntervals,
+            });
+        }
+        sceneStart += duration;
+    }
+
+    return {
+        status: 'pass',
+        strict: false,
+        intervalSec: step,
+        scenes: results,
+    };
 }
 
 /**
@@ -683,12 +1667,19 @@ export async function runOracleQa(options: OracleQaOptions): Promise<QAReport> {
     const boundaries = script.boundaries || [];
     const durations = audioResult?.scencesDuration || {};
 
-    // 1. Leg 1: Rhythm
-    const rhythmLeg = checkRhythmLeg(scenes, durations);
+    // 1. Leg 1: Rhythm — ngưỡng theo tempo của video (#117)
+    const tempo: Tempo = options.tempo ?? script.tempo ?? 'auto';
+    const rhythmLeg = checkRhythmLeg(scenes, durations, {
+        tempo,
+        targetDurationSec: options.targetDurationSec,
+    });
 
     // Chuẩn bị DOM sampler
     let domSampler = options.domSampler;
     let batchDomSampler = options.batchDomSampler;
+    let captionSampler = options.captionSampler;
+    let contentSampler = options.contentSampler;
+    let motionSampler = options.motionSampler;
     let cleanupBrowser: (() => Promise<void>) | null = null;
     let hasShutterBlur = options.hasShutterBlur ?? false;
 
@@ -703,6 +1694,9 @@ export async function runOracleQa(options: OracleQaOptions): Promise<QAReport> {
                 );
                 domSampler = browserSetup.domSampler;
                 batchDomSampler = browserSetup.batchDomSampler;
+                captionSampler = captionSampler ?? browserSetup.captionSampler;
+                contentSampler = contentSampler ?? browserSetup.contentSampler;
+                motionSampler = motionSampler ?? browserSetup.motionSampler;
                 cleanupBrowser = browserSetup.cleanup;
                 if (options.hasShutterBlur === undefined) {
                     hasShutterBlur = browserSetup.hasShutterBlur;
@@ -736,6 +1730,9 @@ export async function runOracleQa(options: OracleQaOptions): Promise<QAReport> {
     let continuityLeg: ContinuityLegResult;
     let curvesLeg: CurvesLegResult;
     let framingLeg: FramingLegResult;
+    let captionLeg: CaptionLegResult;
+    let compositionLeg: CompositionLegResult;
+    let motionLeg: MotionCoverageLegResult;
 
     try {
         // 2. Leg 2: Continuity
@@ -768,6 +1765,90 @@ export async function runOracleQa(options: OracleQaOptions): Promise<QAReport> {
             height,
             batchDomSampler
         );
+
+        // 4b. Leg 4b: Caption band — đo bbox thật sau layout (#110)
+        if (captionSampler) {
+            try {
+                captionLeg = await checkCaptionBandLeg(scenes, durations, captionSampler);
+            } catch (captionErr: any) {
+                // Lỗi đo đạc không được biến thành fail job: hạ xuống warn để vẫn render.
+                captionLeg = {
+                    status: 'warn',
+                    reason: `Không đo được dải caption: ${captionErr?.message || captionErr}`,
+                };
+            }
+        } else {
+            captionLeg = { status: 'pass', sampledFrames: 0 };
+        }
+
+        // 4c. Leg 4c: Composition — đo bố cục từ bbox thật (#111)
+        const layoutSampler = contentSampler ?? captionSampler;
+        if (layoutSampler) {
+            try {
+                compositionLeg = await checkCompositionLeg(
+                    scenes,
+                    durations,
+                    layoutSampler,
+                    width,
+                    height,
+                    {
+                        strict:
+                            options.compositionStrict ??
+                            process.env.LIME_COMPOSITION_STRICT === '1',
+                    }
+                );
+            } catch (compErr: any) {
+                compositionLeg = {
+                    status: 'warn',
+                    strict: false,
+                    thresholds: {
+                        minOverlapRatio: 0.25,
+                        bottomHeavyRatio: 0.6,
+                        minElements: 3,
+                        minContentCoverage: 0.02,
+                    },
+                    scenes: [],
+                    violations: [],
+                    reason: `Không đo được bố cục: ${compErr?.message || compErr}`,
+                };
+            }
+        } else {
+            compositionLeg = {
+                status: 'pass',
+                strict: false,
+                thresholds: {
+                    minOverlapRatio: 0.25,
+                    bottomHeavyRatio: 0.6,
+                    minElements: 3,
+                    minContentCoverage: 0.02,
+                },
+                scenes: [],
+                violations: [],
+            };
+        }
+
+        // 4d. Leg 4d: Motion coverage (#125) — report-only, không fail job.
+        if (motionSampler) {
+            try {
+                motionLeg = await checkMotionCoverageLeg(scenes, durations, motionSampler);
+            } catch (motionErr: any) {
+                motionLeg = {
+                    status: 'pass',
+                    strict: false,
+                    intervalSec: 0.5,
+                    scenes: [],
+                    reason: `Không đo được motion coverage: ${motionErr?.message || motionErr}`,
+                };
+            }
+        } else {
+            motionLeg = {
+                status: 'pass',
+                strict: false,
+                intervalSec: 0.5,
+                scenes: [],
+                reason: 'không có motion sampler',
+            };
+        }
     } finally {
         if (cleanupBrowser) {
             await cleanupBrowser();
@@ -785,13 +1866,23 @@ export async function runOracleQa(options: OracleQaOptions): Promise<QAReport> {
         options.audioAnalyzer
     );
 
-    // Tổng hợp kết quả từ 5 legs
+    // 6. Leg 6: Lint code GSAP (#41) — warn-only trừ khi bật strict
+    const codeLeg = checkGsapLintLeg(script, {
+        strict: options.gsapLintStrict ?? process.env.LIME_GSAP_LINT_STRICT === '1',
+        durations,
+    });
+
+    // Tổng hợp kết quả từ các legs
     const legs = {
         rhythm: rhythmLeg,
         continuity: continuityLeg,
         curves: curvesLeg,
         framing: framingLeg,
+        caption: captionLeg,
+        composition: compositionLeg,
         audio: audioLeg,
+        code: codeLeg,
+        motion: motionLeg,
     };
 
     const errors: string[] = [];

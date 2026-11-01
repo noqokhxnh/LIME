@@ -1,6 +1,6 @@
 import { Queue, Worker, QueueEvents, Job } from 'bullmq';
 import Redis from 'ioredis';
-import { IVideoQueue, JobData, JobRecord, JobProgress, JobUpdate } from './interfaces.js';
+import { IVideoQueue, JobData, JobRecord, JobProgress, JobUpdate, JobIdConflictError } from './interfaces.js';
 import { type fullPipelineResult } from '../pipeline/orchestrator.js';
 import { EventEmitter } from 'node:events';
 import { hashString32, parseSeedSafe } from '../pipeline/rng.js';
@@ -47,6 +47,14 @@ export class BullMQQueue implements IVideoQueue {
             data.seed = parseSeedSafe(data.request?.seed, hashString32(jobId));
         }
         data.cancelled = false;
+        // BullMQ tự dedup theo jobId: job thứ hai bị bỏ qua KHÔNG một tiếng
+        // động, nhưng route đã trừ quota và trả 202 cho client — và nếu id
+        // đó là của người khác thì đây là chiếm job. Kiểm tra tồn tại trước
+        // và ném JOB_ID_CONFLICT để route trả 409.
+        const existing = await this.queue.getJob(jobId);
+        if (existing) {
+            throw new JobIdConflictError(jobId);
+        }
         await this.queue.add('render', data, { jobId });
     }
 
@@ -108,6 +116,7 @@ export class BullMQQueue implements IVideoQueue {
         // Job đang chờ: xoá khỏi hàng đợi để worker không nhặt lên chạy.
         try {
             await job.remove();
+            this.events.emit('cancelled', { jobId });
         } catch {
             await job.updateData({ ...job.data, cancelled: true });
         }
@@ -135,6 +144,9 @@ export class BullMQQueue implements IVideoQueue {
         if (!job) return false;
         try {
             await job.remove();
+            // Báo 'cancelled' để nhả slot đồng thời của job (nếu có) —
+            // job bị xoá không còn sự kiện kết thúc nào khác.
+            this.events.emit('cancelled', { jobId });
             return true;
         } catch {
             return false;
@@ -162,6 +174,14 @@ export class BullMQQueue implements IVideoQueue {
         const concurrency = Number.isFinite(configured) && configured > 0 ? configured : 2;
         this.worker = new Worker('video-generation', async (job: Job<JobData>) => {
             return await handler(job.data, async (p) => {
+                // Admin huỷ job đang chạy chỉ sửa được bản ghi trong Redis —
+                // job đang chạy giữ bản sao data cũ nên không tự thấy cờ.
+                // Đọc lại bản ghi ở mỗi lần báo tiến độ: thấy cờ cancelled
+                // thì dừng pipeline ngay thay vì render hết rồi mới biết.
+                const fresh = job.id ? await this.queue.getJob(job.id) : undefined;
+                if (fresh?.data?.cancelled) {
+                    throw new Error('JOB_CANCELLED');
+                }
                 await job.updateProgress(p as any);
             });
         }, {
@@ -188,6 +208,14 @@ export class BullMQQueue implements IVideoQueue {
 
         this.queueEvents.on('failed', (args: any) => {
             this.events.emit('failed', args);
+        });
+
+        // Job bị xoá trong lúc chờ (admin cancel/remove) không sinh
+        // completed/failed: chuyển 'removed' thành 'cancelled' để nơi giữ
+        // slot đồng thời (releaseJobSlot ở index.ts) được nhả — trước đây
+        // slot rò vĩnh viễn tới khi restart tiến trình.
+        this.queueEvents.on('removed', (args: any) => {
+            this.events.emit('cancelled', args);
         });
     }
 

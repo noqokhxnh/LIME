@@ -335,6 +335,32 @@ describe('Module 5: Audio Synthesis TTS & FFmpeg (src/pipeline/audioSysnthesis.t
             assert.ok(progressLogs.some((l) => l.includes('Scene 2/2') || l.includes('không có lời thoại')));
         });
 
+        it('KHÔNG bù khoảng lặng vào cảnh cuối khi narration ngắn hơn targetDurationSec (#107)', async () => {
+            const mockTTS = new MockAudioTTSClient();
+            setTTSClient(mockTTS);
+
+            const outDir = join(testTempDir, 'synth_no_pad');
+            const progressLogs: string[] = [];
+
+            const result = await synthesizeAudio({
+                script: mockScript,
+                outputDir: outDir,
+                targetDurationSec: 30,
+                onProgress: (msg) => progressLogs.push(msg),
+            });
+
+            // Giữ nguyên độ dài TTS thật (2 scene ngắn), không kéo cảnh cuối lên 30s
+            assert.ok(result.totalDurationSec < 10, `totalDurationSec=${result.totalDurationSec}`);
+            assert.ok((result.scencesDuration['scene-1'] ?? 0) < 5);
+            assert.ok((result.scencesDuration['scene-2'] ?? 0) < 5);
+
+            // Không sinh file im lặng nối vào cuối track
+            assert.strictEqual(existsSync(join(outDir, 'audio', 'tail__gap.mp3')), false);
+
+            // Phải log rõ việc ngắn hơn mục tiêu thay vì bù lặng
+            assert.ok(progressLogs.some((l) => l.includes('không bù khoảng lặng')));
+        });
+
         it('phải ngắt tác vụ ngay lập tức khi AbortSignal được kích hoạt', async () => {
             const mockTTS = new MockAudioTTSClient();
             setTTSClient(mockTTS);

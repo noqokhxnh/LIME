@@ -2,7 +2,9 @@ import { randomBytes } from 'node:crypto';
 import { getConfig } from '../config.js';
 import { billingStorage } from './storage.js';
 import { generateNapasQrString, generateQrImageUrl, getBankBin } from './napas.js';
+import { normalizeCycle, resolveCycleEntitlement } from './pricing.js';
 import type {
+    BillingCycle,
     CreateOrderResponse,
     OrderStatusResponse,
     SePayWebhookPayload,
@@ -34,8 +36,10 @@ export class VietQrBillingService {
     /**
      * Creates a new VietQR billing order for a user.
      * Enforces the 1 pending order per user rule.
+     *
+     * @param cycle `month` (giá tháng) hoặc `year` (trả trọn năm, -20%).
      */
-    async createOrder(userId: string, planId: string): Promise<CreateOrderResponse> {
+    async createOrder(userId: string, planId: string, cycle: BillingCycle = 'month'): Promise<CreateOrderResponse> {
         const config = getConfig();
         const plan = await billingStorage.getPlanById(planId);
         if (!plan) {
@@ -45,17 +49,22 @@ export class VietQrBillingService {
             throw new Error('PLAN_INACTIVE');
         }
 
-        // Cancel previous pending or claimed orders of this user
-        await billingStorage.cancelActiveOrdersForUser(userId);
+        const normalizedCycle = normalizeCycle(cycle);
+        const entitlement = resolveCycleEntitlement(plan, normalizedCycle);
 
         const payCode = await this.generateUniquePayCode(config.PAY_CODE_PREFIX || 'LIME');
         const ttlMinutes = config.ORDER_TTL_MINUTES || 15;
         const expiresAt = new Date(Date.now() + ttlMinutes * 60 * 1000).toISOString();
 
+        // Tạo đơn mới, KHÔNG huỷ các đơn pending/claimed cũ của user:
+        // đơn cũ sống tới hết hạn (ORDER_TTL_MINUTES) để user đã kịp quét
+        // mã cũ và đang chuyển khoản vẫn được webhook khớp theo pay_code.
+        // Đơn hiển thị cho user là đơn mới nhất (findPendingOrderByUserId).
         const order = await billingStorage.createOrder({
             user_id: userId,
             plan_id: plan.id,
-            amount_vnd: plan.price_vnd,
+            cycle: normalizedCycle,
+            amount_vnd: entitlement.amount,
             pay_code: payCode,
             status: 'pending',
             expires_at: expiresAt,
@@ -67,14 +76,14 @@ export class VietQrBillingService {
         const qrContent = generateNapasQrString({
             bankBin,
             bankAccount: config.BANK_ACCOUNT || '0982618707',
-            amount: plan.price_vnd,
+            amount: entitlement.amount,
             memo: payCode,
         });
 
         const qrImage = generateQrImageUrl({
             bankCode: config.BANK_CODE || 'MB',
             bankAccount: config.BANK_ACCOUNT || '0982618707',
-            amount: plan.price_vnd,
+            amount: entitlement.amount,
             memo: payCode,
             accountName: config.BANK_ACCOUNT_NAME,
         });
@@ -82,7 +91,8 @@ export class VietQrBillingService {
         return {
             order_id: order.id,
             pay_code: payCode,
-            amount_vnd: plan.price_vnd,
+            cycle: normalizedCycle,
+            amount_vnd: entitlement.amount,
             qr_content: qrContent,
             qr_image: qrImage,
             expires_at: expiresAt,
@@ -108,6 +118,7 @@ export class VietQrBillingService {
 
         return {
             status: order.status,
+            cycle: normalizeCycle(order.cycle),
             amount_vnd: order.amount_vnd,
             pay_code: order.pay_code,
             expires_at: order.expires_at,
@@ -130,6 +141,16 @@ export class VietQrBillingService {
         }
         if (order.user_id !== userId) {
             throw new Error('FORBIDDEN');
+        }
+
+        // Đơn đã quá hạn (kể cả claimed đã hết gia hạn) thì nút "tôi đã
+        // chuyển khoản" không hồi sinh được nữa: tiền về muộn đi đường
+        // unmatched cho admin duyệt, tránh claim kéo dài hạn vô hạn.
+        if (
+            (order.status === 'pending' || order.status === 'claimed') &&
+            new Date(order.expires_at).getTime() <= Date.now()
+        ) {
+            throw new Error('ORDER_EXPIRED');
         }
 
         if (order.status === 'claimed') {
@@ -228,18 +249,38 @@ export class VietQrBillingService {
         }
         const sepayRef = rawId;
 
-        // 3. Layer 1 Idempotency Check: if SePay transaction ID already exists, do nothing
-        const existingPayment = await billingStorage.findPaymentBySepayRef(sepayRef);
+        // 3. Layer 1 Idempotency Check: if SePay transaction ID already exists, do nothing.
+        // Dùng finder NGHIÊM NGẶT theo cột sepay_ref: finder cũ OR-match cả raw
+        // referenceCode của bản ghi khác — một giao dịch có referenceCode trùng
+        // id của giao dịch này sẽ bị nhận nhầm là trùng lặp và bị bỏ qua
+        // (mất tiền nạp). referenceCode chỉ là fallback khi payload thiếu id.
+        const existingPayment = await billingStorage.findPaymentBySepayId(sepayRef);
         if (existingPayment) {
             return { success: true, result: 'idempotent_duplicate_ref' };
         }
-        const existingUnmatched = await billingStorage.findUnmatchedPaymentBySepayRef(sepayRef);
+        const existingUnmatched = await billingStorage.findUnmatchedPaymentBySepayId(sepayRef);
         if (existingUnmatched) {
             return { success: true, result: 'idempotent_duplicate_unmatched_ref' };
         }
 
         // 4. Extract amount
         const amount = Number(payload.transferAmount || payload.transfer_amount || payload.amount_in || 0);
+
+        // Số tiền phải hữu hạn và > 0: NaN làm mọi phép so sánh thành false
+        // và trượt thẳng xuống nhánh "đủ tiền" — gói bị kích hoạt bởi một
+        // giao dịch không có số tiền thật. Ghi unmatched để admin đối soát
+        // thay vì cho khớp đơn.
+        if (!Number.isFinite(amount) || amount <= 0) {
+            await billingStorage.recordUnmatchedPayment({
+                sepay_ref: sepayRef,
+                amount_vnd: 0,
+                content: (payload.content || payload.description || '').toString(),
+                raw: payload,
+                status: 'pending',
+                admin_note: 'Số tiền giao dịch không hợp lệ (thiếu/NaN/không dương)',
+            });
+            return { success: true, result: 'unmatched_invalid_amount' };
+        }
 
         // 5. Extract pay_code
         const prefix = config.PAY_CODE_PREFIX || 'LIME';
@@ -299,6 +340,21 @@ export class VietQrBillingService {
             return { success: true, result: `unmatched_order_${order.status}` };
         }
 
+        // Đơn còn ghi pending/claimed nhưng hạn thanh toán đã qua (cron
+        // chưa kịp lật sang 'expired'): tiền về muộn đi đường unmatched
+        // cho admin duyệt tay, không tự kích hoạt gói.
+        if (new Date(order.expires_at).getTime() <= Date.now()) {
+            await billingStorage.recordUnmatchedPayment({
+                sepay_ref: sepayRef,
+                amount_vnd: amount,
+                content: rawContent,
+                raw: payload,
+                status: 'pending',
+                admin_note: `Thanh toán cho order đã hết hạn (${order.id})`,
+            });
+            return { success: true, result: 'unmatched_order_expired' };
+        }
+
         // Order is pending or claimed
         if (amount < order.amount_vnd) {
             // Case 8.2: Underpaid transfer
@@ -313,8 +369,13 @@ export class VietQrBillingService {
 
         // Matched or Overpaid transfer (amount >= order.amount_vnd)
         const plan = await billingStorage.getPlanById(order.plan_id);
-        const planDays = plan ? plan.days : 30;
-        const quotaVideo = plan ? plan.quota_video : 0;
+        // Quyền lợi chốt theo chu kỳ của đơn (gói năm: 365 ngày, quota × 12),
+        // không phải theo giá tháng hiện tại của gói.
+        const entitlement = plan
+            ? resolveCycleEntitlement(plan, normalizeCycle(order.cycle))
+            : { amount: order.amount_vnd, days: 30, quota: 0 };
+        const planDays = entitlement.days;
+        const quotaVideo = entitlement.quota;
         const paymentResult = amount > order.amount_vnd ? 'overpaid' : 'matched';
 
         const fulfillRes = await billingStorage.lockAndFulfillOrder({

@@ -10,6 +10,7 @@
  */
 import { existsSync } from "node:fs";
 import { join } from "node:path";
+import { safeJobDir } from "./jobPaths.js";
 
 /** Job tối thiểu cần cho việc tra cứu (nhận cả `JobRecord` lẫn bản ghi thô của Bull). */
 export type JobVideoSource =
@@ -28,7 +29,10 @@ export function resolveJobVideoPath(job: JobVideoSource, jobId?: string): string
     const declared = job?.result?.videoPath;
     if (declared) return declared;
     const id = jobId || job?.jobId || "";
-    return join(process.cwd(), "tmp", `job-${id}`, "final_video.mp4");
+    // jobId có thể đến từ URL: chỉ resolve trong tmp/ qua safeJobDir —
+    // jobId không an toàn thì trỏ vào thư mục không tồn tại (404 ở nơi gọi).
+    const dir = safeJobDir(id) ?? join(process.cwd(), "tmp", "job-__invalid__");
+    return join(dir, "final_video.mp4");
 }
 
 /** Tệp video của job có thật trên máy chủ đang chạy hay không. */

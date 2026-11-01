@@ -27,15 +27,17 @@ import { billingRoutes } from "./billing/routes.js";
 import { startBillingCron, stopBillingCron } from "./billing/cron.js";
 import { getQueue } from "./queue/index.js";
 import { processVideoJob } from "./queue/handler.js";
-import { IVideoQueue } from "./queue/interfaces.js";
+import { IVideoQueue, isJobIdConflict } from "./queue/interfaces.js";
 import { resolveJobVideoPath } from "./queue/jobVideo.js";
 import { validatePrompt } from "./security/promptGuard.js";
 import { rateLimiter } from "./security/rateLimiter.js";
-import { validateUploadedFile, generateSafeFilePath } from "./security/uploadGuard.js";
+import { validateUploadedFile, generateSafeFilePath, resolveBgmPath } from "./security/uploadGuard.js";
+import { isSafeJobId, safeJobDir } from "./queue/jobPaths.js";
 import { getBrandKitByUserId, upsertBrandKit } from "./database/brandKit.js";
 import { getCatalog, listBlueprints, listMotionBlocks } from "./templates/index.js";
 import { adminRoutes } from "./admin/routes.js";
 import { supportRoutes } from "./helpdesk/routes.js";
+import { helpdeskStore } from "./helpdesk/store.js";
 import { systemSettings } from "./admin/systemSettings.js";
 import { announcementsStore } from "./admin/announcements.js";
 import { pageViewTracker } from "./security/pageViewTracker.js";
@@ -95,19 +97,47 @@ export async function buildApp(options: { logger?: boolean, queue?: IVideoQueue 
         },
     });
 
-    // Đăng ký phục vụ tệp tĩnh ảnh đính kèm ticket từ thư mục tmp/uploads/tickets
-    // (headers bảo mật giống thư mục logos: sandbox CSP — vẫn thấy ảnh nhưng không chạy script)
+    // File đính kèm ticket KHÔNG còn phục vụ tĩnh công khai: ảnh chụp màn
+    // hình hỗ trợ có thể chứa thông tin tài khoản, trước đây ai có URL
+    // (UUID khó đoán nhưng rò qua log/history/chia sẻ) đều tải được mà
+    // không cần đăng nhập. Nay qua route kiểm quyền: chỉ chủ ticket hoặc
+    // admin đã đăng nhập mới tải được; headers bảo mật giữ như bản tĩnh cũ.
     const ticketsDir = join(process.cwd(), "tmp", "uploads", "tickets");
     mkdirSync(ticketsDir, { recursive: true });
-    await app.register(fastifyStatic, {
-        root: ticketsDir,
-        prefix: "/uploads/tickets/",
-        decorateReply: false,
-        setHeaders: (res) => {
-            res.header("Content-Security-Policy", "default-src 'none'; style-src 'unsafe-inline'; sandbox");
-            res.header("X-Content-Type-Options", "nosniff");
-            res.header("X-Frame-Options", "DENY");
-        },
+    app.get("/uploads/tickets/:filename", async (request: FastifyRequest<{ Params: { filename: string } }>, reply: FastifyReply) => {
+        const user = await getCurrentUser(request);
+        if (!user) {
+            reply.status(401);
+            return { error: "Authentication required" };
+        }
+        const { filename } = request.params;
+        const ATTACHMENT_TYPES: Record<string, string> = {
+            png: "image/png",
+            jpg: "image/jpeg",
+            jpeg: "image/jpeg",
+            svg: "image/svg+xml",
+            webp: "image/webp",
+        };
+        const ext = filename.split(".").pop()?.toLowerCase() || "";
+        if (!/^[A-Za-z0-9][A-Za-z0-9._-]*$/.test(filename) || !ATTACHMENT_TYPES[ext]) {
+            reply.status(404);
+            return { error: "Not found" };
+        }
+        const ticket = await helpdeskStore.findTicketByAttachment(filename);
+        if (!ticket || (ticket.userId !== user.id && user.role !== "admin")) {
+            reply.status(404);
+            return { error: "Not found" };
+        }
+        const filePath = join(ticketsDir, filename);
+        if (!existsSync(filePath)) {
+            reply.status(404);
+            return { error: "Not found" };
+        }
+        reply.header("Content-Security-Policy", "default-src 'none'; style-src 'unsafe-inline'; sandbox");
+        reply.header("X-Content-Type-Options", "nosniff");
+        reply.header("X-Frame-Options", "DENY");
+        reply.type(ATTACHMENT_TYPES[ext]);
+        return reply.send(createReadStream(filePath));
     });
 
     app.addHook("preHandler", async (request, reply) => {
@@ -146,18 +176,24 @@ export async function buildApp(options: { logger?: boolean, queue?: IVideoQueue 
             const ip = request.ip || '127.0.0.1';
             const body = request.body as any;
 
-            // /api/script/draft gọi LLM song song cho từng phương án, cộng thêm một
-            // lần phân loại nếu client chưa gửi answers. Tính RPM theo lượt gọi thật
-            // để không ai nhân chi phí LLM lên 3 lần mà vẫn trong hạn mức.
+            // /api/script/draft gọi LLM song song cho từng phương án: mỗi
+            // phương án tốn tối thiểu 1 lần chọn style + 1 lần sinh kịch
+            // bản (chưa kể thử lại khi lỗi), cộng thêm một lần phân loại
+            // nếu client chưa gửi answers. Tính RPM theo fan-out tối thiểu
+            // đó (2/variant); phần chi phí vượt trần theo ngày do trần
+            // draft/ngày theo tài khoản ở handler chặn.
             let rpmCost = 1;
             if (path === '/api/script/draft') {
                 const requested = Number(body?.variantCount ?? 1);
                 const variants = Number.isFinite(requested)
                     ? Math.min(3, Math.max(1, Math.floor(requested)))
                     : 1;
-                rpmCost = variants + (body?.answers ? 0 : 1);
-            } else if (path === '/api/pipeline' && (body?.autoDirect || body?.mode === 'auto')) {
-                // autoDirect = 1 lần phân loại + 3 lần sinh phương án.
+                rpmCost = variants * 2 + (body?.answers ? 0 : 1);
+            } else if ((path === '/api/pipeline' || path === '/api/generate') && (body?.autoDirect || body?.mode === 'auto')) {
+                // autoDirect = 1 lần phân loại + 3 lần sinh phương án. Cả hai
+                // alias /api/pipeline và /api/generate dùng chung một handler
+                // nên phải tính như nhau — trước đây /api/generate chỉ bị
+                // tính 1, mở đường vòng qua alias để né hạn mức.
                 rpmCost = 4;
             }
 
@@ -300,9 +336,17 @@ export async function buildApp(options: { logger?: boolean, queue?: IVideoQueue 
             allowSandboxPayments: sys.allowSandboxPayments,
         };
 
+        // preferences thô chứa elevenlabsApiKey dạng rõ: bản sao trả về
+        // phải che như field đã dẫn xuất ở trên — trước đây key rời server
+        // nguyên vẹn qua userPreferences dù UI coi nó là trường mật khẩu.
+        const safePreferences = { ...(user?.preferences || {}) } as Record<string, unknown>;
+        if (safePreferences.elevenlabsApiKey) {
+            safePreferences.elevenlabsApiKey = "••••••••";
+        }
+
         return {
             settings: currentSettings,
-            userPreferences: user?.preferences || {},
+            userPreferences: safePreferences,
             providers: {
                 llm: ["deepseek", "gemini", "claude", "openai", "9router"],
                 tts: ["edge", "vieneu", "openai", "google", "elevenlabs"],
@@ -378,7 +422,10 @@ export async function buildApp(options: { logger?: boolean, queue?: IVideoQueue 
 
         return {
             success: true,
-            preferences: newPrefs,
+            preferences: {
+                ...newPrefs,
+                ...(newPrefs.elevenlabsApiKey ? { elevenlabsApiKey: "••••••••" } : {}),
+            },
         };
     });
 
@@ -480,6 +527,18 @@ export async function buildApp(options: { logger?: boolean, queue?: IVideoQueue 
     };
 
     app.post("/api/script/draft", async (request: FastifyRequest, reply: FastifyReply) => {
+        // Sinh nháp kịch bản gọi LLM thật — bắt buộc đăng nhập như tạo job.
+        const authUser = await getCurrentUser(request);
+        if (!authUser) {
+            reply.status(401);
+            return { error: "Authentication required" };
+        }
+        // Trần ngày theo tài khoản: RPM chỉ chặn theo phút, không có trần
+        // ngày thì một tài khoản đốt LLM cả ngày ở nhịp RPM vẫn hợp lệ.
+        if (!rateLimiter.checkAndIncrementDailyQuota(`draft:${authUser.id}`, 50)) {
+            reply.status(429);
+            return { success: false, error: "Daily draft quota exceeded" };
+        }
         const body = (request.body as any) ?? {};
         try {
             const normalized = normalizeVideoRequestBody(body);
@@ -558,11 +617,14 @@ export async function buildApp(options: { logger?: boolean, queue?: IVideoQueue 
                     .map(entry => entry.reason?.message ?? String(entry.reason))
                     .slice(0, 3)
                     .join(' | ');
+                // Chi tiết lỗi chứa văn bản thô của nhà cung cấp LLM (thân
+                // phản hồi, đôi khi cả JSON đầy đủ) — chỉ ghi log phía
+                // server, không trả cho client.
+                console.error('[draft] Không sinh đủ phương án:', details.slice(0, 2000));
                 reply.status(502);
                 return {
                     success: false,
                     error: 'Không sinh đủ phương án khác nhau. Vui lòng thử lại.',
-                    details: details.slice(0, 2000),
                 };
             }
 
@@ -592,7 +654,10 @@ export async function buildApp(options: { logger?: boolean, queue?: IVideoQueue 
             reply.status(400);
             return {
                 success: false,
-                error: err.message,
+                // Chỉ chuyển tiếp lỗi validation nội bộ (Zod); lỗi khác có
+                // thể chứa văn bản thô của nhà cung cấp — trả thông điệp
+                // chung thay vì rò rỉ chi tiết upstream.
+                error: err?.name === 'ZodError' ? err.message : 'Yêu cầu không hợp lệ. Vui lòng kiểm tra lại dữ liệu.',
             };
         }
     });
@@ -604,6 +669,18 @@ export async function buildApp(options: { logger?: boolean, queue?: IVideoQueue 
      * sinh xong 3 phương án mới biết cần hỏi gì.
      */
     app.post("/api/script/clarify", async (request: FastifyRequest, reply: FastifyReply) => {
+        // Làm rõ prompt gọi LLM phân loại — bắt buộc đăng nhập như tạo job.
+        const authUser = await getCurrentUser(request);
+        if (!authUser) {
+            reply.status(401);
+            return { success: false, error: "Authentication required" };
+        }
+        // Trần ngày theo tài khoản (mỗi lượt clarify là một lần gọi LLM
+        // phân loại bằng API key của hệ thống).
+        if (!rateLimiter.checkAndIncrementDailyQuota(`clarify:${authUser.id}`, 100)) {
+            reply.status(429);
+            return { success: false, error: "Daily clarify quota exceeded" };
+        }
         const body = (request.body as any) ?? {};
         const prompt = String(body.prompt ?? body.text ?? body.topic ?? '').trim();
         if (prompt.length < 10) {
@@ -618,7 +695,9 @@ export async function buildApp(options: { logger?: boolean, queue?: IVideoQueue 
             answers: result.answers,
             confidence: result.confidence,
             questions: buildQuestionViews(result),
-            error: result.error,
+            // result.error chứa thông điệp thô của nhà cung cấp LLM khi
+            // phân loại thất bại — thay bằng thông điệp chung.
+            error: result.error ? 'Không gọi được AI để phân loại; đang dùng đáp án mặc định.' : result.error,
         };
     });
 
@@ -628,6 +707,15 @@ export async function buildApp(options: { logger?: boolean, queue?: IVideoQueue 
     }));
 
     const handlePipelineRequest = async (request: FastifyRequest, reply: FastifyReply) => {
+        // Tạo video đốt LLM/TTS/render thật: bắt buộc đăng nhập. Trước đây
+        // khách ẩn danh tạo job thoải mái (chỉ bị giới hạn theo IP), đốt chi
+        // phí API, lấp đầy hàng đợi và sinh job không chủ. Gate đặt trước mọi
+        // bước trừ quota/validation để request ẩn danh không tiêu tốn gì.
+        const authUser = await getCurrentUser(request);
+        if (!authUser) {
+            reply.status(401);
+            return { error: "Authentication required" };
+        }
         const body = (request.body as any) || {};
         const isAsync = Boolean(body.async || (request.query as any)?.async === 'true');
 
@@ -667,17 +755,30 @@ export async function buildApp(options: { logger?: boolean, queue?: IVideoQueue 
             }
         }
 
+        // jobId do client gửi được dùng làm khoá hàng đợi VÀ tên thư mục
+        // tmp/job-<jobId>: ký tự đường dẫn (`/`, `..`) sẽ thành traversal
+        // khi đọc/xoá artifact — kiểm tra TRƯỚC khi trừ quota/giữ slot để
+        // request bị từ chối không ăn hạn mức.
+        if (body.jobId !== undefined && !isSafeJobId(body.jobId)) {
+            reply.status(400);
+            return { error: "Invalid jobId" };
+        }
+
         const ip = request.ip || '127.0.0.1';
         if (!rateLimiter.checkAndIncrementDailyQuota(ip)) {
             reply.status(429);
             return { error: "Daily quota exceeded" };
         }
         if (!rateLimiter.acquireConcurrentJob(ip)) {
+            // Không nhận job thì không tính quota ngày.
+            rateLimiter.refundDailyQuota(ip);
             reply.status(429);
             return { error: "Concurrency limit exceeded" };
         }
 
-        const bgmPath = body.bgmPath as string | undefined;
+        // bgmPath đi thẳng vào ffmpeg: chỉ chấp nhận file trong tmp/ hoặc
+        // assets/ (resolveBgmPath) — ngoài ra bỏ qua như không có BGM.
+        const bgmPath = resolveBgmPath(body.bgmPath) ?? undefined;
         const skipPreview = Boolean(body.skipPreview);
         const autoDirect = Boolean(body.autoDirect || body.mode === 'auto');
         const autoAnswers = body.answers;
@@ -687,15 +788,16 @@ export async function buildApp(options: { logger?: boolean, queue?: IVideoQueue 
         const defaultSeed = hashString32(jobId);
         const seed = parseSeedSafe(reqData.seed ?? body.seed, defaultSeed);
 
-        // Xác định chủ job để cổng quản trị hiển thị/tìm kiếm theo người dùng.
-        const currentUser = await getCurrentUser(request);
-        const userId = currentUser?.id;
+        // Chủ job = người dùng đã xác thực ở đầu handler (hiển thị/tìm kiếm
+        // ở cổng quản trị và là căn cứ ownership cho các route đọc job).
+        const userId = authUser.id;
 
         const outputDir = join(process.cwd(), "tmp", `job-${jobId}`);
 
         if (isAsync) {
             jobIpMap.set(jobId, ip);
-            await queue.addJob(jobId, {
+            try {
+                await queue.addJob(jobId, {
                 jobId,
                 userId,
                 request: reqData,
@@ -707,7 +809,22 @@ export async function buildApp(options: { logger?: boolean, queue?: IVideoQueue 
                 skipPreview,
                 outputDir,
                 seed
-            });
+                });
+            } catch (err) {
+                // Enqueue lỗi: job không chạy nên sẽ không có sự kiện kết
+                // thúc nào tới để nhả slot — nhả ngay tại đây và hoàn quota.
+                jobIpMap.delete(jobId);
+                rateLimiter.releaseConcurrentJob(ip);
+                rateLimiter.refundDailyQuota(ip);
+                if (isJobIdConflict(err)) {
+                    // jobId client chọn đã tồn tại (có thể của người khác):
+                    // 409 thay vì âm thầm dedup/ghi đè.
+                    reply.status(409);
+                    return { error: "JOB_ID_CONFLICT", message: "jobId đã tồn tại, hãy dùng jobId khác." };
+                }
+                reply.status(500);
+                return { error: "Failed to enqueue job" };
+            }
 
             reply.status(202);
             return {
@@ -767,8 +884,22 @@ export async function buildApp(options: { logger?: boolean, queue?: IVideoQueue 
     app.post("/api/generate", handlePipelineRequest);
     app.post("/api/pipeline", handlePipelineRequest);
 
-    app.get("/api/jobs", async () => {
-        const jobs = await queue.getJobs();
+    // Job thuộc về người tạo ra nó: chi tiết và artifact (html/audio/video/
+    // preview/download/SSE) chỉ chủ sở hữu hoặc admin mới đọc được. Job cũ
+    // tạo trước khi có auth (không có userId) thì người dùng đã đăng nhập
+    // nào cũng đọc được, nhưng khách ẩn danh thì không — trước đây các route
+    // này public hoàn toàn, lộ prompt/script/video của mọi user cho bất kỳ
+    // ai biết hoặc đoán được jobId.
+    const canReadJob = (user: { id: string; role: string }, job: { userId?: string } | null | undefined) =>
+        !job?.userId || job.userId === user.id || user.role === "admin";
+
+    app.get("/api/jobs", async (request: FastifyRequest, reply: FastifyReply) => {
+        const user = await getCurrentUser(request);
+        if (!user) {
+            reply.status(401);
+            return { error: "Authentication required" };
+        }
+        const jobs = (await queue.getJobs()).filter((j) => canReadJob(user, j));
         // Mới nhất trước. Không dựa vào thứ tự của queue: memory queue trả theo
         // thứ tự chèn còn BullMQ trả theo từng state, nên client luôn nhận một
         // danh sách đã sắp xếp thay vì phải tự đoán.
@@ -792,8 +923,17 @@ export async function buildApp(options: { logger?: boolean, queue?: IVideoQueue 
 
     app.get("/api/jobs/:jobId", async (request: FastifyRequest<{ Params: { jobId: string } }>, reply: FastifyReply) => {
         const { jobId } = request.params;
+        const reader = await getCurrentUser(request);
+        if (!reader) {
+            reply.status(401);
+            return { error: "Authentication required" };
+        }
         const job = await queue.getJob(jobId);
         if (!job) {
+            reply.status(404);
+            return { error: "Job not found" };
+        }
+        if (!canReadJob(reader, job)) {
             reply.status(404);
             return { error: "Job not found" };
         }
@@ -820,6 +960,12 @@ export async function buildApp(options: { logger?: boolean, queue?: IVideoQueue 
 
     app.get("/api/jobs/:jobId/events", async (request: FastifyRequest<{ Params: { jobId: string } }>, reply: FastifyReply) => {
         const { jobId } = request.params;
+        const reader = await getCurrentUser(request);
+        if (!reader) {
+            reply.status(401);
+            return { error: "Authentication required" };
+        }
+
         
         reply.raw.setHeader('Content-Type', 'text/event-stream');
         reply.raw.setHeader('Cache-Control', 'no-cache');
@@ -828,6 +974,12 @@ export async function buildApp(options: { logger?: boolean, queue?: IVideoQueue 
 
         const job = await queue.getJob(jobId);
         if (!job) {
+            reply.raw.write(`event: error\ndata: ${JSON.stringify({ error: 'Job not found' })}\n\n`);
+            reply.raw.end();
+            return;
+        }
+
+        if (!canReadJob(reader, job)) {
             reply.raw.write(`event: error\ndata: ${JSON.stringify({ error: 'Job not found' })}\n\n`);
             reply.raw.end();
             return;
@@ -882,19 +1034,43 @@ export async function buildApp(options: { logger?: boolean, queue?: IVideoQueue 
 
     app.get("/api/jobs/:jobId/html", async (request: FastifyRequest<{ Params: { jobId: string } }>, reply: FastifyReply) => {
         const { jobId } = request.params;
+        const reader = await getCurrentUser(request);
+        if (!reader) {
+            reply.status(401);
+            return { error: "Authentication required" };
+        }
         const job = await queue.getJob(jobId);
-        const htmlPath = job?.result?.finalHtmlPath ?? join(process.cwd(), "tmp", `job-${jobId}`, "index.html");
+        if (!canReadJob(reader, job)) {
+            reply.status(404);
+            return { error: "Job not found" };
+        }
+        const htmlPath = job?.result?.finalHtmlPath ?? join(safeJobDir(jobId) ?? join(process.cwd(), "tmp", "job-__invalid__"), "index.html");
         if (!existsSync(htmlPath)) {
             reply.status(404);
             return { error: "HTML bundle not found for job" };
         }
+        // HTML này do pipeline sinh từ kịch bản LLM viết — không tin cậy
+        // như trang của app. CSP "sandbox allow-scripts" cho script chạy
+        // (xem trước animation) nhưng trong origin mờ: không đọc được
+        // cookie, không gọi API bằng phiên của người dùng, không chạm
+        // DOM của trang cha. Cố ý KHÔNG có allow-same-origin.
+        reply.header("Content-Security-Policy", "sandbox allow-scripts");
         reply.type("text/html; charset=utf-8").send(createReadStream(htmlPath));
     });
 
     app.get("/api/jobs/:jobId/audio", async (request: FastifyRequest<{ Params: { jobId: string } }>, reply: FastifyReply) => {
         const { jobId } = request.params;
+        const reader = await getCurrentUser(request);
+        if (!reader) {
+            reply.status(401);
+            return { error: "Authentication required" };
+        }
         const job = await queue.getJob(jobId);
-        const audioPath = job?.result?.audio?.mixAudioPath ?? join(process.cwd(), "tmp", `job-${jobId}`, "mixed_audio.mp3");
+        if (!canReadJob(reader, job)) {
+            reply.status(404);
+            return { error: "Job not found" };
+        }
+        const audioPath = job?.result?.audio?.mixAudioPath ?? join(safeJobDir(jobId) ?? join(process.cwd(), "tmp", "job-__invalid__"), "mixed_audio.mp3");
         if (!existsSync(audioPath)) {
             reply.status(404);
             return { error: "Audio file not found for job" };
@@ -904,9 +1080,19 @@ export async function buildApp(options: { logger?: boolean, queue?: IVideoQueue 
 
     app.get("/api/jobs/:jobId/preview/:sceneId", async (request: FastifyRequest<{ Params: { jobId: string; sceneId: string } }>, reply: FastifyReply) => {
         const { jobId, sceneId } = request.params;
+        const reader = await getCurrentUser(request);
+        if (!reader) {
+            reply.status(401);
+            return { error: "Authentication required" };
+        }
         const job = await queue.getJob(jobId);
-        const workDir = job?.result?.workDir ?? join(process.cwd(), "tmp", `job-${jobId}`);
-        const previewPath = join(workDir, "previews", `${sceneId}.webp`);
+        if (!canReadJob(reader, job)) {
+            reply.status(404);
+            return { error: "Job not found" };
+        }
+        const workDir = job?.result?.workDir ?? safeJobDir(jobId) ?? join(process.cwd(), "tmp", "job-__invalid__");
+        // sceneId cũng là một thành phần đường dẫn: khuôn an toàn như jobId.
+        const previewPath = isSafeJobId(sceneId) ? join(workDir, "previews", `${sceneId}.webp`) : join(workDir, "previews", "__invalid__.webp");
         if (!existsSync(previewPath)) {
             reply.status(404);
             return { error: "Preview thumbnail not found" };
@@ -916,7 +1102,16 @@ export async function buildApp(options: { logger?: boolean, queue?: IVideoQueue 
 
     app.get("/api/jobs/:jobId/video", async (request: FastifyRequest<{ Params: { jobId: string } }>, reply: FastifyReply) => {
         const { jobId } = request.params;
+        const reader = await getCurrentUser(request);
+        if (!reader) {
+            reply.status(401);
+            return { error: "Authentication required" };
+        }
         const job = await queue.getJob(jobId);
+        if (!canReadJob(reader, job)) {
+            reply.status(404);
+            return { error: "Job not found" };
+        }
         const videoPath = resolveJobVideoPath(job, jobId);
         if (!existsSync(videoPath)) {
             reply.status(404);
@@ -971,7 +1166,16 @@ export async function buildApp(options: { logger?: boolean, queue?: IVideoQueue 
 
     app.get("/api/jobs/:jobId/download", async (request: FastifyRequest<{ Params: { jobId: string } }>, reply: FastifyReply) => {
         const { jobId } = request.params;
+        const reader = await getCurrentUser(request);
+        if (!reader) {
+            reply.status(401);
+            return { error: "Authentication required" };
+        }
         const job = await queue.getJob(jobId);
+        if (!canReadJob(reader, job)) {
+            reply.status(404);
+            return { error: "Job not found" };
+        }
         const videoPath = resolveJobVideoPath(job, jobId);
         if (!existsSync(videoPath)) {
             reply.status(404);

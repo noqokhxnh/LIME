@@ -11,7 +11,12 @@ export type ViolationType =
   | "NON_DETERMINISTIC_TIMER"
   | "LAYOUT_THRASHING"
   | "UNPAUSED_TIMELINE"
-  | "OVERLAPPING_TWEEN";
+  | "OVERLAPPING_TWEEN"
+  // Anti-slop motion grammar (#124) — warn-only.
+  | "LINEAR_EASE"
+  | "FADE_ONLY_SCENE"
+  | "STATIC_TOO_LONG"
+  | "MOVE_LIBRARY_BYPASS";
 
 export interface LintViolation {
   type: ViolationType;

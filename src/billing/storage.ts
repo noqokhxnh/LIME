@@ -3,6 +3,7 @@ import { existsSync, readFileSync, writeFileSync, mkdirSync, unlinkSync } from '
 import { join } from 'node:path';
 import { db } from '../database/index.js';
 import { getConfig } from '../config.js';
+import { normalizeCycle } from './pricing.js';
 import type {
     Plan,
     Order,
@@ -39,7 +40,7 @@ export const DEFAULT_PLANS: Plan[] = [
     {
         id: 'pro',
         name: 'Gói Pro',
-        price_vnd: 249000,
+        price_vnd: 99000,
         quota_video: 150,
         days: 30,
         is_active: true,
@@ -106,6 +107,9 @@ export interface IBillingStorage {
     expireStaleOrders(nowIso?: string): Promise<number>;
     findPaymentBySepayRef(sepayRef: string): Promise<Payment | null>;
     findUnmatchedPaymentBySepayRef(sepayRef: string): Promise<UnmatchedPayment | null>;
+    /** Khớp NGHIÊM NGẶT chỉ theo cột sepay_ref (= payload.id của SePay) — dùng cho kiểm tra trùng lặp idempotency. Finder cũ còn OR-match raw referenceCode dùng chung namespace với id nên có thể nhận nhầm giao dịch khác là "đã xử lý". */
+    findPaymentBySepayId(sepayId: string): Promise<Payment | null>;
+    findUnmatchedPaymentBySepayId(sepayId: string): Promise<UnmatchedPayment | null>;
     recordUnmatchedPayment(item: Omit<UnmatchedPayment, 'id' | 'created_at'>): Promise<UnmatchedPayment>;
     lockAndFulfillOrder(params: {
         orderId: string;
@@ -199,10 +203,10 @@ export class PostgresBillingStorage implements IBillingStorage {
     async createOrder(order: Omit<Order, 'id' | 'created_at'>): Promise<Order> {
         const id = randomUUID();
         const res = await db.query(
-            `INSERT INTO orders (id, user_id, plan_id, amount_vnd, pay_code, status, expires_at)
-             VALUES ($1, $2, $3, $4, $5, $6, $7)
+            `INSERT INTO orders (id, user_id, plan_id, cycle, amount_vnd, pay_code, status, expires_at)
+             VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
              RETURNING *`,
-            [id, order.user_id, order.plan_id, order.amount_vnd, order.pay_code, order.status, order.expires_at]
+            [id, order.user_id, order.plan_id, normalizeCycle(order.cycle), order.amount_vnd, order.pay_code, order.status, order.expires_at]
         );
         const r = res.rows[0];
         return this.mapOrder(r);
@@ -310,6 +314,45 @@ export class PostgresBillingStorage implements IBillingStorage {
         };
     }
 
+    async findPaymentBySepayId(sepayId: string): Promise<Payment | null> {
+        const res = await db.query(
+            `SELECT * FROM payments WHERE sepay_ref = $1 LIMIT 1`,
+            [sepayId]
+        );
+        if (res.rows.length === 0) return null;
+        const r = res.rows[0];
+        return {
+            id: r.id,
+            order_id: r.order_id,
+            sepay_ref: r.sepay_ref,
+            amount_vnd: r.amount_vnd,
+            raw: r.raw,
+            received_at: new Date(r.received_at).toISOString(),
+            result: r.result,
+        };
+    }
+
+    async findUnmatchedPaymentBySepayId(sepayId: string): Promise<UnmatchedPayment | null> {
+        const res = await db.query(
+            `SELECT * FROM unmatched_payments WHERE sepay_ref = $1 LIMIT 1`,
+            [sepayId]
+        );
+        if (res.rows.length === 0) return null;
+        const r = res.rows[0];
+        return {
+            id: r.id,
+            sepay_ref: r.sepay_ref,
+            amount_vnd: r.amount_vnd,
+            content: r.content,
+            raw: r.raw,
+            status: r.status,
+            admin_note: r.admin_note,
+            resolved_by: r.resolved_by,
+            resolved_at: r.resolved_at ? new Date(r.resolved_at).toISOString() : null,
+            created_at: new Date(r.created_at).toISOString(),
+        };
+    }
+
     async recordUnmatchedPayment(item: Omit<UnmatchedPayment, 'id' | 'created_at'>): Promise<UnmatchedPayment> {
         const id = randomUUID();
         const res = await db.query(
@@ -357,6 +400,17 @@ export class PostgresBillingStorage implements IBillingStorage {
             if (order.status === 'paid') {
                 await client.query('ROLLBACK');
                 return { success: false, reason: 'ALREADY_PAID' };
+            }
+            // Chỉ đơn đang chờ mới được thanh toán: trạng thái khác (expired/
+            // cancelled lọt qua tầng service) hoặc đã quá hạn theo đồng hồ
+            // thì dừng — tiền về muộn thuộc đường unmatched duyệt tay.
+            if (order.status !== 'pending' && order.status !== 'claimed') {
+                await client.query('ROLLBACK');
+                return { success: false, reason: 'ORDER_NOT_PAYABLE' };
+            }
+            if (new Date(order.expires_at).getTime() <= Date.now()) {
+                await client.query('ROLLBACK');
+                return { success: false, reason: 'ORDER_EXPIRED' };
             }
 
             // Mark order as paid
@@ -892,6 +946,7 @@ export class PostgresBillingStorage implements IBillingStorage {
             id: r.id,
             user_id: r.user_id,
             plan_id: r.plan_id,
+            cycle: normalizeCycle(r.cycle),
             amount_vnd: r.amount_vnd,
             pay_code: r.pay_code,
             status: r.status,
@@ -956,7 +1011,11 @@ export class InMemoryBillingStorage implements IBillingStorage {
             if (existsSync(this.filePath)) {
                 const data = JSON.parse(readFileSync(this.filePath, 'utf-8'));
                 if (data.orders) {
-                    for (const o of data.orders) this.orders.set(o.id, o);
+                    for (const o of data.orders) {
+                        // Dữ liệu cũ (trước khi có gói năm) không có `cycle`.
+                        o.cycle = normalizeCycle(o.cycle);
+                        this.orders.set(o.id, o);
+                    }
                 }
                 if (data.payments) {
                     for (const p of data.payments) this.payments.set(p.id, p);
@@ -1089,6 +1148,20 @@ export class InMemoryBillingStorage implements IBillingStorage {
         return null;
     }
 
+    async findPaymentBySepayId(sepayId: string): Promise<Payment | null> {
+        for (const p of this.payments.values()) {
+            if (p.sepay_ref === sepayId) return p;
+        }
+        return null;
+    }
+
+    async findUnmatchedPaymentBySepayId(sepayId: string): Promise<UnmatchedPayment | null> {
+        for (const u of this.unmatched.values()) {
+            if (u.sepay_ref === sepayId) return u;
+        }
+        return null;
+    }
+
     async recordUnmatchedPayment(item: Omit<UnmatchedPayment, 'id' | 'created_at'>): Promise<UnmatchedPayment> {
         const id = randomUUID();
         const unmatched: UnmatchedPayment = {
@@ -1114,6 +1187,12 @@ export class InMemoryBillingStorage implements IBillingStorage {
         const order = this.orders.get(params.orderId);
         if (!order) return { success: false, reason: 'ORDER_NOT_FOUND' };
         if (order.status === 'paid') return { success: false, reason: 'ALREADY_PAID' };
+        if (order.status !== 'pending' && order.status !== 'claimed') {
+            return { success: false, reason: 'ORDER_NOT_PAYABLE' };
+        }
+        if (new Date(order.expires_at).getTime() <= Date.now()) {
+            return { success: false, reason: 'ORDER_EXPIRED' };
+        }
 
         order.status = 'paid';
         order.paid_at = new Date().toISOString();

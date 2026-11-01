@@ -10,7 +10,8 @@ import {
     formatSelectedCatalogPrompt,
     formatStorySpinePrompt,
 } from "../templates/prompt.js";
-import { allocateBeats } from "../templates/storySpine.js";
+import { formatTempoPrompt, plannedSceneCount } from "../llm/tempo.js";
+import { getNominalCaptionBand, type KaraokeConfig } from "./karaoke.js";
 import {
     formatStyleMenuForPrompt,
     formatStyleSpecForPrompt,
@@ -79,7 +80,7 @@ export function narrationWordTarget(targetDurationSec: number, language?: string
 
 /**
  * Cận dưới khuyến nghị: dưới mức này kịch bản bị coi là thiếu lời thoại, pipeline
- * ghi cảnh báo và phải bù khoảng lặng (làm giảm chất lượng video).
+ * ghi cảnh báo và video sẽ ngắn hơn mục tiêu (không bù khoảng lặng).
  */
 export function narrationWordFloor(targetDurationSec: number, language?: string, provider?: string): number {
     const wpm = narrationRate(language, provider);
@@ -111,8 +112,22 @@ export function buildUserPrompt(request: videoRequest, preset: string): string {
     const wordBudget = narrationWordBudget(request.targetDurationSec, request.language, request.ttsProvider);
     const wordTarget = narrationWordTarget(request.targetDurationSec, request.language, request.ttsProvider);
     const wordFloor = narrationWordFloor(request.targetDurationSec, request.language, request.ttsProvider);
-    const sceneCount = Math.max(1, allocateBeats(request.targetDurationSec).length);
+    const sceneCount = Math.max(1, plannedSceneCount(request.targetDurationSec, request.tempo));
     const perSceneWords = Math.max(8, Math.round(wordTarget / sceneCount));
+
+    // Dải caption (#110): suy từ preset khung hình + cấu hình karaoke, không hard-code 12%.
+    const presetSize = typeof preset === "string" && preset.includes("x") ? preset : "1920x1080";
+    const [presetWidth, presetHeight] = presetSize.split("x").map((v) => Number.parseInt(v, 10));
+    const frameWidth = Number.isFinite(presetWidth) && presetWidth > 0 ? presetWidth : 1920;
+    const frameHeight = Number.isFinite(presetHeight) && presetHeight > 0 ? presetHeight : 1080;
+    const captionBand = getNominalCaptionBand(
+        frameWidth,
+        frameHeight,
+        typeof request.karaoke === "object" && request.karaoke !== null
+            ? (request.karaoke as KaraokeConfig)
+            : undefined
+    );
+    const captionBandPct = Math.round((captionBand.height / frameHeight) * 1000) / 10;
 
     return `Create a high-quality video script with the following requirements:
 Topic/Prompt: ${request.prompt}
@@ -128,6 +143,8 @@ ${request.motionBlockIds?.length ? `Motion Blocks: ${request.motionBlockIds.join
 ${styleDetails}
 ${opuscarLayer ? `\n${opuscarLayer}\n` : ''}
 ${storySpine}
+
+${formatTempoPrompt(request.tempo, request.targetDurationSec)}
 
 ${toolkit}
 
@@ -149,8 +166,24 @@ ${catalogSummary}
 5. Narration Word Budget (BOTH a floor and a ceiling):
    - The TOTAL narration across ALL scenes (sum of every scene's voiceOverText) MUST be between ${wordFloor} and ${wordBudget} words.
    - Aim for about ${wordTarget} words total (≈ ${perSceneWords} words per scene across ~${sceneCount} scenes) so the spoken audio actually fills the ${request.targetDurationSec}s target.
-   - Falling below ${wordFloor} words is under-delivery: the video then gets padded with silence, which looks and sounds worse. Expand the explanation instead of shortening it.
+   - Falling below ${wordFloor} words is under-delivery: the video then ends up shorter than the target and the shortfall is reported to the user. No silence padding is added, so expand the explanation instead of shortening it.
    - Prefer fewer, punchier sentences, but never drop below the floor.
+6. Caption band (karaoke safe zone — applies to BOTH 16:9 and 9:16):
+   - The bottom ${captionBandPct}% of the frame (from y=${captionBand.top}px to y=${frameHeight}px at ${presetSize}) is reserved for burned-in karaoke subtitles.
+   - NEVER place CTAs, titles, brand lockups, footers, addresses, or interactive elements inside that band.
+   - Keep the lowest content edge above y=${captionBand.top}px. The safe way is \`bottom: calc(var(--lime-caption-clearance-px) + 24px)\` — NOT just the band height.
+   - Full-bleed decorative backgrounds may extend into the band only when the element carries \`data-caption-exempt\`.
+   - On 9:16 the band is proportionally taller — keep the CTA and the brand footer comfortably above the bottom edge.
+7. Camera grammar (#122):
+   - EVERY scene declares \`camera: { "move": ..., "intensity": 0.3..0.8 }\`.
+   - Allowed moves: \`locked | push-in | pull-back | pan-left | pan-right | tilt-up | tilt-down\`.
+   - Use a moving camera on most scenes; \`locked\` only for a frame meant to be read as a still (summary, QR, CTA).
+   - NEVER animate \`scale\`/\`x\`/\`y\` on \`#sceneId\` yourself — the pipeline applies \`camera\` as a seek-safe tween. Animate child elements only.
+8. Ambient / native move (#125):
+   - Elements that enter then freeze read as a slideshow. When a material has natural motion (steam, liquid, light, fabric, glow), declare \`ambient: [{ "move", "target", "intensity"?, "from"?, "to"? }]\` instead of writing an infinite loop.
+   - Moves: \`steam | drip | flicker | drift | parallax | pulse\`. \`target\` MUST exist in the scene HTML (or be created in jsCode).
+   - Max 2 ambient moves per scene; never target an element your jsCode already animates.
+   - Do NOT write \`repeat: -1\` loops in jsCode for these effects — the pipeline executes ambient moves as a pure function of time.
 
 Remember to output ONLY valid JSON matching the schema, with GSAP animation code included.`;
 }
@@ -342,8 +375,11 @@ export async function generateScript(
                         parsedData.boundaries = [];
                     }
                 }
+                // Đóng dấu tempo TRƯỚC khi validate (#117): schema dùng đúng profile
+                // tempo để chấm rhythm, nếu không kịch bản 'slow' sẽ bị loại oan.
+                parsedData.tempo = request.tempo;
             }
-            const validation = validateScript(parsedData);
+            const validation = validateScript(parsedData, { styleSlug: resolvedStyleSlug });
             if (!validation.valid || !validation.data) {
                 throw new Error(validation.formattedErrorMessage || validation.errors.join('\n'));
             }
@@ -366,7 +402,7 @@ export async function generateScript(
             // Guard cận dưới: trước đây chỉ chặn vượt trần nên kịch bản thiếu lời thoại
             // vẫn "đạt" và video ra ngắn hơn mục tiêu. Không ném lỗi ở đây (sẽ loại bỏ
             // cả kịch bản ngắn nhưng hợp lệ và phá luồng QA reroll); thay vào đó cảnh báo
-            // rõ ràng — bước bù khoảng lặng ở synthesizeAudio lo phần đảm bảo độ dài.
+            // rõ ràng — #107 không còn bù khoảng lặng, video sẽ ngắn hơn mục tiêu.
             if (estimated.totalDurationSec < request.targetDurationSec * 0.7) {
                 const floorWords = narrationWordFloor(request.targetDurationSec, request.language, request.ttsProvider);
                 const targetWords = narrationWordTarget(request.targetDurationSec, request.language, request.ttsProvider);
@@ -374,7 +410,7 @@ export async function generateScript(
                     `Kịch bản ước lượng ${estimated.totalDurationSec.toFixed(1)}s, thấp hơn nhiều so với mục tiêu ` +
                     `${request.targetDurationSec}s (cần ~${targetWords} từ, tối thiểu ~${floorWords} từ).`;
                 console.warn(`[Script] Cảnh báo cận dưới: ${warning}`);
-                onProgress?.(`[Script] Cảnh báo cận dưới: ${warning} Pipeline sẽ bù khoảng lặng nếu còn trong ngưỡng an toàn.`);
+                onProgress?.(`[Script] Cảnh báo cận dưới: ${warning} Video sẽ ngắn hơn mục tiêu thay vì bù khoảng lặng.`);
             }
 
             onProgress?.(`[Script] Attempt ${attempt}/3 - success`);

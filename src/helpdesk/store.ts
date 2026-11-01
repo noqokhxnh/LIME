@@ -402,6 +402,21 @@ export const helpdeskStore = {
         return ticket || null;
     },
 
+    /** Tìm ticket sở hữu một file đính kèm (theo tên file) để kiểm quyền tải xuống. */
+    async findTicketByAttachment(filename: string): Promise<Ticket | null> {
+        const all = await loadTickets();
+        for (const t of all) {
+            const messages = await loadMessages(t.id);
+            const hit = messages.some((m) =>
+                (m.attachments || []).some(
+                    (a) => typeof a?.url === "string" && a.url.endsWith("/" + filename)
+                )
+            );
+            if (hit) return t;
+        }
+        return null;
+    },
+
     /** Chi tiết ticket kèm toàn bộ hội thoại. */
     async getTicket(id: string): Promise<TicketWithMessages | null> {
         const ticket = await this.findById(id);

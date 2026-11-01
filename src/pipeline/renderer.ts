@@ -3,6 +3,7 @@ import { existsSync, rmSync, writeFileSync } from "node:fs";
 import { resolve, dirname } from "node:path";
 import { pathToFileURL } from "node:url";
 import { launchPreviewBrowser, seekToTimestamp, setupBrowserDiagnostics, dumpDiagnosticSnapshot } from "./preview.js";
+import { installNetworkGuard } from "./networkGuard.js";
 import { withRetry, isAbortError } from "./retry.js";
 import { WatermarkConfig } from "../llm/schema.js";
 import { buildWatermarkFilter } from "./watermarkFilter.js";
@@ -163,6 +164,7 @@ async function renderSingleChunk(
         viewport: { width, height },
         deviceScaleFactor: 1,
     });
+    await installNetworkGuard(context, { fileRoots: [dirname(resolve(htmlPath))] });
 
     try {
         const page = await context.newPage();
@@ -492,6 +494,7 @@ export async function renderVideo(options: RenderVideoOptions): Promise<string> 
                     viewport: { width, height },
                     deviceScaleFactor: 1,
                 });
+                await installNetworkGuard(context, { fileRoots: [dirname(resolve(htmlPath))] });
                 const page = await context.newPage();
 
                 setupBrowserDiagnostics(page, "Renderer");

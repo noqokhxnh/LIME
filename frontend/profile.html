@@ -740,7 +740,7 @@
 
             <div style="text-align: right;">
                 <div style="font-size: 0.75rem; color: var(--text-muted); text-transform: uppercase; font-weight: 600; letter-spacing: 0.05em;">Hạn gói dịch vụ</div>
-                <div id="plan-expiry-text" style="font-weight: 700; font-size: 1rem; color: #fff; margin-top: 0.2rem;">Không giới hạn thời gian</div>
+                <div id="plan-expiry-text" style="font-weight: 700; font-size: 1rem; color: var(--ink); margin-top: 0.2rem;">Không giới hạn thời gian</div>
             </div>
         </div>
 
@@ -772,7 +772,7 @@
 
                 <p class="credit-desc">
                     Hạn mức tài khoản của bạn đang khả dụng ở mức
-                    <strong id="credit-percent-inline" style="color: #fff;">--%</strong>.
+                    <strong id="credit-percent-inline" style="color: var(--ink); font-weight: 700;">--%</strong>.
                     Mỗi lần tạo video AI thành công sẽ tiêu hao tỷ lệ tương ứng. Bạn có thể nạp thêm gói bất cứ lúc nào qua cổng quét mã VietQR tự động.
                 </p>
 
@@ -907,14 +907,23 @@
                             </svg>
                             <span>Lưu ảnh QR</span>
                         </button>
-                        <a href="https://vietqr.net" target="_blank" rel="noopener noreferrer" class="vietqr-btn-sub">
+                        <button type="button" id="vietqr-guide-btn" class="vietqr-btn-sub" aria-expanded="false" aria-controls="vietqr-guide-panel">
                             <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor"
                                 stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
                                 <circle cx="12" cy="12" r="10"></circle>
                                 <path d="m9 12 2 2 4-4"></path>
                             </svg>
                             <span>HD Quét mã</span>
-                        </a>
+                        </button>
+                    </div>
+                    <div id="vietqr-guide-panel" class="vietqr-guide-panel" hidden>
+                        <p class="vietqr-guide-title">Cách quét mã thanh toán</p>
+                        <ol class="vietqr-guide-steps">
+                            <li>Mở app ngân hàng của bạn, chọn tính năng quét mã QR.</li>
+                            <li>Đưa camera vào mã QR bên trên, hoặc bấm "Lưu ảnh QR" rồi tải ảnh lên trong app ngân hàng.</li>
+                            <li>Kiểm tra đúng số tiền và giữ nguyên nội dung ở ô Lời nhắn / Memo, không sửa và không thêm ký tự.</li>
+                            <li>Xác nhận chuyển khoản, quay lại trang này và chờ hệ thống tự kích hoạt, thường trong khoảng 30 giây.</li>
+                        </ol>
                     </div>
                 </div>
 

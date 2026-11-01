@@ -19,6 +19,7 @@ import {
     getKaraokeLayerBounds,
 } from "../../src/pipeline/karaoke.js";
 import { assembleHTML } from "../../src/pipeline/assembleHtml.js";
+import { createBrowserDOMSampler, checkCaptionBandLeg } from "../../src/pipeline/oracleQa.js";
 import { videoPreset, resolveResolution } from "../../src/config.js";
 import {
     DEFAULT_VIETNAMESE_UNICODES,
@@ -292,6 +293,86 @@ describe("Workstream WS-G (Spec G): Phụ đề Karaoke & Định dạng Dọc 9
             assert.ok(res.htmlContent.includes('class="lime-karaoke-layer"'));
             assert.ok(res.htmlContent.includes("#ff4757"));
             assert.ok(res.htmlContent.includes("rgba(255, 71, 87, 0.3)"));
+        });
+    });
+
+    describe("(g) Caption band QA (#110) — đo bbox thật, không dựa vào whitelist tag", () => {
+        /**
+         * Dựng kịch bản có CTA ở trên (an toàn) và brand footer neo đáy khung
+         * (nằm trong dải caption). Footer cố tình dùng <div> — đúng kiểu LLM hay
+         * sinh ra, và là ca mà whitelist tag cũ bỏ sót → QA pass oan.
+         */
+        const makeBandScript = (footerAttrs = ""): { script: videoScript; durations: durationMap } => ({
+            script: {
+                title: "Caption band regression",
+                description: "Footer dạng div nằm trong dải caption",
+                totalDuration: 2.5,
+                aspectRatio: "9:16",
+                fontFamily: "Inter",
+                scenes: [
+                    {
+                        id: "scene-band",
+                        title: "CTA",
+                        voiceOverText: "Đặt bàn ngay hôm nay để nhận ưu đãi",
+                        visualDescription: "Thẻ CTA ở giữa khung",
+                        htmlCode:
+                            '<div class="cta">ĐẶT BÀN NGAY</div>' +
+                            `<div class="brand-title" ${footerAttrs}>CÀ PHÊ MỘC</div>`,
+                        // bottom:200px đặt footer đúng vào dải cue thật (720x1280 →
+                        // cue nằm ~y=1008..1126); bottom:24px sẽ rơi xuống dưới cue
+                        // và không còn là ca xâm phạm cần chặn.
+                        cssCode:
+                            ".cta { position:absolute; top:38%; left:0; right:0; text-align:center; font-size:44px; color:#fff; }" +
+                            ".brand-title { position:absolute; bottom:200px; left:0; right:0; text-align:center; font-size:34px; color:#fff; }",
+                        jsCode: "",
+                        transition: "fade",
+                        backgroundColor: "#111111",
+                        duration: 2.5,
+                    },
+                ],
+            },
+            durations: { "scene-band": 2.5 },
+        });
+
+        const measure = async (footerAttrs: string) => {
+            const { script, durations } = makeBandScript(footerAttrs);
+            const assembly = await assembleHTML(script, durations, 720, 1280, testTempDir, undefined, {
+                skipFontSubset: true,
+                karaoke: true,
+            });
+            const setup = await createBrowserDOMSampler(assembly.htmlPath, 720, 1280);
+            try {
+                return await checkCaptionBandLeg(script.scenes, durations, setup.captionSampler);
+            } finally {
+                await setup.cleanup();
+            }
+        };
+
+        it("phải fail khi brand footer dạng <div> nằm trong dải caption", async () => {
+            if (!browser) {
+                // Không có Chromium: chỉ khẳng định leg tồn tại và là hàm async.
+                assert.strictEqual(typeof checkCaptionBandLeg, "function");
+                return;
+            }
+            const leg = await measure("");
+            assert.strictEqual(leg.status, "fail");
+            assert.ok(leg.sampledFrames > 0, "phải lấy được mẫu caption thật");
+            assert.ok(
+                leg.violations?.some((v) => v.includes("CÀ PHÊ MỘC")),
+                `phải chỉ đích danh footer bị che, nhận được: ${leg.violations?.join(" | ")}`
+            );
+            // CTA ở 38% khung không được báo oan.
+            assert.ok(!leg.violations?.some((v) => v.includes("ĐẶT BÀN NGAY")));
+        });
+
+        it("phải tôn trọng data-caption-exempt cho phần tử trang trí chủ ý nằm trong dải", async () => {
+            if (!browser) {
+                assert.strictEqual(typeof checkCaptionBandLeg, "function");
+                return;
+            }
+            const leg = await measure("data-caption-exempt");
+            assert.strictEqual(leg.status, "pass");
+            assert.strictEqual(leg.violations, undefined);
         });
     });
 });

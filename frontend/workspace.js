@@ -1,8 +1,8 @@
 // LIME Workspace v2 — Premiere-style 4-workspace editor logic
 // Base URL auto-detection
-const API_BASE = (window.location.origin && window.location.origin.includes(':3000'))
-    ? ''
-    : 'http://localhost:3000';
+const API_BASE = (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1')
+    ? ((window.location.origin && window.location.origin.includes(':3000')) ? '' : 'http://localhost:3000')
+    : '';
 
 /* ================= AUTH ================= */
 const loginOpenBtn = document.getElementById('login-open-btn');
@@ -181,8 +181,8 @@ async function handleLogin() {
         }
         loginMessage.textContent = '';
         loginModal.classList.remove('show');
-        setWsUser(data.username);
-        log(`Đăng nhập thành công: ${data.username}`, 'success');
+        setWsUser(data.name || data.username);
+        log(`Đăng nhập thành công: ${data.name || data.username}`, 'success');
     } catch (err) {
         loginMessage.textContent = 'Không thể kết nối tới server';
     } finally {
@@ -282,8 +282,8 @@ async function handleRegister() {
         }
         registerMessage.textContent = '';
         loginModal.classList.remove('show');
-        setWsUser(data.username);
-        log(`Đăng ký thành công: ${data.username}`, 'success');
+        setWsUser(data.name || data.username);
+        log(`Đăng ký thành công: ${data.name || data.username}`, 'success');
     } catch (err) {
         registerMessage.textContent = 'Không thể kết nối tới server';
     } finally {
@@ -367,6 +367,7 @@ const project = { scenes: [], durationSec: 15, topic: '', jobId: null, resolutio
 const promptInput = document.getElementById('prompt-input');
 const promptCharCount = document.getElementById('prompt-char-count');
 const durationInput = document.getElementById('duration-input');
+const tempoSelect = document.getElementById('tempo-select');
 const voiceSelect = document.getElementById('voice-select');
 const primaryBtn = document.getElementById('btn-primary');
 const btnSpinner = document.getElementById('btn-spinner');
@@ -872,6 +873,7 @@ function buildBasePayload(prompt) {
         targetDurationSec,
         language: 'vi',
         style: activeStyle,
+        tempo: tempoSelect ? tempoSelect.value : 'auto',
         ttsProvider: providerForVoice(voice),
         voice,
     };
@@ -1839,7 +1841,7 @@ async function checkCurrentUser() {
         if (!res.ok) { window.location.href = '/?auth=open'; return; }
         const data = await res.json();
         const user = data.user || data;
-        setWsUser(user.username, user.role);
+        setWsUser(user.name || user.username, user.role);
     } catch (err) { window.location.href = '/?auth=open'; }
 }
 

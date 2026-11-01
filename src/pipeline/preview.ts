@@ -4,6 +4,7 @@ import { pathToFileURL } from "node:url";
 import { chromium, type Browser, type BrowserContext, type Page } from "playwright";
 import { videoScript, scene, durationMap } from "@/llm/schema";
 import { withRetry, isAbortError } from "./retry.js";
+import { installNetworkGuard } from "./networkGuard.js";
 
 process.env.PW_TEST_SCREENSHOT_NO_FONTS_READY = "1";
 
@@ -145,8 +146,10 @@ export async function launchPreviewBrowser(): Promise<Browser> {
             "--disable-gpu",
             "--no-zygote",
             "--hide-scrollbars",
-            "--disable-web-security",
-            "--allow-file-access-from-files",
+            // KHÔNG tắt web security và KHÔNG cho file:// đọc tràn lan nữa:
+            // trang chứa mã scene không đáng tin; việc đọc file/mạng của
+            // trang do networkGuard ở tầng Playwright kiểm soát theo thư
+            // mục job, và fetch file:// vốn bị Chromium hiện đại chặn.
         ],
     });
 }
@@ -287,6 +290,8 @@ export async function generatePreviews(options: PreviewOptions): Promise<Preview
                     deviceScaleFactor: 1,
                 });
 
+                await installNetworkGuard(context, { fileRoots: [dirname(resolve(htmlPath))] });
+
                 page = await context.newPage();
 
                 onProgress?.("Đang nạp file HTML và kiểm tra Master Timeline...", 10);
@@ -400,6 +405,8 @@ export async function captureScenePreview(
             viewport: { width, height },
             deviceScaleFactor: 1,
         });
+
+        await installNetworkGuard(context, { fileRoots: [dirname(resolve(htmlPath))] });
 
         page = await context.newPage();
         await loadAndPreparePage(page, htmlPath, width, height, timeoutMs);

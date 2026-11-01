@@ -1,9 +1,12 @@
 import { existsSync, mkdirSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
-import { videoScript, scene, durationMap, CharacterActionItem } from "../llm/schema.js";
+import { videoScript, scene, durationMap, CharacterActionItem, SceneCamera, SceneAmbient } from "../llm/schema.js";
+import { resolveCamera, type ResolvedCamera } from "./camera.js";
+import { resolveAmbient, type ResolvedAmbient } from "./ambient.js";
 import { BLOCK_HELPERS_JS } from "../templates/runtime/blockHelpers.js";
 import { DETERMINISTIC_RUNTIME_JS, hashString32, RNG, getSceneSeed } from "./rng.js";
 import { assertDeterministicScript } from "./compLinter.js";
+import { assertSceneCodePolicy } from "./codePolicy.js";
 import { subsetFontsForHtml } from "./fontSubset.js";
 import { CHARACTER_RUNTIME_JS } from "./character/runtime.js";
 import { KINETIC_TYPOGRAPHY_JS } from "./kineticTypography.js";
@@ -16,6 +19,7 @@ import {
     getSafeAreaBounds,
     isBoxWithinSafeArea,
     getKaraokeLayerBounds,
+    getNominalCaptionBand,
 } from "./karaoke.js";
 import { WordTiming } from "./wordTiming.js";
 
@@ -221,6 +225,11 @@ export async function assembleHTML(
 
     if (!options?.skipLint) {
         assertDeterministicScript(script);
+        // Cổng bảo mật riêng (không phải lint tất định): mã scene là dữ liệu
+        // không đáng tin chạy trong Chromium phía server — chặn nguyên thuỷ
+        // mạng và nạp mã động ngay ở biên assemble. Lớp thứ hai là
+        // networkGuard ở tầng Playwright.
+        assertSceneCodePolicy(script);
     }
 
     const seed = options?.seed !== undefined
@@ -228,7 +237,7 @@ export async function assembleHTML(
         : (options?.jobId ? hashString32(options.jobId) : (hashString32(script.id || script.title || "vidtml-seed") >>> 0));
 
     const imageMap = options?.imageMap || {};
-    const processedScenes: { id: string; html: string; css: string; js: string; duration: number; characterActions?: CharacterActionItem[] }[] = [];
+    const processedScenes: { id: string; html: string; css: string; js: string; duration: number; characterActions?: CharacterActionItem[]; camera: ResolvedCamera; ambient: ResolvedAmbient[] }[] = [];
 
     for (const scene of script.scenes) {
         const sceneDur = durations[scene.id] ?? 3.0;
@@ -253,6 +262,8 @@ export async function assembleHTML(
             js: processed.js,
             duration: sceneDur,
             characterActions: scene.characterActions,
+            camera: resolveCamera(scene.camera as SceneCamera | undefined),
+            ambient: resolveAmbient(scene.ambient as SceneAmbient[] | undefined, sceneDur),
         });
     }
 
@@ -266,8 +277,18 @@ export async function assembleHTML(
     const karaokeCss = karaokeEnabled ? renderKaraokeCss(karaokeConfig) : "";
     const karaokeJs = karaokeEnabled ? renderKaraokeJs() : "";
 
+    // Dải caption danh nghĩa (#110) — công bố cho template/LLM biết vùng cấm đáy.
+    const captionBand = karaokeEnabled ? getNominalCaptionBand(width, height, karaokeConfig) : null;
+    const captionBandPct = captionBand
+        ? Math.round((captionBand.height / height) * 1000) / 10
+        : 0;
+
     const safeAreaGuideHtml = options?.safeArea
-        ? `\n    <!-- Safe Area Debug Overlay (QA Guide) -->\n    <div id="lime-safe-area-guide" class="lime-safe-area-guide" aria-hidden="true">\n        <div class="safe-area-label">SAFE AREA 80% (10% V / 10% H)</div>\n    </div>`
+        ? `\n    <!-- Safe Area Debug Overlay (QA Guide) -->\n    <div id="lime-safe-area-guide" class="lime-safe-area-guide" aria-hidden="true">\n        <div class="safe-area-label">SAFE AREA 80% (10% V / 10% H)</div>\n    </div>${
+              captionBand
+                  ? `\n    <!-- Caption Band Debug Overlay (#110) -->\n    <div id="lime-caption-band-guide" class="lime-caption-band-guide" aria-hidden="true">\n        <span>CAPTION BAND — KHÔNG ĐẶT CTA/NỘI DUNG</span>\n    </div>`
+                  : ""
+          }`
         : "";
 
     const safeAreaGuideCss = options?.safeArea
@@ -295,6 +316,37 @@ export async function assembleHTML(
     letter-spacing: 0.5px;
     text-transform: uppercase;
 }
+${captionBand ? `/* Caption Band Debug Overlay (#110) — dải đáy dành riêng cho phụ đề */
+.lime-caption-band-guide {
+    position: absolute;
+    left: 0;
+    right: 0;
+    top: ${captionBand.top}px;
+    height: ${captionBand.height}px;
+    background: repeating-linear-gradient(
+        45deg,
+        rgba(255, 214, 10, 0.18),
+        rgba(255, 214, 10, 0.18) 10px,
+        rgba(255, 214, 10, 0.08) 10px,
+        rgba(255, 214, 10, 0.08) 20px
+    );
+    border-top: 2px dashed rgba(255, 214, 10, 0.85);
+    box-sizing: border-box;
+    pointer-events: none;
+    z-index: 99998;
+}
+.lime-caption-band-guide span {
+    position: absolute;
+    top: 4px;
+    left: 8px;
+    font-size: 11px;
+    font-family: monospace;
+    font-weight: 700;
+    color: rgba(255, 214, 10, 0.95);
+    letter-spacing: 0.5px;
+    text-transform: uppercase;
+}
+` : ""}
 `
         : "";
 
@@ -310,6 +362,8 @@ export async function assembleHTML(
 try {
     window.__sceneSeeds[${sceneIdLiteral}] = ${sceneSeed};
     window.__sceneCharacterActions[${sceneIdLiteral}] = ${characterActionsLiteral};
+    window.__sceneCameras[${sceneIdLiteral}] = ${JSON.stringify(s.camera)};
+    window.__sceneAmbient[${sceneIdLiteral}] = ${JSON.stringify(s.ambient)};
     let __capturedSceneTl_${safeId} = null;
     const __origTimeline_${safeId} = gsap.timeline;
     gsap.timeline = function(...args) {
@@ -388,6 +442,12 @@ ${s.js}
             width: 100%;
             height: 100%;
             overflow: hidden;
+            /* Dải caption (#110): nội dung chính neo phía trên mốc này. */
+            --lime-caption-band-px: ${captionBand?.height ?? 0}px;
+            --lime-caption-band-top-px: ${captionBand?.top ?? height}px;
+            --lime-caption-band-pct: ${captionBandPct}%;
+            /* Khoảng cách từ đáy khung lên mép trên dải caption — dùng cho bottom: calc(...) */
+            --lime-caption-clearance-px: ${captionBand ? height - captionBand.top : 0}px;
         }
 
         /* Isolated blending stack for scenes */
@@ -452,6 +512,9 @@ ${safeAreaGuideHtml}
         window.__sceneDurations = {};
         window.__sceneSeeds = {};
         window.__sceneCharacterActions = {};
+        window.__sceneCameras = {};
+        window.__sceneAmbient = {};
+        window.__sceneStarts = {};
         window.__totalDuration = 0;
 
         if (window.__masterTimeline) {
@@ -489,16 +552,96 @@ ${safeAreaGuideHtml}
             const startTime = window.__totalDuration;
             const endTime = startTime + duration;
 
+            window.__sceneStarts[sceneId] = startTime;
+
             window.__masterTimeline.set('#' + sceneId, { zIndex: 10 }, startTime);
             window.__masterTimeline.add(tl, startTime);
+
+            // Camera layer (#122): pipeline-owned tween, seek-safe, ease 'none'.
+            // Không dùng tween của LLM nên tua tới đâu cũng ra đúng một khung hình.
+            var cam = window.__sceneCameras[sceneId];
+            if (cam && cam.move !== 'locked') {
+                window.__masterTimeline.fromTo(
+                    '#' + sceneId,
+                    {
+                        scale: cam.from.scale,
+                        xPercent: cam.from.xPercent,
+                        yPercent: cam.from.yPercent
+                    },
+                    {
+                        scale: cam.to.scale,
+                        xPercent: cam.to.xPercent,
+                        yPercent: cam.to.yPercent,
+                        duration: duration,
+                        ease: 'none'
+                    },
+                    startTime
+                );
+            }
+
             window.__masterTimeline.set('#' + sceneId, { opacity: 0, zIndex: 1 }, endTime);
 
             window.__totalDuration += duration;
         };
 
+        // Ambient / native move layer (#125): pipeline-owned, pure function of t.
+        // Không gắn vào master timeline vì repeat vô hạn sẽ làm duration = Infinity;
+        // __seekTo(t) suy trạng thái trực tiếp từ keyframe nên tua qua lại không trôi.
+        window.__ambientProps = ['x', 'y', 'scale', 'opacity', 'rotation'];
+        window.__ambientMix = function(a, b, q) {
+            var out = {};
+            for (var i = 0; i < window.__ambientProps.length; i++) {
+                var key = window.__ambientProps[i];
+                if (a[key] === undefined && b[key] === undefined) continue;
+                var from = a[key] === undefined ? b[key] : a[key];
+                var to = b[key] === undefined ? a[key] : b[key];
+                out[key] = from + (to - from) * q;
+            }
+            return out;
+        };
+        window.__updateAmbient = function(timeInSec) {
+            var sceneIds = Object.keys(window.__sceneAmbient);
+            for (var s = 0; s < sceneIds.length; s++) {
+                var sceneId = sceneIds[s];
+                var items = window.__sceneAmbient[sceneId];
+                if (!items || !items.length) continue;
+                var start = window.__sceneStarts[sceneId] || 0;
+                var local = timeInSec - start;
+                var root = document.getElementById(sceneId) ||
+                    document.querySelector('[data-scene="' + sceneId + '"]');
+                if (!root) continue;
+                for (var k = 0; k < items.length; k++) {
+                    var item = items[k];
+                    var el = root.querySelector(item.target);
+                    if (!el) continue;
+                    var clamped = Math.max(item.from, Math.min(item.to, local));
+                    var period = item.period > 0 ? item.period : 1;
+                    var phase = ((((clamped - item.from) % period) + period) % period) / period;
+                    var keys = item.keys || [];
+                    if (!keys.length) continue;
+                    var prev = keys[0];
+                    var next = keys[keys.length - 1];
+                    for (var i = 1; i < keys.length; i++) {
+                        if (phase <= keys[i].p + 1e-9) {
+                            prev = keys[i - 1];
+                            next = keys[i];
+                            break;
+                        }
+                    }
+                    var span = next.p - prev.p;
+                    var q = span > 0 ? (phase - prev.p) / span : 0;
+                    q = Math.min(1, Math.max(0, q));
+                    gsap.set(el, window.__ambientMix(prev, next, q));
+                }
+            }
+        };
+
         window.__seekTo = function(timeInSec) {
             if (window.__masterTimeline) {
                 window.__masterTimeline.seek(timeInSec, false);
+            }
+            if (typeof window.__updateAmbient === 'function') {
+                window.__updateAmbient(timeInSec);
             }
             if (typeof window.__renderCharacters === 'function') {
                 window.__renderCharacters(timeInSec);
@@ -606,6 +749,9 @@ ${safeAreaGuideHtml}
         }
         if (typeof window.__updateKaraoke === 'function') {
             window.__updateKaraoke(0);
+        }
+        if (typeof window.__updateAmbient === 'function') {
+            window.__updateAmbient(0);
         }
 
         // Page Ready Signal for Headless Browser Renderer

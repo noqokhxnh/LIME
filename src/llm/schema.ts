@@ -1,6 +1,10 @@
 import { z } from 'zod';
 import type { WordTiming } from '../pipeline/wordTiming.js';
+import { CAMERA_MOVE_IDS } from '../pipeline/camera.js';
+import { AMBIENT_MOVE_IDS, MAX_AMBIENT_PER_SCENE } from '../pipeline/ambient.js';
+import { resolveTempoProfile, tempoSchema } from './tempo.js';
 export type { WordTiming };
+export { TEMPO_IDS, TEMPO_PROFILES, tempoSchema, type Tempo, type TempoProfile } from './tempo.js';
 
 export const mechanismSchema = z.enum([
     'morph',
@@ -46,6 +50,39 @@ export const characterActionItemSchema = z.object({
 });
 export type CharacterActionItem = z.infer<typeof characterActionItemSchema>;
 
+/**
+ * Camera contract (#122): LLM khai move + cường độ, pipeline thi hành tween.
+ * Vocabulary lõi nằm ở `src/pipeline/camera.ts` để assemble và QA dùng chung.
+ */
+export const cameraMoveSchema = z.enum([...CAMERA_MOVE_IDS]);
+export const sceneCameraSchema = z.object({
+    move: cameraMoveSchema,
+    intensity: z.number().min(0).max(1).optional(),
+});
+export type SceneCamera = z.infer<typeof sceneCameraSchema>;
+
+/**
+ * Ambient / native move (#125): LLM khai move + target, pipeline thi hành bằng
+ * keyframe thuần theo t. Tối đa 2 move/scene để tránh trang trí lạm dụng.
+ */
+export const ambientMoveSchema = z.enum([...AMBIENT_MOVE_IDS]);
+export const sceneAmbientSchema = z
+    .object({
+        move: ambientMoveSchema,
+        target: z.string().min(1, 'ambient.target không được để trống'),
+        intensity: z.number().min(0).max(1).optional(),
+        from: z.number().min(0).optional(),
+        to: z.number().min(0).optional(),
+    })
+    .refine(
+        (a) => a.from === undefined || a.to === undefined || a.to > a.from,
+        {
+            message: 'ambient.to phải lớn hơn ambient.from',
+            path: ['to'],
+        }
+    );
+export type SceneAmbient = z.infer<typeof sceneAmbientSchema>;
+
 export const sceneSchema = z.object({
     id: z.string(),
     title: z.string(),
@@ -63,7 +100,16 @@ export const sceneSchema = z.object({
             to: z.number(),
         })
         .optional(),
+    /**
+     * Camera move của scene (#122). Không khai → `locked`, giữ nguyên hành vi
+     * của kịch bản cũ.
+     */
+    camera: sceneCameraSchema.optional(),
+    /** Ambient/native move (#125) — pipeline tự thi hành, LLM không viết tween. */
+    ambient: z.array(sceneAmbientSchema).max(MAX_AMBIENT_PER_SCENE).optional(),
     subject: z.string().optional(),
+    /** Từ khoá tìm ảnh stock thật (Pixabay) cho scene — hệ thống điền vào {{SCENE_IMAGE}} */
+    footageQuery: z.string().max(120).optional(),
     characterActions: z.array(characterActionItemSchema).optional(),
 });
 
@@ -100,14 +146,30 @@ export interface RhythmResult {
     stdDev: number;
     cv: number;
     hasNearStill: boolean;
+    /** Ngưỡng đã dùng để chấm — để báo cáo/QA giải thích được vì sao pass/fail. */
+    thresholds?: RhythmThresholds;
 }
 
+/**
+ * Ngưỡng nhịp điệu. Không hard-code trong hàm: caller (schema validate và Oracle
+ * QA) truyền profile của tempo đã chọn — xem `src/llm/tempo.ts`.
+ */
+export interface RhythmThresholds {
+    /** Tỉ số shot dài nhất / ngắn nhất tối thiểu. Mặc định 4 (hành vi cũ). */
+    minRatio?: number;
+    /** Hệ số biến thiên độ dài cảnh tối thiểu. Mặc định 0.3 (hành vi cũ). */
+    minCv?: number;
+    /** Đoạn near-still tối thiểu (giây). Mặc định 1.5. */
+    minNearStillSec?: number;
+}
 
 /**
  * Kiểm tra các ràng buộc nhịp điệu (rhythm) trên danh sách scenes:
- * 1. Tỉ số shot dài nhất / ngắn nhất >= 4 (max/min >= 4 khi scenes >= 2)
- * 2. Ít nhất 1 đoạn near-still >= 1.5s
- * 3. Cấm uniform cadence: Hệ số biến thiên độ dài cảnh CV = stdDev / mean >= 0.3
+ * 1. Tỉ số shot dài nhất / ngắn nhất >= `minRatio`
+ * 2. Ít nhất 1 đoạn near-still >= `minNearStillSec`
+ * 3. Cấm uniform cadence: Hệ số biến thiên độ dài cảnh CV = stdDev / mean >= `minCv`
+ *
+ * Mặc định giữ nguyên bộ số cũ (4 / 0.3 / 1.5) nên `auto` không regression.
  */
 export function checkRhythm(
     scenes: Array<
@@ -118,8 +180,13 @@ export function checkRhythm(
               moves?: Array<{ nearStill?: boolean; duration?: number }>;
           }
         | number
-    >
+    >,
+    thresholds?: RhythmThresholds
 ): RhythmResult {
+    const minRatio = thresholds?.minRatio ?? 4;
+    const minCv = thresholds?.minCv ?? 0.3;
+    const minNearStillSec = thresholds?.minNearStillSec ?? 1.5;
+    const appliedThresholds: RhythmThresholds = { minRatio, minCv, minNearStillSec };
     if (!Array.isArray(scenes) || scenes.length <= 1) {
         const singleDur =
             scenes && scenes.length === 1
@@ -137,6 +204,7 @@ export function checkRhythm(
             stdDev: 0,
             cv: 0,
             hasNearStill: false,
+            thresholds: appliedThresholds,
         };
     }
 
@@ -156,31 +224,35 @@ export function checkRhythm(
                 typeof item.nearStill.from === 'number' &&
                 typeof item.nearStill.to === 'number'
             ) {
-                if (item.nearStill.to - item.nearStill.from >= 1.5) {
+                if (item.nearStill.to - item.nearStill.from >= minNearStillSec) {
                     hasNearStill = true;
                 }
             } else if (typeof item.visualDescription === 'string') {
                 const text = item.visualDescription.toLowerCase();
                 const match = text.match(/near[-_]?still[^\d]*(\d+(?:\.\d+)?)/);
                 if (match) {
-                    if (parseFloat(match[1]) >= 1.5) {
+                    if (parseFloat(match[1]) >= minNearStillSec) {
                         hasNearStill = true;
                     }
-                    // Nếu ghi rõ số lượng giây nhưng < 1.5s thì không đạt điều kiện
+                    // Nếu ghi rõ số lượng giây nhưng < ngưỡng thì không đạt điều kiện
                 } else if (
                     text.includes('nearstill') ||
                     text.includes('near-still') ||
                     text.includes('near still')
                 ) {
-                    // Không có số giây cụ thể: chỉ chấp nhận khi scene có duration >= 1.5s (hoặc chưa đo duration)
+                    // Không có số giây cụ thể: chỉ chấp nhận khi scene có duration >= ngưỡng (hoặc chưa đo duration)
                     const dur = typeof item.duration === 'number' ? item.duration : undefined;
-                    if (dur === undefined || dur >= 1.5) {
+                    if (dur === undefined || dur >= minNearStillSec) {
                         hasNearStill = true;
                     }
                 }
             } else if (Array.isArray(item.moves)) {
                 for (const m of item.moves) {
-                    if (m && (m.nearStill || (typeof m.duration === 'number' && m.duration >= 1.5))) {
+                    if (
+                        m &&
+                        (m.nearStill ||
+                            (typeof m.duration === 'number' && m.duration >= minNearStillSec))
+                    ) {
                         hasNearStill = true;
                     }
                 }
@@ -199,6 +271,7 @@ export function checkRhythm(
             stdDev: 0,
             cv: 0,
             hasNearStill,
+            thresholds: appliedThresholds,
         };
     }
 
@@ -212,20 +285,22 @@ export function checkRhythm(
     const stdDev = Math.sqrt(variance);
     const cv = mean > 0 ? stdDev / mean : 0;
 
-    // Constraint 1: ratio >= 4
-    if (ratio < 4) {
-        errors.push(`Tỉ số shot dài nhất / ngắn nhất phải >= 4 (hiện tại: ${ratio.toFixed(2)})`);
-    }
-
-    // Constraint 2: nearStill >= 1.5s
-    if (!hasNearStill) {
-        errors.push('Kịch bản phải có ít nhất 1 đoạn near-still >= 1.5s');
-    }
-
-    // Constraint 3: cv >= 0.3
-    if (cv < 0.3) {
+    // Constraint 1: ratio >= minRatio
+    if (ratio < minRatio) {
         errors.push(
-            `Hệ số biến thiên độ dài cảnh (CV) phải >= 0.3 để tránh uniform cadence (hiện tại: ${cv.toFixed(2)})`
+            `Tỉ số shot dài nhất / ngắn nhất phải >= ${minRatio} (hiện tại: ${ratio.toFixed(2)})`
+        );
+    }
+
+    // Constraint 2: nearStill >= minNearStillSec
+    if (!hasNearStill) {
+        errors.push(`Kịch bản phải có ít nhất 1 đoạn near-still >= ${minNearStillSec}s`);
+    }
+
+    // Constraint 3: cv >= minCv
+    if (cv < minCv) {
+        errors.push(
+            `Hệ số biến thiên độ dài cảnh (CV) phải >= ${minCv} để tránh uniform cadence (hiện tại: ${cv.toFixed(2)})`
         );
     }
 
@@ -239,6 +314,7 @@ export function checkRhythm(
         stdDev,
         cv,
         hasNearStill,
+        thresholds: appliedThresholds,
     };
 }
 
@@ -261,6 +337,11 @@ export const videoScriptSchema = z
         fontFamily: z.string().default('Inter'),
         /** Trace style preset opuscar đã dùng (AI pick hoặc user chọn) — pipeline đóng dấu sau khi detect */
         styleSlug: z.string().optional(),
+        /**
+         * Nấc nhịp cắt cảnh của video (#117). Kịch bản mang theo ý đồ nhịp để
+         * validate lúc parse và Oracle QA dùng CÙNG một bộ ngưỡng.
+         */
+        tempo: tempoSchema.default('auto'),
     })
     .superRefine((data, ctx) => {
         const scenes = data.scenes || [];
@@ -311,7 +392,12 @@ export const videoScriptSchema = z
                 (s) => typeof s.duration === 'number' || s.nearStill !== undefined
             );
             if (hasDurations) {
-                const rhythm = checkRhythm(scenes);
+                // Dùng đúng profile của tempo đã khai (#117) — không hard-code 4/0.3.
+                const profile = resolveTempoProfile(data.tempo);
+                const rhythm = checkRhythm(scenes, {
+                    minRatio: profile.minRatio,
+                    minCv: profile.minCv,
+                });
                 if (!rhythm.valid) {
                     for (const err of rhythm.errors) {
                         ctx.addIssue({
@@ -411,6 +497,11 @@ export const videoRequestSchema = z.object({
     safeArea: z.boolean().optional(),
     /** Cấu hình phụ đề karaoke highlight */
     karaoke: z.union([z.boolean(), z.record(z.string(), z.any())]).optional(),
+    /**
+     * Nấc nhịp cắt cảnh (#117): auto = giữ hành vi cũ, fast/balanced/slow =
+     * nối cùng một profile cho prompt sinh kịch bản và ngưỡng QA rhythm.
+     */
+    tempo: tempoSchema.optional().default('auto'),
 }).transform((data) => {
     if (data.format === 'vertical' && (!data.aspectRatio || data.aspectRatio === '16:9')) {
         return { ...data, aspectRatio: '9:16' as const };
@@ -437,6 +528,19 @@ export interface AudioResult {
     wordTimings?: Record<string, WordTiming[]>,
     sfxPath?: string,
     hasSfx?: boolean,
+    /**
+     * #107: ngân sách thời lượng so với `targetDurationSec` (trần mềm).
+     * Không cảnh nào bị kéo dài và không có khoảng lặng cuối — caller đọc
+     * `deficitSec` / `coverageRatio` để báo cho user biết video ngắn hơn mục tiêu.
+     */
+    durationBudget?: {
+        actualTotalSec: number;
+        targetSec: number;
+        deficitSec: number;
+        coverageRatio: number;
+        status: 'ok' | 'short' | 'over' | 'invalid';
+        warning?: string;
+    },
     loudness?: {
         integratedLufs: number;
         truePeakDbtp: number;

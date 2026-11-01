@@ -188,14 +188,49 @@ export function parseUserAgent(uaString?: string): {
     return { browser, os, device };
 }
 
-export function extractClientIp(request: FastifyRequest): string {
-    const cfIp = (request.headers["cf-connecting-ip"] as string)?.trim();
-    const realIp = (request.headers["x-real-ip"] as string)?.trim();
-    const clientIp = (request.headers["x-client-ip"] as string)?.trim();
-    const forwarded = request.headers["x-forwarded-for"] as string | undefined;
-    const forwardedFirst = forwarded ? forwarded.split(",")[0].trim() : undefined;
+/** Peer trực tiếp có đáng tin để uỷ quyền xác định IP client qua header? Chỉ loopback/private/link-local/CGNAT (proxy/tunnel chạy cùng máy hoặc LAN) mới được tin. */
+function isTrustedPeerIp(ip: string): boolean {
+    const host = ip.replace(/^\[|\]$/g, "").replace(/^::ffff:/, "");
+    if (host === "127.0.0.1" || host === "::1" || host === "localhost") return true;
+    const v4 = host.match(/^(\d{1,3})\.(\d{1,3})\.(\d{1,3})\.(\d{1,3})$/);
+    if (v4) {
+        const a = Number(v4[1]);
+        const b = Number(v4[2]);
+        return (
+            a === 10 ||
+            a === 127 ||
+            (a === 172 && b >= 16 && b <= 31) ||
+            (a === 192 && b === 168) ||
+            (a === 169 && b === 254) ||
+            (a === 100 && b >= 64 && b <= 127)
+        );
+    }
+    return /^(fe[89ab]|fc|fd)/i.test(host);
+}
 
-    return cfIp || realIp || clientIp || forwardedFirst || request.ip || "127.0.0.1";
+function asValidIp(value: string | undefined): string | undefined {
+    if (!value) return undefined;
+    const v = value.trim();
+    // Chỉ ký tự IP (v4/v6) — loại giá trị rác/chèn thêm khỏi log và tra cứu geo.
+    return v.length <= 45 && /^[0-9a-fA-F.:]+$/.test(v) ? v : undefined;
+}
+
+export function extractClientIp(request: FastifyRequest): string {
+    const socketIp = request.ip || "127.0.0.1";
+    // Header chuyển tiếp chỉ có ý nghĩa khi peer trực tiếp là proxy/tunnel
+    // tin cậy. Client nối thẳng tới server tự đặt được mọi header — tin
+    // chúng là tự cho client giả mạo IP trong audit log, rate-limit và
+    // geo analytics.
+    if (!isTrustedPeerIp(socketIp)) {
+        return socketIp;
+    }
+    const cfIp = asValidIp(request.headers["cf-connecting-ip"] as string);
+    const realIp = asValidIp(request.headers["x-real-ip"] as string);
+    const clientIp = asValidIp(request.headers["x-client-ip"] as string);
+    const forwarded = request.headers["x-forwarded-for"] as string | undefined;
+    const forwardedFirst = forwarded ? asValidIp(forwarded.split(",")[0]) : undefined;
+
+    return cfIp || realIp || clientIp || forwardedFirst || socketIp;
 }
 
 export const pageViewTracker = {

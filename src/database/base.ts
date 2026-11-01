@@ -44,16 +44,17 @@ ALTER TABLE users ADD COLUMN IF NOT EXISTS total_credits INTEGER NOT NULL DEFAUL
 ALTER TABLE users ADD COLUMN IF NOT EXISTS status VARCHAR(20) NOT NULL DEFAULT 'active';
 ALTER TABLE users ADD COLUMN IF NOT EXISTS deleted_at TIMESTAMPTZ;
 ALTER TABLE users ADD COLUMN IF NOT EXISTS preferences JSONB DEFAULT '{}'::jsonb;
+-- Tên hiển thị (lấy từ hồ sơ Google hoặc do người dùng đặt). Tách khỏi
+-- username vì username là định danh đăng nhập, còn tên hiển thị có thể là
+-- tên thật/Unicode/dài hơn 30 ký tự.
+ALTER TABLE users ADD COLUMN IF NOT EXISTS display_name VARCHAR(100);
 
--- Super Admin promotion for khanh2k5xxx@gmail.com
-UPDATE users
-SET role = 'admin',
-    tier = 'enterprise',
-    credits = GREATEST(credits, 10000),
-    total_credits = GREATEST(total_credits, 10000),
-    status = 'active',
-    updated_at = NOW()
-WHERE LOWER(email) = 'khanh2k5xxx@gmail.com';
+-- (Đã bỏ) Startup promotion: bản UPDATE từng tự nâng tài khoản theo email
+-- lên admin/enterprise/10000 credit + status='active' ở MỌI lần khởi động —
+-- nó đảo ngược mọi quyết định thu hồi quyền/khoá tài khoản của admin và tự
+-- kích hoạt lại cả tài khoản đã bị ban ngay lần restart sau. Nâng quyền
+-- super admin chỉ còn qua callback Google đã xác thực (auth/routes.ts)
+-- hoặc thao tác SQL thủ công của chủ hệ thống.
 
 -- System Settings
 CREATE TABLE IF NOT EXISTS system_settings (
@@ -132,7 +133,7 @@ CREATE TABLE IF NOT EXISTS plans (
 INSERT INTO plans (id, name, price_vnd, quota_video, days, is_active)
 VALUES
     ('creator', 'Gói Sáng Tạo', 149000, 50, 30, true),
-    ('pro', 'Gói Pro', 249000, 150, 30, true),
+    ('pro', 'Gói Pro', 99000, 150, 30, true),
     ('max', 'Gói Max', 499000, 500, 30, true)
 ON CONFLICT (id) DO UPDATE SET
     name = EXCLUDED.name,
@@ -145,6 +146,7 @@ CREATE TABLE IF NOT EXISTS orders (
     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
     user_id UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
     plan_id VARCHAR(50) NOT NULL REFERENCES plans(id),
+    cycle VARCHAR(10) NOT NULL DEFAULT 'month',
     amount_vnd INTEGER NOT NULL,
     pay_code VARCHAR(50) NOT NULL UNIQUE,
     status VARCHAR(20) NOT NULL DEFAULT 'pending',
@@ -153,6 +155,9 @@ CREATE TABLE IF NOT EXISTS orders (
     paid_at TIMESTAMPTZ,
     created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
+
+-- Bảng orders tạo trước khi có gói năm chưa có cột cycle ⇒ bổ sung (idempotent).
+ALTER TABLE orders ADD COLUMN IF NOT EXISTS cycle VARCHAR(10) NOT NULL DEFAULT 'month';
 
 CREATE INDEX IF NOT EXISTS idx_orders_user_status ON orders(user_id, status);
 CREATE INDEX IF NOT EXISTS idx_orders_expires_at ON orders(expires_at);
