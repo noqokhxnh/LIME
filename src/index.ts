@@ -97,6 +97,22 @@ export async function buildApp(options: { logger?: boolean, queue?: IVideoQueue 
         },
     });
 
+    // Ảnh đại diện người dùng (avatar) lưu tại tmp/uploads/avatars, phục vụ tĩnh
+    // kèm headers bảo mật giống logo. Tên file là UUID do server sinh nên không
+    // lo LFI/Path Traversal.
+    const avatarsDir = join(process.cwd(), "tmp", "uploads", "avatars");
+    mkdirSync(avatarsDir, { recursive: true });
+    await app.register(fastifyStatic, {
+        root: avatarsDir,
+        prefix: "/uploads/avatars/",
+        decorateReply: false,
+        setHeaders: (res) => {
+            res.header("Content-Security-Policy", "default-src 'none'; style-src 'unsafe-inline'; sandbox");
+            res.header("X-Content-Type-Options", "nosniff");
+            res.header("X-Frame-Options", "DENY");
+        },
+    });
+
     // File đính kèm ticket KHÔNG còn phục vụ tĩnh công khai: ảnh chụp màn
     // hình hỗ trợ có thể chứa thông tin tài khoản, trước đây ai có URL
     // (UUID khó đoán nhưng rò qua log/history/chia sẻ) đều tải được mà

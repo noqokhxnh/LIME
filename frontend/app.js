@@ -103,12 +103,24 @@ if (forgotPasswordLink) {
 
 if (loginOpenBtn && loginModal) {
     loginOpenBtn.addEventListener('click', () => {
-        if (isLoggedIn) window.location.href = '/workspace';
-        else {
-            if (loginMessage) loginMessage.textContent = '';
-            if (registerMessage) registerMessage.textContent = '';
-            loginModal.classList.add('show');
+        if (isLoggedIn) {
+            const dropdown =
+                document.getElementById('home-user-dropdown');
+
+            if (!dropdown) return;
+
+            dropdown.hidden = !dropdown.hidden;
+
+            loginOpenBtn.setAttribute(
+                'aria-expanded',
+                String(!dropdown.hidden)
+            );
+
+            return;
         }
+        if (loginMessage) loginMessage.textContent = '';
+        if (registerMessage) registerMessage.textContent = '';
+        loginModal.classList.add('show');
     });
 }
 if (loginCloseBtn && loginModal) {
@@ -298,7 +310,7 @@ function goStudio() {
     else openLogin();
 }
 function stashPrompt(data) {
-    try { sessionStorage.setItem('lime-pending-prompt', JSON.stringify(data)); } catch (e) {}
+    try { sessionStorage.setItem('lime-pending-prompt', JSON.stringify(data)); } catch (e) { }
 }
 
 document.getElementById('cta-create-btn')?.addEventListener('click', goStudio);
@@ -364,7 +376,27 @@ async function checkCurrentUser() {
         if (isLoggedIn && loginOpenBtn) {
             const data = await res.json();
             const user = data.user || data;
-            loginOpenBtn.textContent = user.username || 'Hồ sơ';
+            loginOpenBtn.replaceChildren();
+
+            if (user.avatarUrl) {
+                const img = document.createElement('img');
+
+                img.src = user.avatarUrl;
+                img.alt = '';
+                img.className = 'home-user-avatar';
+
+                loginOpenBtn.appendChild(img);
+            }
+
+            const nameSpan = document.createElement('span');
+            nameSpan.textContent = user.name || user.username || 'Hồ sơ';
+
+            loginOpenBtn.appendChild(nameSpan);
+
+            const adminItem = document.getElementById('home-admin-item');
+            if (adminItem) {
+                adminItem.hidden = user.role !== 'admin';
+            }
 
             const profLink = document.getElementById('nav-profile-link');
             const setLink = document.getElementById('nav-setting-link');
@@ -830,4 +862,37 @@ function initFlipWords() {
 
     items.forEach((it, i) => it.addEventListener('click', () => select(i)));
     select(0);
+    const homeUser = document.getElementById('home-user');
+    const homeDropdown = document.getElementById('home-user-dropdown');
+
+    function closeHomeUserMenu() {
+        if (!homeDropdown) return;
+
+        homeDropdown.hidden = true;
+        loginOpenBtn?.setAttribute('aria-expanded', 'false');
+    }
+
+    document.addEventListener('click', (event) => {
+        if (homeUser && !homeUser.contains(event.target)) {
+            closeHomeUserMenu();
+        }
+    });
+
+    document.addEventListener('keydown', (event) => {
+        if (event.key === 'Escape') {
+            closeHomeUserMenu();
+        }
+    });
+
+    document.getElementById('home-logout-btn')
+        ?.addEventListener('click', async () => {
+            try {
+                await fetch('/api/auth/logout', {
+                    method: 'POST',
+                    credentials: 'include'
+                });
+            } finally {
+                window.location.href = '/';
+            }
+        });
 })();

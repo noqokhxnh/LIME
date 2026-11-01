@@ -8,6 +8,9 @@ import { getConfig } from '../config.js';
 import { createRemoteJWKSet, jwtVerify } from 'jose';
 import { recordAuthEvent } from './loginAudit.js';
 import { systemSettings } from '../admin/systemSettings.js';
+import { mkdirSync, writeFileSync, rmSync } from 'node:fs';
+import { join } from 'node:path';
+import { validateUploadedFile } from '../security/uploadGuard.js';
 
 /** Email Super Admin tối cao. CHỈ còn được tôn trọng ở callback Google (nơi
  * Google đã xác thực quyền sở hữu hộp thư bằng ID token + email_verified).
@@ -285,6 +288,59 @@ export async function authRoutes(app: FastifyInstance): Promise<void> {
         }
         return user;
     });
+    const updateProfileSchema = z.object({
+    name: z.string()
+        .trim()
+        .min(2, 'Tên phải có ít nhất 2 ký tự')
+        .max(100, 'Tên không được quá 100 ký tự')
+    });
+
+    app.patch('/api/users/me', async (request, reply) => {
+    const user = await getCurrentUser(request);
+
+    if (!user) {
+        return reply.status(401).send({
+            error: 'Bạn chưa đăng nhập'
+        });
+    }
+
+    const parsed = updateProfileSchema.safeParse(request.body);
+
+    if (!parsed.success) {
+        return reply.status(400).send({
+            error: 'Tên hiển thị không hợp lệ',
+            details: parsed.error.flatten()
+        });
+    }
+
+    const result = await db.query(
+        `UPDATE users
+         SET display_name = $1,
+             updated_at = NOW()
+         WHERE id = $2
+         RETURNING display_name`,
+        [parsed.data.name, user.id]
+    );
+
+    if (!result.rows.length) {
+        return reply.status(404).send({
+            error: 'Không tìm thấy tài khoản'
+        });
+    }
+
+    await recordAuthEvent({
+        action: 'auth.profile_updated',
+        userId: user.id,
+        userEmail: user.email,
+        request,
+        details: { displayName: result.rows[0].display_name },
+    });
+
+    return {
+        success: true,
+        name: result.rows[0].display_name
+    };
+});
 
     app.post('/api/auth/logout', async (request, reply) => {
         await deleteSession(request, reply);
@@ -501,6 +557,38 @@ export async function authRoutes(app: FastifyInstance): Promise<void> {
                 );
                 user = namedResult.rows[0];
             }
+            let ggAvatar: string | null = null;
+            if (typeof payload.picture === 'string') {
+                try{
+                    const url = new URL(payload.picture);
+                    if (url.protocol === 'https:' && 
+                        (
+                            url.hostname === 'googleusercontent.com' ||
+                            url.hostname.endsWith('.googleusercontent.com') ||
+                            url.hostname === 'ggpht.com' ||
+                            url.hostname.endsWith('.ggpht.com')
+                        )
+                    )  {
+                        ggAvatar = url.toString().slice(0, 2048);
+                    }
+                } catch {
+                    ggAvatar = null;
+                }
+            }
+            if (ggAvatar) {
+                try {
+                    await db.query(
+                        'UPDATE users SET google_avatar_url = $1, updated_at = NOW() WHERE id = $2',
+                        [ggAvatar, user.id]
+                    );
+                } catch (err) {
+                    // Không để lỗi ghi avatar làm hỏng cả luồng đăng nhập.
+                    request.log.warn(
+                        { err },
+                        'Google OAuth: failed to persist google_avatar_url'
+                    );
+                }
+            }
 
             await createSession(user.id, reply);
             if (isNewGoogleUser) {
@@ -531,4 +619,107 @@ export async function authRoutes(app: FastifyInstance): Promise<void> {
             );
         }
     });
+        app.post('/api/users/me/avatar', async (request, reply) => {
+    const user = await getCurrentUser(request);
+    if (!user) return reply.code(401).send({ error: 'Chưa đăng nhập' });
+
+    let file;
+    let buffer: Buffer;
+
+    try {
+        file = await request.file({
+            limits: { fileSize: 2 * 1024 * 1024, files: 1 }
+        });
+
+        if (!file) {
+            return reply.code(400).send({ error: 'Thiếu ảnh' });
+        }
+
+        buffer = await file.toBuffer();
+    } catch (err: any) {
+        const tooLarge =
+            err?.code === 'FST_REQ_FILE_TOO_LARGE' ||
+            err?.statusCode === 413 ||
+            file?.file?.truncated;
+        return reply.code(tooLarge ? 413 : 500).send({
+            error: tooLarge
+                ? 'Ảnh vượt quá 2MB hoặc file không hợp lệ'
+                : 'Không thể đọc file tải lên'
+        });
+    }
+
+    const extensions: Record<string, string> = {
+        'image/png': 'png',
+        'image/jpeg': 'jpg',
+        'image/webp': 'webp'
+    };
+
+    const ext = extensions[file.mimetype];
+
+    if (!ext || !validateUploadedFile(buffer, file.mimetype).isValid) {
+        return reply.code(400).send({ error: 'Ảnh không hợp lệ' });
+    }
+
+    const filename = `${randomUUID()}.${ext}`;
+    const avatarUrl = `/uploads/avatars/${filename}`;
+
+    mkdirSync(avatarDir, { recursive: true });
+    writeFileSync(join(avatarDir, filename), buffer);
+
+    try {
+        const old = await db.query(
+            'SELECT avatar_url FROM users WHERE id = $1',
+            [user.id]
+        );
+
+        if (!old.rows.length) {
+            removeAvatar(avatarUrl);
+            return reply.code(404).send({ error: 'Không tìm thấy tài khoản' });
+        }
+
+        await db.query(
+            'UPDATE users SET avatar_url = $1, updated_at = NOW() WHERE id = $2',
+            [avatarUrl, user.id]
+        );
+
+        removeAvatar(old.rows[0].avatar_url);
+
+        return { success: true, avatarUrl };
+    } catch {
+        removeAvatar(avatarUrl);
+        return reply.code(500).send({ error: 'Không thể lưu avatar' });
+    }
+    });
+    app.delete('/api/users/me/avatar', async (request, reply) => {
+    const user = await getCurrentUser(request);
+    if (!user) return reply.code(401).send({ error: 'Chưa đăng nhập' });
+
+    const old = await db.query(
+        'SELECT avatar_url FROM users WHERE id = $1',
+        [user.id]
+    );
+
+    if (!old.rows.length) {
+        return reply.code(404).send({ error: 'Không tìm thấy tài khoản' });
+    }
+
+    await db.query(
+        'UPDATE users SET avatar_url = NULL WHERE id = $1',
+        [user.id]
+    );
+
+    removeAvatar(old.rows[0].avatar_url);
+
+    return { success: true };
+});
+    const avatarDir = join(process.cwd(), 'tmp/uploads/avatars');
+    function removeAvatar(url: string | null) {
+    const match = url?.match(
+        /^\/uploads\/avatars\/([a-f0-9-]{36}\.(png|jpg|webp))$/
+    );
+
+    if (match) {
+        rmSync(join(avatarDir, match[1]), { force: true });
+    }
+}
 }

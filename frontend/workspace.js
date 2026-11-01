@@ -16,12 +16,41 @@ const wsUsername = document.getElementById('ws-username');
 const wsLogoutBtn = document.getElementById('ws-logout-btn');
 const wsUserBtn = document.getElementById('ws-user-btn');
 const wsUserDropdown = document.getElementById('ws-user-dropdown');
-function setWsUser(name, role) {
-    if (wsUsername) wsUsername.textContent = name || '';
+function setWsUser(name, role, avatarUrl = null) {
+    if (wsUsername) {
+        wsUsername.textContent = name || '';
+    }
+
     const avatar = document.getElementById('ws-user-avatar');
-    if (avatar) avatar.textContent = (name || 'U').charAt(0).toUpperCase();
+
+    if (avatar) {
+        avatar.replaceChildren();
+
+        if (avatarUrl) {
+            const img = document.createElement('img');
+
+            img.src = avatarUrl;
+            img.alt = '';
+            img.className = 'ws-avatar-img';
+
+            img.onerror = () => {
+                avatar.textContent =
+                    (name || 'U').charAt(0).toUpperCase();
+            };
+
+            avatar.appendChild(img);
+        } else {
+            avatar.textContent =
+                (name || 'U').charAt(0).toUpperCase();
+        }
+    }
+
     const adminLink = document.getElementById('ws-admin-link');
-    if (adminLink) adminLink.style.display = role === 'admin' ? 'flex' : 'none';
+
+    if (adminLink) {
+        adminLink.style.display =
+            role === 'admin' ? 'flex' : 'none';
+    }
 }
 
 if (wsUserBtn && wsUserDropdown) {
@@ -1841,7 +1870,7 @@ async function checkCurrentUser() {
         if (!res.ok) { window.location.href = '/?auth=open'; return; }
         const data = await res.json();
         const user = data.user || data;
-        setWsUser(user.name || user.username, user.role);
+        setWsUser(user.name || user.username, user.role, user.avatarUrl);
     } catch (err) { window.location.href = '/?auth=open'; }
 }
 

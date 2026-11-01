@@ -12,7 +12,8 @@ export type AuthEventAction =
     | 'auth.register'
     | 'auth.login'
     | 'auth.login_failed'
-    | 'auth.password_changed';
+    | 'auth.password_changed'
+    | 'auth.profile_updated';
 
 export const LOGIN_ACTIONS: AuthEventAction[] = [
     'auth.register',

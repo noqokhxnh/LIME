@@ -22,6 +22,9 @@ export interface AuthUser {
     planExpiresAt?: string | null;
     preferences?: Record<string, any>;
     createdAt: string;
+    avatarUrl?: string | null;
+    hasCustomAvatar?: boolean;
+    provider?: 'local' | 'google';
 }
 
 function hashToken(token: string): string {
@@ -159,7 +162,7 @@ export async function getCurrentUser(
         try {
             const result = await db.query(
                 `SELECT u.id, u.username, u.display_name, u.email, u.role, u.tier, u.credits, u.total_credits, u.status,
-                        u.plan_id, u.plan_expires_at, u.preferences, u.created_at
+                        u.plan_id, u.plan_expires_at, u.preferences, u.created_at, u.avatar_url, u.google_avatar_url, u.google_id
                  FROM sessions s
                  JOIN users u ON u.id = s.user_id
                  WHERE s.token_hash = $1 AND s.expires_at > NOW() AND u.deleted_at IS NULL
@@ -192,6 +195,9 @@ export async function getCurrentUser(
                     planId: u.planId || null,
                     planExpiresAt: u.planExpiresAt || null,
                     createdAt: u.createdAt,
+                    avatarUrl:null,
+                    hasCustomAvatar: false,
+                    provider: u.provider || 'local',
                 };
             }
         }
@@ -206,6 +212,9 @@ export async function getCurrentUser(
         id: user.id,
         username: user.username,
         name: resolveDisplayName(user.username, user.email, user.display_name),
+        avatarUrl: user.avatar_url || user.google_avatar_url || null,
+        hasCustomAvatar: !!user.avatar_url,
+        provider: user.google_id ? 'google' : 'local',
         email: user.email,
         role: user.role === 'admin' ? 'admin' : 'user',
         tier: user.tier || 'free',
