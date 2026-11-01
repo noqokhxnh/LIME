@@ -33,6 +33,7 @@ export {
 
 export interface assembleOptions {
     imageMap?: Record<string, string[]>;
+    videoMap?: Record<string, string[]>;
     wordTimings?: Record<string, WordTiming[]>;
     karaoke?: boolean | KaraokeConfig;
     safeArea?: boolean;
@@ -173,7 +174,8 @@ window.__fx = function(type, opts) {
 export function processSceneCode(
     scene: scene,
     duration: number,
-    imageUrls: string[] = []
+    imageUrls: string[] = [],
+    videoUrls: string[] = []
 ): { html: string; css: string; js: string } {
     let html = scene.htmlCode || "";
     let css = scene.cssCode || "";
@@ -200,6 +202,18 @@ export function processSceneCode(
         .replace(/\{\{SCENE_IMAGE_1\}\}/g, img1)
         .replace(/\{\{SCENE_IMAGE_2\}\}/g, img2)
         .replace(/\{\{SCENE_IMAGE_3\}\}/g, img3);
+
+    // Thay the cac token video (asset nguoi dung upload, #103). Khong co asset
+    // video thi token bien mat (src="" thay vi transparent GIF nhu anh).
+    const vid1 = videoUrls[0] || "";
+    const vid2 = videoUrls[1] || "";
+    const vid3 = videoUrls[2] || "";
+
+    html = html
+        .replace(/\{\{SCENE_VIDEO\}\}/g, vid1)
+        .replace(/\{\{SCENE_VIDEO_1\}\}/g, vid1)
+        .replace(/\{\{SCENE_VIDEO_2\}\}/g, vid2)
+        .replace(/\{\{SCENE_VIDEO_3\}\}/g, vid3);
 
     // Dam bao container scene co du id va class scene
     if (!html.includes(`id="${scene.id}"`) && !html.includes(`id='${scene.id}'`)) {
@@ -237,12 +251,14 @@ export async function assembleHTML(
         : (options?.jobId ? hashString32(options.jobId) : (hashString32(script.id || script.title || "vidtml-seed") >>> 0));
 
     const imageMap = options?.imageMap || {};
+    const videoMap = options?.videoMap || {};
     const processedScenes: { id: string; html: string; css: string; js: string; duration: number; characterActions?: CharacterActionItem[]; camera: ResolvedCamera; ambient: ResolvedAmbient[] }[] = [];
 
     for (const scene of script.scenes) {
         const sceneDur = durations[scene.id] ?? 3.0;
         const images = imageMap[scene.id] || [];
-        const processed = processSceneCode(scene, sceneDur, images);
+        const videos = videoMap[scene.id] || [];
+        const processed = processSceneCode(scene, sceneDur, images, videos);
 
         let sceneHtml = processed.html;
         const safeId = scene.id.replace(/[^a-zA-Z0-9_]/g, "_");
@@ -636,6 +652,71 @@ ${safeAreaGuideHtml}
             }
         };
 
+        // Video seek helper (#103): GSAP không điều khiển currentTime của <video>,
+        // nên render tất định phải tua từng video về mốc giờ nội bộ của cảnh chứa nó.
+        window.__seekVideos = function(timeInSec) {
+            var videos = document.querySelectorAll('video');
+            if (!videos || !videos.length) return Promise.resolve();
+            var pending = [];
+            for (var i = 0; i < videos.length; i++) {
+                (function(v) {
+                    // Đi ngược lên .scene (id hoặc data-scene) để lấy startTime.
+                    var node = v;
+                    var sceneId = null;
+                    while (node) {
+                        if (node.id && window.__sceneStarts && window.__sceneStarts[node.id] !== undefined) {
+                            sceneId = node.id;
+                            break;
+                        }
+                        if (node.getAttribute && node.getAttribute('data-scene')) {
+                            sceneId = node.getAttribute('data-scene');
+                            break;
+                        }
+                        node = node.parentElement;
+                    }
+                    if (!sceneId) return;
+                    var start = window.__sceneStarts[sceneId] || 0;
+                    var local = timeInSec - start;
+                    if (local < 0) local = 0;
+
+                    pending.push(new Promise(function(resolve) {
+                        var done = false;
+                        var timer = null;
+                        var finish = function() {
+                            if (done) return;
+                            done = true;
+                            if (timer) clearTimeout(timer);
+                            resolve();
+                        };
+                        timer = setTimeout(finish, 1500);
+                        var doSeek = function() {
+                            try {
+                                var dur = v.duration;
+                                if (isFinite(dur) && dur > 0 && local > dur - 0.05) {
+                                    local = Math.max(0, dur - 0.05);
+                                }
+                                if (Math.abs(v.currentTime - local) > 0.02) {
+                                    v.addEventListener('seeked', finish, { once: true });
+                                    v.currentTime = local;
+                                } else {
+                                    finish();
+                                }
+                            } catch (e) {
+                                finish();
+                            }
+                        };
+                        if (v.readyState >= 1) {
+                            doSeek();
+                        } else {
+                            v.addEventListener('loadedmetadata', doSeek, { once: true });
+                            v.addEventListener('error', finish, { once: true });
+                        }
+                    }));
+                })(videos[i]);
+            }
+            return Promise.all(pending);
+        };
+
         window.__seekTo = function(timeInSec) {
             if (window.__masterTimeline) {
                 window.__masterTimeline.seek(timeInSec, false);
@@ -649,6 +730,10 @@ ${safeAreaGuideHtml}
             if (typeof window.__updateKaraoke === 'function') {
                 window.__updateKaraoke(timeInSec);
             }
+            if (typeof window.__seekVideos === 'function') {
+                return window.__seekVideos(timeInSec);
+            }
+            return Promise.resolve();
         };
 
         window.__getTotalDuration = function() {
@@ -753,6 +838,14 @@ ${safeAreaGuideHtml}
         if (typeof window.__updateAmbient === 'function') {
             window.__updateAmbient(0);
         }
+
+        // Asset video (#103): nạp trước metadata/frame để seek tất định.
+        (function() {
+            var vs = document.querySelectorAll('video');
+            for (var i = 0; i < vs.length; i++) {
+                try { vs[i].preload = 'auto'; } catch (e) {}
+            }
+        })();
 
         // Page Ready Signal for Headless Browser Renderer
         window.__ready = true;

@@ -1490,12 +1490,8 @@ function autoGrow(el) {
  */
 /* ---------- Thư viện asset (#103): upload + chọn ảnh cho từng cảnh ---------- */
 
-function imageAssets() {
-    return (hitl.assets || []).filter(a => a && a.kind === 'image');
-}
-
-function imageAssetIds() {
-    return imageAssets().map(a => a.id);
+function allAssetIds() {
+    return (hitl.assets || []).filter(a => a && a.id).map(a => a.id);
 }
 
 async function loadAssets(force = false) {
@@ -1553,11 +1549,27 @@ function assetThumb(a, opts = {}) {
     const el = document.createElement('div');
     el.className = 'rb-asset' + (selected ? ' on' : '');
     el.title = a.description || a.mimeType || '';
-    const img = document.createElement('img');
-    img.src = a.url;
-    img.alt = a.description || 'asset';
-    img.loading = 'lazy';
-    el.appendChild(img);
+    const isVideo = a.kind === 'video';
+    if (isVideo) {
+        const v = document.createElement('video');
+        v.src = a.url;
+        v.muted = true;
+        v.preload = 'metadata';
+        v.setAttribute('playsinline', '');
+        el.appendChild(v);
+    } else {
+        const img = document.createElement('img');
+        img.src = a.url;
+        img.alt = a.description || 'asset';
+        img.loading = 'lazy';
+        el.appendChild(img);
+    }
+    if (isVideo) {
+        const badge = document.createElement('span');
+        badge.className = 'rb-asset-kind';
+        badge.textContent = 'VID';
+        el.appendChild(badge);
+    }
     if (selected) {
         const chk = document.createElement('span');
         chk.className = 'rb-asset-check';
@@ -1581,23 +1593,23 @@ function assetThumb(a, opts = {}) {
     return el;
 }
 
-/** Dải quản lý thư viện ảnh: upload + xoá (không gắn vào cảnh cụ thể). */
+/** Dải quản lý thư viện asset: upload + xoá (không gắn vào cảnh cụ thể). */
 function buildAssetLibraryStrip() {
     const wrap = document.createElement('div');
     wrap.className = 'rb-assets';
 
     const head = document.createElement('div');
     head.className = 'rb-assets-head';
-    head.innerHTML = '<b>Ảnh của bạn</b><span class="rb-assets-hint">Chọn ảnh cho từng cảnh bên dưới · chỉ ảnh (PNG/JPG/WEBP/SVG)</span>';
+    head.innerHTML = '<b>Thư viện của bạn</b><span class="rb-assets-hint">Chọn ảnh/video cho từng cảnh bên dưới · ảnh (PNG/JPG/WEBP/SVG) + video (MP4/WEBM)</span>';
 
     const uploadBtn = document.createElement('button');
     uploadBtn.type = 'button';
     uploadBtn.className = 'rb-assets-upload';
-    uploadBtn.textContent = '+ Upload ảnh';
+    uploadBtn.textContent = '+ Upload asset';
     const fileInput = document.createElement('input');
     fileInput.type = 'file';
     fileInput.hidden = true;
-    fileInput.accept = 'image/png,image/jpeg,image/webp,image/svg+xml';
+    fileInput.accept = 'image/png,image/jpeg,image/webp,image/svg+xml,video/mp4,video/webm';
     fileInput.multiple = true;
     uploadBtn.addEventListener('click', () => fileInput.click());
     fileInput.addEventListener('change', async () => {
@@ -1620,35 +1632,35 @@ function buildAssetLibraryStrip() {
 
     const grid = document.createElement('div');
     grid.className = 'rb-assets-grid';
-    const imgs = imageAssets();
-    if (!imgs.length) {
+    const all = (hitl.assets || []).filter(a => a && a.id);
+    if (!all.length) {
         const empty = document.createElement('p');
         empty.className = 'rb-assets-empty';
-        empty.textContent = 'Chưa có ảnh nào. Upload ảnh để dùng trong video.';
+        empty.textContent = 'Chưa có asset nào. Upload ảnh/video để dùng trong video.';
         grid.appendChild(empty);
     } else {
-        imgs.forEach(a => grid.appendChild(assetThumb(a, { selected: false, deletable: true })));
+        all.forEach(a => grid.appendChild(assetThumb(a, { selected: false, deletable: true })));
     }
     wrap.appendChild(grid);
     return wrap;
 }
 
-/** Bộ chọn ảnh cho một cảnh: bấm để gắn/bỏ ảnh (scene.assetIds). */
+/** Bộ chọn asset cho một cảnh: bấm để gắn/bỏ ảnh/video (scene.assetIds). */
 function buildSceneAssetPicker(scene) {
-    const imgs = imageAssets();
-    if (!imgs.length) return null;
+    const all = (hitl.assets || []).filter(a => a && a.id);
+    if (!all.length) return null;
 
     const wrap = document.createElement('div');
     wrap.className = 'rb-scene-assets';
     const label = document.createElement('span');
     label.className = 'rb-scene-assets-label';
     const sel = Array.isArray(scene.assetIds) ? scene.assetIds : [];
-    label.textContent = `Ảnh: ${sel.length ? `${sel.length} ảnh đã chọn` : 'chưa chọn'}`;
+    label.textContent = `Asset: ${sel.length ? `${sel.length} đã chọn` : 'chưa chọn'}`;
     wrap.appendChild(label);
 
     const grid = document.createElement('div');
     grid.className = 'rb-assets-grid';
-    imgs.forEach(a => grid.appendChild(assetThumb(a, {
+    all.forEach(a => grid.appendChild(assetThumb(a, {
         selected: sel.includes(a.id),
         onClick: (id) => { toggleSceneAsset(scene, id); },
     })));
@@ -1731,14 +1743,14 @@ async function requestDrafts(nextRotation) {
     log(`Đang sinh 3 phương án cho: "${prompt}"`, 'info');
 
     try {
-        // Nạp thư viện ảnh để LLM chọn assetIds cho từng cảnh (#103).
+        // Nạp thư viện asset để LLM chọn assetIds cho từng cảnh (#103).
         await loadAssets();
         const payload = {
             ...buildBasePayload(prompt),
             variantCount: 3,
             variantRotation: hitl.rotation,
             answers: hitl.answers,
-            assetIds: imageAssetIds(),
+            assetIds: allAssetIds(),
         };
         const res = await fetch(`${API_BASE}/api/script/draft`, {
             method: 'POST', credentials: 'include',
@@ -1786,7 +1798,7 @@ async function startAutoDirect() {
         ...buildBasePayload(prompt),
         async: true,
         mode: 'auto',
-        assetIds: imageAssetIds(),
+        assetIds: allAssetIds(),
     };
     if (samePrompt && hitl.answers) payload.answers = hitl.answers;
     if (samePrompt) payload.variantRotation = hitl.rotation;

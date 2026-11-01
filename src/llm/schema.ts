@@ -112,8 +112,9 @@ export const sceneSchema = z.object({
     footageQuery: z.string().max(120).optional(),
     /**
      * Asset người dùng tự upload (#103) cho scene này. Mỗi phần tử là id asset
-     * (ảnh) đã upload; hệ thống thay từng token {{SCENE_IMAGE}}/{{SCENE_IMAGE_2}}/...
-     * bằng data URI của asset theo đúng thứ tự. Ưu tiên hơn footageQuery.
+     * (ảnh hoặc video) đã upload; hệ thống thay token {{SCENE_IMAGE*}} bằng ảnh
+     * và {{SCENE_VIDEO*}} bằng video theo đúng thứ tự xuất hiện của từng loại.
+     * Ảnh ưu tiên hơn footageQuery cho cùng scene.
      */
     assetIds: z.array(z.string().min(1).max(120)).max(10).optional(),
     characterActions: z.array(characterActionItemSchema).optional(),

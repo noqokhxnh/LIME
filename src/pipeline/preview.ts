@@ -218,17 +218,19 @@ export async function loadAndPreparePage(
  * Tua timeline đến mốc thời gian chỉ định và chờ render
  */
 export async function seekToTimestamp(page: Page, timeSec: number): Promise<void> {
+    // __seekTo giờ có thể trả Promise (đợi video seeked) — page.evaluate sẽ await nó.
     await page.evaluate((targetTime) => {
         const win = window as unknown as {
-            __seekTo?: (t: number) => void;
+            __seekTo?: (t: number) => Promise<void> | void;
             __masterTimeline?: { seek: (t: number, suppressEvents?: boolean) => void };
         };
 
         if (typeof win.__seekTo === "function") {
-            win.__seekTo(targetTime);
+            return win.__seekTo(targetTime);
         } else if (win.__masterTimeline && typeof win.__masterTimeline.seek === "function") {
             win.__masterTimeline.seek(targetTime, false);
         }
+        return undefined;
     }, timeSec);
 
     // Chờ 2 frames requestAnimationFrame để browser vẽ lại các phần tử animation

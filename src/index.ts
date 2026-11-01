@@ -35,7 +35,6 @@ import { validateUploadedFile, generateSafeFilePath, resolveBgmPath, validateUpl
 import { isSafeJobId, safeJobDir } from "./queue/jobPaths.js";
 import { getBrandKitByUserId, upsertBrandKit } from "./database/brandKit.js";
 import { createAsset, listAssetsByUserId, getAssetByIdForUser, deleteAssetByIdForUser, getAssetsByIdsForUser, getAssetUsageForUser, cleanupOrphanedAssetFiles, type AssetKind, type AssetRow } from "./database/assets.js";
-import { imageAssetsOnly } from "./pipeline/assets.js";
 import { getCatalog, listBlueprints, listMotionBlocks } from "./templates/index.js";
 import { adminRoutes } from "./admin/routes.js";
 import { supportRoutes } from "./helpdesk/routes.js";
@@ -621,13 +620,13 @@ export async function buildApp(options: { logger?: boolean, queue?: IVideoQueue 
                 count: variantCount,
             });
 
-            // Asset người dùng upload (#103): đưa metadata ảnh vào prompt để LLM
-            // chọn assetIds. Kiểm ownership qua getAssetsByIdsForUser (user_id).
+            // Asset người dùng upload (#103): đưa metadata ảnh + video vào prompt
+            // để LLM chọn assetIds. Kiểm ownership qua getAssetsByIdsForUser (user_id).
             let assets: AssetRow[] = [];
             const assetIds = reqData.assetIds ?? [];
             if (assetIds.length > 0) {
                 try {
-                    assets = imageAssetsOnly(await getAssetsByIdsForUser(assetIds, authUser.id));
+                    assets = await getAssetsByIdsForUser(assetIds, authUser.id);
                 } catch (err) {
                     console.warn(`[Assets] Bỏ qua asset do lỗi resolve: ${(err as Error)?.message}`);
                 }

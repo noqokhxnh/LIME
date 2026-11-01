@@ -7,7 +7,7 @@ import { generateScript } from "./scriptGenerator";
 import { estimateDuration } from "./estimateDuration";
 import { assembleHTML } from "./assembleHtml.js";
 import { buildSceneImageMap } from "./footage.js";
-import { buildSceneAssetImageMap, imageAssetsOnly, readImageAssetAsDataUri } from "./assets.js";
+import { buildSceneAssetImageMap, buildSceneAssetVideoMap, imageAssetsOnly, videoAssetsOnly, readImageAssetAsDataUri, readVideoAssetFileUrl } from "./assets.js";
 import type { AssetRow } from "../database/assets.js";
 import { generatePreviews, PreviewResult } from "./preview";
 import { synthesizeAudio } from "./audioSysnthesis.js";
@@ -173,6 +173,7 @@ export async function runFullPipeline(option: orchestratorOptions): Promise<full
             // phase 2.6: user assets (#103) — ảnh người dùng upload ưu tiên hơn
             // stock Pixabay cho cùng scene. Resolve thành data URI để assemble
             // nhúng thẳng vào HTML (render offline, tất định, self-contained).
+            let videoMap: Record<string, string[]> = {};
             if (assets.length > 0) {
                 try {
                     const dataUriById = new Map<string, string>();
@@ -184,6 +185,16 @@ export async function runFullPipeline(option: orchestratorOptions): Promise<full
                     for (const [sceneId, uris] of Object.entries(assetMap)) {
                         imageMap[sceneId] = uris;
                     }
+
+                    // Asset video (#103): dùng file:// URL (networkGuard cho phép
+                    // đọc file:// trong tmp/) thay vì data URI — video lớn, base64
+                    // phình +33% và thổi phồng file HTML.
+                    const fileUrlById = new Map<string, string>();
+                    for (const asset of videoAssetsOnly(assets)) {
+                        const url = readVideoAssetFileUrl(asset);
+                        if (url) fileUrlById.set(asset.id, url);
+                    }
+                    videoMap = buildSceneAssetVideoMap(script, fileUrlById);
                 } catch (assetErr: any) {
                     logProgress("html_assembly", 18, `Warning: asset resolve skipped: ${assetErr?.message || assetErr}`);
                 }
@@ -206,6 +217,7 @@ export async function runFullPipeline(option: orchestratorOptions): Promise<full
                     safeArea: request.safeArea,
                     karaoke: request.karaoke,
                     imageMap,
+                    videoMap,
                 }
             );
             timing["html_assembly"] = Date.now() - phaseStart;
@@ -269,6 +281,7 @@ export async function runFullPipeline(option: orchestratorOptions): Promise<full
                     safeArea: request.safeArea,
                     karaoke: request.karaoke,
                     imageMap,
+                    videoMap,
                 }
             );
             timing["html_assembly"] = Date.now() - phaseStart;

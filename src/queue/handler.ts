@@ -14,7 +14,6 @@ import { videoRequestSchema, videoScriptSchema, type videoScript } from '../llm/
 import { isSafeJobId, safeJobDir } from './jobPaths.js';
 import { resolveBgmPath } from '../security/uploadGuard.js';
 import { getAssetsByIdsForUser, type AssetRow } from '../database/assets.js';
-import { imageAssetsOnly } from '../pipeline/assets.js';
 import { resolve, sep } from 'node:path';
 
 /**
@@ -60,7 +59,7 @@ export async function autoDirectScript(
     const assetIds = request?.assetIds ?? [];
     if (assetIds.length > 0 && data.userId) {
         try {
-            assets = imageAssetsOnly(await getAssetsByIdsForUser(assetIds, data.userId));
+            assets = await getAssetsByIdsForUser(assetIds, data.userId);
         } catch (err) {
             console.warn(`[Assets] Bỏ qua asset do lỗi resolve: ${(err as Error)?.message}`);
         }
@@ -165,8 +164,8 @@ export async function processVideoJob(data: JobData, updateProgress: (p: JobProg
         script = await autoDirectScript(clean, updateProgress);
     }
 
-    // Asset người dùng upload (#103): resolve id -> ảnh (đã kiểm ownership qua
-    // user_id). Lỗi DB/đọc file không làm hỏng job — bỏ qua như không có asset.
+    // Asset người dùng upload (#103): resolve id -> ảnh/video (đã kiểm ownership
+    // qua user_id). Lỗi DB/đọc file không làm hỏng job — bỏ qua như không có asset.
     // Gộp assetIds từ BOTH request (top-level) và từng scene trong script đã duyệt
     // (HITL): route /api/script/draft trả scene.assetIds do LLM chọn, client gửi
     // nguyên script lên render mà không kèm assetIds top-level.
@@ -177,7 +176,7 @@ export async function processVideoJob(data: JobData, updateProgress: (p: JobProg
     }
     if (assetIdSet.size > 0 && clean.userId) {
         try {
-            assets = imageAssetsOnly(await getAssetsByIdsForUser([...assetIdSet], clean.userId));
+            assets = await getAssetsByIdsForUser([...assetIdSet], clean.userId);
         } catch (err) {
             console.warn(`[Assets] Bỏ qua asset do lỗi resolve: ${(err as Error)?.message}`);
         }

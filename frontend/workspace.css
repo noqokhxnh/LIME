@@ -582,6 +582,9 @@ body.ws .rb-assets-empty{margin:0;font-size:10.5px;color:var(--wdim);font-style:
 body.ws .rb-asset{position:relative;width:44px;height:44px;border-radius:7px;overflow:hidden;cursor:pointer;
   border:2px solid var(--wline);background:var(--wpanel);transition:border-color .12s,box-shadow .12s}
 body.ws .rb-asset img{width:100%;height:100%;object-fit:cover;display:block}
+body.ws .rb-asset video{width:100%;height:100%;object-fit:cover;display:block;background:#000}
+body.ws .rb-asset-kind{position:absolute;left:2px;top:2px;padding:1px 3px;border-radius:3px;
+  background:rgba(0,0,0,.62);color:#fff;font-size:7px;font-weight:800;letter-spacing:.04em}
 body.ws .rb-asset:hover{border-color:var(--wdim)}
 body.ws .rb-asset.on{border-color:var(--wlime);box-shadow:0 0 0 1px var(--wlime)}
 body.ws .rb-asset-check{position:absolute;right:2px;bottom:2px;width:14px;height:14px;border-radius:50%;

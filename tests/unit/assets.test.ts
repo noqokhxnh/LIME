@@ -12,7 +12,7 @@ import {
     MAX_IMAGE_ASSET_BYTES,
     MAX_VIDEO_ASSET_BYTES,
 } from '../../src/security/uploadGuard.js';
-import { buildAssetPrompt, imageAssetsOnly, buildSceneAssetImageMap, readImageAssetAsDataUri } from '../../src/pipeline/assets.js';
+import { buildAssetPrompt, imageAssetsOnly, videoAssetsOnly, buildSceneAssetImageMap, buildSceneAssetVideoMap, readImageAssetAsDataUri, readVideoAssetFileUrl } from '../../src/pipeline/assets.js';
 import type { AssetRow } from '../../src/database/assets.js';
 
 // ============================================================
@@ -177,6 +177,15 @@ describe('Module: src/pipeline/assets.ts (#103)', () => {
         });
     });
 
+    describe('videoAssetsOnly', () => {
+        it('chỉ giữ asset là video, bỏ ảnh', () => {
+            const list = [asset({ kind: 'image' }), asset({ id: 'v1', kind: 'video', mimeType: 'video/mp4' })];
+            const videos = videoAssetsOnly(list);
+            assert.equal(videos.length, 1);
+            assert.equal(videos[0].id, 'v1');
+        });
+    });
+
     describe('buildAssetPrompt', () => {
         it('trả về chuỗi rỗng khi không có asset', () => {
             assert.equal(buildAssetPrompt([]), '');
@@ -187,6 +196,16 @@ describe('Module: src/pipeline/assets.ts (#103)', () => {
             assert.ok(prompt.includes('11111111-1111-1111-1111-111111111111'));
             assert.ok(prompt.includes('logo sản phẩm A'));
             assert.ok(prompt.toLowerCase().includes('not instructions'));
+        });
+
+        it('liệt kê cả ảnh lẫn video với cột kind', () => {
+            const prompt = buildAssetPrompt([
+                asset({ id: 'img-1', kind: 'image', description: 'ảnh A' }),
+                asset({ id: 'vid-1', kind: 'video', mimeType: 'video/mp4', description: 'video B' }),
+            ]);
+            assert.ok(prompt.includes('img-1 | image | ảnh A'));
+            assert.ok(prompt.includes('vid-1 | video | video B'));
+            assert.ok(prompt.includes('{{SCENE_VIDEO}}'));
         });
 
         it('cắt mô tả có chứa ký tự xuống dòng (chống injection qua newline)', () => {
@@ -212,6 +231,21 @@ describe('Module: src/pipeline/assets.ts (#103)', () => {
         });
     });
 
+    describe('buildSceneAssetVideoMap', () => {
+        it('ánh xạ assetIds thành file:// URL đúng thứ tự, bỏ ảnh', () => {
+            const script = {
+                scenes: [
+                    { id: 'scene_1', assetIds: ['img', 'vid-a', 'vid-b'] } as any,
+                    { id: 'scene_2', assetIds: ['img'] } as any,
+                ],
+            } as any;
+            const fileUrlById = new Map([['vid-a', 'file:///tmp/vid-a.mp4'], ['vid-b', 'file:///tmp/vid-b.webm']]);
+            const map = buildSceneAssetVideoMap(script, fileUrlById);
+            assert.deepEqual(map['scene_1'], ['file:///tmp/vid-a.mp4', 'file:///tmp/vid-b.webm']);
+            assert.equal(map['scene_2'], undefined); // chỉ có ảnh, không video
+        });
+    });
+
     describe('readImageAssetAsDataUri', () => {
         it('đọc file ảnh thành data URI base64', async () => {
             const tmp = join(ASSETS_DIR, 'readme-test.png');
@@ -229,6 +263,22 @@ describe('Module: src/pipeline/assets.ts (#103)', () => {
         it('trả null khi file mất hoặc không phải ảnh', async () => {
             assert.equal(await readImageAssetAsDataUri(asset({ filePath: join(ASSETS_DIR, 'nope.png') })), null);
             assert.equal(await readImageAssetAsDataUri(asset({ kind: 'video', mimeType: 'video/mp4' })), null);
+        });
+    });
+
+    describe('readVideoAssetFileUrl', () => {
+        it('trả file:// URL tuyệt đối cho asset video', () => {
+            const url = readVideoAssetFileUrl(asset({
+                kind: 'video',
+                mimeType: 'video/mp4',
+                filePath: join(ASSETS_DIR, 'vid.mp4'),
+            }));
+            assert.ok(url!.startsWith('file://'));
+            assert.ok(url!.endsWith('vid.mp4'));
+        });
+
+        it('trả null cho asset ảnh', () => {
+            assert.equal(readVideoAssetFileUrl(asset({ kind: 'image' })), null);
         });
     });
 });
