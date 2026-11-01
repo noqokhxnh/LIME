@@ -310,6 +310,86 @@
         .pos-bottom-left { bottom: 16px; left: 16px; }
         .pos-bottom-right { bottom: 16px; right: 16px; }
 
+        /* Asset library (#103) */
+        .asset-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(140px, 1fr));
+            gap: 0.9rem;
+            margin-top: 1rem;
+        }
+        .asset-card {
+            position: relative;
+            background: var(--card);
+            border: 1px solid var(--line);
+            border-radius: 12px;
+            overflow: hidden;
+            display: flex;
+            flex-direction: column;
+        }
+        .asset-thumb {
+            aspect-ratio: 16/9;
+            background: var(--paper);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            overflow: hidden;
+        }
+        .asset-thumb img, .asset-thumb video {
+            width: 100%;
+            height: 100%;
+            object-fit: cover;
+            display: block;
+        }
+        .asset-thumb .asset-kind-badge {
+            position: absolute;
+            top: 6px;
+            left: 6px;
+            background: rgba(0, 0, 0, 0.6);
+            color: #fff;
+            font-size: 0.6rem;
+            font-weight: 700;
+            letter-spacing: 0.05em;
+            text-transform: uppercase;
+            padding: 2px 6px;
+            border-radius: 4px;
+        }
+        .asset-meta {
+            padding: 0.5rem 0.6rem;
+            display: flex;
+            flex-direction: column;
+            gap: 2px;
+            font-size: 0.72rem;
+        }
+        .asset-meta .asset-desc {
+            color: var(--text);
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
+        }
+        .asset-meta .asset-size {
+            color: var(--muted);
+            font-size: 0.65rem;
+        }
+        .asset-del {
+            position: absolute;
+            top: 6px;
+            right: 6px;
+            width: 24px;
+            height: 24px;
+            border-radius: 50%;
+            border: none;
+            background: rgba(0, 0, 0, 0.55);
+            color: #fff;
+            cursor: pointer;
+            font-size: 14px;
+            line-height: 1;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            z-index: 2;
+        }
+        .asset-del:hover { background: #DC2626; }
+
         @media (max-width: 640px) {
             .settings-nav { padding: 0 1rem; }
             .form-row-2 {
@@ -354,6 +434,9 @@
             </button>
             <button class="tab-btn" data-tab="brand-kit">
                 <span>Brand Kit & Watermark</span>
+            </button>
+            <button class="tab-btn" data-tab="asset-library">
+                <span>Thư viện Asset</span>
             </button>
             <button class="tab-btn" data-tab="security">
                 <span>Tài khoản & Bảo mật</span>
@@ -478,7 +561,37 @@
             </div>
         </div>
 
-        <!-- TAB 3: TÀI KHOẢN & BẢO MẬT -->
+        <!-- TAB 3: THƯ VIỆN ASSET (#103) -->
+        <div class="tab-panel" id="tab-asset-library">
+            <div class="card-panel">
+                <h3>Thư viện Asset</h3>
+                <p class="card-subtitle">Upload ảnh + video để dùng trong video. Ảnh: PNG/JPG/WEBP/SVG ≤10MB. Video: MP4/WEBM ≤200MB.</p>
+
+                <div class="form-row-2">
+                    <div class="form-group">
+                        <label class="form-label">Tải lên ảnh / video:</label>
+                        <input type="file" id="asset-file-input" accept="image/png,image/jpeg,image/webp,image/svg+xml,video/mp4,video/webm" class="form-control" style="padding: 0.5rem;" multiple>
+                    </div>
+                    <div class="form-group">
+                        <label class="form-label" for="asset-desc-input">Mô tả (tùy chọn):</label>
+                        <input type="text" id="asset-desc-input" class="form-control" placeholder="VD: logo sản phẩm, cảnh hoàng hôn…">
+                    </div>
+                </div>
+                <div style="margin-top: 1rem;">
+                    <button id="btn-upload-asset" class="btn-save">
+                        <span>Upload Asset</span>
+                    </button>
+                </div>
+            </div>
+
+            <div class="card-panel">
+                <h3>Asset đã upload</h3>
+                <p class="card-subtitle" id="asset-count-text">Đang tải thư viện…</p>
+                <div class="asset-grid" id="asset-grid"></div>
+            </div>
+        </div>
+
+        <!-- TAB 4: TÀI KHOẢN & BẢO MẬT -->
         <div class="tab-panel" id="tab-security">
             <div class="card-panel">
                 <h3>Đổi Mật khẩu</h3>
@@ -625,7 +738,7 @@
                 });
             });
             const hash = window.location.hash.replace('#', '');
-            if (hash && ['ai-voice', 'brand-kit', 'security'].includes(hash)) {
+            if (hash && ['ai-voice', 'brand-kit', 'asset-library', 'security'].includes(hash)) {
                 switchTab(hash);
             }
 
@@ -876,6 +989,140 @@
                     LIMEUI.toast('Không thể kết nối đến máy chủ', 'error');
                 }
             });
+
+            // Asset library (#103): upload / list / xóa ảnh + video
+            const assetGrid = document.getElementById('asset-grid');
+            const assetCountText = document.getElementById('asset-count-text');
+            const assetFileInput = document.getElementById('asset-file-input');
+            const assetDescInput = document.getElementById('asset-desc-input');
+            const btnUploadAsset = document.getElementById('btn-upload-asset');
+
+            function formatBytes(n) {
+                const b = Number(n) || 0;
+                if (b < 1024) return `${b} B`;
+                if (b < 1024 * 1024) return `${(b / 1024).toFixed(1)} KB`;
+                return `${(b / 1024 / 1024).toFixed(1)} MB`;
+            }
+
+            function renderAssetGrid(assets) {
+                if (assetCountText) {
+                    assetCountText.textContent = assets.length
+                        ? `${assets.length} asset · ${assets.filter(a => a.kind === 'image').length} ảnh · ${assets.filter(a => a.kind === 'video').length} video`
+                        : 'Chưa có asset nào.';
+                }
+                if (!assetGrid) return;
+                assetGrid.innerHTML = '';
+                if (!assets.length) return;
+
+                assets.forEach(a => {
+                    const card = document.createElement('div');
+                    card.className = 'asset-card';
+
+                    const thumb = document.createElement('div');
+                    thumb.className = 'asset-thumb';
+                    if (a.kind === 'video') {
+                        const v = document.createElement('video');
+                        v.src = a.url;
+                        v.preload = 'metadata';
+                        v.muted = true;
+                        thumb.appendChild(v);
+                    } else {
+                        const img = document.createElement('img');
+                        img.src = a.url;
+                        img.alt = a.description || 'asset';
+                        img.loading = 'lazy';
+                        thumb.appendChild(img);
+                    }
+
+                    const badge = document.createElement('span');
+                    badge.className = 'asset-kind-badge';
+                    badge.textContent = a.kind === 'video' ? 'video' : 'ảnh';
+                    thumb.appendChild(badge);
+
+                    const del = document.createElement('button');
+                    del.type = 'button';
+                    del.className = 'asset-del';
+                    del.title = 'Xóa asset';
+                    del.textContent = '×';
+                    del.addEventListener('click', async () => {
+                        if (!window.confirm('Xóa asset này khỏi thư viện?')) return;
+                        try {
+                            const res = await fetch(`/api/assets/${encodeURIComponent(a.id)}`, { method: 'DELETE', credentials: 'include' });
+                            if (!res.ok) {
+                                const err = await res.json().catch(() => ({}));
+                                throw new Error(err.error || 'Xóa thất bại');
+                            }
+                            LIMEUI.toast('Đã xóa asset', 'success');
+                            await loadAssets();
+                        } catch (err) {
+                            LIMEUI.toast(`Lỗi xóa: ${err.message}`, 'error');
+                        }
+                    });
+                    card.appendChild(thumb);
+                    card.appendChild(del);
+
+                    const meta = document.createElement('div');
+                    meta.className = 'asset-meta';
+                    const desc = document.createElement('div');
+                    desc.className = 'asset-desc';
+                    desc.textContent = a.description || (a.kind === 'video' ? 'Video' : 'Ảnh');
+                    desc.title = a.description || '';
+                    const size = document.createElement('div');
+                    size.className = 'asset-size';
+                    size.textContent = formatBytes(a.fileSizeBytes);
+                    meta.append(desc, size);
+                    card.appendChild(meta);
+
+                    assetGrid.appendChild(card);
+                });
+            }
+
+            async function loadAssets() {
+                try {
+                    const res = await fetch('/api/assets', { credentials: 'include' });
+                    if (!res.ok) {
+                        const err = await res.json().catch(() => ({}));
+                        throw new Error(err.error || 'Không đọc được thư viện');
+                    }
+                    const data = await res.json();
+                    renderAssetGrid(Array.isArray(data.assets) ? data.assets : []);
+                } catch (err) {
+                    if (assetCountText) assetCountText.textContent = `Lỗi: ${err.message}`;
+                }
+            }
+
+            if (btnUploadAsset) {
+                btnUploadAsset.addEventListener('click', async () => {
+                    const files = Array.from(assetFileInput?.files || []);
+                    if (!files.length) {
+                        LIMEUI.toast('Chọn ít nhất một file để upload', 'warning');
+                        return;
+                    }
+                    const desc = assetDescInput?.value?.trim() || '';
+                    btnUploadAsset.disabled = true;
+                    try {
+                        for (const file of files) {
+                            const fd = new FormData();
+                            fd.append('file', file);
+                            const qs = desc ? `?description=${encodeURIComponent(desc)}` : '';
+                            const res = await fetch(`/api/assets/upload${qs}`, { method: 'POST', credentials: 'include', body: fd });
+                            const data = await res.json().catch(() => ({}));
+                            if (!res.ok || !data.success) throw new Error(data.error || 'Upload thất bại');
+                        }
+                        LIMEUI.toast(`Đã upload ${files.length} asset`, 'success');
+                        if (assetDescInput) assetDescInput.value = '';
+                        if (assetFileInput) assetFileInput.value = '';
+                        await loadAssets();
+                    } catch (err) {
+                        LIMEUI.toast(`Upload lỗi: ${err.message}`, 'error');
+                    } finally {
+                        btnUploadAsset.disabled = false;
+                    }
+                });
+            }
+
+            // Nạp thư viện asset ngay cả khi đang ở tab khác, để lần đầu mở tab là có dữ liệu.
+            loadAssets();
 
             // Password change
             document.getElementById('btn-save-password').addEventListener('click', () => {
