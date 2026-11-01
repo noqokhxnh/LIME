@@ -578,3 +578,14 @@ body.ws .btn-ghost:hover{color:var(--wtxt);border-color:var(--wdim)}
 
 /* Widget hỗ trợ nổi không được đè lên nút duyệt của review board. */
 body.ws.board-open .lime-support-root{display:none}
+
+.ws-user-avatar {
+    overflow: hidden;
+}
+
+.ws-avatar-img {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+    border-radius: 50%;
+}
