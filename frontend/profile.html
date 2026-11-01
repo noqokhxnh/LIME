@@ -1,12 +1,15 @@
 <!DOCTYPE html>
 <html lang="vi">
+
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Hồ sơ cá nhân — LIME Studio</title>
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-    <link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;600;700&family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@500;600;700&display=swap" rel="stylesheet">
+    <link
+        href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;600;700&family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@500;600;700&display=swap"
+        rel="stylesheet">
     <link rel="stylesheet" href="/style.css">
     <link rel="stylesheet" href="/css/ui-kit.css">
     <link rel="stylesheet" href="/vietqr.css">
@@ -48,7 +51,12 @@
             background-attachment: fixed;
         }
 
-        h1, h2, h3, .gauge-percent, .stat-value, .nav-brand span {
+        h1,
+        h2,
+        h3,
+        .gauge-percent,
+        .stat-value,
+        .nav-brand span {
             font-family: 'Space Grotesk', 'Inter', system-ui, sans-serif;
         }
 
@@ -182,7 +190,7 @@
         .user-avatar-large {
             width: 76px;
             height: 76px;
-            border-radius: 20px;
+            border-radius: 50%;
             background: var(--soft);
             border: 1px solid var(--lime);
             display: flex;
@@ -192,6 +200,63 @@
             font-weight: 800;
             color: var(--lime-ink);
             font-family: 'Space Grotesk', 'Inter', system-ui, sans-serif;
+            overflow: hidden;
+            flex-shrink: 0;
+        }
+
+        .user-avatar-large img {
+            width: 100%;
+            height: 100%;
+            object-fit: cover;
+            border-radius: inherit;
+            display: block;
+        }
+
+        [hidden] {
+            display: none !important;
+        }
+
+        .profile-actions {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 10px;
+            margin: 12px 0;
+        }
+
+        .profile-actions button,
+        .profile-action-label,
+        #profile-edit-form button {
+            border: 1px solid var(--line);
+            background: var(--card);
+            color: var(--ink);
+            padding: 9px 14px;
+            border-radius: 10px;
+            cursor: pointer;
+            font: inherit;
+            font-size: 13px;
+            font-weight: 600;
+        }
+
+        .profile-actions button:hover,
+        .profile-action-label:hover {
+            border-color: var(--lime);
+        }
+
+        #profile-edit-form {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 10px;
+            margin-bottom: 12px;
+        }
+
+        #profile-display-name-input {
+            min-width: 180px;
+            padding: 10px 12px;
+            border: 1px solid var(--line);
+            background: var(--card);
+            color: var(--ink);
+            border-radius: 10px;
+            font: inherit;
         }
 
         .user-details h2 {
@@ -222,11 +287,34 @@
             border: 1px solid var(--line);
         }
 
-        .tier-free { background: var(--paper); color: var(--muted); }
-        .tier-creator { background: rgba(29, 78, 216, 0.08); color: #1D4ED8; border-color: rgba(29, 78, 216, 0.25); }
-        .tier-pro { background: var(--soft); color: var(--lime-ink); border-color: var(--lime); }
-        .tier-max { background: rgba(220, 38, 38, 0.08); color: var(--danger); border-color: rgba(220, 38, 38, 0.25); }
-        .tier-enterprise { background: var(--dark); color: #F6F5F0; border-color: var(--dark); }
+        .tier-free {
+            background: var(--paper);
+            color: var(--muted);
+        }
+
+        .tier-creator {
+            background: rgba(29, 78, 216, 0.08);
+            color: #1D4ED8;
+            border-color: rgba(29, 78, 216, 0.25);
+        }
+
+        .tier-pro {
+            background: var(--soft);
+            color: var(--lime-ink);
+            border-color: var(--lime);
+        }
+
+        .tier-max {
+            background: rgba(220, 38, 38, 0.08);
+            color: var(--danger);
+            border-color: rgba(220, 38, 38, 0.25);
+        }
+
+        .tier-enterprise {
+            background: var(--dark);
+            color: #F6F5F0;
+            border-color: var(--dark);
+        }
 
         .role-badge {
             background: var(--paper);
@@ -301,7 +389,8 @@
             stroke: var(--lime-deep);
             stroke-width: 14;
             stroke-linecap: round;
-            stroke-dasharray: 565.48; /* 2 * PI * 90 */
+            stroke-dasharray: 565.48;
+            /* 2 * PI * 90 */
             stroke-dashoffset: 565.48;
             transition: stroke-dashoffset 1.2s cubic-bezier(0.16, 1, 0.3, 1), stroke 0.4s ease;
         }
@@ -361,9 +450,23 @@
             border: 1px solid var(--line);
         }
 
-        .status-healthy { background: rgba(101, 163, 13, 0.12); color: #4C7A0B; border-color: rgba(101, 163, 13, 0.35); }
-        .status-warning { background: rgba(180, 83, 9, 0.12); color: var(--warning); border-color: rgba(180, 83, 9, 0.35); }
-        .status-danger { background: rgba(220, 38, 38, 0.10); color: var(--danger); border-color: rgba(220, 38, 38, 0.3); }
+        .status-healthy {
+            background: rgba(101, 163, 13, 0.12);
+            color: #4C7A0B;
+            border-color: rgba(101, 163, 13, 0.35);
+        }
+
+        .status-warning {
+            background: rgba(180, 83, 9, 0.12);
+            color: var(--warning);
+            border-color: rgba(180, 83, 9, 0.35);
+        }
+
+        .status-danger {
+            background: rgba(220, 38, 38, 0.10);
+            color: var(--danger);
+            border-color: rgba(220, 38, 38, 0.3);
+        }
 
         .credit-bar-track {
             width: 100%;
@@ -561,14 +664,33 @@
         }
 
         .payment-badge--paid,
-        .payment-badge--refund-refunded { background: var(--soft); color: var(--lime-ink); }
+        .payment-badge--refund-refunded {
+            background: var(--soft);
+            color: var(--lime-ink);
+        }
+
         .payment-badge--pending,
-        .payment-badge--claimed { background: rgba(180, 83, 9, 0.1); color: var(--warning); }
+        .payment-badge--claimed {
+            background: rgba(180, 83, 9, 0.1);
+            color: var(--warning);
+        }
+
         .payment-badge--expired,
-        .payment-badge--cancelled { background: rgba(110, 114, 104, 0.12); color: var(--muted); }
+        .payment-badge--cancelled {
+            background: rgba(110, 114, 104, 0.12);
+            color: var(--muted);
+        }
+
         .payment-badge--refund-pending,
-        .payment-badge--refund-approved { background: rgba(29, 78, 216, 0.08); color: #1D4ED8; }
-        .payment-badge--refund-rejected { background: rgba(220, 38, 38, 0.08); color: var(--danger); }
+        .payment-badge--refund-approved {
+            background: rgba(29, 78, 216, 0.08);
+            color: #1D4ED8;
+        }
+
+        .payment-badge--refund-rejected {
+            background: rgba(220, 38, 38, 0.08);
+            color: var(--danger);
+        }
 
         .payment-actions {
             flex-shrink: 0;
@@ -590,7 +712,9 @@
             cursor: pointer;
         }
 
-        .payment-refund-btn:hover { background: var(--lime-ink); }
+        .payment-refund-btn:hover {
+            background: var(--lime-ink);
+        }
 
         .payment-note {
             max-width: 26ch;
@@ -672,33 +796,43 @@
         }
 
         @media (max-width: 768px) {
-            .profile-nav { padding: 0 1rem; }
+            .profile-nav {
+                padding: 0 1rem;
+            }
+
             .user-hero-card {
                 flex-direction: column;
                 text-align: center;
                 gap: 1.25rem;
             }
+
             .user-info-group {
                 flex-direction: column;
             }
+
             .credit-hero-card {
                 grid-template-columns: 1fr;
                 text-align: center;
                 gap: 1.75rem;
                 padding: 1.75rem;
             }
+
             .credit-action-btns {
                 justify-content: center;
             }
+
             .stats-grid {
                 grid-template-columns: 1fr;
             }
+
             .shortcuts-grid {
                 grid-template-columns: 1fr;
             }
+
         }
     </style>
 </head>
+
 <body>
     <!-- Top Navbar -->
     <header class="profile-nav">
@@ -717,7 +851,8 @@
             <a href="/admin" id="nav-admin-link" class="btn-nav btn-nav-ghost" style="display: none; color: #f87171;">
                 <span>Quản trị</span>
             </a>
-            <button id="btn-logout" class="btn-nav btn-nav-ghost" style="background: transparent; border: none; cursor: pointer;">
+            <button id="btn-logout" class="btn-nav btn-nav-ghost"
+                style="background: transparent; border: none; cursor: pointer;">
                 <span>Đăng xuất</span>
             </button>
         </div>
@@ -730,117 +865,139 @@
                 <div class="user-avatar-large" id="avatar-initial">U</div>
                 <div class="user-details">
                     <h2 id="user-display-name">Đang tải thông tin...</h2>
+                    <div class="profile-actions">
+                        <button type="button" id="btn-edit-profile">Sửa tên</button>
+                        <label for="avatar-file-input" class="profile-action-label">
+                            Đổi ảnh
+                        </label>
+                    </div>
+                    <input type="file" id="avatar-file-input" accept="image/png,image/jpeg,image/webp" hidden>
+                    <button type="button" id="btn-remove-avatar" hidden>Gỡ ảnh</button>
                     <div class="user-meta-badges">
-                        <span id="user-email-text" style="color: var(--text-muted); font-size: 0.9rem; margin-right: 0.5rem;">user@example.com</span>
+                        <span id="user-email-text"
+                            style="color: var(--text-muted); font-size: 0.9rem; margin-right: 0.5rem;">user@example.com</span>
                         <span id="badge-tier" class="tier-badge tier-free">Gói Miễn phí</span>
                         <span id="badge-role" class="role-badge">Thành viên</span>
                     </div>
                 </div>
+                <form id="profile-edit-form" hidden>
+                    <input type="text" id="profile-display-name-input" maxlength="100" placeholder="Tên hiển thị"
+                        required>
+                    <button type="submit">Lưu</button>
+                    <button type="button" id="btn-cancel-profile">Hủy</button>
+                </form>
             </div>
 
             <div style="text-align: right;">
-                <div style="font-size: 0.75rem; color: var(--text-muted); text-transform: uppercase; font-weight: 600; letter-spacing: 0.05em;">Hạn gói dịch vụ</div>
-                <div id="plan-expiry-text" style="font-weight: 700; font-size: 1rem; color: var(--ink); margin-top: 0.2rem;">Không giới hạn thời gian</div>
+                <div
+                    style="font-size: 0.75rem; color: var(--text-muted); text-transform: uppercase; font-weight: 600; letter-spacing: 0.05em;">
+                    Hạn gói dịch vụ</div>
+                <div id="plan-expiry-text"
+                    style="font-weight: 700; font-size: 1rem; color: var(--ink); margin-top: 0.2rem;">Không giới hạn thời
+                    gian</div>
             </div>
         </div>
 
-        <!-- HERO CREDIT SECTION: CREDIT HIỂN THỊ DẠNG % NỔI BẬT -->
-        <div class="credit-hero-card">
-            <div class="gauge-wrapper">
-                <svg class="gauge-svg" viewBox="0 0 200 200">
-                    <circle class="gauge-bg" cx="100" cy="100" r="90" />
-                    <circle class="gauge-progress" id="credit-gauge-circle" cx="100" cy="100" r="90" />
-                </svg>
-                <div class="gauge-content">
-                    <div style="display: flex; align-items: baseline;">
-                        <span class="gauge-percent" id="credit-percent-number">--</span>
-                        <span class="gauge-unit">%</span>
-                    </div>
-                    <span class="gauge-caption">Hạn mức khả dụng</span>
+    <!-- HERO CREDIT SECTION: CREDIT HIỂN THỊ DẠNG % NỔI BẬT -->
+    <div class="credit-hero-card">
+        <div class="gauge-wrapper">
+            <svg class="gauge-svg" viewBox="0 0 200 200">
+                <circle class="gauge-bg" cx="100" cy="100" r="90" />
+                <circle class="gauge-progress" id="credit-gauge-circle" cx="100" cy="100" r="90" />
+            </svg>
+            <div class="gauge-content">
+                <div style="display: flex; align-items: baseline;">
+                    <span class="gauge-percent" id="credit-percent-number">--</span>
+                    <span class="gauge-unit">%</span>
                 </div>
-            </div>
-
-            <div class="credit-info-pane">
-                <h3>
-                    <span>Tỷ lệ Lượt tạo Video</span>
-                    <span id="credit-status-badge" class="credit-status-pill status-healthy">Đang tính toán...</span>
-                </h3>
-
-                <div class="credit-bar-track">
-                    <div class="credit-bar-fill" id="credit-bar-fill"></div>
-                </div>
-
-                <p class="credit-desc">
-                    Hạn mức tài khoản của bạn đang khả dụng ở mức
-                    <strong id="credit-percent-inline" style="color: var(--ink); font-weight: 700;">--%</strong>.
-                    Mỗi lần tạo video AI thành công sẽ tiêu hao tỷ lệ tương ứng. Bạn có thể nạp thêm gói bất cứ lúc nào qua cổng quét mã VietQR tự động.
-                </p>
-
-                <div class="credit-action-btns">
-                    <button class="btn-upgrade" data-plan="pro">
-                        <span>Nạp thêm Credits / Nâng cấp</span>
-                    </button>
-                    <a href="/workspace" class="btn-nav btn-nav-ghost" style="border: 1px solid var(--border-card); padding: 0.75rem 1.25rem;">
-                        <span>Vào Studio tạo video →</span>
-                    </a>
-                </div>
+                <span class="gauge-caption">Hạn mức khả dụng</span>
             </div>
         </div>
 
-        <!-- 3-Column Stats Grid -->
-        <div class="stats-grid">
-            <div class="stat-card">
-                <div class="stat-title">Số Video Đã Tạo</div>
-                <div class="stat-value" id="stat-jobs-count">0</div>
-                <div class="stat-subtext">Tổng số tác vụ video trong hàng đợi</div>
+        <div class="credit-info-pane">
+            <h3>
+                <span>Tỷ lệ Lượt tạo Video</span>
+                <span id="credit-status-badge" class="credit-status-pill status-healthy">Đang tính toán...</span>
+            </h3>
+
+            <div class="credit-bar-track">
+                <div class="credit-bar-fill" id="credit-bar-fill"></div>
             </div>
 
-            <div class="stat-card">
-                <div class="stat-title">Tỷ lệ Thành công</div>
-                <div class="stat-value" id="stat-success-rate">100%</div>
-                <div class="stat-subtext">Độ ổn định tiến trình render</div>
-            </div>
+            <p class="credit-desc">
+                Hạn mức tài khoản của bạn đang khả dụng ở mức
+                <strong id="credit-percent-inline" style="color: var(--ink); font-weight: 700;">--%</strong>.
+                Mỗi lần tạo video AI thành công sẽ tiêu hao tỷ lệ tương ứng. Bạn có thể nạp thêm gói bất cứ lúc nào qua
+                cổng quét mã VietQR tự động.
+            </p>
 
-            <div class="stat-card">
-                <div class="stat-title">Ngày gia nhập</div>
-                <div class="stat-value" id="stat-join-date" style="font-size: 1.25rem;">--/--/----</div>
-                <div class="stat-subtext">Thành viên chính thức LIME</div>
-            </div>
-        </div>
-
-        <!-- Shortcuts Section -->
-        <div class="shortcuts-grid">
-            <a href="/setting" class="shortcut-card">
-                <div class="shortcut-info">
-                    <h4>Cài đặt & Brand Kit</h4>
-                    <p>Đổi mô hình AI, chọn giọng đọc TTS, quản lý watermark logo</p>
-                </div>
-                <span class="shortcut-arrow">→</span>
-            </a>
-
-            <a href="/admin" id="shortcut-admin-card" class="shortcut-card" style="display: none; border-color: rgba(239, 68, 68, 0.3);">
-                <div class="shortcut-info">
-                    <h4 style="color: #f87171;">Super Admin Portal</h4>
-                    <p>Quản lý người dùng, video jobs, đơn hàng và cấu hình hệ thống</p>
-                </div>
-                <span class="shortcut-arrow" style="color: #f87171;">→</span>
-            </a>
-        </div>
-
-        <!-- Lịch sử thanh toán & yêu cầu hoàn tiền -->
-        <div class="payments-card" id="payments-card">
-            <div class="payments-head">
-                <div>
-                    <h3>Lịch sử thanh toán</h3>
-                    <p>Chỉ giao dịch lỗi hoặc chưa được xử lý mới gửi được yêu cầu hoàn tiền. Giao dịch đã thanh toán
-                        thành công và đã kích hoạt gói thì không thể hoàn tiền.</p>
-                </div>
-                <button type="button" class="payments-refresh" id="payments-refresh">Làm mới</button>
-            </div>
-            <div class="payments-list" id="payments-list">
-                <div class="payments-empty">Đang tải lịch sử thanh toán…</div>
+            <div class="credit-action-btns">
+                <button class="btn-upgrade" data-plan="pro">
+                    <span>Nạp thêm Credits / Nâng cấp</span>
+                </button>
+                <a href="/workspace" class="btn-nav btn-nav-ghost"
+                    style="border: 1px solid var(--border-card); padding: 0.75rem 1.25rem;">
+                    <span>Vào Studio tạo video →</span>
+                </a>
             </div>
         </div>
+    </div>
+
+    <!-- 3-Column Stats Grid -->
+    <div class="stats-grid">
+        <div class="stat-card">
+            <div class="stat-title">Số Video Đã Tạo</div>
+            <div class="stat-value" id="stat-jobs-count">0</div>
+            <div class="stat-subtext">Tổng số tác vụ video trong hàng đợi</div>
+        </div>
+
+        <div class="stat-card">
+            <div class="stat-title">Tỷ lệ Thành công</div>
+            <div class="stat-value" id="stat-success-rate">100%</div>
+            <div class="stat-subtext">Độ ổn định tiến trình render</div>
+        </div>
+
+        <div class="stat-card">
+            <div class="stat-title">Ngày gia nhập</div>
+            <div class="stat-value" id="stat-join-date" style="font-size: 1.25rem;">--/--/----</div>
+            <div class="stat-subtext">Thành viên chính thức LIME</div>
+        </div>
+    </div>
+
+    <!-- Shortcuts Section -->
+    <div class="shortcuts-grid">
+        <a href="/setting" class="shortcut-card">
+            <div class="shortcut-info">
+                <h4>Cài đặt & Brand Kit</h4>
+                <p>Đổi mô hình AI, chọn giọng đọc TTS, quản lý watermark logo</p>
+            </div>
+            <span class="shortcut-arrow">→</span>
+        </a>
+
+        <a href="/admin" id="shortcut-admin-card" class="shortcut-card"
+            style="display: none; border-color: rgba(239, 68, 68, 0.3);">
+            <div class="shortcut-info">
+                <h4 style="color: #f87171;">Super Admin Portal</h4>
+                <p>Quản lý người dùng, video jobs, đơn hàng và cấu hình hệ thống</p>
+            </div>
+            <span class="shortcut-arrow" style="color: #f87171;">→</span>
+        </a>
+    </div>
+
+    <!-- Lịch sử thanh toán & yêu cầu hoàn tiền -->
+    <div class="payments-card" id="payments-card">
+        <div class="payments-head">
+            <div>
+                <h3>Lịch sử thanh toán</h3>
+                <p>Chỉ giao dịch lỗi hoặc chưa được xử lý mới gửi được yêu cầu hoàn tiền. Giao dịch đã thanh toán
+                    thành công và đã kích hoạt gói thì không thể hoàn tiền.</p>
+            </div>
+            <button type="button" class="payments-refresh" id="payments-refresh">Làm mới</button>
+        </div>
+        <div class="payments-list" id="payments-list">
+            <div class="payments-empty">Đang tải lịch sử thanh toán…</div>
+        </div>
+    </div>
     </div>
 
     <!-- ================= MODAL THANH TOÁN VIETQR ================= -->
@@ -907,7 +1064,8 @@
                             </svg>
                             <span>Lưu ảnh QR</span>
                         </button>
-                        <button type="button" id="vietqr-guide-btn" class="vietqr-btn-sub" aria-expanded="false" aria-controls="vietqr-guide-panel">
+                        <button type="button" id="vietqr-guide-btn" class="vietqr-btn-sub" aria-expanded="false"
+                            aria-controls="vietqr-guide-panel">
                             <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor"
                                 stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
                                 <circle cx="12" cy="12" r="10"></circle>
@@ -920,9 +1078,12 @@
                         <p class="vietqr-guide-title">Cách quét mã thanh toán</p>
                         <ol class="vietqr-guide-steps">
                             <li>Mở app ngân hàng của bạn, chọn tính năng quét mã QR.</li>
-                            <li>Đưa camera vào mã QR bên trên, hoặc bấm "Lưu ảnh QR" rồi tải ảnh lên trong app ngân hàng.</li>
-                            <li>Kiểm tra đúng số tiền và giữ nguyên nội dung ở ô Lời nhắn / Memo, không sửa và không thêm ký tự.</li>
-                            <li>Xác nhận chuyển khoản, quay lại trang này và chờ hệ thống tự kích hoạt, thường trong khoảng 30 giây.</li>
+                            <li>Đưa camera vào mã QR bên trên, hoặc bấm "Lưu ảnh QR" rồi tải ảnh lên trong app ngân
+                                hàng.</li>
+                            <li>Kiểm tra đúng số tiền và giữ nguyên nội dung ở ô Lời nhắn / Memo, không sửa và không
+                                thêm ký tự.</li>
+                            <li>Xác nhận chuyển khoản, quay lại trang này và chờ hệ thống tự kích hoạt, thường trong
+                                khoảng 30 giây.</li>
                         </ol>
                     </div>
                 </div>
@@ -1016,7 +1177,8 @@
                                 Số tiền
                             </span>
                             <div class="vietqr-field-content">
-                                <span class="vietqr-field-val amount" id="vietqr-val-amount" data-copy="99000">99.000 đ</span>
+                                <span class="vietqr-field-val amount" id="vietqr-val-amount" data-copy="99000">99.000
+                                    đ</span>
                                 <button type="button" class="vietqr-copy-btn" data-target="vietqr-val-amount"
                                     title="Sao chép số tiền">
                                     <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor"
@@ -1062,7 +1224,8 @@
                             <line x1="12" y1="8" x2="12" y2="12"></line>
                             <line x1="12" y1="16" x2="12.01" y2="16"></line>
                         </svg>
-                        <span>Vui lòng giữ <b>chính xác</b> nội dung chuyển khoản để hệ thống bot nhận diện và kích hoạt tự động.</span>
+                        <span>Vui lòng giữ <b>chính xác</b> nội dung chuyển khoản để hệ thống bot nhận diện và kích hoạt
+                            tự động.</span>
                     </div>
 
                     <!-- Trạng thái chờ -->
@@ -1140,7 +1303,24 @@
             const displayName = user.name || user.username || user.email.split('@')[0];
             document.getElementById('user-display-name').textContent = displayName;
             document.getElementById('user-email-text').textContent = user.email;
-            document.getElementById('avatar-initial').textContent = displayName.charAt(0).toUpperCase();
+            // document.getElementById('avatar-initial').textContent = displayName.charAt(0).toUpperCase();
+            const avatar = document.getElementById('avatar-initial');
+            avatar.replaceChildren();
+            const initial = displayName.charAt(0).toUpperCase() || 'U';
+            if (user.avatarUrl) {
+                const img = document.createElement('img');
+                img.src = user.avatarUrl;
+                img.alt = `Avatar của ${displayName}`;
+                img.referrerPolicy = 'no-referrer';
+                img.onerror = () => {
+                    avatar.textContent = initial;
+                };
+                avatar.appendChild(img);
+            } else {
+                avatar.textContent = initial;
+            }
+            document.getElementById('btn-remove-avatar').hidden =
+                !user.hasCustomAvatar;
 
             // Role & Admin Access
             const roleBadge = document.getElementById('badge-role');
@@ -1380,10 +1560,125 @@
             if (confirmed) {
                 try {
                     await fetch('/api/auth/logout', { method: 'POST', credentials: 'include' });
-                } catch {}
+                } catch { }
                 window.location.replace('/');
             }
         });
+        const editProfileBtn = document.getElementById('btn-edit-profile');
+        const editProfileForm = document.getElementById('profile-edit-form');
+        const displayNameInput = document.getElementById('profile-display-name-input');
+        const cancelProfileBtn = document.getElementById('btn-cancel-profile');
+
+        editProfileBtn.addEventListener('click', () => {
+            displayNameInput.value =
+                document.getElementById('user-display-name').textContent.trim();
+
+            editProfileForm.hidden = false;
+            displayNameInput.focus();
+        });
+
+        cancelProfileBtn.addEventListener('click', () => {
+            editProfileForm.hidden = true;
+        });
+
+        editProfileForm.addEventListener('submit', async (event) => {
+            event.preventDefault();
+
+            const saveBtn = editProfileForm.querySelector('[type="submit"]');
+            saveBtn.disabled = true;
+
+            try {
+                const res = await fetch('/api/users/me', {
+                    method: 'PATCH',
+                    credentials: 'include',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify({
+                        name: displayNameInput.value.trim()
+                    })
+                });
+
+                const data = await res.json();
+
+                if (!res.ok) {
+                    throw new Error(data.error || 'Không thể cập nhật hồ sơ');
+                }
+
+                editProfileForm.hidden = true;
+                await initProfile();
+
+                LIMEUI.toast('Đã cập nhật tên hiển thị', 'success');
+            } catch (err) {
+                LIMEUI.toast(err.message || 'Có lỗi xảy ra', 'error');
+            } finally {
+                saveBtn.disabled = false;
+            }
+        });
+
+        const avatarFileInput = document.getElementById('avatar-file-input');
+
+        avatarFileInput.addEventListener('change', async () => {
+            const file = avatarFileInput.files?.[0];
+
+            if (!file) return;
+
+            if (file.size > 2 * 1024 * 1024) {
+                LIMEUI.toast('Ảnh không được quá 2 MB', 'warning');
+                avatarFileInput.value = '';
+                return;
+            }
+
+            const formData = new FormData();
+            formData.append('avatar', file);
+
+            try {
+                const res = await fetch('/api/users/me/avatar', {
+                    method: 'POST',
+                    credentials: 'include',
+                    body: formData
+                });
+
+                const data = await res.json();
+
+                if (!res.ok) {
+                    throw new Error(data.error || 'Không thể tải ảnh lên');
+                }
+
+                await initProfile();
+                LIMEUI.toast('Đã cập nhật ảnh đại diện', 'success');
+            } catch (err) {
+                LIMEUI.toast(err.message || 'Có lỗi xảy ra', 'error');
+            } finally {
+                avatarFileInput.value = '';
+            }
+        });
+
+        document.getElementById('btn-remove-avatar')
+            .addEventListener('click', async () => {
+                const confirmed = await LIMEUI.confirm(
+                    'Bạn muốn gỡ ảnh đại diện hiện tại?',
+                    'Gỡ ảnh đại diện'
+                );
+
+                if (!confirmed) return;
+
+                try {
+                    const res = await fetch('/api/users/me/avatar', {
+                        method: 'DELETE',
+                        credentials: 'include'
+                    });
+
+                    if (!res.ok) {
+                        throw new Error('Không thể gỡ ảnh đại diện');
+                    }
+
+                    await initProfile();
+                    LIMEUI.toast('Đã gỡ ảnh đại diện', 'success');
+                } catch (err) {
+                    LIMEUI.toast(err.message, 'error');
+                }
+            });
 
         const successBtn = document.getElementById('vietqr-success-btn');
         if (successBtn) {
@@ -1401,4 +1696,5 @@
     <script type="module" src="/js/broadcast.js"></script>
     <script type="module" src="/js/support-widget.js"></script>
 </body>
+
 </html>
