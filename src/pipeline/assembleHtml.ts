@@ -1,7 +1,8 @@
 import { existsSync, mkdirSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
-import { videoScript, scene, durationMap, CharacterActionItem, SceneCamera } from "../llm/schema.js";
+import { videoScript, scene, durationMap, CharacterActionItem, SceneCamera, SceneAmbient } from "../llm/schema.js";
 import { resolveCamera, type ResolvedCamera } from "./camera.js";
+import { resolveAmbient, type ResolvedAmbient } from "./ambient.js";
 import { BLOCK_HELPERS_JS } from "../templates/runtime/blockHelpers.js";
 import { DETERMINISTIC_RUNTIME_JS, hashString32, RNG, getSceneSeed } from "./rng.js";
 import { assertDeterministicScript } from "./compLinter.js";
@@ -236,7 +237,7 @@ export async function assembleHTML(
         : (options?.jobId ? hashString32(options.jobId) : (hashString32(script.id || script.title || "vidtml-seed") >>> 0));
 
     const imageMap = options?.imageMap || {};
-    const processedScenes: { id: string; html: string; css: string; js: string; duration: number; characterActions?: CharacterActionItem[]; camera: ResolvedCamera }[] = [];
+    const processedScenes: { id: string; html: string; css: string; js: string; duration: number; characterActions?: CharacterActionItem[]; camera: ResolvedCamera; ambient: ResolvedAmbient[] }[] = [];
 
     for (const scene of script.scenes) {
         const sceneDur = durations[scene.id] ?? 3.0;
@@ -262,6 +263,7 @@ export async function assembleHTML(
             duration: sceneDur,
             characterActions: scene.characterActions,
             camera: resolveCamera(scene.camera as SceneCamera | undefined),
+            ambient: resolveAmbient(scene.ambient as SceneAmbient[] | undefined, sceneDur),
         });
     }
 
@@ -361,6 +363,7 @@ try {
     window.__sceneSeeds[${sceneIdLiteral}] = ${sceneSeed};
     window.__sceneCharacterActions[${sceneIdLiteral}] = ${characterActionsLiteral};
     window.__sceneCameras[${sceneIdLiteral}] = ${JSON.stringify(s.camera)};
+    window.__sceneAmbient[${sceneIdLiteral}] = ${JSON.stringify(s.ambient)};
     let __capturedSceneTl_${safeId} = null;
     const __origTimeline_${safeId} = gsap.timeline;
     gsap.timeline = function(...args) {
@@ -510,6 +513,8 @@ ${safeAreaGuideHtml}
         window.__sceneSeeds = {};
         window.__sceneCharacterActions = {};
         window.__sceneCameras = {};
+        window.__sceneAmbient = {};
+        window.__sceneStarts = {};
         window.__totalDuration = 0;
 
         if (window.__masterTimeline) {
@@ -547,6 +552,8 @@ ${safeAreaGuideHtml}
             const startTime = window.__totalDuration;
             const endTime = startTime + duration;
 
+            window.__sceneStarts[sceneId] = startTime;
+
             window.__masterTimeline.set('#' + sceneId, { zIndex: 10 }, startTime);
             window.__masterTimeline.add(tl, startTime);
 
@@ -577,9 +584,64 @@ ${safeAreaGuideHtml}
             window.__totalDuration += duration;
         };
 
+        // Ambient / native move layer (#125): pipeline-owned, pure function of t.
+        // Không gắn vào master timeline vì repeat vô hạn sẽ làm duration = Infinity;
+        // __seekTo(t) suy trạng thái trực tiếp từ keyframe nên tua qua lại không trôi.
+        window.__ambientProps = ['x', 'y', 'scale', 'opacity', 'rotation'];
+        window.__ambientMix = function(a, b, q) {
+            var out = {};
+            for (var i = 0; i < window.__ambientProps.length; i++) {
+                var key = window.__ambientProps[i];
+                if (a[key] === undefined && b[key] === undefined) continue;
+                var from = a[key] === undefined ? b[key] : a[key];
+                var to = b[key] === undefined ? a[key] : b[key];
+                out[key] = from + (to - from) * q;
+            }
+            return out;
+        };
+        window.__updateAmbient = function(timeInSec) {
+            var sceneIds = Object.keys(window.__sceneAmbient);
+            for (var s = 0; s < sceneIds.length; s++) {
+                var sceneId = sceneIds[s];
+                var items = window.__sceneAmbient[sceneId];
+                if (!items || !items.length) continue;
+                var start = window.__sceneStarts[sceneId] || 0;
+                var local = timeInSec - start;
+                var root = document.getElementById(sceneId) ||
+                    document.querySelector('[data-scene="' + sceneId + '"]');
+                if (!root) continue;
+                for (var k = 0; k < items.length; k++) {
+                    var item = items[k];
+                    var el = root.querySelector(item.target);
+                    if (!el) continue;
+                    var clamped = Math.max(item.from, Math.min(item.to, local));
+                    var period = item.period > 0 ? item.period : 1;
+                    var phase = ((((clamped - item.from) % period) + period) % period) / period;
+                    var keys = item.keys || [];
+                    if (!keys.length) continue;
+                    var prev = keys[0];
+                    var next = keys[keys.length - 1];
+                    for (var i = 1; i < keys.length; i++) {
+                        if (phase <= keys[i].p + 1e-9) {
+                            prev = keys[i - 1];
+                            next = keys[i];
+                            break;
+                        }
+                    }
+                    var span = next.p - prev.p;
+                    var q = span > 0 ? (phase - prev.p) / span : 0;
+                    q = Math.min(1, Math.max(0, q));
+                    gsap.set(el, window.__ambientMix(prev, next, q));
+                }
+            }
+        };
+
         window.__seekTo = function(timeInSec) {
             if (window.__masterTimeline) {
                 window.__masterTimeline.seek(timeInSec, false);
+            }
+            if (typeof window.__updateAmbient === 'function') {
+                window.__updateAmbient(timeInSec);
             }
             if (typeof window.__renderCharacters === 'function') {
                 window.__renderCharacters(timeInSec);
@@ -687,6 +749,9 @@ ${safeAreaGuideHtml}
         }
         if (typeof window.__updateKaraoke === 'function') {
             window.__updateKaraoke(0);
+        }
+        if (typeof window.__updateAmbient === 'function') {
+            window.__updateAmbient(0);
         }
 
         // Page Ready Signal for Headless Browser Renderer

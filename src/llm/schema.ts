@@ -1,6 +1,7 @@
 import { z } from 'zod';
 import type { WordTiming } from '../pipeline/wordTiming.js';
 import { CAMERA_MOVE_IDS } from '../pipeline/camera.js';
+import { AMBIENT_MOVE_IDS, MAX_AMBIENT_PER_SCENE } from '../pipeline/ambient.js';
 import { resolveTempoProfile, tempoSchema } from './tempo.js';
 export type { WordTiming };
 export { TEMPO_IDS, TEMPO_PROFILES, tempoSchema, type Tempo, type TempoProfile } from './tempo.js';
@@ -60,6 +61,28 @@ export const sceneCameraSchema = z.object({
 });
 export type SceneCamera = z.infer<typeof sceneCameraSchema>;
 
+/**
+ * Ambient / native move (#125): LLM khai move + target, pipeline thi hành bằng
+ * keyframe thuần theo t. Tối đa 2 move/scene để tránh trang trí lạm dụng.
+ */
+export const ambientMoveSchema = z.enum([...AMBIENT_MOVE_IDS]);
+export const sceneAmbientSchema = z
+    .object({
+        move: ambientMoveSchema,
+        target: z.string().min(1, 'ambient.target không được để trống'),
+        intensity: z.number().min(0).max(1).optional(),
+        from: z.number().min(0).optional(),
+        to: z.number().min(0).optional(),
+    })
+    .refine(
+        (a) => a.from === undefined || a.to === undefined || a.to > a.from,
+        {
+            message: 'ambient.to phải lớn hơn ambient.from',
+            path: ['to'],
+        }
+    );
+export type SceneAmbient = z.infer<typeof sceneAmbientSchema>;
+
 export const sceneSchema = z.object({
     id: z.string(),
     title: z.string(),
@@ -82,6 +105,8 @@ export const sceneSchema = z.object({
      * của kịch bản cũ.
      */
     camera: sceneCameraSchema.optional(),
+    /** Ambient/native move (#125) — pipeline tự thi hành, LLM không viết tween. */
+    ambient: z.array(sceneAmbientSchema).max(MAX_AMBIENT_PER_SCENE).optional(),
     subject: z.string().optional(),
     /** Từ khoá tìm ảnh stock thật (Pixabay) cho scene — hệ thống điền vào {{SCENE_IMAGE}} */
     footageQuery: z.string().max(120).optional(),

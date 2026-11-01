@@ -1,6 +1,7 @@
 import { ZodError } from 'zod';
 import { videoScriptSchema, type videoScript } from '../llm/schema.js';
 import { getStyleMotionSpec } from '../templates/styles/index.js';
+import { findMissingAmbientTargets } from './ambient.js';
 
 export interface ScriptValidationResult {
     valid: boolean;
@@ -55,6 +56,26 @@ export function validateCameraGrammar(
 }
 
 /**
+ * Kiểm tra target của `scene.ambient[]` có thật trong code scene (#125).
+ *
+ * Chỉ báo khi selector không xuất hiện ở cả `htmlCode` lẫn `jsCode` — phần tử
+ * do JS sinh động vẫn được chấp nhận.
+ */
+export function validateAmbientTargets(script: videoScript): string[] {
+    const errors: string[] = [];
+    script.scenes.forEach((scene, index) => {
+        const missing = findMissingAmbientTargets(scene);
+        if (missing.length === 0) return;
+        errors.push(
+            `- [Trường: scenes.${index}.ambient]: Scene '${scene.id}' khai ambient target ${missing
+                .map((target) => `'${target}'`)
+                .join(', ')} nhưng không tìm thấy trong htmlCode/jsCode.`
+        );
+    });
+    return errors;
+}
+
+/**
  * Xác thực kịch bản video thô (từ phản hồi JSON của LLM) thông qua videoScriptSchema.
  * Đảm bảo các ràng buộc:
  * - Cấu trúc kịch bản đầy đủ
@@ -83,6 +104,15 @@ export function validateScript(
             valid: false,
             errors: cameraErrors,
             formattedErrorMessage: `Lỗi camera grammar (Validation Failed):\n${cameraErrors.join('\n')}`,
+        };
+    }
+
+    const ambientErrors = validateAmbientTargets(parseResult.data);
+    if (ambientErrors.length > 0) {
+        return {
+            valid: false,
+            errors: ambientErrors,
+            formattedErrorMessage: `Lỗi ambient target (Validation Failed):\n${ambientErrors.join('\n')}`,
         };
     }
 

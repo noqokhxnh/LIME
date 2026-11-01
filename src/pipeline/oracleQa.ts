@@ -107,6 +107,37 @@ export interface CaptionBandSample {
 
 export type CaptionBandSampler = (timeSec: number, sceneId: string) => Promise<CaptionBandSample | null>;
 
+/**
+ * Một mẫu chuyển động của scene (#125): chữ ký transform/opacity của từng phần tử.
+ * Chỉ đo property hiển thị, không đo nội dung — đủ để biết scene có động hay không.
+ */
+export interface SceneMotionSample {
+    elements: Array<{ path: string; transform: string; opacity: string }>;
+}
+
+export type MotionSampler = (timeSec: number, sceneId: string) => Promise<SceneMotionSample | null>;
+
+export interface MotionCoverageScene {
+    sceneId: string;
+    /** 0..1 — tỉ lệ khoảng `intervalSec` có ít nhất một property thay đổi. */
+    coverage: number;
+    movingIntervals: number;
+    totalIntervals: number;
+    reason?: string;
+}
+
+/**
+ * Leg motion coverage — **report-only**: luôn `status: 'pass'`, chỉ ghi số liệu
+ * vào qa_report.json để hiệu chuẩn trước khi dùng làm tiêu chí fail.
+ */
+export interface MotionCoverageLegResult {
+    status: 'pass';
+    strict: false;
+    intervalSec: number;
+    scenes: MotionCoverageScene[];
+    reason?: string;
+}
+
 export interface CaptionLegResult {
     status: 'pass' | 'warn' | 'fail';
     /** Số mẫu có caption thực sự hiển thị (bỏ qua mẫu không có cue). */
@@ -169,6 +200,8 @@ export interface QAReport {
         composition: CompositionLegResult;
         audio: AudioLegResult;
         code: CodeLintLegResult;
+        /** Motion coverage (#125) — report-only, ghi số liệu để hiệu chuẩn. */
+        motion: MotionCoverageLegResult;
     };
     createdAt: string;
 }
@@ -193,6 +226,11 @@ export interface OracleQaOptions {
      * `captionSampler` — sampler này trả phần tử cả khi scene không có phụ đề.
      */
     contentSampler?: CaptionBandSampler;
+    /**
+     * Lấy chữ ký transform/opacity của scene tại thời điểm t (#125). Mặc định
+     * dùng sampler của browser; truyền vào để test không cần Chromium.
+     */
+    motionSampler?: MotionSampler;
     audioAnalyzer?: (audioPath: string) => Promise<AudioStats>;
     page?: Page;
     hasShutterBlur?: boolean;
@@ -1254,6 +1292,8 @@ export async function createBrowserDOMSampler(
     captionSampler: CaptionBandSampler;
     /** Cùng nguồn đo với captionSampler, dùng cho leg composition (#111). */
     contentSampler: CaptionBandSampler;
+    /** Chữ ký transform/opacity của scene, dùng cho motion coverage (#125). */
+    motionSampler: MotionSampler;
     cleanup: () => Promise<void>;
     hasShutterBlur: boolean;
 }> {
@@ -1449,13 +1489,161 @@ export async function createBrowserDOMSampler(
         }
     };
 
+    /**
+     * Chữ ký transform/opacity của mọi phần tử trong scene tại thời điểm t.
+     * `path` là chỉ số phần tử trong DOM (ổn định giữa các lần seek vì DOM không
+     * đổi cấu trúc) — đủ để so hai mốc liên tiếp.
+     */
+    const motionSampler: MotionSampler = async (timeSec: number, sceneId: string) => {
+        await seekOnce(timeSec);
+        return page.evaluate((sid: string) => {
+            const root =
+                document.getElementById(sid) ||
+                (document.querySelector(`[data-scene="${sid}"]`) as HTMLElement | null);
+            if (!root) return null;
+
+            const elements: Array<{ path: string; transform: string; opacity: string }> = [];
+            let index = 0;
+            for (const el of Array.from(root.querySelectorAll('*'))) {
+                if (el.closest('#lime-karaoke')) continue;
+                const cs = window.getComputedStyle(el);
+                elements.push({
+                    path: String(index),
+                    transform: cs.transform,
+                    opacity: cs.opacity,
+                });
+                index += 1;
+            }
+            return { elements };
+        }, sceneId);
+    };
+
     return {
         domSampler,
         batchDomSampler,
         captionSampler,
         contentSampler: captionSampler,
+        motionSampler,
         cleanup,
         hasShutterBlur,
+    };
+}
+
+/**
+ * Tỉ lệ khoảng thời gian có chuyển động, từ chuỗi mẫu liên tiếp.
+ *
+ * Một khoảng được tính là "có chuyển động" khi bất kỳ phần tử nào đổi
+ * transform hoặc opacity so với mẫu trước. Số phần tử đổi (DOM thay đổi) cũng
+ * tính là có chuyển động.
+ */
+export function computeMotionCoverage(samples: SceneMotionSample[]): {
+    coverage: number;
+    movingIntervals: number;
+    totalIntervals: number;
+} {
+    if (samples.length < 2) {
+        return { coverage: 0, movingIntervals: 0, totalIntervals: 0 };
+    }
+
+    let moving = 0;
+    for (let i = 1; i < samples.length; i += 1) {
+        const prev = samples[i - 1].elements;
+        const next = samples[i].elements;
+        let changed = prev.length !== next.length;
+        if (!changed) {
+            for (let k = 0; k < prev.length; k += 1) {
+                if (
+                    prev[k].transform !== next[k].transform ||
+                    prev[k].opacity !== next[k].opacity
+                ) {
+                    changed = true;
+                    break;
+                }
+            }
+        }
+        if (changed) moving += 1;
+    }
+
+    const total = samples.length - 1;
+    return {
+        coverage: total > 0 ? moving / total : 0,
+        movingIntervals: moving,
+        totalIntervals: total,
+    };
+}
+
+/**
+ * Leg motion coverage (#125) — report-only, không bao giờ fail job.
+ *
+ * Với mỗi scene, lấy mẫu mỗi `intervalSec` giây trong đúng cửa sổ thời gian của
+ * scene rồi tính tỉ lệ khoảng có property thay đổi.
+ */
+export async function checkMotionCoverageLeg(
+    scenes: scene[],
+    durations: Record<string, number>,
+    sampler: MotionSampler,
+    intervalSec = 0.5
+): Promise<MotionCoverageLegResult> {
+    const results: MotionCoverageScene[] = [];
+    const step = intervalSec > 0 ? intervalSec : 0.5;
+    let sceneStart = 0;
+
+    for (const current of scenes) {
+        const duration = durations[current.id] ?? current.duration ?? 0;
+        if (!Number.isFinite(duration) || duration <= 0) {
+            results.push({
+                sceneId: current.id,
+                coverage: 0,
+                movingIntervals: 0,
+                totalIntervals: 0,
+                reason: 'không có duration',
+            });
+            continue;
+        }
+
+        const steps = Math.max(1, Math.ceil(duration / step));
+        const samples: SceneMotionSample[] = [];
+        let failure: string | undefined;
+        for (let i = 0; i <= steps; i += 1) {
+            const t = sceneStart + Math.min(duration, i * step);
+            try {
+                const sample = await sampler(t, current.id);
+                if (!sample) {
+                    failure = 'không tìm thấy scene trong DOM';
+                    break;
+                }
+                samples.push(sample);
+            } catch (err: any) {
+                failure = err?.message || String(err);
+                break;
+            }
+        }
+
+        if (failure) {
+            results.push({
+                sceneId: current.id,
+                coverage: 0,
+                movingIntervals: 0,
+                totalIntervals: 0,
+                reason: failure,
+            });
+        } else {
+            const stats = computeMotionCoverage(samples);
+            results.push({
+                sceneId: current.id,
+                coverage: Math.round(stats.coverage * 1000) / 1000,
+                movingIntervals: stats.movingIntervals,
+                totalIntervals: stats.totalIntervals,
+            });
+        }
+        sceneStart += duration;
+    }
+
+    return {
+        status: 'pass',
+        strict: false,
+        intervalSec: step,
+        scenes: results,
     };
 }
 
@@ -1491,6 +1679,7 @@ export async function runOracleQa(options: OracleQaOptions): Promise<QAReport> {
     let batchDomSampler = options.batchDomSampler;
     let captionSampler = options.captionSampler;
     let contentSampler = options.contentSampler;
+    let motionSampler = options.motionSampler;
     let cleanupBrowser: (() => Promise<void>) | null = null;
     let hasShutterBlur = options.hasShutterBlur ?? false;
 
@@ -1507,6 +1696,7 @@ export async function runOracleQa(options: OracleQaOptions): Promise<QAReport> {
                 batchDomSampler = browserSetup.batchDomSampler;
                 captionSampler = captionSampler ?? browserSetup.captionSampler;
                 contentSampler = contentSampler ?? browserSetup.contentSampler;
+                motionSampler = motionSampler ?? browserSetup.motionSampler;
                 cleanupBrowser = browserSetup.cleanup;
                 if (options.hasShutterBlur === undefined) {
                     hasShutterBlur = browserSetup.hasShutterBlur;
@@ -1542,6 +1732,7 @@ export async function runOracleQa(options: OracleQaOptions): Promise<QAReport> {
     let framingLeg: FramingLegResult;
     let captionLeg: CaptionLegResult;
     let compositionLeg: CompositionLegResult;
+    let motionLeg: MotionCoverageLegResult;
 
     try {
         // 2. Leg 2: Continuity
@@ -1635,6 +1826,29 @@ export async function runOracleQa(options: OracleQaOptions): Promise<QAReport> {
                 violations: [],
             };
         }
+
+        // 4d. Leg 4d: Motion coverage (#125) — report-only, không fail job.
+        if (motionSampler) {
+            try {
+                motionLeg = await checkMotionCoverageLeg(scenes, durations, motionSampler);
+            } catch (motionErr: any) {
+                motionLeg = {
+                    status: 'pass',
+                    strict: false,
+                    intervalSec: 0.5,
+                    scenes: [],
+                    reason: `Không đo được motion coverage: ${motionErr?.message || motionErr}`,
+                };
+            }
+        } else {
+            motionLeg = {
+                status: 'pass',
+                strict: false,
+                intervalSec: 0.5,
+                scenes: [],
+                reason: 'không có motion sampler',
+            };
+        }
     } finally {
         if (cleanupBrowser) {
             await cleanupBrowser();
@@ -1668,6 +1882,7 @@ export async function runOracleQa(options: OracleQaOptions): Promise<QAReport> {
         composition: compositionLeg,
         audio: audioLeg,
         code: codeLeg,
+        motion: motionLeg,
     };
 
     const errors: string[] = [];

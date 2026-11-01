@@ -179,6 +179,11 @@ ${catalogSummary}
    - Allowed moves: \`locked | push-in | pull-back | pan-left | pan-right | tilt-up | tilt-down\`.
    - Use a moving camera on most scenes; \`locked\` only for a frame meant to be read as a still (summary, QR, CTA).
    - NEVER animate \`scale\`/\`x\`/\`y\` on \`#sceneId\` yourself — the pipeline applies \`camera\` as a seek-safe tween. Animate child elements only.
+8. Ambient / native move (#125):
+   - Elements that enter then freeze read as a slideshow. When a material has natural motion (steam, liquid, light, fabric, glow), declare \`ambient: [{ "move", "target", "intensity"?, "from"?, "to"? }]\` instead of writing an infinite loop.
+   - Moves: \`steam | drip | flicker | drift | parallax | pulse\`. \`target\` MUST exist in the scene HTML (or be created in jsCode).
+   - Max 2 ambient moves per scene; never target an element your jsCode already animates.
+   - Do NOT write \`repeat: -1\` loops in jsCode for these effects — the pipeline executes ambient moves as a pure function of time.
 
 Remember to output ONLY valid JSON matching the schema, with GSAP animation code included.`;
 }

@@ -190,6 +190,22 @@ Every scene MUST declare `camera`:
 - Use a moving camera on most scenes. `locked` only when the frame is meant to be read as a still (summary card, QR code, CTA).
 - The pipeline applies `camera` itself as a seek-safe tween on the scene container. NEVER animate `scale`, `x` or `y` on `#sceneId` in `jsCode` — animate child elements instead.
 
+## 8.2 AMBIENT / NATIVE MOVE (#125)
+
+Static-after-entrance is the #1 "slideshow" tell. When a material has natural motion (steam, liquid, light, fabric, smoke, glow, floating debris), declare it instead of writing your own loop tween:
+- `move`: `steam`, `drip`, `flicker`, `drift`, `parallax` or `pulse`.
+- `target`: CSS selector INSIDE the scene (e.g. `.steam`, `#cup-drip`). The element MUST exist in `htmlCode` (or be created in `jsCode`).
+- `intensity`: 0..1 (default 0.6). `from` / `to`: seconds within the scene (default whole scene).
+- Max 2 ambient moves per scene. Use them only on dedicated elements — never on the same element your `jsCode` already animates.
+- The pipeline executes ambient moves itself as a pure function of time (seek-safe). Do NOT write an infinite `repeat: -1` loop in `jsCode` for these.
+
+```json
+"ambient": [
+  { "move": "steam", "target": ".cup-steam", "intensity": 0.6 },
+  { "move": "flicker", "target": ".neon-sign", "intensity": 0.4, "from": 0.5 }
+]
+```
+
 ## 9. OUTPUT FORMAT
 You MUST respond with a single valid JSON object matching this exact schema. DO NOT include any markdown explanations, commentary, or text outside the JSON.
 
@@ -214,6 +230,7 @@ You MUST respond with a single valid JSON object matching this exact schema. DO 
             "duration": 2.5,
             "nearStill": { "from": 1.0, "to": 2.8 },
             "camera": { "move": "push-in", "intensity": 0.5 },
+            "ambient": [{ "move": "steam", "target": ".cup-steam", "intensity": 0.6 }],
             "footageQuery": "barista pouring latte art in a cozy coffee shop",
             "characterActions": [
                 {
