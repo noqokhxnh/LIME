@@ -34,7 +34,8 @@ import { rateLimiter } from "./security/rateLimiter.js";
 import { validateUploadedFile, generateSafeFilePath, resolveBgmPath, validateUploadedAsset, generateSafeAssetFilePath, resolveAssetPath, MAX_VIDEO_ASSET_BYTES } from "./security/uploadGuard.js";
 import { isSafeJobId, safeJobDir } from "./queue/jobPaths.js";
 import { getBrandKitByUserId, upsertBrandKit } from "./database/brandKit.js";
-import { createAsset, listAssetsByUserId, getAssetByIdForUser, deleteAssetByIdForUser, type AssetKind } from "./database/assets.js";
+import { createAsset, listAssetsByUserId, getAssetByIdForUser, deleteAssetByIdForUser, getAssetsByIdsForUser, type AssetKind, type AssetRow } from "./database/assets.js";
+import { imageAssetsOnly } from "./pipeline/assets.js";
 import { getCatalog, listBlueprints, listMotionBlocks } from "./templates/index.js";
 import { adminRoutes } from "./admin/routes.js";
 import { supportRoutes } from "./helpdesk/routes.js";
@@ -549,11 +550,20 @@ export async function buildApp(options: { logger?: boolean, queue?: IVideoQueue 
             motionBlockIds = rawBlocks.split(',').map((s: string) => s.trim()).filter(Boolean).slice(0, 8);
         }
 
+        let assetIds: string[] | undefined;
+        const rawAssets = raw.assetIds ?? raw.asset_ids ?? raw.assets;
+        if (Array.isArray(rawAssets)) {
+            assetIds = rawAssets.map((id: unknown) => String(id)).filter(Boolean).slice(0, 20);
+        } else if (typeof rawAssets === 'string' && rawAssets.trim()) {
+            assetIds = rawAssets.split(',').map((s: string) => s.trim()).filter(Boolean).slice(0, 20);
+        }
+
         return {
             ...raw,
             prompt: raw.prompt ?? raw.text ?? raw.topic,
             blueprintId: blueprintId || undefined,
             motionBlockIds: motionBlockIds?.length ? motionBlockIds : undefined,
+            assetIds: assetIds?.length ? assetIds : undefined,
         };
     };
 
@@ -608,8 +618,20 @@ export async function buildApp(options: { logger?: boolean, queue?: IVideoQueue 
                 count: variantCount,
             });
 
+            // Asset người dùng upload (#103): đưa metadata ảnh vào prompt để LLM
+            // chọn assetIds. Kiểm ownership qua getAssetsByIdsForUser (user_id).
+            let assets: AssetRow[] = [];
+            const assetIds = reqData.assetIds ?? [];
+            if (assetIds.length > 0) {
+                try {
+                    assets = imageAssetsOnly(await getAssetsByIdsForUser(assetIds, authUser.id));
+                } catch (err) {
+                    console.warn(`[Assets] Bỏ qua asset do lỗi resolve: ${(err as Error)?.message}`);
+                }
+            }
+
             const settled = await Promise.allSettled(
-                variants.map(variant => generateScript(reqData, undefined, undefined, variant, directives))
+                variants.map(variant => generateScript(reqData, undefined, undefined, variant, directives, undefined, assets))
             );
 
             const drafts = settled.flatMap((entry, index) => {

@@ -24,6 +24,8 @@ import type { ScriptVariantSpec } from "./scriptVariants.js";
 import { readFileSync } from "node:fs";
 import { join, dirname } from "node:path";
 import { fileURLToPath } from "node:url";
+import type { AssetRow } from "../database/assets.js";
+import { buildAssetPrompt } from "./assets.js";
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const SYSTEM_prompt_PATH = join(__dirname, '..', 'llm', 'system.txt');
@@ -96,7 +98,7 @@ export function narrationWordBudget(targetDurationSec: number, language?: string
     return Math.max(10, Math.floor(narrationWords(targetDurationSec, wpm, 1.0)));
 }
 
-export function buildUserPrompt(request: videoRequest, preset: string): string {
+export function buildUserPrompt(request: videoRequest, preset: string, availableAssets?: AssetRow[]): string {
     const styleDetails = formatStylePrompt(request.style, request.customStyle);
     // Opuscar style layer (issue #105): nếu có styleSlug (user ghim hoặc AI đã pick),
     // inject nguyên văn STYLE.md tương ứng làm lớp veneer thống trị!
@@ -185,6 +187,7 @@ ${catalogSummary}
    - Max 2 ambient moves per scene; never target an element your jsCode already animates.
    - Do NOT write \`repeat: -1\` loops in jsCode for these effects — the pipeline executes ambient moves as a pure function of time.
 
+${availableAssets?.length ? buildAssetPrompt(availableAssets) : ''}
 Remember to output ONLY valid JSON matching the schema, with GSAP animation code included.`;
 }
 
@@ -294,7 +297,8 @@ export async function generateScript(
     qaFeedback?: string,
     variant?: ScriptVariantSpec,
     directives?: string,
-    opts?: { scriptTimeoutMs?: number; pickTimeoutMs?: number }
+    opts?: { scriptTimeoutMs?: number; pickTimeoutMs?: number },
+    assets?: AssetRow[]
 ): Promise<videoScript> {
     const llm = getLLMClient();
     const systemPrompt = readFileSync(SYSTEM_prompt_PATH, 'utf-8');
@@ -325,7 +329,7 @@ export async function generateScript(
     };
 
     const preset = VIDEO_PRESETS[effectiveRequest.aspectRatio];
-    let basePrompt = buildUserPrompt(effectiveRequest, preset);
+    let basePrompt = buildUserPrompt(effectiveRequest, preset, assets);
     if (directives) {
         basePrompt += `\n\n${directives}\n`;
     }

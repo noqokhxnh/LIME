@@ -13,6 +13,8 @@ import { generateScript } from '../pipeline/scriptGenerator.js';
 import { videoRequestSchema, videoScriptSchema, type videoScript } from '../llm/schema.js';
 import { isSafeJobId, safeJobDir } from './jobPaths.js';
 import { resolveBgmPath } from '../security/uploadGuard.js';
+import { getAssetsByIdsForUser, type AssetRow } from '../database/assets.js';
+import { imageAssetsOnly } from '../pipeline/assets.js';
 import { resolve, sep } from 'node:path';
 
 /**
@@ -53,6 +55,17 @@ export async function autoDirectScript(
         count: 3,
     });
 
+    // Asset người dùng upload (#103) cho chế độ auto-direct.
+    let assets: AssetRow[] = [];
+    const assetIds = request?.assetIds ?? [];
+    if (assetIds.length > 0 && data.userId) {
+        try {
+            assets = imageAssetsOnly(await getAssetsByIdsForUser(assetIds, data.userId));
+        } catch (err) {
+            console.warn(`[Assets] Bỏ qua asset do lỗi resolve: ${(err as Error)?.message}`);
+        }
+    }
+
     await updateProgress({
         phase: 'script_generation',
         progress: 4,
@@ -68,7 +81,9 @@ export async function autoDirectScript(
                 },
                 undefined,
                 variant,
-                directives
+                directives,
+                undefined,
+                assets
             )
         )
     );
@@ -150,6 +165,18 @@ export async function processVideoJob(data: JobData, updateProgress: (p: JobProg
         script = await autoDirectScript(clean, updateProgress);
     }
 
+    // Asset người dùng upload (#103): resolve id -> ảnh (đã kiểm ownership qua
+    // user_id). Lỗi DB/đọc file không làm hỏng job — bỏ qua như không có asset.
+    let assets: Awaited<ReturnType<typeof getAssetsByIdsForUser>> = [];
+    const assetIds = clean.request?.assetIds ?? [];
+    if (assetIds.length > 0 && clean.userId) {
+        try {
+            assets = imageAssetsOnly(await getAssetsByIdsForUser(assetIds, clean.userId));
+        } catch (err) {
+            console.warn(`[Assets] Bỏ qua asset do lỗi resolve: ${(err as Error)?.message}`);
+        }
+    }
+
     return await runFullPipeline({
         request: clean.request,
         script,
@@ -158,6 +185,7 @@ export async function processVideoJob(data: JobData, updateProgress: (p: JobProg
         outputDir: clean.outputDir,
         jobId: clean.jobId,
         seed: clean.seed,
+        assets,
         onProgress: (p) => {
             updateProgress(p).catch(err => console.error("Failed to update progress", err));
         }
