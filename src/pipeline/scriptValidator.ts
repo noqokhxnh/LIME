@@ -1,11 +1,20 @@
 import { ZodError } from 'zod';
 import { videoScriptSchema, type videoScript } from '../llm/schema.js';
+import { getStyleMotionSpec } from '../templates/styles/index.js';
 
 export interface ScriptValidationResult {
     valid: boolean;
     data?: videoScript;
     errors: string[];
     formattedErrorMessage?: string;
+}
+
+export interface ScriptValidationOptions {
+    /**
+     * Style preset đang dùng. Khi có, `scene.camera.move` phải nằm trong
+     * camera grammar của preset (#123). Không truyền → bỏ qua (tương thích cũ).
+     */
+    styleSlug?: string | null;
 }
 
 /**
@@ -20,28 +29,66 @@ export function formatZodIssues(error: ZodError): string[] {
 }
 
 /**
+ * Kiểm tra camera move của từng scene có thuộc grammar của preset không (#123).
+ *
+ * Preset parse được grammar (`source: 'preset'`) mới chấm; preset thiếu §6 dùng
+ * vocabulary lõi nên mọi move hợp lệ theo schema đều pass.
+ */
+export function validateCameraGrammar(
+    script: videoScript,
+    styleSlug?: string | null
+): string[] {
+    if (!styleSlug) return [];
+    const spec = getStyleMotionSpec(styleSlug);
+    if (spec.camera.source !== 'preset') return [];
+
+    const allowed = new Set(spec.camera.allowed);
+    const errors: string[] = [];
+    script.scenes.forEach((scene, index) => {
+        const move = scene.camera?.move;
+        if (!move || allowed.has(move)) return;
+        errors.push(
+            `- [Trường: scenes.${index}.camera.move]: Scene '${scene.id}' dùng camera move '${move}' không thuộc grammar của preset '${styleSlug}'. Move hợp lệ: ${spec.camera.allowed.join(', ')}.`
+        );
+    });
+    return errors;
+}
+
+/**
  * Xác thực kịch bản video thô (từ phản hồi JSON của LLM) thông qua videoScriptSchema.
  * Đảm bảo các ràng buộc:
  * - Cấu trúc kịch bản đầy đủ
  * - Hợp đồng Boundary & Carry Plan (liên tục, đúng số lượng, hardCut có reason)
  * - Ràng buộc nhịp điệu Rhythm (max/min >= 4, near-still >= 1.5s, CV >= 0.3)
+ * - Camera move thuộc grammar của style preset (#123, khi truyền `styleSlug`)
  */
-export function validateScript(data: unknown): ScriptValidationResult {
+export function validateScript(
+    data: unknown,
+    options?: ScriptValidationOptions
+): ScriptValidationResult {
     const parseResult = videoScriptSchema.safeParse(data);
-    if (parseResult.success) {
+    if (!parseResult.success) {
+        const errors = formatZodIssues(parseResult.error);
+        const formattedErrorMessage = `Lỗi cấu trúc kịch bản (Validation Failed):\n${errors.join('\n')}`;
         return {
-            valid: true,
-            data: parseResult.data,
-            errors: [],
+            valid: false,
+            errors,
+            formattedErrorMessage,
         };
     }
 
-    const errors = formatZodIssues(parseResult.error);
-    const formattedErrorMessage = `Lỗi cấu trúc kịch bản (Validation Failed):\n${errors.join('\n')}`;
+    const cameraErrors = validateCameraGrammar(parseResult.data, options?.styleSlug);
+    if (cameraErrors.length > 0) {
+        return {
+            valid: false,
+            errors: cameraErrors,
+            formattedErrorMessage: `Lỗi camera grammar (Validation Failed):\n${cameraErrors.join('\n')}`,
+        };
+    }
 
     return {
-        valid: false,
-        errors,
-        formattedErrorMessage,
+        valid: true,
+        data: parseResult.data,
+        errors: [],
     };
 }

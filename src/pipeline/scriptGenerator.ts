@@ -374,7 +374,7 @@ export async function generateScript(
                 // tempo để chấm rhythm, nếu không kịch bản 'slow' sẽ bị loại oan.
                 parsedData.tempo = request.tempo;
             }
-            const validation = validateScript(parsedData);
+            const validation = validateScript(parsedData, { styleSlug: resolvedStyleSlug });
             if (!validation.valid || !validation.data) {
                 throw new Error(validation.formattedErrorMessage || validation.errors.join('\n'));
             }
