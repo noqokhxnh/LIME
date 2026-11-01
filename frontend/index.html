@@ -34,7 +34,25 @@
                 <a href="/admin" id="nav-admin-link" style="display: none; color: #f87171;">Quản trị</a>
             </div>
             <div class="nav-cta">
-                <button type="button" class="btn btn-ghost" id="login-open-btn">Đăng nhập</button>
+                <div class="nav-user" id="home-user">
+                    <button type="button" class="btn btn-ghost" id="login-open-btn" aria-expanded="false"
+                        aria-controls="home-user-dropdown">
+                        Đăng nhập
+                    </button>
+
+                    <nav class="nav-user-dropdown" id="home-user-dropdown" aria-label="Menu tài khoản" hidden>
+                        <a href="/profile">Hồ sơ cá nhân</a>
+                        <a href="/workspace">Studio</a>
+                        <a href="/setting">Cài đặt</a>
+                        <a href="/admin" id="home-admin-item" hidden>
+                            Quản trị
+                        </a>
+
+                        <button type="button" id="home-logout-btn">
+                            Đăng xuất
+                        </button>
+                    </nav>
+                </div>
             </div>
         </div>
     </nav>
@@ -73,23 +91,24 @@
                 <div class="shot shot-main">
                     <div class="shot-browser-bar"><i></i><i></i><i></i></div>
                     <div class="shot-body shot-video-wrap">
-                        <video class="hero-video" autoplay muted loop playsinline preload="metadata" poster="/hero-poster.jpg" aria-label="Video gioi thieu LIME do chinh LIME dung tu prompt">
+                        <video class="hero-video" autoplay muted loop playsinline preload="metadata"
+                            poster="/hero-poster.jpg" aria-label="Video gioi thieu LIME do chinh LIME dung tu prompt">
                             <source src="/hero.webm" type="video/webm">
                             <source src="/hero.mp4" type="video/mp4">
                         </video>
-                        </div>
                     </div>
                 </div>
-                <div class="shot shot-term">
-                    <div class="term-bar"><i></i><i></i><i></i></div>
-                    <div class="term-body">
-                        <div><span class="p">$</span> lime render --style modern</div>
-                        <div class="ok">✓ Build complete in 1.2s</div>
-                        <div class="dim">+ 124 additions · 0 deletions</div>
-                    </div>
-                </div>
-                <div class="chip c2"><span class="sw"></span>Xuất Full HD · MP4</div>
             </div>
+            <div class="shot shot-term">
+                <div class="term-bar"><i></i><i></i><i></i></div>
+                <div class="term-body">
+                    <div><span class="p">$</span> lime render --style modern</div>
+                    <div class="ok">✓ Build complete in 1.2s</div>
+                    <div class="dim">+ 124 additions · 0 deletions</div>
+                </div>
+            </div>
+            <div class="chip c2"><span class="sw"></span>Xuất Full HD · MP4</div>
+        </div>
         </div>
     </section>
 
@@ -101,7 +120,8 @@
                 <h2 class="sec">Mẫu thiết kế <em>&</em> kịch bản</h2>
                 <p class="sec-sub">Chọn một mẫu dựng sẵn — LIME tự điền nội dung của bạn vào đúng nhịp.</p>
             </div>
-            <div class="tplp-head-note"><b>Xem trước trực tiếp</b><span>Chọn mẫu ở playlist bên phải,<br>sân khấu phát thử ngay tại chỗ.</span></div>
+            <div class="tplp-head-note"><b>Xem trước trực tiếp</b><span>Chọn mẫu ở playlist bên phải,<br>sân khấu phát
+                    thử ngay tại chỗ.</span></div>
         </div>
 
         <div class="tplp-layout wrap">
@@ -110,7 +130,9 @@
                 <div class="tplp-screen">
                     <div class="tplp-art tplp-art-saas is-on" data-art="0">
                         <div class="tplp-browser">
-                            <div class="tplp-browser-bar"><span class="tplp-dot tplp-dot-on"></span><span class="tplp-dot"></span><span class="tplp-dot"></span><span class="tplp-url">app.sanphamcuaban.vn</span></div>
+                            <div class="tplp-browser-bar"><span class="tplp-dot tplp-dot-on"></span><span
+                                    class="tplp-dot"></span><span class="tplp-dot"></span><span
+                                    class="tplp-url">app.sanphamcuaban.vn</span></div>
                             <div class="tplp-browser-body">
                                 <div class="tplp-b-left">
                                     <div class="tplp-b-kicker">RA MẮT SẢN PHẨM</div>
@@ -120,7 +142,9 @@
                                 </div>
                                 <div class="tplp-b-right">
                                     <div class="tplp-b-num">+300%<small>tăng trưởng người dùng sau 6 tháng</small></div>
-                                    <div class="tplp-b-chart"><i style="height:30%"></i><i style="height:46%"></i><i style="height:40%"></i><i style="height:64%"></i><i style="height:92%"></i></div>
+                                    <div class="tplp-b-chart"><i style="height:30%"></i><i style="height:46%"></i><i
+                                            style="height:40%"></i><i style="height:64%"></i><i style="height:92%"></i>
+                                    </div>
                                 </div>
                             </div>
                         </div>
@@ -137,7 +161,10 @@
                     </div>
                     <div class="tplp-art tplp-art-stick" data-art="2">
                         <div class="tplp-stick-bubble">Ý tưởng đỉnh!</div>
-                        <div class="tplp-stick-fig"><span class="tplp-stick-head"></span><span class="tplp-stick-body"></span><span class="tplp-stick-arm-l"></span><span class="tplp-stick-arm-r"></span><span class="tplp-stick-leg-l"></span><span class="tplp-stick-leg-r"></span></div>
+                        <div class="tplp-stick-fig"><span class="tplp-stick-head"></span><span
+                                class="tplp-stick-body"></span><span class="tplp-stick-arm-l"></span><span
+                                class="tplp-stick-arm-r"></span><span class="tplp-stick-leg-l"></span><span
+                                class="tplp-stick-leg-r"></span></div>
                         <div class="tplp-stick-ground"></div>
                     </div>
                     <div class="tplp-art tplp-art-ad" data-art="3">
@@ -161,26 +188,40 @@
                         <div class="tplp-deck-card">
                             <b>Pitch Deck Động</b>
                             <span>Tăng trưởng theo quý</span>
-                            <div class="tplp-deck-chart"><i style="height:32%"></i><i style="height:48%"></i><i style="height:42%"></i><i style="height:70%"></i><i style="height:96%"></i></div>
+                            <div class="tplp-deck-chart"><i style="height:32%"></i><i style="height:48%"></i><i
+                                    style="height:42%"></i><i style="height:70%"></i><i style="height:96%"></i></div>
                         </div>
                     </div>
 
                     <button type="button" class="tplp-play" id="tplp-play" aria-label="Phát thử mẫu">
-                        <svg class="tplp-ic-play" width="26" height="26" viewBox="0 0 24 24" fill="#101012"><path d="M7 4.8v14.4c0 .9 1 1.5 1.8 1L20 13a1.2 1.2 0 0 0 0-2L8.8 3.9C8 3.4 7 4 7 4.8z"/></svg>
-                        <svg class="tplp-ic-pause" width="24" height="24" viewBox="0 0 24 24" fill="#101012" style="display:none"><rect x="5.5" y="4.5" width="4.6" height="15" rx="1.4"></rect><rect x="13.9" y="4.5" width="4.6" height="15" rx="1.4"></rect></svg>
+                        <svg class="tplp-ic-play" width="26" height="26" viewBox="0 0 24 24" fill="#101012">
+                            <path d="M7 4.8v14.4c0 .9 1 1.5 1.8 1L20 13a1.2 1.2 0 0 0 0-2L8.8 3.9C8 3.4 7 4 7 4.8z" />
+                        </svg>
+                        <svg class="tplp-ic-pause" width="24" height="24" viewBox="0 0 24 24" fill="#101012"
+                            style="display:none">
+                            <rect x="5.5" y="4.5" width="4.6" height="15" rx="1.4"></rect>
+                            <rect x="13.9" y="4.5" width="4.6" height="15" rx="1.4"></rect>
+                        </svg>
                     </button>
                     <div class="tplp-screen-bar">
-                        <div class="tplp-track"><div class="tplp-fill" id="tplp-fill"></div><div class="tplp-knob" id="tplp-knob"></div></div>
-                        <div class="tplp-bar-row"><span class="tplp-tc" id="tplp-tc">00:12 / 00:30</span><span class="tplp-q" id="tplp-q">1080p · 16:9 · Có giọng đọc AI</span></div>
+                        <div class="tplp-track">
+                            <div class="tplp-fill" id="tplp-fill"></div>
+                            <div class="tplp-knob" id="tplp-knob"></div>
+                        </div>
+                        <div class="tplp-bar-row"><span class="tplp-tc" id="tplp-tc">00:12 / 00:30</span><span
+                                class="tplp-q" id="tplp-q">1080p · 16:9 · Có giọng đọc AI</span></div>
                     </div>
                 </div>
 
-                <div class="tplp-scenes-head"><span class="tplp-scenes-t">Phân cảnh của mẫu</span><span class="tplp-scenes-m" id="tplp-scenes-meta">5 phân cảnh · tổng 25–40s</span></div>
+                <div class="tplp-scenes-head"><span class="tplp-scenes-t">Phân cảnh của mẫu</span><span
+                        class="tplp-scenes-m" id="tplp-scenes-meta">5 phân cảnh · tổng 25–40s</span></div>
                 <div class="tplp-scenes" id="tplp-scenes"></div>
 
                 <div class="tplp-prompt">
-                    <div class="tplp-prompt-top"><span class="tplp-prompt-lab">✦ PROMPT MẪU ĐI KÈM</span><span class="tplp-chip" id="tplp-chip">SaaS · Tech</span></div>
-                    <p id="tplp-prompt-text">“Giới thiệu nền tảng AI SaaS đột phá: tự động phân tích dữ liệu, giao diện trực quan, biểu đồ tăng trưởng 300% và nút kêu gọi dùng thử miễn phí.”</p>
+                    <div class="tplp-prompt-top"><span class="tplp-prompt-lab">✦ PROMPT MẪU ĐI KÈM</span><span
+                            class="tplp-chip" id="tplp-chip">SaaS · Tech</span></div>
+                    <p id="tplp-prompt-text">“Giới thiệu nền tảng AI SaaS đột phá: tự động phân tích dữ liệu, giao diện
+                        trực quan, biểu đồ tăng trưởng 300% và nút kêu gọi dùng thử miễn phí.”</p>
                     <div class="tplp-prompt-foot">
                         <span class="tplp-prompt-meta">Thay bằng nội dung của bạn — nhịp và bố cục giữ nguyên.</span>
                         <button type="button" class="tplp-cta btn-use-template" id="tplp-cta"
@@ -192,43 +233,65 @@
 
             <!-- PLAYLIST -->
             <div class="tplp-rail-card">
-                <div class="tplp-rail-head"><span>Playlist mẫu</span><span class="tplp-rail-c">6 mẫu tuyển chọn</span></div>
+                <div class="tplp-rail-head"><span>Playlist mẫu</span><span class="tplp-rail-c">6 mẫu tuyển chọn</span>
+                </div>
                 <div id="tplp-list">
                     <button type="button" class="tplp-item is-on" data-i="0">
-                        <span class="tplp-thumb tplp-th-saas"><span class="tplp-th-chart"><i style="height:35%"></i><i style="height:55%"></i><i style="height:48%"></i><i style="height:78%"></i><i style="height:100%"></i></span></span>
-                        <span class="tplp-info"><span class="tplp-name">SaaS Launch &amp; Product Demo</span><span class="tplp-meta">SaaS · Tech · 16:9</span><span class="tplp-now">ĐANG XEM</span></span>
-                        <span class="tplp-dur"><span class="tplp-dur-t">25–40s</span><span class="tplp-dur-s">5 cảnh</span></span>
+                        <span class="tplp-thumb tplp-th-saas"><span class="tplp-th-chart"><i style="height:35%"></i><i
+                                    style="height:55%"></i><i style="height:48%"></i><i style="height:78%"></i><i
+                                    style="height:100%"></i></span></span>
+                        <span class="tplp-info"><span class="tplp-name">SaaS Launch &amp; Product Demo</span><span
+                                class="tplp-meta">SaaS · Tech · 16:9</span><span class="tplp-now">ĐANG XEM</span></span>
+                        <span class="tplp-dur"><span class="tplp-dur-t">25–40s</span><span class="tplp-dur-s">5
+                                cảnh</span></span>
                     </button>
                     <button type="button" class="tplp-item" data-i="1">
-                        <span class="tplp-thumb tplp-th-dev"><span class="tplp-th-term">$ git commit<br><span>✓ build 1.2s</span></span></span>
-                        <span class="tplp-info"><span class="tplp-name">Dev Story: Ship It</span><span class="tplp-meta">Lập trình · 16:9</span></span>
-                        <span class="tplp-dur"><span class="tplp-dur-t">20–30s</span><span class="tplp-dur-s">4 cảnh</span></span>
+                        <span class="tplp-thumb tplp-th-dev"><span class="tplp-th-term">$ git commit<br><span>✓ build
+                                    1.2s</span></span></span>
+                        <span class="tplp-info"><span class="tplp-name">Dev Story: Ship It</span><span
+                                class="tplp-meta">Lập trình · 16:9</span></span>
+                        <span class="tplp-dur"><span class="tplp-dur-t">20–30s</span><span class="tplp-dur-s">4
+                                cảnh</span></span>
                     </button>
                     <button type="button" class="tplp-item" data-i="2">
                         <span class="tplp-thumb tplp-th-stick"><span class="tplp-th-stickfig"></span></span>
-                        <span class="tplp-info"><span class="tplp-name">Người que giải thích</span><span class="tplp-meta">Người que · 9:16</span></span>
-                        <span class="tplp-dur"><span class="tplp-dur-t">30–45s</span><span class="tplp-dur-s">6 cảnh</span></span>
+                        <span class="tplp-info"><span class="tplp-name">Người que giải thích</span><span
+                                class="tplp-meta">Người que · 9:16</span></span>
+                        <span class="tplp-dur"><span class="tplp-dur-t">30–45s</span><span class="tplp-dur-s">6
+                                cảnh</span></span>
                     </button>
                     <button type="button" class="tplp-item" data-i="3">
-                        <span class="tplp-thumb tplp-th-ad"><span class="tplp-th-sale"><small>SALE</small>−50%</span></span>
-                        <span class="tplp-info"><span class="tplp-name">Quảng cáo dọc chớp nhoáng</span><span class="tplp-meta">Quảng cáo · 9:16</span></span>
-                        <span class="tplp-dur"><span class="tplp-dur-t">15s</span><span class="tplp-dur-s">3 cảnh</span></span>
+                        <span class="tplp-thumb tplp-th-ad"><span
+                                class="tplp-th-sale"><small>SALE</small>−50%</span></span>
+                        <span class="tplp-info"><span class="tplp-name">Quảng cáo dọc chớp nhoáng</span><span
+                                class="tplp-meta">Quảng cáo · 9:16</span></span>
+                        <span class="tplp-dur"><span class="tplp-dur-t">15s</span><span class="tplp-dur-s">3
+                                cảnh</span></span>
                     </button>
                     <button type="button" class="tplp-item" data-i="4">
-                        <span class="tplp-thumb tplp-th-edu"><span class="tplp-th-slide"><i></i><i style="width:85%"></i><i style="width:70%"></i><i style="width:78%"></i></span></span>
-                        <span class="tplp-info"><span class="tplp-name">Bài giảng kiến thức</span><span class="tplp-meta">Giáo dục · 16:9</span></span>
-                        <span class="tplp-dur"><span class="tplp-dur-t">60s</span><span class="tplp-dur-s">8 cảnh</span></span>
+                        <span class="tplp-thumb tplp-th-edu"><span class="tplp-th-slide"><i></i><i
+                                    style="width:85%"></i><i style="width:70%"></i><i
+                                    style="width:78%"></i></span></span>
+                        <span class="tplp-info"><span class="tplp-name">Bài giảng kiến thức</span><span
+                                class="tplp-meta">Giáo dục · 16:9</span></span>
+                        <span class="tplp-dur"><span class="tplp-dur-t">60s</span><span class="tplp-dur-s">8
+                                cảnh</span></span>
                     </button>
                     <button type="button" class="tplp-item" data-i="5">
-                        <span class="tplp-thumb tplp-th-pitch"><span class="tplp-th-deck"><b>Pitch Deck Động</b><i style="width:80%"></i><i style="width:62%"></i><i style="width:70%"></i></span></span>
-                        <span class="tplp-info"><span class="tplp-name">Pitch deck động</span><span class="tplp-meta">SaaS · Tech · 16:9</span></span>
-                        <span class="tplp-dur"><span class="tplp-dur-t">40s</span><span class="tplp-dur-s">5 cảnh</span></span>
+                        <span class="tplp-thumb tplp-th-pitch"><span class="tplp-th-deck"><b>Pitch Deck Động</b><i
+                                    style="width:80%"></i><i style="width:62%"></i><i
+                                    style="width:70%"></i></span></span>
+                        <span class="tplp-info"><span class="tplp-name">Pitch deck động</span><span
+                                class="tplp-meta">SaaS · Tech · 16:9</span></span>
+                        <span class="tplp-dur"><span class="tplp-dur-t">40s</span><span class="tplp-dur-s">5
+                                cảnh</span></span>
                     </button>
                 </div>
             </div>
         </div>
 
-        <div class="tplp-foot wrap"><span>Đang hiển thị 6 trong 50+ mẫu của thư viện đầy đủ.</span><a>Xem tất cả 50+ mẫu thiết kế →</a></div>
+        <div class="tplp-foot wrap"><span>Đang hiển thị 6 trong 50+ mẫu của thư viện đầy đủ.</span><a>Xem tất cả 50+ mẫu
+                thiết kế →</a></div>
     </section>
 
     <!-- ================= SECTION 3: PRICING ================= -->
@@ -796,7 +859,8 @@
                             </svg>
                             <span>Lưu ảnh QR</span>
                         </button>
-                        <button type="button" id="vietqr-guide-btn" class="vietqr-btn-sub" aria-expanded="false" aria-controls="vietqr-guide-panel">
+                        <button type="button" id="vietqr-guide-btn" class="vietqr-btn-sub" aria-expanded="false"
+                            aria-controls="vietqr-guide-panel">
                             <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor"
                                 stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
                                 <circle cx="12" cy="12" r="10"></circle>
@@ -809,9 +873,12 @@
                         <p class="vietqr-guide-title">Cách quét mã thanh toán</p>
                         <ol class="vietqr-guide-steps">
                             <li>Mở app ngân hàng của bạn, chọn tính năng quét mã QR.</li>
-                            <li>Đưa camera vào mã QR bên trên, hoặc bấm "Lưu ảnh QR" rồi tải ảnh lên trong app ngân hàng.</li>
-                            <li>Kiểm tra đúng số tiền và giữ nguyên nội dung ở ô Lời nhắn / Memo, không sửa và không thêm ký tự.</li>
-                            <li>Xác nhận chuyển khoản, quay lại trang này và chờ hệ thống tự kích hoạt, thường trong khoảng 30 giây.</li>
+                            <li>Đưa camera vào mã QR bên trên, hoặc bấm "Lưu ảnh QR" rồi tải ảnh lên trong app ngân
+                                hàng.</li>
+                            <li>Kiểm tra đúng số tiền và giữ nguyên nội dung ở ô Lời nhắn / Memo, không sửa và không
+                                thêm ký tự.</li>
+                            <li>Xác nhận chuyển khoản, quay lại trang này và chờ hệ thống tự kích hoạt, thường trong
+                                khoảng 30 giây.</li>
                         </ol>
                     </div>
                 </div>
