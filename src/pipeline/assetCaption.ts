@@ -13,12 +13,27 @@ const execFile = promisify(execFileCb);
 // File: src/pipeline/assetCaption.ts
 //
 // Ảnh: đọc thẳng file → base64 → vision model.
-// Video: dùng ffmpeg trích vài khung hình (default 3) → coi như ảnh → vision.
+// Video: dùng ffmpeg trích vài khung hình (min 5, 1/5s, cap 24) → coi như ảnh → vision.
 // Kết quả { description, tags } ghi ngược vào DB (xem src/queue/assetCaption.ts).
 // ============================================================
 
-/** Số khung hình trích từ video để mô tả. */
-export const VIDEO_CAPTION_FRAMES = 3;
+/** Số khung hình trích từ video để mô tả (mặc định tối thiểu). */
+export const VIDEO_CAPTION_FRAMES = 5;
+/** Trần số khung hình — chặn chi phí vision model khi video rất dài. */
+export const VIDEO_CAPTION_MAX_FRAMES = 24;
+/** Mật độ trích: 1 khung mỗi N giây video. */
+export const VIDEO_CAPTION_SECONDS_PER_FRAME = 5;
+
+/**
+ * Số khung hình nên trích cho video, scale theo thời lượng:
+ * 1 khung / {@link VIDEO_CAPTION_SECONDS_PER_FRAME}s, tối thiểu {@link VIDEO_CAPTION_FRAMES},
+ * tối đa {@link VIDEO_CAPTION_MAX_FRAMES}.
+ */
+export function pickCaptionFrameCount(durationSec: number): number {
+    if (!Number.isFinite(durationSec) || durationSec <= 0) return VIDEO_CAPTION_FRAMES;
+    const perInterval = Math.max(1, Math.round(durationSec / VIDEO_CAPTION_SECONDS_PER_FRAME));
+    return Math.min(VIDEO_CAPTION_MAX_FRAMES, Math.max(VIDEO_CAPTION_FRAMES, perInterval));
+}
 
 /** MIME thật của khung hình trích ra (luôn JPEG vì ffmpeg mã hoá jpg). */
 const FRAME_MIME = "image/jpeg";
@@ -30,10 +45,10 @@ const FRAME_MIME = "image/jpeg";
  */
 export async function extractVideoFrames(
     videoPath: string,
-    count: number = VIDEO_CAPTION_FRAMES
+    count?: number
 ): Promise<VisionImageInput[]> {
     const duration = await probeDuration(videoPath);
-    const n = Math.max(1, Math.floor(count));
+    const n = Math.max(1, Math.floor(count ?? pickCaptionFrameCount(duration)));
     const workdir = mkdtempSync(join(tmpdir(), "asset-frames-"));
     try {
         const frames: VisionImageInput[] = [];
