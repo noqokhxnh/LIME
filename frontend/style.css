@@ -3645,7 +3645,8 @@ h2.sec em {
 }
 
 .pdesc {
-    font-size: 13.5px;
+    /* Issue #130: nâng chữ mô tả nội dung lên 16px theo thang typography */
+    font-size: 16px;
     color: var(--muted);
     margin: 8px 0 18px;
     line-height: 1.55;
@@ -3665,7 +3666,8 @@ h2.sec em {
 }
 
 .feats li {
-    font-size: 13.5px;
+    /* Issue #130: nâng chữ nội dung danh sách tính năng lên 16px */
+    font-size: 16px;
     display: flex;
     gap: 10px;
     align-items: flex-start;
@@ -3891,7 +3893,8 @@ h2.sec em {
     padding: 20px 24px;
     overflow-y: auto;
     flex: 1;
-    font-size: 14px;
+    /* Issue #130: nâng chữ nội dung điều khoản lên 16px */
+    font-size: 16px;
     line-height: 1.6;
     color: #3f3f46;
 }
