@@ -159,12 +159,13 @@ body.ws .ws-main{flex:1;display:none;min-height:0;
 body.ws .ws-main.on{display:grid}
 body.ws .panel{background:var(--wpanel);border-right:1px solid var(--wline);
   display:flex;flex-direction:column;min-height:0;min-width:0}
-/* Issue #129 — typography: giảm giãn chữ tiêu đề panel cho dễ đọc lướt,
-   nâng mọi cỡ chữ nội dung trong panel lên tối thiểu 11px (nhãn đè trên thumbnail giữ nguyên) */
+/* Issue #129 — typography & khoảng cách: giảm giãn chữ tiêu đề panel cho dễ đọc lướt,
+   nâng mọi cỡ chữ nội dung trong panel lên tối thiểu 11px (nhãn đè trên thumbnail giữ nguyên);
+   padding panel tăng lên 16px để chữ không áp sát mép màn hình */
 body.ws .p-head{height:40px;flex:none;display:flex;align-items:center;justify-content:space-between;
-  padding:0 14px;border-bottom:1px solid var(--wline);font-size:12px;font-weight:700;
+  padding:0 16px;border-bottom:1px solid var(--wline);font-size:12px;font-weight:700;
   letter-spacing:0.8px;text-transform:uppercase;color:var(--wmuted)}
-body.ws .p-body{flex:1;overflow-y:auto;overflow-x:hidden;padding:14px;display:flex;flex-direction:column;gap:12px;min-height:0}
+body.ws .p-body{flex:1;overflow-y:auto;overflow-x:hidden;padding:16px;display:flex;flex-direction:column;gap:12px;min-height:0}
 body.ws .p-body::-webkit-scrollbar{width:8px}
 body.ws .p-body::-webkit-scrollbar-thumb{background:var(--wline);border-radius:8px}
 body.ws #panel-left{grid-area:left}
