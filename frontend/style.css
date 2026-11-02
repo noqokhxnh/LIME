@@ -4034,11 +4034,14 @@ h2.sec em {
 
 @media (max-width: 640px) {
 
+    /* Issue #130: bổ sung .price-head và .foot vào danh sách lề mobile 20px — trước đây thiếu hai khối này nên chữ sát mép màn hình ở 390px */
     .wrap,
     .hero,
     .tpl-head,
     .tpl-grid,
-    .plans {
+    .plans,
+    .price-head,
+    .foot {
         padding-left: 20px;
         padding-right: 20px;
     }
@@ -4303,6 +4306,8 @@ h2.sec em {
 .tplp-term-clock {
     font-family: var(--font-mono);
     font-size: 44px;
+    /* Issue #130: đặt chiều cao dòng rõ ràng để đỉnh chữ số không bị cắt (trước đây kế thừa line-height hẹp từ khung cha) */
+    line-height: 1.15;
     font-weight: 600;
     color: #EDEDE6;
     letter-spacing: 2px;
