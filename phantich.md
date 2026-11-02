@@ -18,7 +18,7 @@ Quyết định đã chốt: poster làm ảnh tĩnh 16:9 riêng từ logo có s
 - ✅ Bước 1: Màu tương phản — đổi biến `--wdim` đạt WCAG AA. *(commit `2cc8109`)*
 - ✅ Bước 2: Typography — giảm giãn chữ tiêu đề panel, nâng chữ nội dung lên tối thiểu 11px. *(commit `ceb7e67`)*
 - ✅ Bước 3: Padding panel 14px → 16px. *(commit `0fe6f34`)*
-- ⏳ Bước 4: Đổ bóng — chờ leader trả lời câu hỏi trong comment trên issue (có thể đóng mà không sửa code).
+- ✅ Bước 4: Đổ bóng — ĐÃ CHỐT giữ nguyên, không sửa code (xem chi tiết Bước 4).
 - Bước 5: Thẻ `<h1>` cho tên dự án (nhóm A) — lồng nút bấm vào trong `<h1>`.
 - Bước 6: Poster cho video (nhóm A) — tạo ảnh 16:9 + khai báo thuộc tính `poster`.
 - Bước 7: Responsive khung chính (nhóm C1) — sửa viewport, bỏ khóa cứng `min-width`, xếp dọc 3 cột dưới 1180px.
@@ -41,9 +41,9 @@ Quyết định đã chốt: poster làm ảnh tĩnh 16:9 riêng từ logo có s
 ### Bước 3: Padding panel 14px → 16px — ✅ ĐÃ XONG (`0fe6f34`)
 - **Sửa:** `.p-head` `padding:0 14px` → `0 16px`; `.p-body` `padding:14px` → `16px`. Đã né đúng phạm vi: `padding:0 14px` còn xuất hiện ở `.tl-tools` và `.statusbar`, `padding:14px` ở `.monitor-host` — cả 3 đều ngoài phạm vi issue, giữ nguyên.
 
-### Bước 4: Đổ bóng — ⏳ CHỜ LEADER
+### Bước 4: Đổ bóng — ✅ ĐÃ CHỐT (giữ nguyên, không sửa code)
 - **Phát hiện:** giá trị đổ bóng nặng trong issue (`rgba(0,0,0,0.25) 0px 25px 60px -15px`) không tồn tại trong `workspace.css`/`workspace.html` trên main. Đổ bóng mạnh nhất đang có là ở `.ws-user-dropdown` (dòng 103) — menu nổi, về nguyên tắc cần đổ bóng để tách lớp.
-- **Trạng thái:** câu hỏi xác nhận đã nằm trong comment trên issue từ Bước 0, leader chưa trả lời. Nếu leader bảo bỏ qua → bước này đóng bằng comment, không commit code. Nếu leader vẫn muốn giảm → chỉ giảm nhẹ shadow của `.ws-user-dropdown` (ví dụ `0 4px 12px rgba(20,22,15,.08)`), commit riêng.
+- **Quyết định (Tuấn chốt 03/11/2026):** giữ nguyên đổ bóng hiện tại, bước này đóng mà không có commit code. Leader chưa trả lời câu hỏi trong comment trên issue — nếu sau này leader yêu cầu giảm, mở lại bước này và chỉ giảm nhẹ shadow của `.ws-user-dropdown` (ví dụ `0 4px 12px rgba(20,22,15,.08)`), commit riêng.
 
 ### Bước 5: Thẻ `<h1>` cho tên dự án (nhóm A)
 - **Hiện trạng (đã khảo sát):** `frontend/workspace.html` dòng 26 — tên dự án là `<button class="proj-name" id="proj-name">`, và nó có chức năng thật: `workspace.js` lấy phần tử này để hiện tên dự án (dòng 500, 782–786) và gắn sự kiện click để tạo dự án mới (dòng 2060 `addEventListener('click', resetProject)`).
