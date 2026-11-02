@@ -95,6 +95,8 @@ Thứ tự có chủ đích: việc đo đếm được và ít rủi ro làm tr
 - Kiểm chứng: đếm số dòng hiển thị dự kiến ở 3 bề ngang bằng tính toán cỡ chữ × độ dài dòng; grep xác nhận cấu trúc h1 mới; kiểm chứng trực quan nhờ user mở thử.
 - Commit: "gọn tiêu đề hero còn 2 dòng và tăng kích thước khung video (issue #130)".
 
+> **Quyết định chốt khi thực thi Bước 6 (2026-11-03):** Đo thực tế cho thấy phương án A (gộp 2 dòng, giữ nguyên chữ) không khả thi: dòng gộp dài 26 ký tự chỉ vừa cột chữ desktop khi hạ cỡ chữ xuống ~47px và vừa 390px khi hạ xuống ~30px — phá mất điểm nhấn. Đồng thời đo kiểm chứng: 3 dòng hiện tại (15/13/≤11 ký tự) **không tự gãy thêm ở bất kỳ bề ngang nào** (390/768/1440 đều vừa). Chốt: **giữ nguyên câu chữ và cơ chế xoay chữ** (câu chữ trang chủ là quyết định nội dung của leader, không tự ý viết lại trong một PR audit giao diện); mục "tối đa 2 dòng" của checklist sẽ được ghi rõ trong PR để leader xác nhận hoặc yêu cầu câu mới nếu muốn. Phần điểm nhấn vẫn thực thi: tăng kích thước khung video `.shot-main` từ 500px lên tối đa 580px (diện tích video tăng ~34%).
+
 ### Bước 7 — Văn bản bị che khuất (checklist mục 4)
 - File sửa: `frontend/style.css` (chỉ khi tìm được gốc rễ trong CSS).
   - Rà soát 3 vị trí audit nêu: chữ logo "lime.", câu slogan hero, tiêu đề "Mẫu thiết kế & kịch bản" — tìm phần tử chồng lấp (position absolute/fixed, z-index, transform) trong CSS tương ứng.
