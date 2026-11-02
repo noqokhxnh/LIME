@@ -3678,22 +3678,26 @@ h2.sec em {
 }
 
 .feats li::before {
-    content: "✓";
+    content: "";
     flex: none;
     width: 20px;
     height: 20px;
     border-radius: 50%;
     background: var(--soft);
-    color: var(--lime-ink);
-    font-size: 11px;
-    font-weight: 700;
-    display: flex;
-    align-items: center;
-    justify-content: center;
+    /* Issue #130: thay ký tự ✓ dạng chữ bằng icon SVG vẽ sẵn cho đồng bộ với hệ icon */
+    background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%2322300A' stroke-width='3.4' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M4 12.5l5 5L20 6.5'/%3E%3C/svg%3E");
+    background-repeat: no-repeat;
+    background-position: center;
+    background-size: 11px 11px;
 }
 
 .plan.hot .feats li::before {
     background: rgba(185, 231, 43, 0.16);
+    /* Issue #130: bản SVG dấu tick màu sáng cho thẻ gói nổi bật (nền tối) — phải khai lại đủ thuộc tính nền vì shorthand background ở trên đặt lại chúng */
+    background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%23B9E72B' stroke-width='3.4' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M4 12.5l5 5L20 6.5'/%3E%3C/svg%3E");
+    background-repeat: no-repeat;
+    background-position: center;
+    background-size: 11px 11px;
     color: var(--lime);
 }
 
