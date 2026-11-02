@@ -627,3 +627,14 @@ body.ws.board-open .lime-support-root{display:none}
     object-fit: cover;
     border-radius: 50%;
 }
+
+/* ============ Issue #129 — responsive dưới 1180px: xếp dọc 3 cột ============
+   Thứ tự ưu tiên khi xếp dọc: khung video (center) → cột trái (left) → cột phải (right).
+   Mọi thay đổi responsive nằm gọn trong khối này để desktop không bị ảnh hưởng. */
+@media (max-width: 1179px){
+  body.ws{min-width:0;height:auto;overflow:visible}
+  body.ws .ws-main{grid-template-columns:1fr;grid-template-rows:none;grid-template-areas:"center" "left" "right"}
+  body.ws .panel{border-right:none;border-bottom:1px solid var(--wline)}
+  body.ws #panel-right{border-left:none}
+  body.ws .p-body{overflow:visible}
+}
