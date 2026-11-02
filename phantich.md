@@ -104,6 +104,8 @@ Thứ tự có chủ đích: việc đo đếm được và ít rủi ro làm tr
 - Kiểm chứng: đối chiếu từng vị trí: xác định được phần tử che + sửa + grep diff đúng phạm vi, hoặc báo cáo không tái hiện được kèm bằng chứng.
 - Commit (nếu sửa được): "sửa lỗi văn bản bị che khuất do chồng lấp bố cục (issue #130)".
 
+> **Kết quả điều tra Bước 7 (2026-11-03) — không tái hiện được bằng phân tích tĩnh, không sửa code:** Đã rà soát cả 3 vị trí audit nêu. (1) Logo "lime.": thanh nav cố định `z-index: 60` là lớp chrome trên cùng ở trạng thái mặc định; các lớp cao hơn (z-index 9999/10000) đều là modal đang ẩn. (2) Slogan hero: lớp phủ duy nhất là `#home::before` — gradient trang trí trong suốt (alpha tối đa 0.28, `pointer-events: none`), và khối `.hero` có `position: relative` nên nội dung luôn vẽ phía trên; hộp từ xoay (`.flip-word-box`) nằm trong luồng thường, không chồng lấp. (3) Tiêu đề "Mẫu thiết kế & kịch bản": nằm trong luồng thường của section `#templates`. Cả 3 section đều đã bù chiều cao nav cố định bằng `padding-top: 76px`. Khả năng cao công cụ audit (CDP) đã tính các gradient trang trí trong suốt là "che khuất", hoặc đo trong lúc chuyển cảnh cuộn/modal đang mở. Nội dung này sẽ ghi vào mô tả PR: nhờ leader kiểm tra lại bằng công cụ audit; nếu vẫn còn, xin ảnh chụp kèm độ phân giải và trạng thái trang để xử lý tiếp thay vì sửa mò.
+
 ### Bước 8 — Giản lược pill/eyebrow + ký tự trang trí (checklist mục 7)
 - File sửa: `frontend/index.html`, `frontend/style.css`.
   - Phạm vi giữ hẹp và cụ thể: liệt kê toàn bộ nhãn pill/eyebrow đang có trên trang (grep class eyebrow/pill/kicker khi thực thi), chỉ **gỡ những nhãn trùng lặp ý với tiêu đề ngay dưới nó** hoặc nhãn trang trí thuần túy không mang thông tin; giữ lại tối đa 1 eyebrow cho mỗi section chính.
