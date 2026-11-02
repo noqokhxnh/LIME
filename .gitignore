@@ -28,3 +28,6 @@ data/*
 
 # Backup env chứa secret (lime-activate-secrets.sh)
 .env.bak-*
+
+# Taste skill inspection artifacts
+.taste-skill/
