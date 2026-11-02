@@ -1,7 +1,7 @@
 /* ============ LIME Workspace v2 — light Premiere-style editor ============ */
 body.ws{
   --wbg:#F3F5EF; --wpanel:#FFFFFF; --wpanel2:#F8F9F5; --wline:#E1E5DA;
-  --wtxt:#20251B; --wmuted:#626A58; --wdim:#818978;
+  --wtxt:#20251B; --wmuted:#626A58; --wdim:#52584A; /* màu chữ phụ: tương phản 7.36:1 trên nền trắng, đạt chuẩn WCAG AA (issue #129) */
   --wlime:#65A30D; --wdeep:#84CC16; --wink:#1A2E05;
   --wcaro:linear-gradient(rgba(32,37,27,.045) 1px,transparent 1px),
           linear-gradient(90deg,rgba(32,37,27,.045) 1px,transparent 1px);
