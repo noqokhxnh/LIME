@@ -124,15 +124,15 @@ CREATE TABLE IF NOT EXISTS brand_kits (
 /**
  * Câu lệnh SQL khởi tạo bảng assets (Thư viện asset #103).
  *
- * Lưu ảnh + video do người dùng tự upload để LLM chèn vào kịch bản thay vì
- * chỉ dùng ảnh stock Pixabay. Khác brand_kits (1 user = 1 bản ghi): mỗi user
- * có NHIỀU asset, mỗi asset một bản ghi.
+ * Lưu ảnh do người dùng tự upload để LLM chèn vào kịch bản thay vì chỉ dùng
+ * ảnh stock Pixabay. Khác brand_kits (1 user = 1 bản ghi): mỗi user có NHIỀU
+ * asset, mỗi asset một bản ghi.
  *
  * Các cột:
  *   - id              : UUID, cũng là tên file trên đĩa (tmp/uploads/assets/<id>.<ext>)
  *   - user_id         : chủ sở hữu asset (chỉ chủ hoặc admin được list/xoá)
- *   - kind            : 'image' | 'video'
- *   - mime_type       : MIME thật sau khi validate (png/jpeg/webp/svg/mp4/webm)
+ *   - kind            : 'image' (từ khi bỏ hỗ trợ video, luôn là ảnh)
+ *   - mime_type       : MIME thật sau khi validate (png/jpeg/webp/svg)
  *   - file_path       : đường dẫn tuyệt đối trên server (do server sinh, không phải client)
  *   - url             : URL tĩnh "/uploads/assets/<id>.<ext>" cho frontend hiển thị
  *   - description     : mô tả do người dùng nhập — DỮ LIỆU KHÔNG ĐÁNG TIN (có thể

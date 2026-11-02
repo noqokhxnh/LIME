@@ -111,10 +111,9 @@ export const sceneSchema = z.object({
     /** Từ khoá tìm ảnh stock thật (Pixabay) cho scene — hệ thống điền vào {{SCENE_IMAGE}} */
     footageQuery: z.string().max(120).optional(),
     /**
-     * Asset người dùng tự upload (#103) cho scene này. Mỗi phần tử là id asset
-     * (ảnh hoặc video) đã upload; hệ thống thay token {{SCENE_IMAGE*}} bằng ảnh
-     * và {{SCENE_VIDEO*}} bằng video theo đúng thứ tự xuất hiện của từng loại.
-     * Ảnh ưu tiên hơn footageQuery cho cùng scene.
+     * Asset người dùng tự upload (#103) cho scene này. Mỗi phần tử là id ảnh
+     * đã upload; hệ thống thay token {{SCENE_IMAGE*}} theo đúng thứ tự xuất
+     * hiện. Ảnh ưu tiên hơn footageQuery cho cùng scene.
      */
     assetIds: z.array(z.string().min(1).max(120)).max(10).optional(),
     characterActions: z.array(characterActionItemSchema).optional(),

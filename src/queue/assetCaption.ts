@@ -9,7 +9,7 @@ import { captionAsset } from '../pipeline/assetCaption.js';
 // File: src/queue/assetCaption.ts
 //
 // Sau khi upload asset, API đẩy một job nền để gọi vision model mô tả nội dung
-// ảnh/video rồi ghi ngược vào cột description + tags. Tách khỏi request upload
+// ảnh rồi ghi ngược vào cột description + tags. Tách khỏi request upload
 // để upload không phải chờ gọi model (có thể vài giây).
 //
 // Theo đúng khuôn của billing/queue.ts: BullMQ khi có Redis, memory fallback

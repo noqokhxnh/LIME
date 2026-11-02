@@ -2,7 +2,7 @@ import { getConfig } from "../config.js";
 import { getCandidateBaseURLs, getAuto9RouterKey } from "./client.js";
 
 // ============================================================
-// VISION MODEL (#103) — mô tả asset ảnh/video tự động
+// VISION MODEL (#103) — mô tả asset ảnh tự động
 // File: src/llm/vision.ts
 //
 // Dùng mô hình multimodal (mặc định ag/gemini-3.8-flash-high qua 9router,

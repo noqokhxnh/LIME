@@ -33,7 +33,6 @@ export {
 
 export interface assembleOptions {
     imageMap?: Record<string, string[]>;
-    videoMap?: Record<string, string[]>;
     wordTimings?: Record<string, WordTiming[]>;
     karaoke?: boolean | KaraokeConfig;
     safeArea?: boolean;
@@ -174,8 +173,7 @@ window.__fx = function(type, opts) {
 export function processSceneCode(
     scene: scene,
     duration: number,
-    imageUrls: string[] = [],
-    videoUrls: string[] = []
+    imageUrls: string[] = []
 ): { html: string; css: string; js: string } {
     let html = scene.htmlCode || "";
     let css = scene.cssCode || "";
@@ -202,18 +200,6 @@ export function processSceneCode(
         .replace(/\{\{SCENE_IMAGE_1\}\}/g, img1)
         .replace(/\{\{SCENE_IMAGE_2\}\}/g, img2)
         .replace(/\{\{SCENE_IMAGE_3\}\}/g, img3);
-
-    // Thay the cac token video (asset nguoi dung upload, #103). Khong co asset
-    // video thi token bien mat (src="" thay vi transparent GIF nhu anh).
-    const vid1 = videoUrls[0] || "";
-    const vid2 = videoUrls[1] || "";
-    const vid3 = videoUrls[2] || "";
-
-    html = html
-        .replace(/\{\{SCENE_VIDEO\}\}/g, vid1)
-        .replace(/\{\{SCENE_VIDEO_1\}\}/g, vid1)
-        .replace(/\{\{SCENE_VIDEO_2\}\}/g, vid2)
-        .replace(/\{\{SCENE_VIDEO_3\}\}/g, vid3);
 
     // Dam bao container scene co du id va class scene
     if (!html.includes(`id="${scene.id}"`) && !html.includes(`id='${scene.id}'`)) {
@@ -251,14 +237,12 @@ export async function assembleHTML(
         : (options?.jobId ? hashString32(options.jobId) : (hashString32(script.id || script.title || "vidtml-seed") >>> 0));
 
     const imageMap = options?.imageMap || {};
-    const videoMap = options?.videoMap || {};
     const processedScenes: { id: string; html: string; css: string; js: string; duration: number; characterActions?: CharacterActionItem[]; camera: ResolvedCamera; ambient: ResolvedAmbient[] }[] = [];
 
     for (const scene of script.scenes) {
         const sceneDur = durations[scene.id] ?? 3.0;
         const images = imageMap[scene.id] || [];
-        const videos = videoMap[scene.id] || [];
-        const processed = processSceneCode(scene, sceneDur, images, videos);
+        const processed = processSceneCode(scene, sceneDur, images);
 
         let sceneHtml = processed.html;
         const safeId = scene.id.replace(/[^a-zA-Z0-9_]/g, "_");

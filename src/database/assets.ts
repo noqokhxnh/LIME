@@ -7,9 +7,9 @@ import { ASSETS_DIR } from '../security/uploadGuard.js';
 // MODULE TRUY CẬP DỮ LIỆU: THƯ VIỆN ASSET (#103)
 // File: src/database/assets.ts
 //
-// Mục tiêu: Cung cấp các hàm đọc/ghi/xoá asset (ảnh + video) của người
-//           dùng trong bảng assets. Mọi hàm đều gắn với user_id để đảm bảo
-//           ownership: chỉ chủ sở hữu (hoặc admin) mới được list/đọc/xoá.
+// Mục tiêu: Cung cấp các hàm đọc/ghi/xoá asset (ảnh) của người dùng trong
+//           bảng assets. Mọi hàm đều gắn với user_id để đảm bảo ownership:
+//           chỉ chủ sở hữu (hoặc admin) mới được list/đọc/xoá.
 // ============================================================
 
 export type AssetKind = 'image' | 'video';
@@ -176,7 +176,7 @@ export async function deleteAssetByIdForUser(id: string, userId: string): Promis
     return (result.rowCount ?? 0) > 0;
 }
 
-const SAFE_ASSET_BASENAME = /^[A-Za-z0-9][A-Za-z0-9._-]*\.(png|jpg|jpeg|svg|webp|mp4|webm)$/i;
+const SAFE_ASSET_BASENAME = /^[A-Za-z0-9][A-Za-z0-9._-]*\.(png|jpg|jpeg|svg|webp)$/i;
 
 /**
  * Dọn file asset mồ côi: file nằm trong ASSETS_DIR nhưng không còn dòng DB

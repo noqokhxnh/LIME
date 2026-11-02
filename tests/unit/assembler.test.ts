@@ -140,32 +140,6 @@ describe('Module 6: HTML & GSAP Packaging (src/pipeline/assembleHtml.ts)', () =>
         });
     });
 
-    describe('TC-ASM-002B: Thay thế token video asset ({{SCENE_VIDEO}})', () => {
-        it('phải thay token video bằng file URL đúng thứ tự', () => {
-            const sceneWithVideos: scene = {
-                ...mockScene,
-                htmlCode: '<video src="{{SCENE_VIDEO}}"></video><video src="{{SCENE_VIDEO_2}}"></video>',
-            };
-
-            const videos = ['file:///tmp/vid-a.mp4', 'file:///tmp/vid-b.webm'];
-            const result = processSceneCode(sceneWithVideos, 3.0, [], videos);
-
-            assert.match(result.html, /src="file:\/\/\/tmp\/vid-a\.mp4"/);
-            assert.match(result.html, /src="file:\/\/\/tmp\/vid-b\.webm"/);
-        });
-
-        it('phải biến token video thành chuỗi rỗng khi không có video asset', () => {
-            const sceneWithVideos: scene = {
-                ...mockScene,
-                htmlCode: '<video src="{{SCENE_VIDEO}}"></video>',
-            };
-
-            const result = processSceneCode(sceneWithVideos, 3.0, [], []);
-            assert.match(result.html, /<video src="">/);
-            assert.ok(!result.html.includes('{{SCENE_VIDEO}}'));
-        });
-    });
-
     describe('TC-ASM-003: Tự động bọc Scene Container nếu thiếu ID', () => {
         it('phải bọc container <div class="scene" id="..."> khi htmlCode chưa có container', () => {
             const bareScene: scene = {

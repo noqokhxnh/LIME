@@ -164,7 +164,7 @@ export async function processVideoJob(data: JobData, updateProgress: (p: JobProg
         script = await autoDirectScript(clean, updateProgress);
     }
 
-    // Asset người dùng upload (#103): resolve id -> ảnh/video (đã kiểm ownership
+    // Asset người dùng upload (#103): resolve id -> ảnh (đã kiểm ownership
     // qua user_id). Lỗi DB/đọc file không làm hỏng job — bỏ qua như không có asset.
     // Gộp assetIds từ BOTH request (top-level) và từng scene trong script đã duyệt
     // (HITL): route /api/script/draft trả scene.assetIds do LLM chọn, client gửi

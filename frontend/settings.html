@@ -334,7 +334,7 @@
             justify-content: center;
             overflow: hidden;
         }
-        .asset-thumb img, .asset-thumb video {
+        .asset-thumb img {
             width: 100%;
             height: 100%;
             object-fit: cover;
@@ -565,12 +565,12 @@
         <div class="tab-panel" id="tab-asset-library">
             <div class="card-panel">
                 <h3>Thư viện Asset</h3>
-                <p class="card-subtitle">Upload ảnh + video để dùng trong video. Ảnh: PNG/JPG/WEBP/SVG ≤10MB. Video: MP4/WEBM ≤200MB.</p>
+                <p class="card-subtitle">Upload ảnh để dùng trong video. Ảnh: PNG/JPG/WEBP/SVG ≤10MB.</p>
 
                 <div class="form-row-2">
                     <div class="form-group">
-                        <label class="form-label">Tải lên ảnh / video:</label>
-                        <input type="file" id="asset-file-input" accept="image/png,image/jpeg,image/webp,image/svg+xml,video/mp4,video/webm" class="form-control" style="padding: 0.5rem;" multiple>
+                        <label class="form-label">Tải lên ảnh:</label>
+                        <input type="file" id="asset-file-input" accept="image/png,image/jpeg,image/webp,image/svg+xml" class="form-control" style="padding: 0.5rem;" multiple>
                     </div>
                 </div>
                 <div style="margin-top: 1rem;">
@@ -987,7 +987,7 @@
                 }
             });
 
-            // Asset library (#103): upload / list / xóa ảnh + video
+            // Asset library (#103): upload / list / xóa ảnh
             const assetGrid = document.getElementById('asset-grid');
             const assetCountText = document.getElementById('asset-count-text');
             const assetFileInput = document.getElementById('asset-file-input');
@@ -1003,7 +1003,7 @@
             function renderAssetGrid(assets) {
                 if (assetCountText) {
                     assetCountText.textContent = assets.length
-                        ? `${assets.length} asset · ${assets.filter(a => a.kind === 'image').length} ảnh · ${assets.filter(a => a.kind === 'video').length} video`
+                        ? `${assets.length} asset · ${assets.filter(a => a.kind === 'image').length} ảnh`
                         : 'Chưa có asset nào.';
                 }
                 if (!assetGrid) return;
@@ -1016,23 +1016,15 @@
 
                     const thumb = document.createElement('div');
                     thumb.className = 'asset-thumb';
-                    if (a.kind === 'video') {
-                        const v = document.createElement('video');
-                        v.src = a.url;
-                        v.preload = 'metadata';
-                        v.muted = true;
-                        thumb.appendChild(v);
-                    } else {
-                        const img = document.createElement('img');
-                        img.src = a.url;
-                        img.alt = a.description || 'asset';
-                        img.loading = 'lazy';
-                        thumb.appendChild(img);
-                    }
+                    const img = document.createElement('img');
+                    img.src = a.url;
+                    img.alt = a.description || 'asset';
+                    img.loading = 'lazy';
+                    thumb.appendChild(img);
 
                     const badge = document.createElement('span');
                     badge.className = 'asset-kind-badge';
-                    badge.textContent = a.kind === 'video' ? 'video' : 'ảnh';
+                    badge.textContent = 'ảnh';
                     thumb.appendChild(badge);
 
                     const del = document.createElement('button');
@@ -1061,7 +1053,7 @@
                     meta.className = 'asset-meta';
                     const desc = document.createElement('div');
                     desc.className = 'asset-desc';
-                    desc.textContent = a.description || (a.kind === 'video' ? 'Video' : 'Ảnh');
+                    desc.textContent = a.description || 'Ảnh';
                     desc.title = a.description || '';
                     const size = document.createElement('div');
                     size.className = 'asset-size';

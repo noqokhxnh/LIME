@@ -31,10 +31,10 @@ import { IVideoQueue, isJobIdConflict } from "./queue/interfaces.js";
 import { resolveJobVideoPath } from "./queue/jobVideo.js";
 import { validatePrompt } from "./security/promptGuard.js";
 import { rateLimiter } from "./security/rateLimiter.js";
-import { validateUploadedFile, generateSafeFilePath, resolveBgmPath, validateUploadedAsset, generateSafeAssetFilePath, resolveAssetPath, MAX_VIDEO_ASSET_BYTES } from "./security/uploadGuard.js";
+import { validateUploadedFile, generateSafeFilePath, resolveBgmPath, validateUploadedAsset, generateSafeAssetFilePath, resolveAssetPath, MAX_IMAGE_ASSET_BYTES } from "./security/uploadGuard.js";
 import { isSafeJobId, safeJobDir } from "./queue/jobPaths.js";
 import { getBrandKitByUserId, upsertBrandKit } from "./database/brandKit.js";
-import { createAsset, listAssetsByUserId, getAssetByIdForUser, deleteAssetByIdForUser, getAssetsByIdsForUser, getAssetUsageForUser, cleanupOrphanedAssetFiles, type AssetKind, type AssetRow } from "./database/assets.js";
+import { createAsset, listAssetsByUserId, getAssetByIdForUser, deleteAssetByIdForUser, getAssetsByIdsForUser, getAssetUsageForUser, cleanupOrphanedAssetFiles, type AssetRow } from "./database/assets.js";
 import { getAssetCaptionQueue } from "./queue/assetCaption.js";
 import { getCatalog, listBlueprints, listMotionBlocks } from "./templates/index.js";
 import { adminRoutes } from "./admin/routes.js";
@@ -59,16 +59,16 @@ export async function buildApp(options: { logger?: boolean, queue?: IVideoQueue 
     await app.register(fastifyCookie);
 
     // Đăng ký plugin xử lý upload file (multipart/form-data).
-    // Giới hạn kích thước mỗi file 200MB — mức tối đa cho VIDEO asset (#103).
+    // Giới hạn kích thước mỗi file 10MB — mức tối đa cho ảnh asset (#103).
     // Các route ảnh (logo/avatar/ticket) tự chặn sớm bằng validateUploadedFile
-    // (5MB/2MB) sau khi đọc buffer; trần 200MB chỉ là mức cắt của multipart
-    // để video 200MB lọt qua, không phải trần chấp nhận của mọi route.
+    // (5MB/2MB) sau khi đọc buffer; trần 10MB chỉ là mức cắt của multipart
+    // để ảnh asset 10MB lọt qua, không phải trần chấp nhận của mọi route.
     // LƯU Ý: phải đăng ký TRƯỚC mọi plugin chứa route dùng `request.file()`
     // (@fastify/multipart thêm content-type parser ở scope nơi nó boot — đăng ký
     // sau sẽ làm các scope route đã tồn tại không thấy parser và trả 415).
     await app.register(fastifyMultipart, {
         limits: {
-            fileSize: MAX_VIDEO_ASSET_BYTES, // 200MB
+            fileSize: MAX_IMAGE_ASSET_BYTES, // 10MB
             files: 1,                         // Chỉ chấp nhận 1 file mỗi request
         },
     });
@@ -118,7 +118,7 @@ export async function buildApp(options: { logger?: boolean, queue?: IVideoQueue 
         },
     });
 
-    // Thư viện asset (#103): ảnh + video người dùng upload, phục vụ tĩnh
+    // Thư viện asset (#103): ảnh người dùng upload, phục vụ tĩnh
     // kèm headers bảo mật giống logo. Tên file UUID do server sinh.
     const assetsDir = join(process.cwd(), "tmp", "uploads", "assets");
     mkdirSync(assetsDir, { recursive: true });
@@ -621,7 +621,7 @@ export async function buildApp(options: { logger?: boolean, queue?: IVideoQueue 
                 count: variantCount,
             });
 
-            // Asset người dùng upload (#103): đưa metadata ảnh + video vào prompt
+            // Asset người dùng upload (#103): đưa metadata ảnh vào prompt
             // để LLM chọn assetIds. Kiểm ownership qua getAssetsByIdsForUser (user_id).
             let assets: AssetRow[] = [];
             const assetIds = reqData.assetIds ?? [];
@@ -1241,11 +1241,11 @@ export async function buildApp(options: { logger?: boolean, queue?: IVideoQueue 
         reply.type("video/mp4").send(createReadStream(videoPath));
     });
     // ──────────────────────────────────────────────────────────────
-    // THƯ VIỆN ASSET (#103): upload ảnh (≤10MB) + video (≤200MB), list, xoá.
+    // THƯ VIỆN ASSET (#103): upload ảnh (≤10MB), list, xoá.
     //
-    // Trần multipart toàn cục đã nâng lên 200MB cho video. Ảnh vẫn bị chặn
-    // bởi validateUploadedAsset (≤10MB). Mô tả/tag đọc qua query string để
-    // không phụ thuộc thứ tự field trong multipart.
+    // Trần multipart toàn cục là 10MB. Ảnh bị chặn bởi validateUploadedAsset
+    // (≤10MB). Mô tả/tag đọc qua query string để không phụ thuộc thứ tự field
+    // trong multipart.
     // ──────────────────────────────────────────────────────────────
     // Mô tả/tag là dữ liệu người dùng nhập — KHÔNG đáng tin (prompt
     // injection). Chỉ gom lạc khoảng an toàn về độ dài, chưa escape; bước
@@ -1285,13 +1285,13 @@ export async function buildApp(options: { logger?: boolean, queue?: IVideoQueue 
             }
             if (data.file.truncated) {
                 reply.status(413);
-                return { error: `File vượt quá dung lượng cho phép (tối đa ${Math.round(MAX_VIDEO_ASSET_BYTES / 1024 / 1024)}MB).` };
+                return { error: `File vượt quá dung lượng cho phép (tối đa ${Math.round(MAX_IMAGE_ASSET_BYTES / 1024 / 1024)}MB).` };
             }
 
             const fileBuffer = Buffer.concat(chunks);
             const mimeType = data.mimetype || 'application/octet-stream';
 
-            // Bảo mật 3 tầng (ảnh ≤10MB, video ≤200MB, magic bytes, SVG sanitize)
+            // Bảo mật 3 tầng (ảnh ≤10MB, magic bytes, SVG sanitize)
             const validation = validateUploadedAsset(fileBuffer, mimeType);
             if (!validation.isValid) {
                 reply.status(400);
@@ -1311,7 +1311,7 @@ export async function buildApp(options: { logger?: boolean, queue?: IVideoQueue 
                 return { error: `Vượt tổng dung lượng thư viện cho phép (${Math.round(quota.ASSET_MAX_TOTAL_BYTES_PER_USER / 1024 / 1024)}MB).` };
             }
 
-            const kind: AssetKind = mimeType.startsWith('video/') ? 'video' : 'image';
+            const kind = 'image' as const;
             const savePath = generateSafeAssetFilePath(mimeType);
 
             if (mimeType === 'image/svg+xml') {

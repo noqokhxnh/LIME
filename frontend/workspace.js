@@ -1531,7 +1531,7 @@ function renderPromptAssets() {
     if (!all.length) {
         const empty = document.createElement('p');
         empty.className = 'rb-assets-empty';
-        empty.textContent = 'Chưa có ảnh/video nào. Bấm + để thêm.';
+        empty.textContent = 'Chưa có ảnh nào. Bấm + để thêm.';
         promptAssetsGrid.appendChild(empty);
         return;
     }
@@ -1594,27 +1594,11 @@ function assetThumb(a, opts = {}) {
     const el = document.createElement('div');
     el.className = 'rb-asset' + (selected ? ' on' : '');
     el.title = a.description || a.mimeType || '';
-    const isVideo = a.kind === 'video';
-    if (isVideo) {
-        const v = document.createElement('video');
-        v.src = a.url;
-        v.muted = true;
-        v.preload = 'metadata';
-        v.setAttribute('playsinline', '');
-        el.appendChild(v);
-    } else {
-        const img = document.createElement('img');
-        img.src = a.url;
-        img.alt = a.description || 'asset';
-        img.loading = 'lazy';
-        el.appendChild(img);
-    }
-    if (isVideo) {
-        const badge = document.createElement('span');
-        badge.className = 'rb-asset-kind';
-        badge.textContent = 'VID';
-        el.appendChild(badge);
-    }
+    const img = document.createElement('img');
+    img.src = a.url;
+    img.alt = a.description || 'asset';
+    img.loading = 'lazy';
+    el.appendChild(img);
     if (selected) {
         const chk = document.createElement('span');
         chk.className = 'rb-asset-check';
@@ -1645,7 +1629,7 @@ function buildAssetLibraryStrip() {
 
     const head = document.createElement('div');
     head.className = 'rb-assets-head';
-    head.innerHTML = '<b>Thư viện của bạn</b><span class="rb-assets-hint">Chọn ảnh/video cho từng cảnh bên dưới · ảnh (PNG/JPG/WEBP/SVG) + video (MP4/WEBM)</span>';
+    head.innerHTML = '<b>Thư viện của bạn</b><span class="rb-assets-hint">Chọn ảnh cho từng cảnh bên dưới · ảnh (PNG/JPG/WEBP/SVG)</span>';
 
     const uploadBtn = document.createElement('button');
     uploadBtn.type = 'button';
@@ -1654,7 +1638,7 @@ function buildAssetLibraryStrip() {
     const fileInput = document.createElement('input');
     fileInput.type = 'file';
     fileInput.hidden = true;
-    fileInput.accept = 'image/png,image/jpeg,image/webp,image/svg+xml,video/mp4,video/webm';
+    fileInput.accept = 'image/png,image/jpeg,image/webp,image/svg+xml';
     fileInput.multiple = true;
     uploadBtn.addEventListener('click', () => fileInput.click());
     fileInput.addEventListener('change', async () => {
@@ -1681,7 +1665,7 @@ function buildAssetLibraryStrip() {
     if (!all.length) {
         const empty = document.createElement('p');
         empty.className = 'rb-assets-empty';
-        empty.textContent = 'Chưa có asset nào. Upload ảnh/video để dùng trong video.';
+        empty.textContent = 'Chưa có asset nào. Upload ảnh để dùng trong video.';
         grid.appendChild(empty);
     } else {
         all.forEach(a => grid.appendChild(assetThumb(a, { selected: false, deletable: true })));
@@ -1690,7 +1674,7 @@ function buildAssetLibraryStrip() {
     return wrap;
 }
 
-/** Bộ chọn asset cho một cảnh: bấm để gắn/bỏ ảnh/video (scene.assetIds). */
+/** Bộ chọn asset cho một cảnh: bấm để gắn/bỏ ảnh (scene.assetIds). */
 function buildSceneAssetPicker(scene) {
     const all = (hitl.assets || []).filter(a => a && a.id);
     if (!all.length) return null;
