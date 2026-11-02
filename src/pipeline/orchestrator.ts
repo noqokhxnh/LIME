@@ -7,6 +7,8 @@ import { generateScript } from "./scriptGenerator";
 import { estimateDuration } from "./estimateDuration";
 import { assembleHTML } from "./assembleHtml.js";
 import { buildSceneImageMap } from "./footage.js";
+import { buildSceneAssetImageMap, imageAssetsOnly, readImageAssetAsDataUri } from "./assets.js";
+import type { AssetRow } from "../database/assets.js";
 import { generatePreviews, PreviewResult } from "./preview";
 import { synthesizeAudio } from "./audioSysnthesis.js";
 import { renderVideo } from "./renderer.js";
@@ -58,6 +60,11 @@ export interface orchestratorOptions {
      * env `LIME_COMPOSITION_STRICT=1` cũng bật.
      */
     compositionStrict?: boolean;
+    /**
+     * Asset người dùng tự upload (#103) cho video này (đã lọc ảnh). Đưa vào
+     * prompt LLM để LLM chọn assetIds, và resolve thành data URI khi render.
+     */
+    assets?: AssetRow[];
 }
 
 export interface fullPipelineResult extends pipelineResult {
@@ -74,6 +81,7 @@ export interface fullPipelineResult extends pipelineResult {
 
 export async function runFullPipeline(option: orchestratorOptions): Promise<fullPipelineResult> {
     const { request, script: inputScript, bgmPath, skipPreview, onProgress, outputDir } = option;
+    const assets = option.assets ?? [];
 
     const jobId = option.jobId ?? v4();
     const defaultSeed = hashString32(jobId);
@@ -131,7 +139,11 @@ export async function runFullPipeline(option: orchestratorOptions): Promise<full
                     (msg: string) => {
                         logProgress("script_generation", 10, msg);
                     },
-                    qaFeedback
+                    qaFeedback,
+                    undefined,
+                    undefined,
+                    undefined,
+                    assets
                 );
                 timing["script_generation"] = Date.now() - phaseStart;
             }
@@ -156,6 +168,25 @@ export async function runFullPipeline(option: orchestratorOptions): Promise<full
                 });
             } catch (footageErr: any) {
                 logProgress("html_assembly", 18, `Warning: footage fetch skipped: ${footageErr?.message || footageErr}`);
+            }
+
+            // phase 2.6: user assets (#103) — ảnh người dùng upload ưu tiên hơn
+            // stock Pixabay cho cùng scene. Resolve thành data URI để assemble
+            // nhúng thẳng vào HTML (render offline, tất định, self-contained).
+            if (assets.length > 0) {
+                try {
+                    const dataUriById = new Map<string, string>();
+                    for (const asset of imageAssetsOnly(assets)) {
+                        const uri = await readImageAssetAsDataUri(asset);
+                        if (uri) dataUriById.set(asset.id, uri);
+                    }
+                    const assetMap = await buildSceneAssetImageMap(script, dataUriById);
+                    for (const [sceneId, uris] of Object.entries(assetMap)) {
+                        imageMap[sceneId] = uris;
+                    }
+                } catch (assetErr: any) {
+                    logProgress("html_assembly", 18, `Warning: asset resolve skipped: ${assetErr?.message || assetErr}`);
+                }
             }
 
             // phase 3: assemble html tam thoi de preview

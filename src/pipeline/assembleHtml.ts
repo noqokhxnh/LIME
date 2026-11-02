@@ -636,6 +636,7 @@ ${safeAreaGuideHtml}
             }
         };
 
+
         window.__seekTo = function(timeInSec) {
             if (window.__masterTimeline) {
                 window.__masterTimeline.seek(timeInSec, false);
@@ -753,6 +754,14 @@ ${safeAreaGuideHtml}
         if (typeof window.__updateAmbient === 'function') {
             window.__updateAmbient(0);
         }
+
+        // Asset video (#103): nạp trước metadata/frame để seek tất định.
+        (function() {
+            var vs = document.querySelectorAll('video');
+            for (var i = 0; i < vs.length; i++) {
+                try { vs[i].preload = 'auto'; } catch (e) {}
+            }
+        })();
 
         // Page Ready Signal for Headless Browser Renderer
         window.__ready = true;

@@ -2,7 +2,7 @@ import fastify, { FastifyInstance, FastifyRequest, FastifyReply } from "fastify"
 import fastifyCors from "@fastify/cors";
 import fastifyStatic from "@fastify/static";
 import fastifyMultipart from "@fastify/multipart";
-import { existsSync, createReadStream, statSync, writeFileSync, mkdirSync } from "node:fs";
+import { existsSync, createReadStream, statSync, writeFileSync, mkdirSync, unlinkSync } from "node:fs";
 import { join } from "node:path";
 import { v4 } from "uuid";
 import { getConfig } from "./config.js";
@@ -31,9 +31,11 @@ import { IVideoQueue, isJobIdConflict } from "./queue/interfaces.js";
 import { resolveJobVideoPath } from "./queue/jobVideo.js";
 import { validatePrompt } from "./security/promptGuard.js";
 import { rateLimiter } from "./security/rateLimiter.js";
-import { validateUploadedFile, generateSafeFilePath, resolveBgmPath } from "./security/uploadGuard.js";
+import { validateUploadedFile, generateSafeFilePath, resolveBgmPath, validateUploadedAsset, generateSafeAssetFilePath, resolveAssetPath, MAX_IMAGE_ASSET_BYTES } from "./security/uploadGuard.js";
 import { isSafeJobId, safeJobDir } from "./queue/jobPaths.js";
 import { getBrandKitByUserId, upsertBrandKit } from "./database/brandKit.js";
+import { createAsset, listAssetsByUserId, getAssetByIdForUser, deleteAssetByIdForUser, getAssetsByIdsForUser, getAssetUsageForUser, cleanupOrphanedAssetFiles, type AssetRow } from "./database/assets.js";
+import { getAssetCaptionQueue } from "./queue/assetCaption.js";
 import { getCatalog, listBlueprints, listMotionBlocks } from "./templates/index.js";
 import { adminRoutes } from "./admin/routes.js";
 import { supportRoutes } from "./helpdesk/routes.js";
@@ -57,14 +59,17 @@ export async function buildApp(options: { logger?: boolean, queue?: IVideoQueue 
     await app.register(fastifyCookie);
 
     // Đăng ký plugin xử lý upload file (multipart/form-data).
-    // Giới hạn kích thước mỗi file tối đa 5MB để tránh tấn công DoS bằng file lớn.
+    // Giới hạn kích thước mỗi file 10MB — mức tối đa cho ảnh asset (#103).
+    // Các route ảnh (logo/avatar/ticket) tự chặn sớm bằng validateUploadedFile
+    // (5MB/2MB) sau khi đọc buffer; trần 10MB chỉ là mức cắt của multipart
+    // để ảnh asset 10MB lọt qua, không phải trần chấp nhận của mọi route.
     // LƯU Ý: phải đăng ký TRƯỚC mọi plugin chứa route dùng `request.file()`
     // (@fastify/multipart thêm content-type parser ở scope nơi nó boot — đăng ký
     // sau sẽ làm các scope route đã tồn tại không thấy parser và trả 415).
     await app.register(fastifyMultipart, {
         limits: {
-            fileSize: 5 * 1024 * 1024, // 5MB
-            files: 1,                  // Chỉ chấp nhận 1 file mỗi request
+            fileSize: MAX_IMAGE_ASSET_BYTES, // 10MB
+            files: 1,                         // Chỉ chấp nhận 1 file mỗi request
         },
     });
 
@@ -113,6 +118,20 @@ export async function buildApp(options: { logger?: boolean, queue?: IVideoQueue 
         },
     });
 
+    // Thư viện asset (#103): ảnh người dùng upload, phục vụ tĩnh
+    // kèm headers bảo mật giống logo. Tên file UUID do server sinh.
+    const assetsDir = join(process.cwd(), "tmp", "uploads", "assets");
+    mkdirSync(assetsDir, { recursive: true });
+    await app.register(fastifyStatic, {
+        root: assetsDir,
+        prefix: "/uploads/assets/",
+        decorateReply: false,
+        setHeaders: (res) => {
+            res.header("Content-Security-Policy", "default-src 'none'; style-src 'unsafe-inline'; sandbox");
+            res.header("X-Content-Type-Options", "nosniff");
+            res.header("X-Frame-Options", "DENY");
+        },
+    });
     // File đính kèm ticket KHÔNG còn phục vụ tĩnh công khai: ảnh chụp màn
     // hình hỗ trợ có thể chứa thông tin tài khoản, trước đây ai có URL
     // (UUID khó đoán nhưng rò qua log/history/chia sẻ) đều tải được mà
@@ -534,11 +553,20 @@ export async function buildApp(options: { logger?: boolean, queue?: IVideoQueue 
             motionBlockIds = rawBlocks.split(',').map((s: string) => s.trim()).filter(Boolean).slice(0, 8);
         }
 
+        let assetIds: string[] | undefined;
+        const rawAssets = raw.assetIds ?? raw.asset_ids ?? raw.assets;
+        if (Array.isArray(rawAssets)) {
+            assetIds = rawAssets.map((id: unknown) => String(id)).filter(Boolean).slice(0, 20);
+        } else if (typeof rawAssets === 'string' && rawAssets.trim()) {
+            assetIds = rawAssets.split(',').map((s: string) => s.trim()).filter(Boolean).slice(0, 20);
+        }
+
         return {
             ...raw,
             prompt: raw.prompt ?? raw.text ?? raw.topic,
             blueprintId: blueprintId || undefined,
             motionBlockIds: motionBlockIds?.length ? motionBlockIds : undefined,
+            assetIds: assetIds?.length ? assetIds : undefined,
         };
     };
 
@@ -593,8 +621,20 @@ export async function buildApp(options: { logger?: boolean, queue?: IVideoQueue 
                 count: variantCount,
             });
 
+            // Asset người dùng upload (#103): đưa metadata ảnh vào prompt
+            // để LLM chọn assetIds. Kiểm ownership qua getAssetsByIdsForUser (user_id).
+            let assets: AssetRow[] = [];
+            const assetIds = reqData.assetIds ?? [];
+            if (assetIds.length > 0) {
+                try {
+                    assets = await getAssetsByIdsForUser(assetIds, authUser.id);
+                } catch (err) {
+                    console.warn(`[Assets] Bỏ qua asset do lỗi resolve: ${(err as Error)?.message}`);
+                }
+            }
+
             const settled = await Promise.allSettled(
-                variants.map(variant => generateScript(reqData, undefined, undefined, variant, directives))
+                variants.map(variant => generateScript(reqData, undefined, undefined, variant, directives, undefined, assets))
             );
 
             const drafts = settled.flatMap((entry, index) => {
@@ -1201,6 +1241,171 @@ export async function buildApp(options: { logger?: boolean, queue?: IVideoQueue 
         reply.type("video/mp4").send(createReadStream(videoPath));
     });
     // ──────────────────────────────────────────────────────────────
+    // THƯ VIỆN ASSET (#103): upload ảnh (≤10MB), list, xoá.
+    //
+    // Trần multipart toàn cục là 10MB. Ảnh bị chặn bởi validateUploadedAsset
+    // (≤10MB). Mô tả/tag đọc qua query string để không phụ thuộc thứ tự field
+    // trong multipart.
+    // ──────────────────────────────────────────────────────────────
+    // Mô tả/tag là dữ liệu người dùng nhập — KHÔNG đáng tin (prompt
+    // injection). Chỉ gom lạc khoảng an toàn về độ dài, chưa escape; bước
+    // đưa vào prompt LLM (buildAssetPrompt) sẽ xử lý như text thường.
+    const parseAssetMeta = (q: any) => {
+        const description = typeof q?.description === 'string'
+            ? q.description.trim().slice(0, 500)
+            : '';
+        let tags: string[] = [];
+        if (typeof q?.tags === 'string') {
+            tags = q.tags.split(',')
+                .map((t: string) => t.trim().slice(0, 50))
+                .filter(Boolean)
+                .slice(0, 10);
+        }
+        return { description, tags };
+    };
+
+    // ROUTE: POST /api/assets/upload
+    app.post("/api/assets/upload", async (request: FastifyRequest, reply: FastifyReply) => {
+        try {
+            const user = await getCurrentUser(request);
+            if (!user) {
+                reply.status(401);
+                return { error: 'Yêu cầu đăng nhập để tải asset lên.' };
+            }
+
+            const data = await request.file();
+            if (!data) {
+                reply.status(400);
+                return { error: 'Không tìm thấy file trong request. Hãy gửi file với field name là "file".' };
+            }
+
+            const chunks: Buffer[] = [];
+            for await (const chunk of data.file) {
+                chunks.push(chunk);
+            }
+            if (data.file.truncated) {
+                reply.status(413);
+                return { error: `File vượt quá dung lượng cho phép (tối đa ${Math.round(MAX_IMAGE_ASSET_BYTES / 1024 / 1024)}MB).` };
+            }
+
+            const fileBuffer = Buffer.concat(chunks);
+            const mimeType = data.mimetype || 'application/octet-stream';
+
+            // Bảo mật 3 tầng (ảnh ≤10MB, magic bytes, SVG sanitize)
+            const validation = validateUploadedAsset(fileBuffer, mimeType);
+            if (!validation.isValid) {
+                reply.status(400);
+                return { error: validation.reason };
+            }
+
+            // Quota theo tài khoản (#103): chặn trước khi ghi file lên đĩa để
+            // không tốn ổ đĩa khi đã vượt hạn mức (số lượng / tổng dung lượng).
+            const quota = getConfig();
+            const usage = await getAssetUsageForUser(user.id);
+            if (usage.count >= quota.ASSET_MAX_COUNT_PER_USER) {
+                reply.status(413);
+                return { error: `Đã đạt giới hạn ${quota.ASSET_MAX_COUNT_PER_USER} asset. Xóa bớt rồi thử lại.` };
+            }
+            if (usage.totalBytes + fileBuffer.length > quota.ASSET_MAX_TOTAL_BYTES_PER_USER) {
+                reply.status(413);
+                return { error: `Vượt tổng dung lượng thư viện cho phép (${Math.round(quota.ASSET_MAX_TOTAL_BYTES_PER_USER / 1024 / 1024)}MB).` };
+            }
+
+            const kind = 'image' as const;
+            const savePath = generateSafeAssetFilePath(mimeType);
+
+            if (mimeType === 'image/svg+xml') {
+                if (!validation.sanitizedContent || !validation.sanitizedContent.trim()) {
+                    reply.status(400);
+                    return { error: 'Nội dung SVG rỗng hoặc không hợp lệ sau khi làm sạch.' };
+                }
+                writeFileSync(savePath, validation.sanitizedContent, 'utf-8');
+            } else {
+                writeFileSync(savePath, fileBuffer);
+            }
+
+            const filename = savePath.split(/[\\/]/).pop();
+            const url = `/uploads/assets/${filename}`;
+            const { description, tags } = parseAssetMeta(request.query);
+
+            const asset = await createAsset({
+                userId: user.id,
+                kind,
+                mimeType,
+                filePath: savePath,
+                url,
+                description,
+                tags,
+                fileSizeBytes: fileBuffer.length,
+            });
+
+            // Mô tả asset tự động bằng vision model (#103): đẩy job nền gọi model,
+            // ghi description/tags vào DB. Không chặn response upload.
+            try {
+                await (await getAssetCaptionQueue()).addJob({ assetId: asset.id, userId: user.id });
+            } catch (err) {
+                console.warn(`[Assets] Không đẩy được job mô tả asset ${asset.id}: ${(err as Error)?.message}`);
+            }
+
+            return { success: true, asset };
+        } catch (err: any) {
+            reply.status(500);
+            return { error: `Lỗi khi xử lý file upload: ${err.message}` };
+        }
+    });
+
+    // ROUTE: GET /api/assets — liệt kê asset của người dùng hiện tại
+    app.get("/api/assets", async (request: FastifyRequest, reply: FastifyReply) => {
+        try {
+            const user = await getCurrentUser(request);
+            if (!user) {
+                reply.status(401);
+                return { error: 'Yêu cầu đăng nhập để xem thư viện asset.' };
+            }
+            const assets = await listAssetsByUserId(user.id);
+            return { assets };
+        } catch (err: any) {
+            reply.status(500);
+            return { error: `Lỗi khi đọc thư viện asset: ${err.message}` };
+        }
+    });
+
+    // ROUTE: DELETE /api/assets/:id — xoá asset (chỉ chủ sở hữu)
+    app.delete("/api/assets/:id", async (request: FastifyRequest, reply: FastifyReply) => {
+        try {
+            const user = await getCurrentUser(request);
+            if (!user) {
+                reply.status(401);
+                return { error: 'Yêu cầu đăng nhập để xoá asset.' };
+            }
+            const { id } = (request.params as any) || {};
+            if (!id) {
+                reply.status(400);
+                return { error: 'Thiếu id asset.' };
+            }
+
+            const asset = await getAssetByIdForUser(id, user.id);
+            if (!asset) {
+                reply.status(404);
+                return { error: 'Asset không tồn tại hoặc không thuộc về bạn.' };
+            }
+
+            // Dọn file trên đĩa TRƯỚC, giam đường dẫn qua resolveAssetPath
+            // (chống xoá nhầm file ngoài ASSETS_DIR nếu DB bị chèn đường dẫn lạ).
+            const realPath = resolveAssetPath(asset.filePath);
+            if (realPath) {
+                try { unlinkSync(realPath); } catch { /* file đã mất thì bỏ qua */ }
+            }
+
+            await deleteAssetByIdForUser(id, user.id);
+            return { success: true };
+        } catch (err: any) {
+            reply.status(500);
+            return { error: `Lỗi khi xoá asset: ${err.message}` };
+        }
+    });
+
+    // ──────────────────────────────────────────────────────────────
     // ROUTE: POST /api/brand-kit/upload
     // Mục tiêu: Cho phép người dùng upload ảnh logo lên server.
     //
@@ -1383,6 +1588,13 @@ export async function startServer(): Promise<FastifyInstance> {
     }
     try {
         startBillingCron(app);
+
+        // Dọn asset mồ côi mỗi 30 phút (#103): file upload không có dòng DB.
+        const assetCleanupInterval = setInterval(() => {
+            cleanupOrphanedAssetFiles().catch(err => console.warn('[Assets] Cleanup cron error:', err));
+        }, 30 * 60 * 1000);
+        app.addHook('onClose', async () => clearInterval(assetCleanupInterval));
+
         await app.listen({ port: config.PORT, host: "0.0.0.0" });
         console.log(`Backend server listening at http://localhost:${config.PORT}`);
         return app;

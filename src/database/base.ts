@@ -121,6 +121,44 @@ CREATE TABLE IF NOT EXISTS brand_kits (
 );
 `;
 
+/**
+ * Câu lệnh SQL khởi tạo bảng assets (Thư viện asset #103).
+ *
+ * Lưu ảnh do người dùng tự upload để LLM chèn vào kịch bản thay vì chỉ dùng
+ * ảnh stock Pixabay. Khác brand_kits (1 user = 1 bản ghi): mỗi user có NHIỀU
+ * asset, mỗi asset một bản ghi.
+ *
+ * Các cột:
+ *   - id              : UUID, cũng là tên file trên đĩa (tmp/uploads/assets/<id>.<ext>)
+ *   - user_id         : chủ sở hữu asset (chỉ chủ hoặc admin được list/xoá)
+ *   - kind            : 'image' (từ khi bỏ hỗ trợ video, luôn là ảnh)
+ *   - mime_type       : MIME thật sau khi validate (png/jpeg/webp/svg)
+ *   - file_path       : đường dẫn tuyệt đối trên server (do server sinh, không phải client)
+ *   - url             : URL tĩnh "/uploads/assets/<id>.<ext>" cho frontend hiển thị
+ *   - description     : mô tả do người dùng nhập — DỮ LIỆU KHÔNG ĐÁNG TIN (có thể
+ *                       chứa prompt injection, phải xử lý như text trước khi đưa cho LLM)
+ *   - tags            : mảng tag (không đáng tin, cùng xử lý như description)
+ *   - file_size_bytes : kích thước thật của file (để hiển thị / tính quota)
+ */
+export const ASSETS_SQL = `
+CREATE TABLE IF NOT EXISTS assets (
+    id              UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    user_id         UUID NOT NULL
+                        REFERENCES users(id)
+                        ON DELETE CASCADE,
+    kind            VARCHAR(10) NOT NULL DEFAULT 'image',
+    mime_type       VARCHAR(100) NOT NULL,
+    file_path       TEXT NOT NULL,
+    url             TEXT NOT NULL,
+    description     TEXT NOT NULL DEFAULT '',
+    tags            TEXT[] NOT NULL DEFAULT '{}',
+    file_size_bytes BIGINT NOT NULL DEFAULT 0,
+    created_at      TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+
+CREATE INDEX IF NOT EXISTS idx_assets_user ON assets(user_id, created_at DESC);
+`;
+
 export const BILLING_SQL = `
 CREATE TABLE IF NOT EXISTS plans (
     id VARCHAR(50) PRIMARY KEY,

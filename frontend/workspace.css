@@ -180,6 +180,10 @@ body.ws .prompt-box textarea::placeholder{color:var(--wdim)}
 body.ws .prompt-foot{display:flex;justify-content:space-between;align-items:center;margin-top:8px}
 body.ws .prompt-foot span{font-size:11px;color:var(--wdim)}
 body.ws .prompt-foot span.warn{color:#FF9D5A}
+body.ws .prompt-assets{margin-top:8px;display:flex;flex-direction:column;gap:8px}
+body.ws .prompt-assets-head{display:flex;align-items:center;gap:8px}
+body.ws .prompt-assets-hint{font-size:10.5px;color:var(--wdim);flex:1;min-width:120px}
+body.ws .prompt-assets-grid{display:flex;flex-wrap:wrap;gap:6px}
 body.ws .btn-lime-sm{background:var(--wlime);color:var(--wink);border:none;font-weight:700;
   font-size:12.5px;padding:9px 16px;border-radius:8px;display:inline-flex;align-items:center;gap:8px}
 body.ws .btn-lime-sm:disabled{opacity:.6;cursor:wait}
@@ -567,6 +571,34 @@ body.ws .rb-scene textarea{width:100%;min-height:42px;resize:none;overflow:hidde
   border-radius:8px;background:var(--wpanel2);padding:8px 10px;color:var(--wtxt);
   font-family:'Inter',sans-serif;font-size:11.5px;line-height:1.55;outline:none}
 body.ws .rb-scene textarea:focus{border-color:var(--wdeep)}
+/* ---------- Thư viện asset (#103) trên bàn duyệt ---------- */
+body.ws .rb-assets{display:flex;flex-direction:column;gap:8px;padding:10px 12px;border:1px dashed var(--wdim);
+  border-radius:10px;background:var(--wpanel2)}
+body.ws .rb-assets-head{display:flex;align-items:center;gap:8px;flex-wrap:wrap}
+body.ws .rb-assets-head b{font-size:11.5px;font-weight:700;color:var(--wtxt)}
+body.ws .rb-assets-hint{font-size:10px;color:var(--wdim);flex:1;min-width:120px}
+body.ws .rb-assets-upload{border:1px solid var(--wlime);background:none;color:var(--wlime);border-radius:7px;
+  padding:5px 10px;font-size:11px;font-weight:700;cursor:pointer}
+body.ws .rb-assets-upload:hover:not(:disabled){background:var(--wlime);color:#14200B}
+body.ws .rb-assets-upload:disabled{opacity:.5;cursor:wait}
+body.ws .rb-assets-grid{display:flex;flex-wrap:wrap;gap:6px}
+body.ws .rb-assets-empty{margin:0;font-size:10.5px;color:var(--wdim);font-style:italic}
+body.ws .rb-asset{position:relative;width:44px;height:44px;border-radius:7px;overflow:hidden;cursor:pointer;
+  border:2px solid var(--wline);background:var(--wpanel);transition:border-color .12s,box-shadow .12s}
+body.ws .rb-asset img{width:100%;height:100%;object-fit:cover;display:block}
+body.ws .rb-asset video{width:100%;height:100%;object-fit:cover;display:block;background:#000}
+body.ws .rb-asset-kind{position:absolute;left:2px;top:2px;padding:1px 3px;border-radius:3px;
+  background:rgba(0,0,0,.62);color:#fff;font-size:7px;font-weight:800;letter-spacing:.04em}
+body.ws .rb-asset:hover{border-color:var(--wdim)}
+body.ws .rb-asset.on{border-color:var(--wlime);box-shadow:0 0 0 1px var(--wlime)}
+body.ws .rb-asset-check{position:absolute;right:2px;bottom:2px;width:14px;height:14px;border-radius:50%;
+  background:var(--wlime);color:#14200B;font-size:9px;font-weight:800;display:flex;align-items:center;justify-content:center}
+body.ws .rb-asset-del{position:absolute;right:2px;top:2px;width:15px;height:15px;border:none;border-radius:50%;
+  background:rgba(0,0,0,.62);color:#fff;font-size:11px;line-height:1;cursor:pointer;padding:0;
+  display:flex;align-items:center;justify-content:center}
+body.ws .rb-asset-del:hover{background:#DC2626}
+body.ws .rb-scene-assets{display:flex;flex-direction:column;gap:5px;min-width:0}
+body.ws .rb-scene-assets-label{font-size:9.5px;font-weight:700;letter-spacing:.03em;text-transform:uppercase;color:var(--wdim)}
 body.ws .rb-foot{flex:none;display:flex;align-items:center;justify-content:space-between;gap:14px;
   padding:12px 22px;border-top:1px solid var(--wline);background:var(--wpanel)}
 body.ws .rb-foot-hint{font-size:11px;color:var(--wdim)}

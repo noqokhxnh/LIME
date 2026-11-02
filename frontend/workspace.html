@@ -77,6 +77,16 @@
                             <span id="prompt-char-count">0/500 · tối thiểu 10</span>
                         </div>
                     </div>
+                    <div class="prompt-assets" id="prompt-assets">
+                        <div class="prompt-assets-head">
+                            <button type="button" class="rb-assets-upload" id="btn-prompt-add-asset"
+                                title="Thêm ảnh của bạn để AI dùng trong video">+</button>
+                            <span class="prompt-assets-hint">Thêm ảnh của bạn — AI tự mô tả và chọn cảnh phù hợp.</span>
+                            <input type="file" id="prompt-asset-input" hidden multiple
+                                accept="image/png,image/jpeg,image/webp,image/svg+xml">
+                        </div>
+                        <div class="prompt-assets-grid" id="prompt-assets-grid"></div>
+                    </div>
                     <p class="step-hint" id="prompt-hint">Bấm <b>Tiếp tục</b> — AI sẽ hỏi đúng những gì còn mơ hồ
                         (thường 1–2 câu).</p>
 

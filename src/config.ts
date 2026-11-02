@@ -40,6 +40,14 @@ const envSchema = z.object({
         z.string().default('ag/gemini-3.8-flash-high')
     ),
 
+    // Mô hình vision (multimodal) dùng để tự mô tả asset ảnh (#103).
+    // Mặc định dùng cùng mô hình 9router đã cấu hình — ag/gemini-3.8-flash-high
+    // hỗ trợ ảnh nên đủ cho asset.
+    Vision_Model: z.preprocess(
+        (val) => val || process.env.VISION_MODEL || 'ag/gemini-3.8-flash-high',
+        z.string().default('ag/gemini-3.8-flash-high')
+    ),
+
     OpenAI_APIKEY: z.string().optional(),
     OpenAI_Model: z.string().default('gpt-5.3-codex'),
 
@@ -70,6 +78,10 @@ const envSchema = z.object({
     GOOGLE_CLIENT_ID: z.string().optional(),
     GOOGLE_CLIENT_SECRET: z.string().optional(),
     GOOGLE_REDIRECT_URI: z.string().default('http://localhost:3000/api/auth/google/callback'),
+
+    // Thư viện asset (#103): hạn mức tải lên theo tài khoản, chống lạm dụng ổ đĩa.
+    ASSET_MAX_COUNT_PER_USER: z.coerce.number().int().min(1).default(100),
+    ASSET_MAX_TOTAL_BYTES_PER_USER: z.coerce.number().int().min(1).default(1024 * 1024 * 1024), // 1GB
 
     // VietQR & SePay Billing Configuration
     SEPAY_API_KEY: z.string().optional(),

@@ -110,6 +110,12 @@ export const sceneSchema = z.object({
     subject: z.string().optional(),
     /** Từ khoá tìm ảnh stock thật (Pixabay) cho scene — hệ thống điền vào {{SCENE_IMAGE}} */
     footageQuery: z.string().max(120).optional(),
+    /**
+     * Asset người dùng tự upload (#103) cho scene này. Mỗi phần tử là id ảnh
+     * đã upload; hệ thống thay token {{SCENE_IMAGE*}} theo đúng thứ tự xuất
+     * hiện. Ảnh ưu tiên hơn footageQuery cho cùng scene.
+     */
+    assetIds: z.array(z.string().min(1).max(120)).max(10).optional(),
     characterActions: z.array(characterActionItemSchema).optional(),
 });
 
@@ -502,6 +508,12 @@ export const videoRequestSchema = z.object({
      * nối cùng một profile cho prompt sinh kịch bản và ngưỡng QA rhythm.
      */
     tempo: tempoSchema.optional().default('auto'),
+    /**
+     * Danh sách id asset người dùng tự upload (#103) được phép dùng cho video
+     * này. Route kiểm ownership rồi đưa metadata (id + mô tả) vào prompt LLM;
+     * LLM tự chọn assetIds cho từng scene trong số này.
+     */
+    assetIds: z.array(z.string().min(1).max(120)).max(20).optional(),
 }).transform((data) => {
     if (data.format === 'vertical' && (!data.aspectRatio || data.aspectRatio === '16:9')) {
         return { ...data, aspectRatio: '9:16' as const };
