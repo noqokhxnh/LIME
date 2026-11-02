@@ -406,6 +406,723 @@
 </div>
 </section>
 </div>
+<!-- ================= PRICING SECTION (CUSTOM LIME DESIGN) ================= -->
+<div class="light grow pt-28 md:pt-36 lg:pt-40 pb-20 md:pb-32 lg:pb-36 flex flex-col [clip-path:inset(0)]" data-nav-theme="light" id="pricing" style="background-color: #F8F9FA;">
+
+<div class="pointer-events-none fixed top-0 right-0 left-0 z-10 h-top-nav transform-gpu bg-surface-primary/80 backdrop-blur-xl">
+</div>
+
+<style>
+/* ==========================================================
+   LIME BESPOKE PRICING ARCHITECTURE (V3)
+   ========================================================== */
+/* Tactile Billing Switcher */
+.lime-bill-toggle {
+  display: inline-flex;
+  align-items: center;
+  background: #FFFFFF;
+  border: 1px solid rgba(0, 0, 0, 0.08);
+  border-radius: 999px;
+  padding: 4px;
+  box-shadow: 0 2px 6px rgba(0, 0, 0, 0.04);
+}
+.lime-bill-toggle span {
+  cursor: pointer;
+  font-size: 13.5px;
+  font-weight: 600;
+  padding: 8px 18px;
+  border-radius: 999px;
+  color: #6B7280;
+  transition: all 0.2s cubic-bezier(0.16, 1, 0.3, 1);
+  user-select: none;
+}
+.lime-bill-toggle span.on {
+  background: #111827 !important;
+  color: #FFFFFF !important;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.12);
+}
+
+/* Tier Card: Base */
+.tier-card {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+  border-radius: 28px;
+  padding: 34px 30px;
+  transition: all 0.3s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+/* FREE TIER CARD */
+.tier-card-free {
+  background: #FFFFFF;
+  border: 1px solid rgba(0, 0, 0, 0.08);
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.03);
+}
+.tier-card-free:hover {
+  border-color: rgba(0, 0, 0, 0.16);
+  transform: translateY(-2px);
+  box-shadow: 0 12px 28px rgba(0, 0, 0, 0.06);
+}
+
+/* PRO TIER (HERO SPOTLIGHT) - Clean border without leaking pseudo-elements */
+.tier-card-pro {
+  background: #FFFFFF;
+  border: 2px solid #B9E72B !important;
+  box-shadow: 0 20px 48px -12px rgba(185, 231, 43, 0.28), 0 8px 24px -6px rgba(0, 0, 0, 0.05);
+  transform: scale(1.02);
+  z-index: 2;
+  overflow: hidden;
+}
+@media (max-width: 1023px) {
+  .tier-card-pro {
+    transform: none;
+  }
+}
+.tier-card-pro:hover {
+  box-shadow: 0 24px 56px -10px rgba(185, 231, 43, 0.38), 0 10px 28px -6px rgba(0, 0, 0, 0.08);
+}
+
+/* MAX TIER (DARK OBSIDIAN MONOLITH) */
+.tier-card-max {
+  background: #0B0E14;
+  color: #F9FAFB;
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  box-shadow: 0 16px 36px -10px rgba(0, 0, 0, 0.25);
+  overflow: hidden;
+}
+.tier-card-max:hover {
+  border-color: rgba(255, 255, 255, 0.24);
+  transform: translateY(-2px);
+  box-shadow: 0 20px 44px -8px rgba(0, 0, 0, 0.35);
+}
+.tier-card-max .text-neutral-500 {
+  color: #9CA3AF !important;
+}
+.tier-card-max .text-neutral-400 {
+  color: #6B7280 !important;
+}
+
+/* ENTERPRISE ARCHITECTURAL MONOLITH */
+.tier-card-enterprise {
+  background: linear-gradient(135deg, #0B0E14 0%, #111827 50%, #0F172A 100%);
+  color: #F9FAFB;
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  border-radius: 28px;
+  padding: 36px 40px;
+  box-shadow: 0 20px 48px -10px rgba(0, 0, 0, 0.3), 0 0 0 1px rgba(185, 231, 43, 0.05);
+  position: relative;
+  overflow: hidden;
+  transition: all 0.3s ease;
+}
+.tier-card-enterprise::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  right: 0;
+  width: 320px;
+  height: 100%;
+  background: radial-gradient(circle at top right, rgba(185, 231, 43, 0.12), transparent 70%);
+  pointer-events: none;
+}
+.tier-card-enterprise:hover {
+  border-color: rgba(185, 231, 43, 0.3);
+  box-shadow: 0 24px 56px -10px rgba(0, 0, 0, 0.4), 0 0 20px rgba(185, 231, 43, 0.08);
+}
+
+/* Spec Chips & Meters */
+.spec-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 12px;
+  border-radius: 12px;
+  font-size: 13px;
+  font-weight: 500;
+  transition: all 0.2s ease;
+}
+.spec-pill-light {
+  background: #F3F4F6;
+  border: 1px solid rgba(0, 0, 0, 0.05);
+  color: #1F2937;
+}
+.spec-pill-pro {
+  background: #F4FDE8;
+  border: 1px solid rgba(185, 231, 43, 0.45);
+  color: #14532D;
+}
+.spec-pill-dark {
+  background: rgba(255, 255, 255, 0.06);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  color: #F3F4F6;
+}
+.spec-pill-enterprise {
+  background: rgba(255, 255, 255, 0.05);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  color: #E5E7EB;
+  font-size: 13px;
+  font-weight: 500;
+}
+.spec-pill-enterprise:hover {
+  background: rgba(255, 255, 255, 0.08);
+  border-color: rgba(185, 231, 43, 0.3);
+  color: #FFFFFF;
+}
+
+/* Buttons */
+.btn-tier-pro {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 100%;
+  height: 48px;
+  border-radius: 999px;
+  background: #B9E72B !important;
+  color: #111827 !important;
+  font-size: 14.5px;
+  font-weight: 700;
+  letter-spacing: -0.01em;
+  transition: all 0.2s cubic-bezier(0.16, 1, 0.3, 1);
+  box-shadow: 0 4px 14px rgba(185, 231, 43, 0.35);
+}
+.btn-tier-pro:hover {
+  background: #a6d820 !important;
+  transform: translateY(-1px);
+  box-shadow: 0 6px 20px rgba(185, 231, 43, 0.45);
+}
+
+.btn-tier-max {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 100%;
+  height: 48px;
+  border-radius: 999px;
+  background: #FFFFFF !important;
+  color: #111827 !important;
+  font-size: 14.5px;
+  font-weight: 700;
+  transition: all 0.2s cubic-bezier(0.16, 1, 0.3, 1);
+}
+.btn-tier-max:hover {
+  background: #F3F4F6 !important;
+  transform: translateY(-1px);
+  box-shadow: 0 4px 16px rgba(255, 255, 255, 0.2);
+}
+
+.btn-tier-enterprise {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  height: 48px;
+  padding: 0 28px;
+  border-radius: 999px;
+  background: #B9E72B !important;
+  color: #111827 !important;
+  font-size: 14.5px;
+  font-weight: 700;
+  transition: all 0.2s cubic-bezier(0.16, 1, 0.3, 1);
+  box-shadow: 0 4px 16px rgba(185, 231, 43, 0.3);
+  white-space: nowrap;
+}
+.btn-tier-enterprise:hover {
+  background: #a6d820 !important;
+  transform: translateY(-1px);
+  box-shadow: 0 6px 24px rgba(185, 231, 43, 0.45);
+}
+
+.btn-tier-outline {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 100%;
+  height: 48px;
+  border-radius: 999px;
+  background: #FFFFFF !important;
+  color: #111827 !important;
+  border: 1px solid rgba(0, 0, 0, 0.12) !important;
+  font-size: 14px;
+  font-weight: 600;
+  transition: all 0.2s cubic-bezier(0.16, 1, 0.3, 1);
+}
+.btn-tier-outline:hover {
+  background: rgba(0, 0, 0, 0.03) !important;
+  border-color: rgba(0, 0, 0, 0.2) !important;
+}
+
+/* Feature Matrix Table Styling */
+.matrix-container {
+  border-radius: 24px;
+  background: #FFFFFF;
+  border: 1px solid rgba(0, 0, 0, 0.08);
+  overflow: hidden;
+  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.02);
+}
+.matrix-row {
+  display: grid;
+  grid-template-columns: 2fr 1fr 1fr 1fr 1.2fr;
+  align-items: center;
+  padding: 14px 24px;
+  border-bottom: 1px solid rgba(0, 0, 0, 0.05);
+  font-size: 13.5px;
+}
+@media (max-width: 900px) {
+  .matrix-row {
+    grid-template-columns: 1.8fr 1fr 1fr 1fr 1fr;
+    padding: 12px 14px;
+    font-size: 12px;
+  }
+}
+.matrix-row:last-child {
+  border-bottom: none;
+}
+.matrix-row:nth-child(even) {
+  background: #FAFAFA;
+}
+.matrix-header {
+  background: #F3F4F6 !important;
+  font-weight: 700;
+  text-transform: uppercase;
+  font-size: 11.5px;
+  letter-spacing: 0.05em;
+  color: #4B5563;
+}
+</style>
+
+<section class="container-lg space-y-12 md:space-y-16">
+  
+  <!-- ================= EDITORIAL HERO HEADER (WITHOUT REDUNDANT TAG) ================= -->
+  <div class="flex flex-col lg:flex-row lg:items-end lg:justify-between gap-6 pb-6 border-b border-black/8">
+    <div class="space-y-2.5 max-w-2xl">
+      <h2 class="typo-h2 font-extrabold tracking-tight text-neutral-900 leading-[1.12]">
+        Công suất sáng tạo không giới hạn.
+      </h2>
+      <p class="typo-subhead text-neutral-500 max-w-xl text-balance">
+        Lựa chọn gói công cụ AI tối ưu cho bạn. Nâng cấp linh hoạt theo tháng hoặc năm với VietQR tự động 24/7.
+      </p>
+    </div>
+
+    <!-- Cycle Selector -->
+    <div class="flex flex-col sm:flex-row items-start sm:items-center gap-3 shrink-0">
+      <div class="lime-bill-toggle bill-toggle">
+        <span class="on" data-period="month">Theo tháng</span>
+        <span class="flex items-center gap-1.5" data-period="year">
+          Theo năm
+          <small class="inline-block bg-[#B9E72B] text-black text-[10.5px] font-bold px-1.5 py-0.5 rounded-full">-20%</small>
+        </span>
+      </div>
+    </div>
+  </div>
+
+  <!-- ================= PRIMARY 3-TIER CREATIVE STAGE ================= -->
+  <div class="grid grid-cols-1 lg:grid-cols-3 gap-6 lg:gap-8 items-stretch pt-2">
+
+    <!-- ================= CARD 1: FREE ================= -->
+    <div class="tier-card tier-card-free">
+      <div class="space-y-6">
+        
+        <!-- Header -->
+        <div class="flex items-center justify-between">
+          <span class="text-xs font-bold uppercase tracking-wider text-neutral-400">Trải nghiệm</span>
+          <span class="text-xs font-semibold px-2.5 py-1 rounded-full bg-neutral-100 text-neutral-600">Khởi đầu</span>
+        </div>
+
+        <div>
+          <h3 class="text-2xl font-bold text-neutral-900 tracking-tight">FREE</h3>
+          <p class="text-xs text-neutral-500 mt-1">Dành cho cá nhân mới bắt đầu trải nghiệm tạo video AI.</p>
+        </div>
+
+        <!-- Price -->
+        <div class="py-2.5 border-y border-black/5">
+          <div class="flex items-baseline gap-1.5">
+            <span class="text-4xl lg:text-5xl font-black text-neutral-900 tracking-tight" style="font-size: 3rem; line-height: 1;">0đ</span>
+            <span class="text-sm text-neutral-400 font-medium">/ mãi mãi</span>
+          </div>
+          <p class="text-xs text-neutral-400 mt-1.5">Không cần thẻ tín dụng, đăng ký là dùng</p>
+        </div>
+
+        <!-- Capability Spec Chips -->
+        <div class="space-y-2.5">
+          <div class="spec-pill spec-pill-light w-full justify-between">
+            <span class="text-neutral-500">Hạn mức video:</span>
+            <span class="font-bold text-neutral-900">30 token free</span>
+          </div>
+          <div class="spec-pill spec-pill-light w-full justify-between">
+            <span class="text-neutral-500">Độ phân giải:</span>
+            <span class="font-bold text-neutral-900">Xuất 720p HD</span>
+          </div>
+        </div>
+
+        <!-- Detailed Features -->
+        <div class="space-y-3 pt-2">
+          <p class="text-[11px] font-bold uppercase tracking-wider text-neutral-400">Quyền lợi bao gồm</p>
+          <ul class="space-y-2.5 text-xs text-neutral-600">
+            <li class="flex items-center gap-2.5">
+              <svg class="size-4 text-[#10B981] shrink-0" viewBox="0 0 20 20" fill="currentColor"><path fill-rule="evenodd" d="M16.704 4.153a.75.75 0 01.143 1.052l-8 10.5a.75.75 0 01-1.127.075l-4.5-4.5a.75.75 0 011.06-1.06l3.894 3.893 7.48-9.817a.75.75 0 011.05-.143z" clip-rule="evenodd"/></svg>
+              <span>Giọng đọc tiếng Việt cơ bản</span>
+            </li>
+            <li class="flex items-center gap-2.5">
+              <svg class="size-4 text-[#10B981] shrink-0" viewBox="0 0 20 20" fill="currentColor"><path fill-rule="evenodd" d="M16.704 4.153a.75.75 0 01.143 1.052l-8 10.5a.75.75 0 01-1.127.075l-4.5-4.5a.75.75 0 011.06-1.06l3.894 3.893 7.48-9.817a.75.75 0 011.05-.143z" clip-rule="evenodd"/></svg>
+              <span>10+ mẫu thiết kế kịch bản cơ bản</span>
+            </li>
+            <li class="flex items-center gap-2.5">
+              <svg class="size-4 text-[#10B981] shrink-0" viewBox="0 0 20 20" fill="currentColor"><path fill-rule="evenodd" d="M16.704 4.153a.75.75 0 01.143 1.052l-8 10.5a.75.75 0 01-1.127.075l-4.5-4.5a.75.75 0 011.06-1.06l3.894 3.893 7.48-9.817a.75.75 0 011.05-.143z" clip-rule="evenodd"/></svg>
+              <span class="text-neutral-500">Xuất 720p (watermark LIME)</span>
+            </li>
+            <li class="flex items-center gap-2.5 text-neutral-400 line-through">
+              <svg class="size-4 text-neutral-300 shrink-0" viewBox="0 0 20 20" fill="currentColor"><path fill-rule="evenodd" d="M4 10a.75.75 0 01.75-.75h10.5a.75.75 0 010 1.5H4.75A.75.75 0 014 10z" clip-rule="evenodd"/></svg>
+              <span>Chèn watermark riêng</span>
+            </li>
+            <li class="flex items-center gap-2.5 text-neutral-400 line-through">
+              <svg class="size-4 text-neutral-300 shrink-0" viewBox="0 0 20 20" fill="currentColor"><path fill-rule="evenodd" d="M4 10a.75.75 0 01.75-.75h10.5a.75.75 0 010 1.5H4.75A.75.75 0 014 10z" clip-rule="evenodd"/></svg>
+              <span>Mở khoá toàn bộ giới hạn</span>
+            </li>
+          </ul>
+        </div>
+      </div>
+
+      <!-- CTA -->
+      <div class="pt-8 mt-auto">
+        <a href="/workspace" class="btn-tier-outline">
+          Bắt đầu miễn phí →
+        </a>
+      </div>
+    </div>
+
+    <!-- ================= CARD 2: PRO (FLAGSHIP SPOTLIGHT) ================= -->
+    <div class="tier-card tier-card-pro">
+
+      <div class="space-y-6">
+        
+        <!-- Header: Clean Non-Overlapping Alignment -->
+        <div class="flex items-center justify-between">
+          <span class="text-xs font-bold uppercase tracking-wider text-neutral-500">Creator Suite</span>
+          <span class="text-xs font-bold px-3 py-1 rounded-full bg-[#111827] text-[#B9E72B] shadow-xs">
+            ✦ Phổ biến nhất
+          </span>
+        </div>
+
+        <div>
+          <h3 class="text-2xl font-bold text-neutral-900 tracking-tight">PRO</h3>
+          <p class="text-xs text-neutral-600 mt-1">Cho creator và marketer cá nhân muốn sản xuất video chuyên nghiệp.</p>
+        </div>
+
+        <!-- Price -->
+        <div class="py-2.5 border-y border-black/8">
+          <div class="flex items-baseline gap-1.5">
+            <span class="price-val text-4xl lg:text-5xl font-black text-neutral-900 tracking-tight" data-monthly="99k" data-yearly="79k" style="font-size: 3rem; line-height: 1;">99k</span>
+            <span class="text-sm text-neutral-500 font-semibold">/ tháng</span>
+          </div>
+          <p class="text-xs text-emerald-700 font-semibold mt-1.5">
+            <span>Thanh toán theo năm: 79k/tháng (-20%)</span>
+          </p>
+        </div>
+
+        <!-- Capability Spec Chips -->
+        <div class="space-y-2.5">
+          <div class="spec-pill spec-pill-pro w-full justify-between">
+            <span class="text-neutral-700 font-medium">Hạn mức video:</span>
+            <span class="font-extrabold text-[#15803d]">200 token / tháng</span>
+          </div>
+          <div class="spec-pill spec-pill-pro w-full justify-between">
+            <span class="text-neutral-700 font-medium">Độ phân giải:</span>
+            <span class="font-extrabold text-[#15803d]">Xuất Full HD / 2K</span>
+          </div>
+        </div>
+
+        <!-- Detailed Features -->
+        <div class="space-y-3 pt-2">
+          <p class="text-[11px] font-bold uppercase tracking-wider text-neutral-500">Đặc quyền nâng cao</p>
+          <ul class="space-y-2.5 text-xs text-neutral-800 font-medium">
+            <li class="flex items-center gap-2.5">
+              <svg class="size-4 text-[#10B981] shrink-0" viewBox="0 0 20 20" fill="currentColor"><path fill-rule="evenodd" d="M16.704 4.153a.75.75 0 01.143 1.052l-8 10.5a.75.75 0 01-1.127.075l-4.5-4.5a.75.75 0 011.06-1.06l3.894 3.893 7.48-9.817a.75.75 0 011.05-.143z" clip-rule="evenodd"/></svg>
+              <span>Giọng đọc nhiều hơn, đa ngữ điệu</span>
+            </li>
+            <li class="flex items-center gap-2.5">
+              <svg class="size-4 text-[#10B981] shrink-0" viewBox="0 0 20 20" fill="currentColor"><path fill-rule="evenodd" d="M16.704 4.153a.75.75 0 01.143 1.052l-8 10.5a.75.75 0 01-1.127.075l-4.5-4.5a.75.75 0 011.06-1.06l3.894 3.893 7.48-9.817a.75.75 0 011.05-.143z" clip-rule="evenodd"/></svg>
+              <span>Chèn watermark riêng vào video</span>
+            </li>
+            <li class="flex items-center gap-2.5">
+              <svg class="size-4 text-[#10B981] shrink-0" viewBox="0 0 20 20" fill="currentColor"><path fill-rule="evenodd" d="M16.704 4.153a.75.75 0 01.143 1.052l-8 10.5a.75.75 0 01-1.127.075l-4.5-4.5a.75.75 0 011.06-1.06l3.894 3.893 7.48-9.817a.75.75 0 011.05-.143z" clip-rule="evenodd"/></svg>
+              <span>Tích hợp Brand kit riêng</span>
+            </li>
+            <li class="flex items-center gap-2.5">
+              <svg class="size-4 text-[#10B981] shrink-0" viewBox="0 0 20 20" fill="currentColor"><path fill-rule="evenodd" d="M16.704 4.153a.75.75 0 01.143 1.052l-8 10.5a.75.75 0 01-1.127.075l-4.5-4.5a.75.75 0 011.06-1.06l3.894 3.893 7.48-9.817a.75.75 0 011.05-.143z" clip-rule="evenodd"/></svg>
+              <span>Ưu tiên hàng đợi render</span>
+            </li>
+          </ul>
+        </div>
+      </div>
+
+      <!-- CTA -->
+      <div class="pt-8 mt-auto">
+        <button type="button" class="plan-cta btn-tier-pro cursor-pointer" data-plan="pro" onclick="window.openVietQRModal ? window.openVietQRModal({ plan: 'pro' }) : null">
+          Nâng cấp Pro ngay →
+        </button>
+      </div>
+    </div>
+
+    <!-- ================= CARD 3: MAX (OBSIDIAN STUDIO MONOLITH) ================= -->
+    <div class="tier-card tier-card-max">
+      <div class="space-y-6">
+        
+        <!-- Header -->
+        <div class="flex items-center justify-between">
+          <span class="text-xs font-bold uppercase tracking-wider text-neutral-400">Toàn năng</span>
+          <span class="text-xs font-semibold px-2.5 py-1 rounded-full bg-white/10 text-white">Vô hạn công suất</span>
+        </div>
+
+        <div>
+          <h3 class="text-2xl font-bold text-white tracking-tight">MAX</h3>
+          <p class="text-xs text-neutral-400 mt-1">Mở khoá toàn bộ giới hạn sáng tạo cho studio và team sản xuất.</p>
+        </div>
+
+        <!-- Price -->
+        <div class="py-2.5 border-y border-white/10">
+          <div class="flex items-baseline gap-1.5">
+            <span class="price-val text-4xl lg:text-5xl font-black text-white tracking-tight" data-monthly="499k" data-yearly="399k" style="font-size: 3rem; line-height: 1;">499k</span>
+            <span class="text-sm text-neutral-400 font-medium">/ tháng</span>
+          </div>
+          <p class="text-xs text-[#B9E72B] font-semibold mt-1.5">
+            Thanh toán theo năm: 399k/tháng (-20%)
+          </p>
+        </div>
+
+        <!-- Capability Spec Chips -->
+        <div class="space-y-2.5">
+          <div class="spec-pill spec-pill-dark w-full justify-between">
+            <span class="text-neutral-400">Hạn mức video:</span>
+            <span class="font-extrabold text-[#B9E72B]">Không giới hạn token</span>
+          </div>
+          <div class="spec-pill spec-pill-dark w-full justify-between">
+            <span class="text-neutral-400">Độ phân giải:</span>
+            <span class="font-extrabold text-white">Xuất 4K 60fps siêu nét</span>
+          </div>
+        </div>
+
+        <!-- Detailed Features -->
+        <div class="space-y-3 pt-2">
+          <p class="text-[11px] font-bold uppercase tracking-wider text-neutral-400">Toàn bộ quyền lợi cao cấp</p>
+          <ul class="space-y-2.5 text-xs text-neutral-300">
+            <li class="flex items-center gap-2.5">
+              <svg class="size-4 text-[#B9E72B] shrink-0" viewBox="0 0 20 20" fill="currentColor"><path fill-rule="evenodd" d="M16.704 4.153a.75.75 0 01.143 1.052l-8 10.5a.75.75 0 01-1.127.075l-4.5-4.5a.75.75 0 011.06-1.06l3.894 3.893 7.48-9.817a.75.75 0 011.05-.143z" clip-rule="evenodd"/></svg>
+              <span class="font-bold text-white">Mở khoá toàn bộ giới hạn sáng tạo</span>
+            </li>
+            <li class="flex items-center gap-2.5">
+              <svg class="size-4 text-[#B9E72B] shrink-0" viewBox="0 0 20 20" fill="currentColor"><path fill-rule="evenodd" d="M16.704 4.153a.75.75 0 01.143 1.052l-8 10.5a.75.75 0 01-1.127.075l-4.5-4.5a.75.75 0 011.06-1.06l3.894 3.893 7.48-9.817a.75.75 0 011.05-.143z" clip-rule="evenodd"/></svg>
+              <span>Toàn bộ giọng đọc cao cấp</span>
+            </li>
+            <li class="flex items-center gap-2.5">
+              <svg class="size-4 text-[#B9E72B] shrink-0" viewBox="0 0 20 20" fill="currentColor"><path fill-rule="evenodd" d="M16.704 4.153a.75.75 0 01.143 1.052l-8 10.5a.75.75 0 01-1.127.075l-4.5-4.5a.75.75 0 011.06-1.06l3.894 3.893 7.48-9.817a.75.75 0 011.05-.143z" clip-rule="evenodd"/></svg>
+              <span>Chèn watermark riêng &amp; Brand kit</span>
+            </li>
+            <li class="flex items-center gap-2.5">
+              <svg class="size-4 text-[#B9E72B] shrink-0" viewBox="0 0 20 20" fill="currentColor"><path fill-rule="evenodd" d="M16.704 4.153a.75.75 0 01.143 1.052l-8 10.5a.75.75 0 01-1.127.075l-4.5-4.5a.75.75 0 011.06-1.06l3.894 3.893 7.48-9.817a.75.75 0 011.05-.143z" clip-rule="evenodd"/></svg>
+              <span class="font-medium text-white">Ưu tiên render Turbo Queue</span>
+            </li>
+          </ul>
+        </div>
+      </div>
+
+      <!-- CTA -->
+      <div class="pt-8 mt-auto">
+        <button type="button" class="plan-cta btn-tier-max cursor-pointer" data-plan="max" onclick="window.openVietQRModal ? window.openVietQRModal({ plan: 'max' }) : null">
+          Nâng cấp Max →
+        </button>
+      </div>
+    </div>
+
+  </div>
+
+  <!-- ================= HIGH-END ARCHITECTURAL ENTERPRISE CARD ================= -->
+  <div class="tier-card-enterprise">
+    <div class="flex flex-col lg:flex-row lg:items-center justify-between gap-8 relative z-10">
+      
+      <div class="space-y-4 max-w-2xl">
+        <div class="flex items-center gap-3">
+          <span class="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-bold uppercase tracking-wider bg-[#B9E72B]/15 text-[#B9E72B] border border-[#B9E72B]/30">
+            ✦ Hạ tầng quy mô lớn
+          </span>
+          <span class="text-xs font-semibold px-2.5 py-0.5 rounded-full bg-white/10 text-neutral-300">
+            Agency &amp; Enterprise
+          </span>
+        </div>
+        
+        <h3 class="text-3xl md:text-4xl font-extrabold text-white tracking-tight">
+          ENTERPRISE
+        </h3>
+        
+        <p class="text-sm text-neutral-300 leading-relaxed max-w-xl">
+          Giải pháp hạ tầng kết xuất chuyên biệt và tự động hóa cho agency và doanh nghiệp lớn sản xuất video hàng loạt, cần tích hợp API và quản trị nhóm phân quyền đa phòng ban.
+        </p>
+
+        <!-- Feature Pills Grid (High contrast dark glass) -->
+        <div class="flex flex-wrap gap-2.5 pt-2">
+          <span class="spec-pill spec-pill-enterprise">
+            <svg class="size-4 text-[#B9E72B] shrink-0" viewBox="0 0 20 20" fill="currentColor"><path fill-rule="evenodd" d="M16.704 4.153a.75.75 0 01.143 1.052l-8 10.5a.75.75 0 01-1.127.075l-4.5-4.5a.75.75 0 011.06-1.06l3.894 3.893 7.48-9.817a.75.75 0 011.05-.143z" clip-rule="evenodd"/></svg>
+            Toàn bộ quyền lợi gói Max
+          </span>
+          <span class="spec-pill spec-pill-enterprise">
+            <svg class="size-4 text-[#B9E72B] shrink-0" viewBox="0 0 20 20" fill="currentColor"><path fill-rule="evenodd" d="M16.704 4.153a.75.75 0 01.143 1.052l-8 10.5a.75.75 0 01-1.127.075l-4.5-4.5a.75.75 0 011.06-1.06l3.894 3.893 7.48-9.817a.75.75 0 011.05-.143z" clip-rule="evenodd"/></svg>
+            Workspace chung nhiều thành viên
+          </span>
+          <span class="spec-pill spec-pill-enterprise">
+            <svg class="size-4 text-[#B9E72B] shrink-0" viewBox="0 0 20 20" fill="currentColor"><path fill-rule="evenodd" d="M16.704 4.153a.75.75 0 01.143 1.052l-8 10.5a.75.75 0 01-1.127.075l-4.5-4.5a.75.75 0 011.06-1.06l3.894 3.893 7.48-9.817a.75.75 0 011.05-.143z" clip-rule="evenodd"/></svg>
+            Hệ thống API render tự động
+          </span>
+          <span class="spec-pill spec-pill-enterprise">
+            <svg class="size-4 text-[#B9E72B] shrink-0" viewBox="0 0 20 20" fill="currentColor"><path fill-rule="evenodd" d="M16.704 4.153a.75.75 0 01.143 1.052l-8 10.5a.75.75 0 01-1.127.075l-4.5-4.5a.75.75 0 011.06-1.06l3.894 3.893 7.48-9.817a.75.75 0 011.05-.143z" clip-rule="evenodd"/></svg>
+            Brand kit phân quyền phòng ban
+          </span>
+          <span class="spec-pill spec-pill-enterprise">
+            <svg class="size-4 text-[#B9E72B] shrink-0" viewBox="0 0 20 20" fill="currentColor"><path fill-rule="evenodd" d="M16.704 4.153a.75.75 0 01.143 1.052l-8 10.5a.75.75 0 01-1.127.075l-4.5-4.5a.75.75 0 011.06-1.06l3.894 3.893 7.48-9.817a.75.75 0 011.05-.143z" clip-rule="evenodd"/></svg>
+            Hỗ trợ kỹ thuật riêng 1-1
+          </span>
+        </div>
+      </div>
+
+      <!-- Right Column: Price & CTA -->
+      <div class="flex flex-col sm:flex-row lg:flex-col items-start lg:items-end justify-between gap-5 shrink-0 pt-4 lg:pt-0 border-t lg:border-t-0 border-white/10">
+        <div class="text-left lg:text-right">
+          <span class="text-3xl lg:text-4xl font-extrabold text-white tracking-tight">Liên hệ</span>
+          <p class="text-xs text-neutral-400 mt-1">Báo giá theo nhu cầu &amp; cam kết SLA</p>
+        </div>
+        <button type="button" onclick="if(window.openSupportWidget){window.openSupportWidget();}else{const b=document.getElementById('support-trigger');if(b)b.click();else window.location.href='mailto:support@limestudio.id.vn';}" class="btn-tier-enterprise cursor-pointer">
+          Liên hệ giải pháp Enterprise →
+        </button>
+      </div>
+
+    </div>
+  </div>
+
+  <!-- ================= INTERACTIVE DETAILED COMPARISON MATRIX ================= -->
+  <div class="space-y-4 pt-2">
+    <div class="text-center">
+      <button type="button" id="toggle-matrix-btn" onclick="const m = document.getElementById('pricing-matrix-wrap'); const btn = this; if(m.classList.contains('hidden')){ m.classList.remove('hidden'); btn.innerHTML='Ẩn bảng so sánh chi tiết ↑'; }else{ m.classList.add('hidden'); btn.innerHTML='Xem bảng so sánh chi tiết tất cả tính năng ↓'; }" class="inline-flex items-center gap-2 text-xs font-bold uppercase tracking-wider text-neutral-500 hover:text-neutral-900 bg-white border border-black/8 px-6 py-3 rounded-full shadow-xs cursor-pointer transition-all hover:shadow-sm">
+        Xem bảng so sánh chi tiết tất cả tính năng ↓
+      </button>
+    </div>
+
+    <div id="pricing-matrix-wrap" class="hidden matrix-container transition-all">
+      <div class="matrix-row matrix-header">
+        <div>Tính năng &amp; Năng lực</div>
+        <div class="text-center">FREE</div>
+        <div class="text-center font-bold text-neutral-900">PRO</div>
+        <div class="text-center font-bold text-neutral-900">MAX</div>
+        <div class="text-center font-bold text-neutral-900">ENTERPRISE</div>
+      </div>
+
+      <div class="matrix-row">
+        <div class="font-medium text-neutral-900">Token video hàng tháng</div>
+        <div class="text-center text-neutral-600">30 token free</div>
+        <div class="text-center font-semibold text-emerald-700">200 token/tháng</div>
+        <div class="text-center font-bold text-neutral-900">Không giới hạn</div>
+        <div class="text-center font-bold text-neutral-900">Tùy biến dung lượng</div>
+      </div>
+
+      <div class="matrix-row">
+        <div class="font-medium text-neutral-900">Độ phân giải xuất video</div>
+        <div class="text-center text-neutral-600">720p HD</div>
+        <div class="text-center font-semibold text-emerald-700">Full HD / 2K</div>
+        <div class="text-center font-bold text-neutral-900">4K 60fps siêu nét</div>
+        <div class="text-center font-bold text-neutral-900">4K 60fps &amp; Raw</div>
+      </div>
+
+      <div class="matrix-row">
+        <div class="font-medium text-neutral-900">Thư viện giọng đọc AI</div>
+        <div class="text-center text-neutral-600">Tiếng Việt cơ bản</div>
+        <div class="text-center font-semibold text-emerald-700">Đa ngữ điệu tự nhiên</div>
+        <div class="text-center font-bold text-neutral-900">Toàn bộ kho cao cấp</div>
+        <div class="text-center font-bold text-neutral-900">Voice clone riêng</div>
+      </div>
+
+      <div class="matrix-row">
+        <div class="font-medium text-neutral-900">Chèn watermark riêng &amp; Brand kit</div>
+        <div class="text-center text-neutral-400">—</div>
+        <div class="text-center text-emerald-600 font-bold">✓ Watermark + Brand kit</div>
+        <div class="text-center text-emerald-600 font-bold">✓ Watermark + Brand kit</div>
+        <div class="text-center text-emerald-600 font-bold">✓ Phân quyền phòng ban</div>
+      </div>
+
+      <div class="matrix-row">
+        <div class="font-medium text-neutral-900">Mở khoá toàn bộ giới hạn sáng tạo</div>
+        <div class="text-center text-neutral-400">—</div>
+        <div class="text-center text-neutral-400">—</div>
+        <div class="text-center text-emerald-600 font-bold">✓ Mở toàn bộ</div>
+        <div class="text-center text-emerald-600 font-bold">✓ Mở toàn bộ</div>
+      </div>
+
+      <div class="matrix-row">
+        <div class="font-medium text-neutral-900">Tốc độ &amp; Hàng đợi kết xuất</div>
+        <div class="text-center text-neutral-600">Tiêu chuẩn</div>
+        <div class="text-center font-semibold text-emerald-700">Ưu tiên hàng đợi</div>
+        <div class="text-center font-bold text-neutral-900">Turbo Queue</div>
+        <div class="text-center font-bold text-neutral-900">Hạ tầng render riêng (API)</div>
+      </div>
+
+      <div class="matrix-row">
+        <div class="font-medium text-neutral-900">Workspace cộng tác nhiều thành viên</div>
+        <div class="text-center text-neutral-400">—</div>
+        <div class="text-center text-neutral-400">—</div>
+        <div class="text-center text-neutral-400">—</div>
+        <div class="text-center text-emerald-600 font-bold">✓ Multi-seat workspace</div>
+      </div>
+
+      <div class="matrix-row">
+        <div class="font-medium text-neutral-900">Kênh hỗ trợ kỹ thuật</div>
+        <div class="text-center text-neutral-600">Cộng đồng</div>
+        <div class="text-center font-semibold text-emerald-700">Hỗ trợ ưu tiên</div>
+        <div class="text-center font-bold text-neutral-900">Hỗ trợ 24/7</div>
+        <div class="text-center font-bold text-neutral-900">Kỹ sư riêng 1-1 &amp; SLA</div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ================= CONFIDENCE & TRUST BADGES RIBBON ================= -->
+  <div class="grid grid-cols-2 md:grid-cols-4 gap-4 pt-4 border-t border-black/8">
+    <div class="flex items-center gap-3">
+      <div class="size-8 rounded-full bg-emerald-50 text-emerald-600 flex items-center justify-center shrink-0">
+        <svg class="size-4" viewBox="0 0 20 20" fill="currentColor"><path fill-rule="evenodd" d="M10 1a4.5 4.5 0 00-4.5 4.5V9H5a2 2 0 00-2 2v6a2 2 0 002 2h10a2 2 0 002-2v-6a2 2 0 00-2-2h-.5V5.5A4.5 4.5 0 0010 1zm3 8V5.5a3 3 0 10-6 0V9h6z" clip-rule="evenodd"/></svg>
+      </div>
+      <div>
+        <h4 class="text-xs font-bold text-neutral-900">Quét VietQR 24/7</h4>
+        <p class="text-[11px] text-neutral-500">Mọi ngân hàng &amp; ví điện tử</p>
+      </div>
+    </div>
+
+    <div class="flex items-center gap-3">
+      <div class="size-8 rounded-full bg-emerald-50 text-emerald-600 flex items-center justify-center shrink-0">
+        <svg class="size-4" viewBox="0 0 20 20" fill="currentColor"><path fill-rule="evenodd" d="M11.3 1.046A1 1 0 0112 2v5h4a1 1 0 01.82 1.573l-7 10A1 1 0 018 18v-5H4a1 1 0 01-.82-1.573l7-10a1 1 0 011.12-.38z" clip-rule="evenodd"/></svg>
+      </div>
+      <div>
+        <h4 class="text-xs font-bold text-neutral-900">Kích hoạt tức thì</h4>
+        <p class="text-[11px] text-neutral-500">Tự động sau 30 giây</p>
+      </div>
+    </div>
+
+    <div class="flex items-center gap-3">
+      <div class="size-8 rounded-full bg-emerald-50 text-emerald-600 flex items-center justify-center shrink-0">
+        <svg class="size-4" viewBox="0 0 20 20" fill="currentColor"><path fill-rule="evenodd" d="M4 4a2 2 0 00-2 2v1h16V6a2 2 0 00-2-2H4z" /><path fill-rule="evenodd" d="M18 9H2v5a2 2 0 002 2h12a2 2 0 002-2V9zM4 13a1 1 0 011-1h1a1 1 0 110 2H5a1 1 0 01-1-1zm5-1a1 1 0 100 2h1a1 1 0 100-2H9z" clip-rule="evenodd"/></svg>
+      </div>
+      <div>
+        <h4 class="text-xs font-bold text-neutral-900">Không ẩn phí</h4>
+        <p class="text-[11px] text-neutral-500">Hủy hoặc gia hạn linh hoạt</p>
+      </div>
+    </div>
+
+    <div class="flex items-center gap-3">
+      <div class="size-8 rounded-full bg-emerald-50 text-emerald-600 flex items-center justify-center shrink-0">
+        <svg class="size-4" viewBox="0 0 20 20" fill="currentColor"><path fill-rule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7-4a1 1 0 11-2 0 1 1 0 012 0zM9 9a.75.75 0 000 1.5h.253a.25.25 0 01.244.304l-.459 2.066A1.75 1.75 0 0010.747 15H11a.75.75 0 000-1.5h-.253a.25.25 0 01-.244-.304l.459-2.066A1.75 1.75 0 009.253 9H9z" clip-rule="evenodd"/></svg>
+      </div>
+      <div>
+        <h4 class="text-xs font-bold text-neutral-900">Hỗ trợ kỹ thuật</h4>
+        <p class="text-[11px] text-neutral-500">Giải đáp trực tiếp qua Zalo / Chat</p>
+      </div>
+    </div>
+  </div>
+
+</section>
+</div>
 <div aria-hidden="true" aria-modal="true" class="legal-modal" id="legal-modal" role="dialog">
 <div class="legal-card-modal">
 <button aria-label="Đóng" class="modal-close-btn" id="legal-close-btn" type="button">
