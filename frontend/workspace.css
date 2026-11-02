@@ -21,6 +21,9 @@ body.ws .topbar{height:52px;flex:none;display:flex;align-items:center;justify-co
 body.ws .proj{display:flex;align-items:center;gap:12px}
 body.ws .logo{font-family:'Space Grotesk',sans-serif;font-weight:700;font-size:19px;color:var(--wtxt);text-decoration:none}
 body.ws .logo i{font-style:normal;color:var(--wdeep)}
+/* Issue #129: h1 bọc ngoài nút tên dự án để trang có heading đúng chuẩn cho trình đọc màn hình;
+   reset margin và cỡ chữ của h1 để không phá bố cục topbar — nút bên trong giữ nguyên chức năng */
+body.ws .proj-title{margin:0;font-size:inherit;font-weight:inherit;display:flex;align-items:center}
 body.ws .proj-name{font-family:inherit;font-size:13px;color:var(--wmuted);border:1px solid var(--wline);border-radius:8px;
   padding:7px 12px;background:var(--wpanel2);max-width:280px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;
   cursor:pointer;transition:color .14s,border-color .14s,background .14s}
