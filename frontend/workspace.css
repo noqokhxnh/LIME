@@ -637,4 +637,15 @@ body.ws.board-open .lime-support-root{display:none}
   body.ws .panel{border-right:none;border-bottom:1px solid var(--wline)}
   body.ws #panel-right{border-left:none}
   body.ws .p-body{overflow:visible}
+  body.ws .tl-tools{flex-wrap:wrap;height:auto;padding-top:6px;padding-bottom:6px;row-gap:6px}
+  body.ws .tl-progress{min-width:0;flex:1}
+  body.ws .statusbar{flex-wrap:wrap;height:auto;padding-top:6px;padding-bottom:6px;row-gap:4px}
+}
+
+/* Issue #129 — responsive dưới 768px (điện thoại): topbar xuống 2 hàng, thẻ render xếp 1 cột */
+@media (max-width: 768px){
+  body.ws .topbar{flex-wrap:wrap;height:auto;padding:8px 12px;row-gap:8px}
+  body.ws .ws-tabs{order:3;width:100%;overflow-x:auto}
+  body.ws .proj-name{max-width:150px}
+  body.ws .rb-cards{grid-template-columns:1fr}
 }
