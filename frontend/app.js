@@ -102,20 +102,17 @@ if (forgotPasswordLink) {
 }
 
 if (loginOpenBtn && loginModal) {
-    loginOpenBtn.addEventListener('click', () => {
+    loginOpenBtn.addEventListener('click', (e) => {
+        e.preventDefault();
         if (isLoggedIn) {
-            const dropdown =
-                document.getElementById('home-user-dropdown');
-
+            const dropdown = document.getElementById('home-user-dropdown');
             if (!dropdown) return;
 
             dropdown.hidden = !dropdown.hidden;
-
             loginOpenBtn.setAttribute(
                 'aria-expanded',
                 String(!dropdown.hidden)
             );
-
             return;
         }
         if (loginMessage) loginMessage.textContent = '';
@@ -883,12 +880,17 @@ function initFlipWords() {
 
     items.forEach((it, i) => it.addEventListener('click', () => select(i)));
     select(0);
+})();
+
+// =========================================================
+// HOME USER MENU & LOGOUT
+// =========================================================
+(function initHomeUserMenu() {
     const homeUser = document.getElementById('home-user');
     const homeDropdown = document.getElementById('home-user-dropdown');
 
     function closeHomeUserMenu() {
         if (!homeDropdown) return;
-
         homeDropdown.hidden = true;
         loginOpenBtn?.setAttribute('aria-expanded', 'false');
     }
@@ -905,17 +907,26 @@ function initFlipWords() {
         }
     });
 
-    document.getElementById('home-logout-btn')
-        ?.addEventListener('click', async () => {
-            try {
-                await fetch('/api/auth/logout', {
-                    method: 'POST',
-                    credentials: 'include'
-                });
-            } finally {
-                window.location.href = '/';
-            }
-        });
+    async function doLogout(e) {
+        if (e) {
+            e.preventDefault();
+            e.stopPropagation();
+        }
+        try {
+            await fetch(`${API_BASE}/api/auth/logout`, {
+                method: 'POST',
+                credentials: 'include'
+            });
+        } catch (err) {
+            console.error('Logout error:', err);
+        } finally {
+            try { sessionStorage.removeItem('lime-pending-prompt'); } catch (e) {}
+            window.location.href = '/';
+        }
+    }
+
+    document.getElementById('home-logout-btn')?.addEventListener('click', doLogout);
+    document.getElementById('logout-btn')?.addEventListener('click', doLogout);
 })();
 
 // Quản lý hiển thị đường kẻ dưới navbar: ẩn khi ở Hero video trên cùng, hiện khi lướt xuống các phần sáng bên dưới

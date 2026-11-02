@@ -5327,7 +5327,8 @@ h2.sec em {
     box-shadow: 0 14px 36px rgba(0, 0, 0, 0.14);
 }
 
-.nav-user-dropdown[hidden] {
+.nav-user-dropdown[hidden],
+#home-user-dropdown[hidden] {
     display: none !important;
 }
 
