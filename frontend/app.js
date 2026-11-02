@@ -3,6 +3,11 @@ const API_BASE = (window.location.hostname === 'localhost' || window.location.ho
     ? ((window.location.origin && window.location.origin.includes(':3000')) ? '' : 'http://localhost:3000')
     : '';
 
+if (sessionStorage.getItem('lime-scroll-top')) {
+    sessionStorage.removeItem('lime-scroll-top');
+    try { window.scrollTo({ top: 0, behavior: 'instant' }); } catch (e) { window.scrollTo(0, 0); }
+}
+
 // Auth Elements
 const loginOpenBtn = document.getElementById('login-open-btn');
 const loginModal = document.getElementById('login-modal');
@@ -160,7 +165,19 @@ async function handleLogin() {
             return;
         }
         loginMessage.textContent = '';
-        window.location.href = '/workspace';
+        if (loginModal) loginModal.classList.remove('show');
+
+        // Khi đăng nhập thành công: giao diện xuất hiện là trang chủ ở vị trí trên cùng
+        if (window.location.pathname === '/' || window.location.pathname === '/index.html' || window.location.pathname === '') {
+            window.scrollTo({ top: 0, behavior: 'instant' });
+            if (window.location.hash) {
+                window.history.replaceState(null, '', '/');
+            }
+            await checkCurrentUser();
+        } else {
+            sessionStorage.setItem('lime-scroll-top', '1');
+            window.location.href = '/';
+        }
     } catch (err) {
         loginMessage.textContent = 'Không thể kết nối tới server';
     } finally {
@@ -260,7 +277,19 @@ async function handleRegister() {
             return;
         }
         registerMessage.textContent = '';
-        window.location.href = '/workspace';
+        if (loginModal) loginModal.classList.remove('show');
+
+        // Khi đăng ký thành công: giao diện xuất hiện là trang chủ ở vị trí trên cùng
+        if (window.location.pathname === '/' || window.location.pathname === '/index.html' || window.location.pathname === '') {
+            window.scrollTo({ top: 0, behavior: 'instant' });
+            if (window.location.hash) {
+                window.history.replaceState(null, '', '/');
+            }
+            await checkCurrentUser();
+        } else {
+            sessionStorage.setItem('lime-scroll-top', '1');
+            window.location.href = '/';
+        }
     } catch (err) {
         registerMessage.textContent = 'Không thể kết nối tới server';
     } finally {
