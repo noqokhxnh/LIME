@@ -127,6 +127,8 @@ Thứ tự có chủ đích: việc đo đếm được và ít rủi ro làm tr
 - Nếu chưa có asset: bước này **dừng ở ghi nhận**, nội dung xin leader cung cấp asset hoặc xác nhận hoãn sẽ nằm trong comment Bước 0 và trong mô tả PR — không tự chế ảnh giả để lấp checklist.
 - Commit (nếu làm được): "bổ sung preview video mẫu thật của LIME lên trang chủ (issue #130)".
 
+> **Kết quả Bước 10 (2026-11-03) — đóng ở dạng chờ asset, không sửa code:** Đã rà soát toàn repo: media thật duy nhất trên trang hiện là video hero (`hero.webm`/`hero.mp4` + poster). Có đúng 2 file ứng viên là `public/video_1.mp4` (2,9MB) và `public/video_2.mp4` (1,4MB), nhưng không dùng được ngay vì: (1) chưa xác nhận chắc chắn chúng là video mẫu phù hợp để đưa lên trang chủ; (2) thư mục `public/` không được server phục vụ — cấu hình static chỉ đăng ký thư mục `frontend/` — muốn dùng phải chuyển 2 file vào `frontend/` bằng commit từ máy local như tiền lệ poster của issue #129. Chốt: checklist mục 9 sẽ ghi trong mô tả PR ở dạng **chờ asset/xác nhận của leader** (xin cung cấp video mẫu chính thức, hoặc xác nhận dùng 2 file trên thì làm tiếp ngay) — không tự chế asset giả để lấp checklist. (Lưu ý: bản kế hoạch có nhắc "comment Bước 0", nhưng với issue này user đã chốt không đăng comment lên issue — nội dung chỉ nằm trong mô tả PR.)
+
 ### Bước cuối — Rà soát + PR
 - Chạy census tổng: đếm lại số cỡ font, đo lại các cặp tương phản đã sửa, kiểm tra cân bằng ngoặc CSS, rà soát diff toàn nhánh.
 - Tự review bằng skill `review-code`, mở PR vào `main`: mô tả đối chiếu đủ 9 mục checklist (mục nào làm kèm commit; các điểm loại trừ/chờ asset ghi rõ lý do), kèm lưu ý còn nợ kiểm chứng trực quan ở 390/768/1440px.
