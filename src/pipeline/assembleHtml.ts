@@ -636,70 +636,6 @@ ${safeAreaGuideHtml}
             }
         };
 
-        // Video seek helper (#103): GSAP không điều khiển currentTime của <video>,
-        // nên render tất định phải tua từng video về mốc giờ nội bộ của cảnh chứa nó.
-        window.__seekVideos = function(timeInSec) {
-            var videos = document.querySelectorAll('video');
-            if (!videos || !videos.length) return Promise.resolve();
-            var pending = [];
-            for (var i = 0; i < videos.length; i++) {
-                (function(v) {
-                    // Đi ngược lên .scene (id hoặc data-scene) để lấy startTime.
-                    var node = v;
-                    var sceneId = null;
-                    while (node) {
-                        if (node.id && window.__sceneStarts && window.__sceneStarts[node.id] !== undefined) {
-                            sceneId = node.id;
-                            break;
-                        }
-                        if (node.getAttribute && node.getAttribute('data-scene')) {
-                            sceneId = node.getAttribute('data-scene');
-                            break;
-                        }
-                        node = node.parentElement;
-                    }
-                    if (!sceneId) return;
-                    var start = window.__sceneStarts[sceneId] || 0;
-                    var local = timeInSec - start;
-                    if (local < 0) local = 0;
-
-                    pending.push(new Promise(function(resolve) {
-                        var done = false;
-                        var timer = null;
-                        var finish = function() {
-                            if (done) return;
-                            done = true;
-                            if (timer) clearTimeout(timer);
-                            resolve();
-                        };
-                        timer = setTimeout(finish, 1500);
-                        var doSeek = function() {
-                            try {
-                                var dur = v.duration;
-                                if (isFinite(dur) && dur > 0 && local > dur - 0.05) {
-                                    local = Math.max(0, dur - 0.05);
-                                }
-                                if (Math.abs(v.currentTime - local) > 0.02) {
-                                    v.addEventListener('seeked', finish, { once: true });
-                                    v.currentTime = local;
-                                } else {
-                                    finish();
-                                }
-                            } catch (e) {
-                                finish();
-                            }
-                        };
-                        if (v.readyState >= 1) {
-                            doSeek();
-                        } else {
-                            v.addEventListener('loadedmetadata', doSeek, { once: true });
-                            v.addEventListener('error', finish, { once: true });
-                        }
-                    }));
-                })(videos[i]);
-            }
-            return Promise.all(pending);
-        };
 
         window.__seekTo = function(timeInSec) {
             if (window.__masterTimeline) {
@@ -714,10 +650,6 @@ ${safeAreaGuideHtml}
             if (typeof window.__updateKaraoke === 'function') {
                 window.__updateKaraoke(timeInSec);
             }
-            if (typeof window.__seekVideos === 'function') {
-                return window.__seekVideos(timeInSec);
-            }
-            return Promise.resolve();
         };
 
         window.__getTotalDuration = function() {

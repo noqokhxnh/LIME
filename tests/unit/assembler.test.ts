@@ -224,7 +224,6 @@ describe('Module 6: HTML & GSAP Packaging (src/pipeline/assembleHtml.ts)', () =>
             // Hàm contract bắt buộc
             assert.match(content, /window\.__registerScene = function/);
             assert.match(content, /window\.__seekTo = function/);
-            assert.match(content, /window\.__seekVideos = function/);
             assert.match(content, /window\.__getTotalDuration = function/);
             assert.match(content, /window\.__splitTextChars = function/);
             assert.match(content, /window\.__splitTextWords = function/);
