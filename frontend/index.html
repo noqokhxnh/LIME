@@ -1,732 +1,1264 @@
 <!DOCTYPE html>
+
 <html lang="vi">
-
 <head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>lime.</title>
-    <link rel="icon" type="image/png" href="/logo.png">
-    <link rel="preconnect" href="https://fonts.googleapis.com">
-    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-    <link
-        href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@500;600;700&family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap"
-        rel="stylesheet">
-    <!-- <link rel="stylesheet" href="style.css"> -->
-    <link rel="stylesheet" href="/css/luma.css">
-    <link rel="stylesheet" href="vietqr.css">
-    <link rel="stylesheet" href="/css/broadcast.css">
-    <link rel="stylesheet" href="/css/support-widget.css">
+<meta charset="utf-8"/>
+<meta content="width=device-width, initial-scale=1.0" name="viewport"/>
+<title>
+   lime.
+  </title>
+<link href="/logo.png" rel="icon" type="image/png"/>
+<link href="https://fonts.googleapis.com" rel="preconnect"/>
+<link crossorigin="" href="https://fonts.gstatic.com" rel="preconnect"/>
+<link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@500;600;700&amp;family=Inter:wght@400;500;600;700&amp;family=JetBrains+Mono:wght@400;500&amp;display=swap" rel="stylesheet"/>
+<!-- <link rel="stylesheet" href="style.css"> -->
+<link href="/css/luma.css" rel="stylesheet"/>
+<link href="/css/auth-modal.css" rel="stylesheet"/>
+<link href="vietqr.css" rel="stylesheet"/>
+<link href="/css/broadcast.css" rel="stylesheet"/>
+<link href="/css/support-widget.css" rel="stylesheet"/>
 </head>
-
 <body>
-
-    <!-- ================= LUMA LABS EXACT REPLICA (NAV TO RESEARCH) ================= -->
-<nav data-state="desktop" data-hidden="false" class="group fixed top-0 left-0 z-20 h-0 w-full text-primary dark mix-blend-difference max-md:transition-[height] max-md:delay-200 max-md:duration-0 max-md:data-[state=mobile-open]:z-50 max-md:data-[state=mobile-open]:h-full max-md:data-[state=mobile-open]:overflow-y-scroll max-md:data-[state=mobile-open]:delay-0 max-md:data-[state=loading]:transition-none max-md:data-[state=loading]:delay-0"><div class="container grid h-top-nav grid-cols-[1fr_auto] gap-3 md:grid-cols-[1fr_auto_auto] lg:gap-6"><div class="pointer-events-none absolute top-0 left-0 container flex h-top-nav w-full items-end"><div class="h-px w-full bg-surface-inverted-primary/30"></div></div><div class="relative z-20 flex items-center"><a class="block hover:opacity-70" href="/"><svg width="73" height="18" viewBox="0 0 73 18" fill="none" xmlns="http://www.w3.org/2000/svg" role="img" aria-labelledby=":r0:" class="w-20"><title id=":r0:">Luma company logo</title><path d="M65.8574 17.19C63.7493 17.19 61.9741 16.1693 61.9741 13.7284C61.9741 11.0212 64.4594 10.0004 68.0098 10.0004H69.319V9.53441C69.319 8.15863 68.8974 7.40417 67.4329 7.40417C66.168 7.40417 65.5911 8.04768 65.458 9.04623H62.4179C62.6176 6.29467 64.7923 5.07422 67.6326 5.07422C70.4729 5.07422 72.4922 6.2281 72.4922 9.37908V16.9459H69.3634V15.5479C68.6977 16.4799 67.6769 17.19 65.8574 17.19ZM66.8115 14.9488C68.2317 14.9488 69.319 14.1722 69.319 12.8851V11.9088H68.0764C66.2124 11.9088 65.1251 12.3082 65.1251 13.5508C65.1251 14.3941 65.6355 14.9488 66.8115 14.9488Z" fill="currentColor"></path><path d="M43.7686 16.9459V5.3405H46.9861V7.1157C47.563 6.02839 48.8057 5.07422 50.5365 5.07422C52.0676 5.07422 53.2215 5.71773 53.7762 7.09351C54.7082 5.69554 56.2171 5.07422 57.6817 5.07422C59.8341 5.07422 61.4984 6.42781 61.4984 9.51222V16.9459H58.303V9.86726C58.303 8.38053 57.6373 7.71483 56.4834 7.71483C55.2408 7.71483 54.2422 8.51367 54.2422 10.0892V16.9459H51.0469V9.86726C51.0469 8.38053 50.359 7.71483 49.2273 7.71483C47.9847 7.71483 46.9861 8.51367 46.9861 10.0892V16.9459H43.7686Z" fill="currentColor"></path><path d="M35.9816 17.19C33.7182 17.19 32.0317 15.8586 32.0317 12.8186V5.34058H35.2271V12.3748C35.2271 13.9503 35.8706 14.7048 37.2464 14.7048C38.6 14.7048 39.6651 13.8615 39.6651 12.1529V5.34058H42.8605V16.9459H39.6651V15.1264C39.066 16.3024 37.8899 17.19 35.9816 17.19Z" fill="currentColor"></path><path d="M21.54 16.946V1.08008H25.1348V14.1278H31.5921V16.946H21.54Z" fill="currentColor"></path><path d="M0 13.5L7.785 18V0L0 4.5V13.5Z" fill="currentColor" fill-opacity="0.65"></path><path d="M7.785 18L15.57 13.5L7.785 9L0 13.5L7.785 18Z" fill="currentColor" fill-opacity="0.65"></path></svg></a></div><div class="relative flex md:items-center md:justify-center md:gap-3 lg:gap-4 max-md:pointer-events-none max-md:absolute max-md:inset-0 max-md:scrollbar-hide max-md:h-full max-md:flex-col max-md:gap-4 max-md:overflow-x-hidden max-md:overflow-y-scroll max-md:bg-surface-primary max-md:px-6 max-md:pt-24 max-md:pb-12 max-md:opacity-0 max-md:transition-opacity max-md:duration-200 max-md:ease-in-out max-md:group-data-[state=mobile-open]:pointer-events-auto max-md:group-data-[state=mobile-open]:opacity-100 max-md:max-md:group-data-[state=loading]:transition-none max-md:max-md:group-data-[state=loading]:duration-0"><div class="fixed top-0 left-0 container w-full bg-surface-primary/80 backdrop-blur-xl group-data-[state=mobile-open]:overflow-y-scroll md:hidden"><div class="h-top-nav border-b border-primary/30"></div></div><a class="typo-label tracking-normal whitespace-nowrap uppercase transition-opacity max-md:text-xl hover:opacity-70" target="_self" href="/app">Product</a><a class="typo-label tracking-normal whitespace-nowrap uppercase transition-opacity max-md:text-xl hover:opacity-70" target="_self" href="/pricing">Pricing</a><a class="typo-label tracking-normal whitespace-nowrap uppercase transition-opacity max-md:text-xl hover:opacity-70" target="_self" href="/api">API</a><a class="typo-label tracking-normal whitespace-nowrap uppercase transition-opacity max-md:text-xl hover:opacity-70" target="_self" href="/enterprise">Enterprise</a><a class="typo-label tracking-normal whitespace-nowrap uppercase transition-opacity max-md:text-xl hover:opacity-70" target="_self" href="/news">News</a><a class="typo-label tracking-normal whitespace-nowrap uppercase transition-opacity max-md:text-xl hover:opacity-70" target="_self" href="/careers">Join us</a><div class="flex items-center gap-4 mt-auto pt-12 md:hidden"><a class="transition-opacity will-change-transform hover:opacity-70" target="_blank" rel="noopener noreferrer nofollow" href="https://www.instagram.com/lumalabsai"><svg viewBox="0 0 32 32" fill="currentColor" class="size-8 md:size-10"><path fill-rule="evenodd" clip-rule="evenodd" d="M16 32C24.8366 32 32 24.8366 32 16C32 7.16344 24.8366 0 16 0C7.16344 0 0 7.16344 0 16C0 24.8366 7.16344 32 16 32ZM10.0472 7.47896C10.6111 7.25739 11.2561 7.10665 12.2007 7.06209C13.1475 7.01592 13.4494 7.00563 15.8602 7.00101C18.2711 6.99639 18.5753 7.00687 19.5202 7.0477C20.4651 7.08854 21.1104 7.2375 21.6754 7.45606C22.26 7.68119 22.7558 7.9839 23.2497 8.47659C23.7436 8.96928 24.0481 9.46339 24.2763 10.047C24.4977 10.6114 24.648 11.2543 24.6929 12.201C24.7379 13.1476 24.7487 13.4498 24.7533 15.8602C24.7579 18.2705 24.7482 18.5731 24.7068 19.5206C24.6658 20.4648 24.5172 21.1105 24.2984 21.6751C24.0728 22.26 23.7699 22.7553 23.2779 23.2496C22.7859 23.7439 22.2911 24.0482 21.7075 24.2765C21.1433 24.497 20.5018 24.6483 19.555 24.6932C18.6081 24.7382 18.3047 24.7488 15.8947 24.7534C13.4847 24.758 13.1805 24.7485 12.2357 24.7071C11.2908 24.6657 10.645 24.5169 10.0804 24.2987C9.49453 24.0725 8.99989 23.7702 8.50578 23.2778C8.01167 22.7855 7.70682 22.291 7.47903 21.7075C7.25746 21.1434 7.10725 20.4985 7.06216 19.5542C7.01635 18.6072 7.0057 18.305 7.00108 15.8943C6.99646 13.4835 7.0057 13.1798 7.04742 12.2347C7.08914 11.2896 7.23722 10.6441 7.45577 10.0789C7.68161 9.49446 7.98468 8.99946 8.47684 8.50553C8.96899 8.0116 9.46363 7.7064 10.0472 7.47896ZM10.6557 22.8082C10.9689 22.9286 11.4388 23.0724 12.3044 23.1101H12.3045C13.2407 23.1505 13.5204 23.1601 15.891 23.155C18.2615 23.1498 18.5421 23.1406 19.4783 23.0966C20.3427 23.0554 20.8127 22.9098 21.1252 22.7878C21.5396 22.6259 21.8348 22.4338 22.1448 22.122C22.4548 21.8103 22.6474 21.5146 22.8072 21.1001C22.9278 20.7865 23.0712 20.3164 23.1091 19.4509C23.1501 18.5154 23.1584 18.234 23.1542 15.8644C23.1499 13.4949 23.1398 13.2142 23.0952 12.278C23.0544 11.4123 22.9091 10.9431 22.7868 10.6311C22.6249 10.216 22.4326 9.92146 22.1207 9.61111C21.8087 9.30076 21.5135 9.10883 21.0985 8.94904C20.7859 8.82813 20.3152 8.68485 19.4504 8.64721C18.5138 8.60602 18.2326 8.59714 15.8629 8.60229C13.4932 8.60744 13.2127 8.61632 12.2765 8.6607C11.4113 8.7019 10.9419 8.84713 10.629 8.96928C10.2148 9.1312 9.91922 9.3233 9.6094 9.63525C9.29958 9.9472 9.10712 10.2421 8.94733 10.6574C8.82713 10.9704 8.68244 11.4409 8.64551 12.3057C8.60449 13.2416 8.59544 13.5221 8.60059 15.8921C8.60574 18.2622 8.61497 18.5431 8.659 19.4785C8.69948 20.3441 8.84595 20.8135 8.96757 21.1267C9.12949 21.5406 9.32124 21.8371 9.63337 22.1462C9.94549 22.4553 10.2409 22.6484 10.6557 22.8082ZM19.7218 11.7242C19.6045 11.5492 19.5416 11.3434 19.5413 11.1327C19.5408 10.8502 19.6526 10.5791 19.8519 10.379C20.0513 10.1789 20.322 10.0662 20.6044 10.0656C20.8151 10.0652 21.0212 10.1273 21.1967 10.244C21.3721 10.3607 21.509 10.5268 21.59 10.7213C21.671 10.9159 21.6925 11.13 21.6518 11.3368C21.611 11.5435 21.5099 11.7335 21.3612 11.8828C21.2125 12.032 21.0228 12.1338 20.8163 12.1753C20.6097 12.2168 20.3954 12.1961 20.2006 12.1158C20.0058 12.0355 19.8392 11.8992 19.7218 11.7242ZM15.8858 20.4352C13.3687 20.44 11.3241 18.4037 11.3192 15.8861C11.3144 13.3689 13.351 11.3239 15.8684 11.3189C18.3858 11.3139 20.431 13.3507 20.4358 15.8683C20.4406 18.3859 18.4029 20.4304 15.8858 20.4352ZM13.4136 14.2379C13.0894 14.7252 12.917 15.2976 12.9181 15.8829C12.9189 16.2715 12.9961 16.6562 13.1455 17.0149C13.2949 17.3737 13.5136 17.6995 13.7889 17.9737C14.0642 18.248 14.3909 18.4653 14.7502 18.6133C15.1096 18.7613 15.4945 18.837 15.8831 18.8362C16.4684 18.835 17.0402 18.6603 17.5262 18.3342C18.0122 18.0081 18.3905 17.5452 18.6134 17.004C18.8363 16.4629 18.8937 15.8678 18.7784 15.294C18.6631 14.7202 18.3802 14.1935 17.9656 13.7805C17.5509 13.3674 17.0231 13.0867 16.4488 12.9736C15.8746 12.8606 15.2797 12.9204 14.7395 13.1454C14.1992 13.3704 13.7378 13.7506 13.4136 14.2379Z"></path></svg></a><a class="transition-opacity will-change-transform hover:opacity-70" target="_blank" rel="noopener noreferrer nofollow" href="https://www.youtube.com/@lumalabsai"><svg viewBox="0 0 32 32" fill="currentColor" class="size-8 md:size-10"><path d="M16 32C24.8366 32 32 24.8366 32 16C32 7.16344 24.8366 0 16 0C7.16344 0 0 7.16344 0 16C0 24.8366 7.16344 32 16 32ZM23.3995 10.386C24.1918 10.5983 24.8156 11.2241 25.0273 12.0187C25.4121 13.4589 25.4121 16.4638 25.4121 16.4638C25.4121 16.4638 25.4121 19.4687 25.0273 20.9091C24.8156 21.7036 24.1918 22.3293 23.3995 22.5418C21.9637 22.9277 16.2061 22.9277 16.2061 22.9277C16.2061 22.9277 10.4484 22.9277 9.01256 22.5418C8.22039 22.3293 7.59646 21.7036 7.38474 20.9091C7 19.4687 7 16.4638 7 16.4638C7 16.4638 7 13.4589 7.38474 12.0187C7.59646 11.2241 8.22039 10.5983 9.01256 10.386C10.4484 10 16.2061 10 16.2061 10C16.2061 10 21.9637 10 23.3995 10.386Z"></path><path fill-rule="evenodd" clip-rule="evenodd" d="M13.4164 20.2199L20.0419 16.4638L13.4164 12.7074V20.2199Z"></path></svg></a><a class="transition-opacity will-change-transform hover:opacity-70" target="_blank" rel="noopener noreferrer nofollow" href="https://x.com/LumaLabsAI"><svg viewBox="0 0 32 32" fill="currentColor" class="size-8 md:size-10"><path fill-rule="evenodd" clip-rule="evenodd" d="M16 32C24.8366 32 32 24.8366 32 16C32 7.16344 24.8366 0 16 0C7.16344 0 0 7.16344 0 16C0 24.8366 7.16344 32 16 32ZM23.4491 9H20.9402L16.8139 13.7735L13.2157 9H8L14.206 17.1548L8.33011 23.9172H10.8389L15.3944 18.7128L19.3557 23.9172H24.4394L17.9693 15.3315L23.4491 9ZM21.4354 22.3924H20.049L10.938 10.4254H12.4565L21.4354 22.3924Z"></path></svg></a><a class="transition-opacity will-change-transform hover:opacity-70" target="_blank" rel="noopener noreferrer nofollow" href="https://www.tiktok.com/@lumalabsai"><svg viewBox="0 0 32 32" fill="currentColor" class="size-8 md:size-10"><path fill-rule="evenodd" clip-rule="evenodd" d="M16 32C24.8366 32 32 24.8366 32 16C32 7.16344 24.8366 0 16 0C7.16344 0 0 7.16344 0 16C0 24.8366 7.16344 32 16 32ZM21.5645 11.4409C21.6728 11.5114 21.7845 11.5764 21.8992 11.6357C22.6458 12.0079 23.3749 12.1212 23.7341 12.0823V14.9806C23.7341 14.9806 22.7091 14.9381 21.9484 14.7363C20.8881 14.4526 20.2085 14.017 20.2085 14.017C20.2085 14.017 19.7368 13.705 19.7014 13.6837V19.6731C19.7014 20.006 19.6132 20.839 19.349 21.5335C19.1174 22.1273 18.7864 22.6774 18.3701 23.1601C18.3701 23.1601 17.7185 23.9679 16.5739 24.5101C15.6198 24.9622 14.7711 24.987 14.434 24.9968C14.4065 24.9976 14.3823 24.9983 14.3619 24.9992C14.3619 24.9992 12.7947 25.0622 11.3813 24.1017L11.3743 24.0947V24.1017C10.8964 23.7683 10.4703 23.3663 10.1096 22.9086C9.6623 22.3381 9.38783 21.6613 9.317 21.463V21.4559C9.20438 21.1191 8.96817 20.3042 9.00358 19.5176C9.05989 18.1318 9.52489 17.278 9.64813 17.0655C9.97199 16.4828 10.3951 15.9611 10.8983 15.5239C11.4726 15.0425 12.1404 14.6853 12.8597 14.4748C13.5789 14.2644 14.334 14.2054 15.0772 14.3014L15.0737 17.2741C14.8289 17.1943 14.573 17.1538 14.3155 17.154C12.9552 17.154 11.8527 18.2632 11.8527 19.6331C11.8527 21.0029 12.9552 22.1121 14.3155 22.1121C14.739 22.1127 15.1553 22.0028 15.5235 21.7934C15.8767 21.5927 16.1752 21.3083 16.3927 20.9652C16.6102 20.6221 16.74 20.2308 16.7708 19.8257V19.8194C16.7725 19.8109 16.7725 19.8024 16.7725 19.7942C16.7729 19.7878 16.7733 19.7816 16.7737 19.7756C16.7746 19.7632 16.7754 19.7514 16.7754 19.739C16.7818 19.5909 16.7818 19.4411 16.7818 19.2896V8H19.7014C19.6968 8 19.6663 8.27978 19.74 8.71219H19.7364C19.8246 9.23315 20.064 9.97721 20.705 10.7107C20.9612 10.9877 21.2498 11.2328 21.5645 11.4409Z"></path></svg></a><a class="transition-opacity will-change-transform hover:opacity-70" target="_blank" rel="noopener noreferrer nofollow" href="https://www.linkedin.com/company/lumalabsai"><svg viewBox="0 0 32 32" fill="currentColor" class="size-8 md:size-10"><path fill-rule="evenodd" clip-rule="evenodd" d="M16 32C24.8366 32 32 24.8366 32 16C32 7.16344 24.8366 0 16 0C7.16344 0 0 7.16344 0 16C0 24.8366 7.16344 32 16 32ZM21.3 23.5H24.5V16.7465C24.5 13.8889 22.8296 12.5078 20.5664 12.5078C18.304 12.5078 17.3 14.2695 17.3 14.2695V13.1H14.1V23.5H17.3V17.9008C17.3 16.4008 18.0848 15.5078 19.4072 15.5078C20.6224 15.5078 21.3 16.3648 21.3 17.9008V23.5ZM8.5 9.46797C8.5 10.5552 9.3744 11.4367 10.4536 11.4367C11.532 11.4367 12.4072 10.5552 12.4064 9.46797C12.4064 8.38157 11.532 7.5 10.4536 7.5C9.3744 7.5 8.5 8.38157 8.5 9.46797ZM12.5 23.5H8.5V13.1H12.5V23.5Z"></path></svg></a></div></div><div class="relative z-20 ml-auto flex items-center gap-3"><a target="_self" class="flex items-center justify-center rounded-full border font-medium transition duration-150 border-transparent bg-surface-inverted-primary text-inverted-primary can-hover:hover:bg-surface-inverted-subtle h-8 px-3 text-sm whitespace-nowrap" href="https://app.lumalabs.ai">Sign In</a><button class="cursor-pointer md:hidden" type="button" aria-label="Toggle mobile navigation menu" aria-hidden="true" tabindex="-1"><svg width="20" height="20" viewBox="0 0 20 20" fill="currentColor"><path fill-rule="evenodd" clip-rule="evenodd" d="M1 7C1 6.44772 1.44772 6 2 6L18 6C18.5523 6 19 6.44772 19 7C19 7.55228 18.5523 8 18 8L2 8C1.44772 8 1 7.55229 1 7Z" style="transform-origin: center center; transform: scale(1) rotateZ(0deg) translateY(0px);"></path><path fill-rule="evenodd" clip-rule="evenodd" d="M19 13C19 13.5523 18.5523 14 18 14L2 14C1.44772 14 1 13.5523 1 13C1 12.4477 1.44772 12 2 12L18 12C18.5523 12 19 12.4477 19 13Z" style="transform-origin: center center; transform: scale(1) rotateZ(0deg) translateY(0px);"></path></svg></button></div></div></nav>
-<div class="dark pointer-events-none fixed right-0 left-0 -z-10 h-[50vh] top-0"></div><div class="pointer-events-none fixed top-0 left-0 z-20 size-full bg-surface-primary opacity-0 transition-opacity duration-200 ease-in-out md:hidden"></div><nav data-state="desktop" data-hidden="false" class="group fixed top-0 left-0 z-20 h-0 w-full text-primary dark mix-blend-difference max-md:transition-[height] max-md:delay-200 max-md:duration-0 max-md:data-[state=mobile-open]:z-50 max-md:data-[state=mobile-open]:h-full max-md:data-[state=mobile-open]:overflow-y-scroll max-md:data-[state=mobile-open]:delay-0 max-md:data-[state=loading]:transition-none max-md:data-[state=loading]:delay-0"><div class="container grid h-top-nav grid-cols-[1fr_auto] gap-3 md:grid-cols-[1fr_auto_auto] lg:gap-6"><div class="pointer-events-none absolute top-0 left-0 container flex h-top-nav w-full items-end"><div class="h-px w-full bg-surface-inverted-primary/30"></div></div><div class="relative z-20 flex items-center"><a class="block hover:opacity-70" href="/"><svg width="73" height="18" viewBox="0 0 73 18" fill="none" xmlns="http://www.w3.org/2000/svg" role="img" aria-labelledby=":r0:" class="w-20"><title id=":r0:">Luma company logo</title><path d="M65.8574 17.19C63.7493 17.19 61.9741 16.1693 61.9741 13.7284C61.9741 11.0212 64.4594 10.0004 68.0098 10.0004H69.319V9.53441C69.319 8.15863 68.8974 7.40417 67.4329 7.40417C66.168 7.40417 65.5911 8.04768 65.458 9.04623H62.4179C62.6176 6.29467 64.7923 5.07422 67.6326 5.07422C70.4729 5.07422 72.4922 6.2281 72.4922 9.37908V16.9459H69.3634V15.5479C68.6977 16.4799 67.6769 17.19 65.8574 17.19ZM66.8115 14.9488C68.2317 14.9488 69.319 14.1722 69.319 12.8851V11.9088H68.0764C66.2124 11.9088 65.1251 12.3082 65.1251 13.5508C65.1251 14.3941 65.6355 14.9488 66.8115 14.9488Z" fill="currentColor"></path><path d="M43.7686 16.9459V5.3405H46.9861V7.1157C47.563 6.02839 48.8057 5.07422 50.5365 5.07422C52.0676 5.07422 53.2215 5.71773 53.7762 7.09351C54.7082 5.69554 56.2171 5.07422 57.6817 5.07422C59.8341 5.07422 61.4984 6.42781 61.4984 9.51222V16.9459H58.303V9.86726C58.303 8.38053 57.6373 7.71483 56.4834 7.71483C55.2408 7.71483 54.2422 8.51367 54.2422 10.0892V16.9459H51.0469V9.86726C51.0469 8.38053 50.359 7.71483 49.2273 7.71483C47.9847 7.71483 46.9861 8.51367 46.9861 10.0892V16.9459H43.7686Z" fill="currentColor"></path><path d="M35.9816 17.19C33.7182 17.19 32.0317 15.8586 32.0317 12.8186V5.34058H35.2271V12.3748C35.2271 13.9503 35.8706 14.7048 37.2464 14.7048C38.6 14.7048 39.6651 13.8615 39.6651 12.1529V5.34058H42.8605V16.9459H39.6651V15.1264C39.066 16.3024 37.8899 17.19 35.9816 17.19Z" fill="currentColor"></path><path d="M21.54 16.946V1.08008H25.1348V14.1278H31.5921V16.946H21.54Z" fill="currentColor"></path><path d="M0 13.5L7.785 18V0L0 4.5V13.5Z" fill="currentColor" fill-opacity="0.65"></path><path d="M7.785 18L15.57 13.5L7.785 9L0 13.5L7.785 18Z" fill="currentColor" fill-opacity="0.65"></path></svg></a></div><div class="relative flex md:items-center md:justify-center md:gap-3 lg:gap-4 max-md:pointer-events-none max-md:absolute max-md:inset-0 max-md:scrollbar-hide max-md:h-full max-md:flex-col max-md:gap-4 max-md:overflow-x-hidden max-md:overflow-y-scroll max-md:bg-surface-primary max-md:px-6 max-md:pt-24 max-md:pb-12 max-md:opacity-0 max-md:transition-opacity max-md:duration-200 max-md:ease-in-out max-md:group-data-[state=mobile-open]:pointer-events-auto max-md:group-data-[state=mobile-open]:opacity-100 max-md:max-md:group-data-[state=loading]:transition-none max-md:max-md:group-data-[state=loading]:duration-0"><div class="fixed top-0 left-0 container w-full bg-surface-primary/80 backdrop-blur-xl group-data-[state=mobile-open]:overflow-y-scroll md:hidden"><div class="h-top-nav border-b border-primary/30"></div></div><a class="typo-label tracking-normal whitespace-nowrap uppercase transition-opacity max-md:text-xl hover:opacity-70" target="_self" href="/app">Product</a><a class="typo-label tracking-normal whitespace-nowrap uppercase transition-opacity max-md:text-xl hover:opacity-70" target="_self" href="/pricing">Pricing</a><a class="typo-label tracking-normal whitespace-nowrap uppercase transition-opacity max-md:text-xl hover:opacity-70" target="_self" href="/api">API</a><a class="typo-label tracking-normal whitespace-nowrap uppercase transition-opacity max-md:text-xl hover:opacity-70" target="_self" href="/enterprise">Enterprise</a><a class="typo-label tracking-normal whitespace-nowrap uppercase transition-opacity max-md:text-xl hover:opacity-70" target="_self" href="/news">News</a><a class="typo-label tracking-normal whitespace-nowrap uppercase transition-opacity max-md:text-xl hover:opacity-70" target="_self" href="/careers">Join us</a><div class="flex items-center gap-4 mt-auto pt-12 md:hidden"><a class="transition-opacity will-change-transform hover:opacity-70" target="_blank" rel="noopener noreferrer nofollow" href="https://www.instagram.com/lumalabsai"><svg viewBox="0 0 32 32" fill="currentColor" class="size-8 md:size-10"><path fill-rule="evenodd" clip-rule="evenodd" d="M16 32C24.8366 32 32 24.8366 32 16C32 7.16344 24.8366 0 16 0C7.16344 0 0 7.16344 0 16C0 24.8366 7.16344 32 16 32ZM10.0472 7.47896C10.6111 7.25739 11.2561 7.10665 12.2007 7.06209C13.1475 7.01592 13.4494 7.00563 15.8602 7.00101C18.2711 6.99639 18.5753 7.00687 19.5202 7.0477C20.4651 7.08854 21.1104 7.2375 21.6754 7.45606C22.26 7.68119 22.7558 7.9839 23.2497 8.47659C23.7436 8.96928 24.0481 9.46339 24.2763 10.047C24.4977 10.6114 24.648 11.2543 24.6929 12.201C24.7379 13.1476 24.7487 13.4498 24.7533 15.8602C24.7579 18.2705 24.7482 18.5731 24.7068 19.5206C24.6658 20.4648 24.5172 21.1105 24.2984 21.6751C24.0728 22.26 23.7699 22.7553 23.2779 23.2496C22.7859 23.7439 22.2911 24.0482 21.7075 24.2765C21.1433 24.497 20.5018 24.6483 19.555 24.6932C18.6081 24.7382 18.3047 24.7488 15.8947 24.7534C13.4847 24.758 13.1805 24.7485 12.2357 24.7071C11.2908 24.6657 10.645 24.5169 10.0804 24.2987C9.49453 24.0725 8.99989 23.7702 8.50578 23.2778C8.01167 22.7855 7.70682 22.291 7.47903 21.7075C7.25746 21.1434 7.10725 20.4985 7.06216 19.5542C7.01635 18.6072 7.0057 18.305 7.00108 15.8943C6.99646 13.4835 7.0057 13.1798 7.04742 12.2347C7.08914 11.2896 7.23722 10.6441 7.45577 10.0789C7.68161 9.49446 7.98468 8.99946 8.47684 8.50553C8.96899 8.0116 9.46363 7.7064 10.0472 7.47896ZM10.6557 22.8082C10.9689 22.9286 11.4388 23.0724 12.3044 23.1101H12.3045C13.2407 23.1505 13.5204 23.1601 15.891 23.155C18.2615 23.1498 18.5421 23.1406 19.4783 23.0966C20.3427 23.0554 20.8127 22.9098 21.1252 22.7878C21.5396 22.6259 21.8348 22.4338 22.1448 22.122C22.4548 21.8103 22.6474 21.5146 22.8072 21.1001C22.9278 20.7865 23.0712 20.3164 23.1091 19.4509C23.1501 18.5154 23.1584 18.234 23.1542 15.8644C23.1499 13.4949 23.1398 13.2142 23.0952 12.278C23.0544 11.4123 22.9091 10.9431 22.7868 10.6311C22.6249 10.216 22.4326 9.92146 22.1207 9.61111C21.8087 9.30076 21.5135 9.10883 21.0985 8.94904C20.7859 8.82813 20.3152 8.68485 19.4504 8.64721C18.5138 8.60602 18.2326 8.59714 15.8629 8.60229C13.4932 8.60744 13.2127 8.61632 12.2765 8.6607C11.4113 8.7019 10.9419 8.84713 10.629 8.96928C10.2148 9.1312 9.91922 9.3233 9.6094 9.63525C9.29958 9.9472 9.10712 10.2421 8.94733 10.6574C8.82713 10.9704 8.68244 11.4409 8.64551 12.3057C8.60449 13.2416 8.59544 13.5221 8.60059 15.8921C8.60574 18.2622 8.61497 18.5431 8.659 19.4785C8.69948 20.3441 8.84595 20.8135 8.96757 21.1267C9.12949 21.5406 9.32124 21.8371 9.63337 22.1462C9.94549 22.4553 10.2409 22.6484 10.6557 22.8082ZM19.7218 11.7242C19.6045 11.5492 19.5416 11.3434 19.5413 11.1327C19.5408 10.8502 19.6526 10.5791 19.8519 10.379C20.0513 10.1789 20.322 10.0662 20.6044 10.0656C20.8151 10.0652 21.0212 10.1273 21.1967 10.244C21.3721 10.3607 21.509 10.5268 21.59 10.7213C21.671 10.9159 21.6925 11.13 21.6518 11.3368C21.611 11.5435 21.5099 11.7335 21.3612 11.8828C21.2125 12.032 21.0228 12.1338 20.8163 12.1753C20.6097 12.2168 20.3954 12.1961 20.2006 12.1158C20.0058 12.0355 19.8392 11.8992 19.7218 11.7242ZM15.8858 20.4352C13.3687 20.44 11.3241 18.4037 11.3192 15.8861C11.3144 13.3689 13.351 11.3239 15.8684 11.3189C18.3858 11.3139 20.431 13.3507 20.4358 15.8683C20.4406 18.3859 18.4029 20.4304 15.8858 20.4352ZM13.4136 14.2379C13.0894 14.7252 12.917 15.2976 12.9181 15.8829C12.9189 16.2715 12.9961 16.6562 13.1455 17.0149C13.2949 17.3737 13.5136 17.6995 13.7889 17.9737C14.0642 18.248 14.3909 18.4653 14.7502 18.6133C15.1096 18.7613 15.4945 18.837 15.8831 18.8362C16.4684 18.835 17.0402 18.6603 17.5262 18.3342C18.0122 18.0081 18.3905 17.5452 18.6134 17.004C18.8363 16.4629 18.8937 15.8678 18.7784 15.294C18.6631 14.7202 18.3802 14.1935 17.9656 13.7805C17.5509 13.3674 17.0231 13.0867 16.4488 12.9736C15.8746 12.8606 15.2797 12.9204 14.7395 13.1454C14.1992 13.3704 13.7378 13.7506 13.4136 14.2379Z"></path></svg></a><a class="transition-opacity will-change-transform hover:opacity-70" target="_blank" rel="noopener noreferrer nofollow" href="https://www.youtube.com/@lumalabsai"><svg viewBox="0 0 32 32" fill="currentColor" class="size-8 md:size-10"><path d="M16 32C24.8366 32 32 24.8366 32 16C32 7.16344 24.8366 0 16 0C7.16344 0 0 7.16344 0 16C0 24.8366 7.16344 32 16 32ZM23.3995 10.386C24.1918 10.5983 24.8156 11.2241 25.0273 12.0187C25.4121 13.4589 25.4121 16.4638 25.4121 16.4638C25.4121 16.4638 25.4121 19.4687 25.0273 20.9091C24.8156 21.7036 24.1918 22.3293 23.3995 22.5418C21.9637 22.9277 16.2061 22.9277 16.2061 22.9277C16.2061 22.9277 10.4484 22.9277 9.01256 22.5418C8.22039 22.3293 7.59646 21.7036 7.38474 20.9091C7 19.4687 7 16.4638 7 16.4638C7 16.4638 7 13.4589 7.38474 12.0187C7.59646 11.2241 8.22039 10.5983 9.01256 10.386C10.4484 10 16.2061 10 16.2061 10C16.2061 10 21.9637 10 23.3995 10.386Z"></path><path fill-rule="evenodd" clip-rule="evenodd" d="M13.4164 20.2199L20.0419 16.4638L13.4164 12.7074V20.2199Z"></path></svg></a><a class="transition-opacity will-change-transform hover:opacity-70" target="_blank" rel="noopener noreferrer nofollow" href="https://x.com/LumaLabsAI"><svg viewBox="0 0 32 32" fill="currentColor" class="size-8 md:size-10"><path fill-rule="evenodd" clip-rule="evenodd" d="M16 32C24.8366 32 32 24.8366 32 16C32 7.16344 24.8366 0 16 0C7.16344 0 0 7.16344 0 16C0 24.8366 7.16344 32 16 32ZM23.4491 9H20.9402L16.8139 13.7735L13.2157 9H8L14.206 17.1548L8.33011 23.9172H10.8389L15.3944 18.7128L19.3557 23.9172H24.4394L17.9693 15.3315L23.4491 9ZM21.4354 22.3924H20.049L10.938 10.4254H12.4565L21.4354 22.3924Z"></path></svg></a><a class="transition-opacity will-change-transform hover:opacity-70" target="_blank" rel="noopener noreferrer nofollow" href="https://www.tiktok.com/@lumalabsai"><svg viewBox="0 0 32 32" fill="currentColor" class="size-8 md:size-10"><path fill-rule="evenodd" clip-rule="evenodd" d="M16 32C24.8366 32 32 24.8366 32 16C32 7.16344 24.8366 0 16 0C7.16344 0 0 7.16344 0 16C0 24.8366 7.16344 32 16 32ZM21.5645 11.4409C21.6728 11.5114 21.7845 11.5764 21.8992 11.6357C22.6458 12.0079 23.3749 12.1212 23.7341 12.0823V14.9806C23.7341 14.9806 22.7091 14.9381 21.9484 14.7363C20.8881 14.4526 20.2085 14.017 20.2085 14.017C20.2085 14.017 19.7368 13.705 19.7014 13.6837V19.6731C19.7014 20.006 19.6132 20.839 19.349 21.5335C19.1174 22.1273 18.7864 22.6774 18.3701 23.1601C18.3701 23.1601 17.7185 23.9679 16.5739 24.5101C15.6198 24.9622 14.7711 24.987 14.434 24.9968C14.4065 24.9976 14.3823 24.9983 14.3619 24.9992C14.3619 24.9992 12.7947 25.0622 11.3813 24.1017L11.3743 24.0947V24.1017C10.8964 23.7683 10.4703 23.3663 10.1096 22.9086C9.6623 22.3381 9.38783 21.6613 9.317 21.463V21.4559C9.20438 21.1191 8.96817 20.3042 9.00358 19.5176C9.05989 18.1318 9.52489 17.278 9.64813 17.0655C9.97199 16.4828 10.3951 15.9611 10.8983 15.5239C11.4726 15.0425 12.1404 14.6853 12.8597 14.4748C13.5789 14.2644 14.334 14.2054 15.0772 14.3014L15.0737 17.2741C14.8289 17.1943 14.573 17.1538 14.3155 17.154C12.9552 17.154 11.8527 18.2632 11.8527 19.6331C11.8527 21.0029 12.9552 22.1121 14.3155 22.1121C14.739 22.1127 15.1553 22.0028 15.5235 21.7934C15.8767 21.5927 16.1752 21.3083 16.3927 20.9652C16.6102 20.6221 16.74 20.2308 16.7708 19.8257V19.8194C16.7725 19.8109 16.7725 19.8024 16.7725 19.7942C16.7729 19.7878 16.7733 19.7816 16.7737 19.7756C16.7746 19.7632 16.7754 19.7514 16.7754 19.739C16.7818 19.5909 16.7818 19.4411 16.7818 19.2896V8H19.7014C19.6968 8 19.6663 8.27978 19.74 8.71219H19.7364C19.8246 9.23315 20.064 9.97721 20.705 10.7107C20.9612 10.9877 21.2498 11.2328 21.5645 11.4409Z"></path></svg></a><a class="transition-opacity will-change-transform hover:opacity-70" target="_blank" rel="noopener noreferrer nofollow" href="https://www.linkedin.com/company/lumalabsai"><svg viewBox="0 0 32 32" fill="currentColor" class="size-8 md:size-10"><path fill-rule="evenodd" clip-rule="evenodd" d="M16 32C24.8366 32 32 24.8366 32 16C32 7.16344 24.8366 0 16 0C7.16344 0 0 7.16344 0 16C0 24.8366 7.16344 32 16 32ZM21.3 23.5H24.5V16.7465C24.5 13.8889 22.8296 12.5078 20.5664 12.5078C18.304 12.5078 17.3 14.2695 17.3 14.2695V13.1H14.1V23.5H17.3V17.9008C17.3 16.4008 18.0848 15.5078 19.4072 15.5078C20.6224 15.5078 21.3 16.3648 21.3 17.9008V23.5ZM8.5 9.46797C8.5 10.5552 9.3744 11.4367 10.4536 11.4367C11.532 11.4367 12.4072 10.5552 12.4064 9.46797C12.4064 8.38157 11.532 7.5 10.4536 7.5C9.3744 7.5 8.5 8.38157 8.5 9.46797ZM12.5 23.5H8.5V13.1H12.5V23.5Z"></path></svg></a></div></div><div class="relative z-20 ml-auto flex items-center gap-3"><a target="_self" class="flex items-center justify-center rounded-full border font-medium transition duration-150 border-transparent bg-surface-inverted-primary text-inverted-primary can-hover:hover:bg-surface-inverted-subtle h-8 px-3 text-sm whitespace-nowrap" href="https://app.lumalabs.ai">Sign In</a><button class="cursor-pointer md:hidden" type="button" aria-label="Toggle mobile navigation menu" aria-hidden="true" tabindex="-1"><svg width="20" height="20" viewBox="0 0 20 20" fill="currentColor"><path fill-rule="evenodd" clip-rule="evenodd" d="M1 7C1 6.44772 1.44772 6 2 6L18 6C18.5523 6 19 6.44772 19 7C19 7.55228 18.5523 8 18 8L2 8C1.44772 8 1 7.55229 1 7Z" style="transform-origin: center center; transform: scale(1) rotateZ(0deg) translateY(0px);"></path><path fill-rule="evenodd" clip-rule="evenodd" d="M19 13C19 13.5523 18.5523 14 18 14L2 14C1.44772 14 1 13.5523 1 13C1 12.4477 1.44772 12 2 12L18 12C18.5523 12 19 12.4477 19 13Z" style="transform-origin: center center; transform: scale(1) rotateZ(0deg) translateY(0px);"></path></svg></button></div></div></nav><div class="dark relative z-20" style=""><div class="pointer-events-none fixed top-0 left-0 z-20 size-full bg-surface-primary opacity-0 transition-opacity duration-200 ease-in-out md:hidden"></div><nav data-state="desktop" data-hidden="false" class="group fixed top-0 left-0 z-20 h-0 w-full text-primary max-md:transition-[height] max-md:delay-200 max-md:duration-0 max-md:data-[state=mobile-open]:z-50 max-md:data-[state=mobile-open]:h-full max-md:data-[state=mobile-open]:overflow-y-scroll max-md:data-[state=mobile-open]:delay-0 max-md:data-[state=loading]:transition-none max-md:data-[state=loading]:delay-0"><div class="container grid h-top-nav grid-cols-[1fr_auto] gap-3 md:grid-cols-[1fr_auto_auto] lg:gap-6"><div class="relative z-20 flex items-center"><a class="block hover:opacity-70" href="/"><svg width="73" height="18" viewBox="0 0 73 18" fill="none" xmlns="http://www.w3.org/2000/svg" role="img" aria-labelledby=":r1:" class="w-20"><title id=":r1:">Luma company logo</title><path d="M65.8574 17.19C63.7493 17.19 61.9741 16.1693 61.9741 13.7284C61.9741 11.0212 64.4594 10.0004 68.0098 10.0004H69.319V9.53441C69.319 8.15863 68.8974 7.40417 67.4329 7.40417C66.168 7.40417 65.5911 8.04768 65.458 9.04623H62.4179C62.6176 6.29467 64.7923 5.07422 67.6326 5.07422C70.4729 5.07422 72.4922 6.2281 72.4922 9.37908V16.9459H69.3634V15.5479C68.6977 16.4799 67.6769 17.19 65.8574 17.19ZM66.8115 14.9488C68.2317 14.9488 69.319 14.1722 69.319 12.8851V11.9088H68.0764C66.2124 11.9088 65.1251 12.3082 65.1251 13.5508C65.1251 14.3941 65.6355 14.9488 66.8115 14.9488Z" fill="currentColor"></path><path d="M43.7686 16.9459V5.3405H46.9861V7.1157C47.563 6.02839 48.8057 5.07422 50.5365 5.07422C52.0676 5.07422 53.2215 5.71773 53.7762 7.09351C54.7082 5.69554 56.2171 5.07422 57.6817 5.07422C59.8341 5.07422 61.4984 6.42781 61.4984 9.51222V16.9459H58.303V9.86726C58.303 8.38053 57.6373 7.71483 56.4834 7.71483C55.2408 7.71483 54.2422 8.51367 54.2422 10.0892V16.9459H51.0469V9.86726C51.0469 8.38053 50.359 7.71483 49.2273 7.71483C47.9847 7.71483 46.9861 8.51367 46.9861 10.0892V16.9459H43.7686Z" fill="currentColor"></path><path d="M35.9816 17.19C33.7182 17.19 32.0317 15.8586 32.0317 12.8186V5.34058H35.2271V12.3748C35.2271 13.9503 35.8706 14.7048 37.2464 14.7048C38.6 14.7048 39.6651 13.8615 39.6651 12.1529V5.34058H42.8605V16.9459H39.6651V15.1264C39.066 16.3024 37.8899 17.19 35.9816 17.19Z" fill="currentColor"></path><path d="M21.54 16.946V1.08008H25.1348V14.1278H31.5921V16.946H21.54Z" fill="currentColor"></path><path d="M0 13.5L7.785 18V0L0 4.5V13.5Z" fill="currentColor" fill-opacity="0.65"></path><path d="M7.785 18L15.57 13.5L7.785 9L0 13.5L7.785 18Z" fill="currentColor" fill-opacity="0.65"></path></svg></a></div><div class="relative flex md:items-center md:justify-center md:gap-3 lg:gap-4 max-md:pointer-events-none max-md:absolute max-md:inset-0 max-md:scrollbar-hide max-md:h-full max-md:flex-col max-md:gap-4 max-md:overflow-x-hidden max-md:overflow-y-scroll max-md:bg-surface-primary max-md:px-6 max-md:pt-24 max-md:pb-12 max-md:opacity-0 max-md:transition-opacity max-md:duration-200 max-md:ease-in-out max-md:group-data-[state=mobile-open]:pointer-events-auto max-md:group-data-[state=mobile-open]:opacity-100 max-md:max-md:group-data-[state=loading]:transition-none max-md:max-md:group-data-[state=loading]:duration-0"><div class="fixed top-0 left-0 container w-full bg-surface-primary/80 backdrop-blur-xl group-data-[state=mobile-open]:overflow-y-scroll md:hidden"><div class="h-top-nav border-b border-primary/30"></div></div><a class="typo-label tracking-normal whitespace-nowrap uppercase transition-opacity max-md:text-xl hover:opacity-70" target="_self" href="/app">Product</a><a class="typo-label tracking-normal whitespace-nowrap uppercase transition-opacity max-md:text-xl hover:opacity-70" target="_self" href="/pricing">Pricing</a><a class="typo-label tracking-normal whitespace-nowrap uppercase transition-opacity max-md:text-xl hover:opacity-70" target="_self" href="/api">API</a><a class="typo-label tracking-normal whitespace-nowrap uppercase transition-opacity max-md:text-xl hover:opacity-70" target="_self" href="/enterprise">Enterprise</a><a class="typo-label tracking-normal whitespace-nowrap uppercase transition-opacity max-md:text-xl hover:opacity-70" target="_self" href="/news">News</a><a class="typo-label tracking-normal whitespace-nowrap uppercase transition-opacity max-md:text-xl hover:opacity-70" target="_self" href="/careers">Join us</a><div class="flex items-center gap-4 mt-auto pt-12 md:hidden"><a class="transition-opacity will-change-transform hover:opacity-70" target="_blank" rel="noopener noreferrer nofollow" href="https://www.instagram.com/lumalabsai"><svg viewBox="0 0 32 32" fill="currentColor" class="size-8 md:size-10"><path fill-rule="evenodd" clip-rule="evenodd" d="M16 32C24.8366 32 32 24.8366 32 16C32 7.16344 24.8366 0 16 0C7.16344 0 0 7.16344 0 16C0 24.8366 7.16344 32 16 32ZM10.0472 7.47896C10.6111 7.25739 11.2561 7.10665 12.2007 7.06209C13.1475 7.01592 13.4494 7.00563 15.8602 7.00101C18.2711 6.99639 18.5753 7.00687 19.5202 7.0477C20.4651 7.08854 21.1104 7.2375 21.6754 7.45606C22.26 7.68119 22.7558 7.9839 23.2497 8.47659C23.7436 8.96928 24.0481 9.46339 24.2763 10.047C24.4977 10.6114 24.648 11.2543 24.6929 12.201C24.7379 13.1476 24.7487 13.4498 24.7533 15.8602C24.7579 18.2705 24.7482 18.5731 24.7068 19.5206C24.6658 20.4648 24.5172 21.1105 24.2984 21.6751C24.0728 22.26 23.7699 22.7553 23.2779 23.2496C22.7859 23.7439 22.2911 24.0482 21.7075 24.2765C21.1433 24.497 20.5018 24.6483 19.555 24.6932C18.6081 24.7382 18.3047 24.7488 15.8947 24.7534C13.4847 24.758 13.1805 24.7485 12.2357 24.7071C11.2908 24.6657 10.645 24.5169 10.0804 24.2987C9.49453 24.0725 8.99989 23.7702 8.50578 23.2778C8.01167 22.7855 7.70682 22.291 7.47903 21.7075C7.25746 21.1434 7.10725 20.4985 7.06216 19.5542C7.01635 18.6072 7.0057 18.305 7.00108 15.8943C6.99646 13.4835 7.0057 13.1798 7.04742 12.2347C7.08914 11.2896 7.23722 10.6441 7.45577 10.0789C7.68161 9.49446 7.98468 8.99946 8.47684 8.50553C8.96899 8.0116 9.46363 7.7064 10.0472 7.47896ZM10.6557 22.8082C10.9689 22.9286 11.4388 23.0724 12.3044 23.1101H12.3045C13.2407 23.1505 13.5204 23.1601 15.891 23.155C18.2615 23.1498 18.5421 23.1406 19.4783 23.0966C20.3427 23.0554 20.8127 22.9098 21.1252 22.7878C21.5396 22.6259 21.8348 22.4338 22.1448 22.122C22.4548 21.8103 22.6474 21.5146 22.8072 21.1001C22.9278 20.7865 23.0712 20.3164 23.1091 19.4509C23.1501 18.5154 23.1584 18.234 23.1542 15.8644C23.1499 13.4949 23.1398 13.2142 23.0952 12.278C23.0544 11.4123 22.9091 10.9431 22.7868 10.6311C22.6249 10.216 22.4326 9.92146 22.1207 9.61111C21.8087 9.30076 21.5135 9.10883 21.0985 8.94904C20.7859 8.82813 20.3152 8.68485 19.4504 8.64721C18.5138 8.60602 18.2326 8.59714 15.8629 8.60229C13.4932 8.60744 13.2127 8.61632 12.2765 8.6607C11.4113 8.7019 10.9419 8.84713 10.629 8.96928C10.2148 9.1312 9.91922 9.3233 9.6094 9.63525C9.29958 9.9472 9.10712 10.2421 8.94733 10.6574C8.82713 10.9704 8.68244 11.4409 8.64551 12.3057C8.60449 13.2416 8.59544 13.5221 8.60059 15.8921C8.60574 18.2622 8.61497 18.5431 8.659 19.4785C8.69948 20.3441 8.84595 20.8135 8.96757 21.1267C9.12949 21.5406 9.32124 21.8371 9.63337 22.1462C9.94549 22.4553 10.2409 22.6484 10.6557 22.8082ZM19.7218 11.7242C19.6045 11.5492 19.5416 11.3434 19.5413 11.1327C19.5408 10.8502 19.6526 10.5791 19.8519 10.379C20.0513 10.1789 20.322 10.0662 20.6044 10.0656C20.8151 10.0652 21.0212 10.1273 21.1967 10.244C21.3721 10.3607 21.509 10.5268 21.59 10.7213C21.671 10.9159 21.6925 11.13 21.6518 11.3368C21.611 11.5435 21.5099 11.7335 21.3612 11.8828C21.2125 12.032 21.0228 12.1338 20.8163 12.1753C20.6097 12.2168 20.3954 12.1961 20.2006 12.1158C20.0058 12.0355 19.8392 11.8992 19.7218 11.7242ZM15.8858 20.4352C13.3687 20.44 11.3241 18.4037 11.3192 15.8861C11.3144 13.3689 13.351 11.3239 15.8684 11.3189C18.3858 11.3139 20.431 13.3507 20.4358 15.8683C20.4406 18.3859 18.4029 20.4304 15.8858 20.4352ZM13.4136 14.2379C13.0894 14.7252 12.917 15.2976 12.9181 15.8829C12.9189 16.2715 12.9961 16.6562 13.1455 17.0149C13.2949 17.3737 13.5136 17.6995 13.7889 17.9737C14.0642 18.248 14.3909 18.4653 14.7502 18.6133C15.1096 18.7613 15.4945 18.837 15.8831 18.8362C16.4684 18.835 17.0402 18.6603 17.5262 18.3342C18.0122 18.0081 18.3905 17.5452 18.6134 17.004C18.8363 16.4629 18.8937 15.8678 18.7784 15.294C18.6631 14.7202 18.3802 14.1935 17.9656 13.7805C17.5509 13.3674 17.0231 13.0867 16.4488 12.9736C15.8746 12.8606 15.2797 12.9204 14.7395 13.1454C14.1992 13.3704 13.7378 13.7506 13.4136 14.2379Z"></path></svg></a><a class="transition-opacity will-change-transform hover:opacity-70" target="_blank" rel="noopener noreferrer nofollow" href="https://www.youtube.com/@lumalabsai"><svg viewBox="0 0 32 32" fill="currentColor" class="size-8 md:size-10"><path d="M16 32C24.8366 32 32 24.8366 32 16C32 7.16344 24.8366 0 16 0C7.16344 0 0 7.16344 0 16C0 24.8366 7.16344 32 16 32ZM23.3995 10.386C24.1918 10.5983 24.8156 11.2241 25.0273 12.0187C25.4121 13.4589 25.4121 16.4638 25.4121 16.4638C25.4121 16.4638 25.4121 19.4687 25.0273 20.9091C24.8156 21.7036 24.1918 22.3293 23.3995 22.5418C21.9637 22.9277 16.2061 22.9277 16.2061 22.9277C16.2061 22.9277 10.4484 22.9277 9.01256 22.5418C8.22039 22.3293 7.59646 21.7036 7.38474 20.9091C7 19.4687 7 16.4638 7 16.4638C7 16.4638 7 13.4589 7.38474 12.0187C7.59646 11.2241 8.22039 10.5983 9.01256 10.386C10.4484 10 16.2061 10 16.2061 10C16.2061 10 21.9637 10 23.3995 10.386Z"></path><path fill-rule="evenodd" clip-rule="evenodd" d="M13.4164 20.2199L20.0419 16.4638L13.4164 12.7074V20.2199Z"></path></svg></a><a class="transition-opacity will-change-transform hover:opacity-70" target="_blank" rel="noopener noreferrer nofollow" href="https://x.com/LumaLabsAI"><svg viewBox="0 0 32 32" fill="currentColor" class="size-8 md:size-10"><path fill-rule="evenodd" clip-rule="evenodd" d="M16 32C24.8366 32 32 24.8366 32 16C32 7.16344 24.8366 0 16 0C7.16344 0 0 7.16344 0 16C0 24.8366 7.16344 32 16 32ZM23.4491 9H20.9402L16.8139 13.7735L13.2157 9H8L14.206 17.1548L8.33011 23.9172H10.8389L15.3944 18.7128L19.3557 23.9172H24.4394L17.9693 15.3315L23.4491 9ZM21.4354 22.3924H20.049L10.938 10.4254H12.4565L21.4354 22.3924Z"></path></svg></a><a class="transition-opacity will-change-transform hover:opacity-70" target="_blank" rel="noopener noreferrer nofollow" href="https://www.tiktok.com/@lumalabsai"><svg viewBox="0 0 32 32" fill="currentColor" class="size-8 md:size-10"><path fill-rule="evenodd" clip-rule="evenodd" d="M16 32C24.8366 32 32 24.8366 32 16C32 7.16344 24.8366 0 16 0C7.16344 0 0 7.16344 0 16C0 24.8366 7.16344 32 16 32ZM21.5645 11.4409C21.6728 11.5114 21.7845 11.5764 21.8992 11.6357C22.6458 12.0079 23.3749 12.1212 23.7341 12.0823V14.9806C23.7341 14.9806 22.7091 14.9381 21.9484 14.7363C20.8881 14.4526 20.2085 14.017 20.2085 14.017C20.2085 14.017 19.7368 13.705 19.7014 13.6837V19.6731C19.7014 20.006 19.6132 20.839 19.349 21.5335C19.1174 22.1273 18.7864 22.6774 18.3701 23.1601C18.3701 23.1601 17.7185 23.9679 16.5739 24.5101C15.6198 24.9622 14.7711 24.987 14.434 24.9968C14.4065 24.9976 14.3823 24.9983 14.3619 24.9992C14.3619 24.9992 12.7947 25.0622 11.3813 24.1017L11.3743 24.0947V24.1017C10.8964 23.7683 10.4703 23.3663 10.1096 22.9086C9.6623 22.3381 9.38783 21.6613 9.317 21.463V21.4559C9.20438 21.1191 8.96817 20.3042 9.00358 19.5176C9.05989 18.1318 9.52489 17.278 9.64813 17.0655C9.97199 16.4828 10.3951 15.9611 10.8983 15.5239C11.4726 15.0425 12.1404 14.6853 12.8597 14.4748C13.5789 14.2644 14.334 14.2054 15.0772 14.3014L15.0737 17.2741C14.8289 17.1943 14.573 17.1538 14.3155 17.154C12.9552 17.154 11.8527 18.2632 11.8527 19.6331C11.8527 21.0029 12.9552 22.1121 14.3155 22.1121C14.739 22.1127 15.1553 22.0028 15.5235 21.7934C15.8767 21.5927 16.1752 21.3083 16.3927 20.9652C16.6102 20.6221 16.74 20.2308 16.7708 19.8257V19.8194C16.7725 19.8109 16.7725 19.8024 16.7725 19.7942C16.7729 19.7878 16.7733 19.7816 16.7737 19.7756C16.7746 19.7632 16.7754 19.7514 16.7754 19.739C16.7818 19.5909 16.7818 19.4411 16.7818 19.2896V8H19.7014C19.6968 8 19.6663 8.27978 19.74 8.71219H19.7364C19.8246 9.23315 20.064 9.97721 20.705 10.7107C20.9612 10.9877 21.2498 11.2328 21.5645 11.4409Z"></path></svg></a><a class="transition-opacity will-change-transform hover:opacity-70" target="_blank" rel="noopener noreferrer nofollow" href="https://www.linkedin.com/company/lumalabsai"><svg viewBox="0 0 32 32" fill="currentColor" class="size-8 md:size-10"><path fill-rule="evenodd" clip-rule="evenodd" d="M16 32C24.8366 32 32 24.8366 32 16C32 7.16344 24.8366 0 16 0C7.16344 0 0 7.16344 0 16C0 24.8366 7.16344 32 16 32ZM21.3 23.5H24.5V16.7465C24.5 13.8889 22.8296 12.5078 20.5664 12.5078C18.304 12.5078 17.3 14.2695 17.3 14.2695V13.1H14.1V23.5H17.3V17.9008C17.3 16.4008 18.0848 15.5078 19.4072 15.5078C20.6224 15.5078 21.3 16.3648 21.3 17.9008V23.5ZM8.5 9.46797C8.5 10.5552 9.3744 11.4367 10.4536 11.4367C11.532 11.4367 12.4072 10.5552 12.4064 9.46797C12.4064 8.38157 11.532 7.5 10.4536 7.5C9.3744 7.5 8.5 8.38157 8.5 9.46797ZM12.5 23.5H8.5V13.1H12.5V23.5Z"></path></svg></a></div></div><div class="relative z-20 ml-auto flex items-center gap-3"><a target="_self" class="flex items-center justify-center rounded-full border font-medium transition duration-150 border-transparent bg-surface-inverted-primary text-inverted-primary can-hover:hover:bg-surface-inverted-subtle h-8 px-3 text-sm whitespace-nowrap" href="https://app.lumalabs.ai">Sign In</a><button class="cursor-pointer md:hidden" type="button" aria-label="Toggle mobile navigation menu" aria-hidden="true" tabindex="-1"><svg width="20" height="20" viewBox="0 0 20 20" fill="currentColor"><path fill-rule="evenodd" clip-rule="evenodd" d="M1 7C1 6.44772 1.44772 6 2 6L18 6C18.5523 6 19 6.44772 19 7C19 7.55228 18.5523 8 18 8L2 8C1.44772 8 1 7.55229 1 7Z" style="transform-origin: center center; transform: scale(1) rotateZ(0deg) translateY(0px);"></path><path fill-rule="evenodd" clip-rule="evenodd" d="M19 13C19 13.5523 18.5523 14 18 14L2 14C1.44772 14 1 13.5523 1 13C1 12.4477 1.44772 12 2 12L18 12C18.5523 12 19 12.4477 19 13Z" style="transform-origin: center center; transform: scale(1) rotateZ(0deg) translateY(0px);"></path></svg></button></div></div></nav><div class="bg-surface-inverted-primary"><div class="relative flex min-h-screen items-center justify-center bg-inverted-primary"><div class="absolute inset-0" style="opacity: 0.35;"><video preload="metadata" class="h-full w-full object-cover" playsinline="" loop="" autoplay="" muted=""><source src="https://static.cdn-luma.com/files/sanity/7b077029-d756-49ad-9d9b-9ee0ad54ad02.mp4#t=0.001" type="video/mp4"></video></div><div class="relative flex w-full max-w-xl flex-col items-center gap-5 py-48 text-center"><h1 class="typo-h1 text-balance">Luma is your creative partner</h1><div class="typo-subhead text-balance text-primary/70"><p>You have the idea. Luma helps make it real.</p></div><div class="flex shrink-0 items-center"><a target="_self" class="flex items-center justify-center rounded-full border font-medium transition duration-150 border-transparent bg-surface-inverted-primary text-inverted-primary can-hover:hover:bg-surface-inverted-subtle h-10 px-6 text-base md:h-12 md:px-8 md:text-lg" href="https://app.lumalabs.ai/">Try for free</a></div></div></div><div class="relative mx-auto w-full max-w-2xl self-end px-2.5"><div class="flex flex-col items-center justify-between rounded-xl bg-linear-to-br from-surface-inverted-primary/50 to-surface-primary/50 px-5 py-5 shadow-md outline outline-inverted-primary/20 backdrop-blur-xl sm:px-10 sm:py-6 md:rounded-3xl -mt-40" style="width: 652px; max-width: 100%; min-height: 288px; height: 288px; box-sizing: border-box;">
-    <h3 class="text-center typo-h4 text-balance text-primary/70" style="margin: 0; font-weight: 500;">What’s due this week?</h3>
-    <form method="GET" action="/workspace" class="relative rounded-2xl bg-white shadow-xl transition-all" style="width: 572px; height: 127.56px; max-width: 100%; box-sizing: border-box; padding: 16px 56px 14px 18px; display: flex; flex-direction: column; justify-content: space-between;">
-        <textarea id="home-prompt-input" name="prompt" autocomplete="off" class="block w-full resize-none bg-transparent typo-body-m text-black outline-none placeholder:text-gray-400" style="height: 64px; font-size: 15px; line-height: 1.45; border: none; padding: 0; margin: 0;" placeholder="Generate 5 ad variations for a sneaker campaign in 16:9 and 9:16"></textarea>
-        <div style="display: flex; justify-content: space-between; align-items: flex-end; width: 100%;">
-            <span style="font-size: 11.5px; color: #9CA3AF; letter-spacing: 0.2px; font-weight: 500;">tab to accept</span>
-            <button id="home-prompt-btn" type="submit" aria-label="Submit prompt" class="cursor-pointer text-black hover:opacity-70 transition-opacity" style="position: absolute; right: 14px; bottom: 14px; background: none; border: none; padding: 0; display: flex; align-items: center; justify-content: center;">
-                <svg viewBox="0 0 41 41" fill="currentColor" style="width: 36px; height: 36px;">
-                    <path d="M20.582 40.8203C17.8346 40.8203 15.2565 40.2995 12.8477 39.2578C10.4388 38.2292 8.32292 36.8034 6.5 34.9805C4.67708 33.1445 3.24479 31.0286 2.20312 28.6328C1.17448 26.224 0.660156 23.6458 0.660156 20.8984C0.660156 18.151 1.17448 15.5729 2.20312 13.1641C3.24479 10.7552 4.67708 8.63932 6.5 6.81641C8.32292 4.99349 10.4388 3.56771 12.8477 2.53906C15.2565 1.4974 17.8346 0.976562 20.582 0.976562C23.3294 0.976562 25.9076 1.4974 28.3164 2.53906C30.7253 3.56771 32.8411 4.99349 34.6641 6.81641C36.487 8.63932 37.9128 10.7552 38.9414 13.1641C39.9831 15.5729 40.5039 18.151 40.5039 20.8984C40.5039 23.6458 39.9831 26.224 38.9414 28.6328C37.9128 31.0286 36.487 33.1445 34.6641 34.9805C32.8411 36.8034 30.7253 38.2292 28.3164 39.2578C25.9076 40.2995 23.3294 40.8203 20.582 40.8203ZM20.6016 10.7422C20.3932 10.7422 20.1979 10.7812 20.0156 10.8594C19.8333 10.9245 19.638 11.0612 19.4297 11.2695L12.7891 17.6758C12.6328 17.819 12.5156 17.9818 12.4375 18.1641C12.3594 18.3333 12.3203 18.5286 12.3203 18.75C12.3203 19.1536 12.457 19.4922 12.7305 19.7656C13.0039 20.026 13.349 20.1562 13.7656 20.1562C14.2344 20.1562 14.6055 19.9935 14.8789 19.668L17.9453 16.4062L19.1172 15.1758L18.9805 18.1836V29.4922C18.9805 29.9219 19.1367 30.293 19.4492 30.6055C19.7747 30.9049 20.1589 31.0547 20.6016 31.0547C21.0443 31.0547 21.4219 30.9049 21.7344 30.6055C22.0469 30.293 22.2031 29.9219 22.2031 29.4922V18.1836L22.0859 15.1758L23.2578 16.4062L26.3242 19.668C26.5846 19.9935 26.9492 20.1562 27.418 20.1562C27.8346 20.1562 28.1797 20.026 28.4531 19.7656C28.7396 19.4922 28.8828 19.1536 28.8828 18.75C28.8828 18.5286 28.8372 18.3333 28.7461 18.1641C28.668 17.9818 28.5508 17.819 28.3945 17.6758L21.7734 11.2695C21.5651 11.0612 21.3698 10.9245 21.1875 10.8594C21.0052 10.7812 20.8099 10.7422 20.6016 10.7422Z"></path>
-                </svg>
-            </button>
-        </div>
-    </form>
-    <div class="flex flex-wrap justify-center gap-1.5 sm:gap-2.5">
-        <button type="button" class="flex items-center justify-center rounded-full border font-medium transition duration-150 border-transparent bg-surface-inverted-primary text-inverted-primary can-hover:hover:bg-surface-inverted-subtle h-8 px-3 text-sm cursor-pointer max-sm:text-xs" onclick="document.getElementById('home-prompt-input').value='Product Hero Shots for luxury sneaker brand in 16:9'">Product Hero Shots</button>
-        <button type="button" class="flex items-center justify-center rounded-full border font-medium transition duration-150 border-transparent bg-surface-inverted-primary text-inverted-primary can-hover:hover:bg-surface-inverted-subtle h-8 px-3 text-sm cursor-pointer max-sm:text-xs" onclick="document.getElementById('home-prompt-input').value='Generate 3 paid social video variants for Instagram Reels and TikTok'">Paid Social Variants</button>
-        <button type="button" class="flex items-center justify-center rounded-full border font-medium transition duration-150 border-transparent bg-surface-inverted-primary text-inverted-primary can-hover:hover:bg-surface-inverted-subtle h-8 px-3 text-sm cursor-pointer max-sm:text-xs" onclick="document.getElementById('home-prompt-input').value='Cut a 15-second teaser trailer with high-tempo cinematic beats'">Cut a Teaser</button>
-    </div>
-</div></div></div></div><div class="light grow pb-20 md:pb-32 lg:pb-40 flex flex-col gap-20 md:gap-32 lg:gap-40 [clip-path:inset(0)]"><div class="pointer-events-none fixed top-0 right-0 left-0 z-10 h-top-nav transform-gpu bg-surface-primary/80 backdrop-blur-xl"></div><div class="container-lg flex min-h-[12dvh] items-center justify-center py-5"><div class="flex h-14 w-fit items-center gap-3 rounded-full border border-primary/10 bg-surface-elevated px-6 md:gap-4"><p class="flex-1 font-medium text-balance max-md:text-sm"><span>Ray 3.2 Is Here</span><span class="max-lg:hidden">: Direct Every Frame Finish Every Cut</span></p><a target="_self" class="flex items-center justify-center rounded-full border font-medium transition duration-150 border-transparent bg-surface-primary text-primary can-hover:hover:bg-surface-subtle h-8 px-3 text-sm" href="https://app.lumalabs.ai/">Try Free</a><a target="_self" class="flex items-center justify-center rounded-full border font-medium transition duration-150 border-transparent bg-surface-primary text-primary can-hover:hover:bg-surface-subtle h-8 px-3 text-sm max-md:hidden" href="/ray3-2">Learn more</a></div></div><div class="container-lg flex max-h-[50dvh] items-center justify-center py-[10vmax] text-center"><div class="typo-h1 text-balance"><p>Our Mission is to build unified general intelligence that can generate, understand, and operate in the physical world</p></div></div><div class="relative container-lg space-y-10 text-center md:space-y-10"><p class="typo-subhead text-secondary">The fastest creative teams in the world make here.</p><div class="relative -left-[50vw] ml-[50%] flex w-screen items-center justify-center overflow-hidden"><div class="relative w-[calc(100%+var(--mask-size)*2)] mask-[linear-gradient(to_right,transparent_0%,black_var(--mask-size),black_calc(100%-var(--mask-size)),transparent_100%)] [--mask-size:6rem] max-w-7xl items-center gap-10 [--logo-scale:0.35] md:gap-20 md:[--logo-scale:0.5]"><ul class="items-[inherit] flex w-full justify-start gap-[inherit] will-change-transform *:shrink-0"><li class="relative transform-gpu" style="width: calc(739px * var(--logo-scale)); aspect-ratio: 739 / 76;"><img alt="Serviceplan" loading="eager" decoding="async" data-nimg="fill" class="object-contain" sizes="320px"  src="https://cdn.sanity.io/images/2ylxvaa2/production/4b9c323d4e5322022a2e39d24d16a70d8a259fad-739x76.png?w=2048&fm=webp&q=75&fit=max" style="position: absolute; height: 100%; width: 100%; inset: 0px; color: transparent;"></li><li class="relative transform-gpu" style="width: calc(264px * var(--logo-scale)); aspect-ratio: 264 / 56;"><img alt="Dentsu" loading="eager" decoding="async" data-nimg="fill" class="object-contain" sizes="320px"  src="https://cdn.sanity.io/images/2ylxvaa2/production/3cc1ece7ee9dd135f711049f1960b3bc66def8f9-264x56.png?w=2048&fm=webp&q=75&fit=max" style="position: absolute; height: 100%; width: 100%; inset: 0px; color: transparent;"></li><li class="relative transform-gpu" style="width: calc(344px * var(--logo-scale)); aspect-ratio: 344 / 48;"><img alt="Humain" loading="eager" decoding="async" data-nimg="fill" class="object-contain" sizes="320px"  src="https://cdn.sanity.io/images/2ylxvaa2/production/37a25c7f2095d49814b1940c640b3c0cd06ab69e-344x48.png?w=2048&fm=webp&q=75&fit=max" style="position: absolute; height: 100%; width: 100%; inset: 0px; color: transparent;"></li><li class="relative transform-gpu" style="width: calc(377px * var(--logo-scale)); aspect-ratio: 377 / 56;"><img alt="Aperture" loading="eager" decoding="async" data-nimg="fill" class="object-contain" sizes="320px"  src="https://cdn.sanity.io/images/2ylxvaa2/production/f762baba31d95136de73a962e7f8c159a926d7d6-377x56.png?w=2048&fm=webp&q=75&fit=max" style="position: absolute; height: 100%; width: 100%; inset: 0px; color: transparent;"></li><li class="relative transform-gpu" style="width: calc(132px * var(--logo-scale)); aspect-ratio: 132 / 128;"><img alt="Publicis Groupe" loading="eager" decoding="async" data-nimg="fill" class="object-contain" sizes="320px"  src="https://cdn.sanity.io/images/2ylxvaa2/production/ed9c9f11052fade2a2c2488b3dc070b43cf1679c-132x128.png?w=2048&fm=webp&q=75&fit=max" style="position: absolute; height: 100%; width: 100%; inset: 0px; color: transparent;"></li><li class="relative transform-gpu" style="width: calc(362px * var(--logo-scale)); aspect-ratio: 362 / 87;"><img alt="Boundless" loading="eager" decoding="async" data-nimg="fill" class="object-contain" sizes="320px"  src="https://cdn.sanity.io/images/2ylxvaa2/production/04b81b6c20c77ce8b28ec26269008a61ef2e73e2-362x87.png?w=2048&fm=webp&q=75&fit=max" style="position: absolute; height: 100%; width: 100%; inset: 0px; color: transparent;"></li><li class="relative transform-gpu" style="width: calc(112px * var(--logo-scale)); aspect-ratio: 112 / 99;"><img alt="Mazda" loading="eager" decoding="async" data-nimg="fill" class="object-contain" sizes="320px"  src="https://cdn.sanity.io/images/2ylxvaa2/production/fff4fd15dc4bbd586ce4fee59472542fa58f358c-112x99.png?w=2048&fm=webp&q=75&fit=max" style="position: absolute; height: 100%; width: 100%; inset: 0px; color: transparent;"></li><li class="relative transform-gpu" style="width: calc(277px * var(--logo-scale)); aspect-ratio: 277 / 60;"><img alt="Uncharted" loading="eager" decoding="async" data-nimg="fill" class="object-contain" sizes="320px"  src="https://cdn.sanity.io/images/2ylxvaa2/production/d94398a074cc20aa1c8b6518b3676f9077f8e14a-277x60.png?w=2048&fm=webp&q=75&fit=max" style="position: absolute; height: 100%; width: 100%; inset: 0px; color: transparent;"></li><li class="relative transform-gpu" style="width: calc(739px * var(--logo-scale)); aspect-ratio: 739 / 76;"><img alt="Serviceplan" loading="eager" decoding="async" data-nimg="fill" class="object-contain" sizes="320px"  src="https://cdn.sanity.io/images/2ylxvaa2/production/4b9c323d4e5322022a2e39d24d16a70d8a259fad-739x76.png?w=2048&fm=webp&q=75&fit=max" style="position: absolute; height: 100%; width: 100%; inset: 0px; color: transparent;"></li><li class="relative transform-gpu" style="width: calc(264px * var(--logo-scale)); aspect-ratio: 264 / 56;"><img alt="Dentsu" loading="eager" decoding="async" data-nimg="fill" class="object-contain" sizes="320px"  src="https://cdn.sanity.io/images/2ylxvaa2/production/3cc1ece7ee9dd135f711049f1960b3bc66def8f9-264x56.png?w=2048&fm=webp&q=75&fit=max" style="position: absolute; height: 100%; width: 100%; inset: 0px; color: transparent;"></li><li class="relative transform-gpu" style="width: calc(344px * var(--logo-scale)); aspect-ratio: 344 / 48;"><img alt="Humain" loading="eager" decoding="async" data-nimg="fill" class="object-contain" sizes="320px"  src="https://cdn.sanity.io/images/2ylxvaa2/production/37a25c7f2095d49814b1940c640b3c0cd06ab69e-344x48.png?w=2048&fm=webp&q=75&fit=max" style="position: absolute; height: 100%; width: 100%; inset: 0px; color: transparent;"></li><li class="relative transform-gpu" style="width: calc(377px * var(--logo-scale)); aspect-ratio: 377 / 56;"><img alt="Aperture" loading="eager" decoding="async" data-nimg="fill" class="object-contain" sizes="320px"  src="https://cdn.sanity.io/images/2ylxvaa2/production/f762baba31d95136de73a962e7f8c159a926d7d6-377x56.png?w=2048&fm=webp&q=75&fit=max" style="position: absolute; height: 100%; width: 100%; inset: 0px; color: transparent;"></li><li class="relative transform-gpu" style="width: calc(132px * var(--logo-scale)); aspect-ratio: 132 / 128;"><img alt="Publicis Groupe" loading="eager" decoding="async" data-nimg="fill" class="object-contain" sizes="320px"  src="https://cdn.sanity.io/images/2ylxvaa2/production/ed9c9f11052fade2a2c2488b3dc070b43cf1679c-132x128.png?w=2048&fm=webp&q=75&fit=max" style="position: absolute; height: 100%; width: 100%; inset: 0px; color: transparent;"></li><li class="relative transform-gpu" style="width: calc(362px * var(--logo-scale)); aspect-ratio: 362 / 87;"><img alt="Boundless" loading="eager" decoding="async" data-nimg="fill" class="object-contain" sizes="320px"  src="https://cdn.sanity.io/images/2ylxvaa2/production/04b81b6c20c77ce8b28ec26269008a61ef2e73e2-362x87.png?w=2048&fm=webp&q=75&fit=max" style="position: absolute; height: 100%; width: 100%; inset: 0px; color: transparent;"></li><li class="relative transform-gpu" style="width: calc(112px * var(--logo-scale)); aspect-ratio: 112 / 99;"><img alt="Mazda" loading="eager" decoding="async" data-nimg="fill" class="object-contain" sizes="320px"  src="https://cdn.sanity.io/images/2ylxvaa2/production/fff4fd15dc4bbd586ce4fee59472542fa58f358c-112x99.png?w=2048&fm=webp&q=75&fit=max" style="position: absolute; height: 100%; width: 100%; inset: 0px; color: transparent;"></li><li class="relative transform-gpu" style="width: calc(277px * var(--logo-scale)); aspect-ratio: 277 / 60;"><img alt="Uncharted" loading="eager" decoding="async" data-nimg="fill" class="object-contain" sizes="320px"  src="https://cdn.sanity.io/images/2ylxvaa2/production/d94398a074cc20aa1c8b6518b3676f9077f8e14a-277x60.png?w=2048&fm=webp&q=75&fit=max" style="position: absolute; height: 100%; width: 100%; inset: 0px; color: transparent;"></li><li class="relative transform-gpu" style="width: calc(739px * var(--logo-scale)); aspect-ratio: 739 / 76;"><img alt="Serviceplan" loading="eager" decoding="async" data-nimg="fill" class="object-contain" sizes="320px"  src="https://cdn.sanity.io/images/2ylxvaa2/production/4b9c323d4e5322022a2e39d24d16a70d8a259fad-739x76.png?w=2048&fm=webp&q=75&fit=max" style="position: absolute; height: 100%; width: 100%; inset: 0px; color: transparent;"></li><li class="relative transform-gpu" style="width: calc(264px * var(--logo-scale)); aspect-ratio: 264 / 56;"><img alt="Dentsu" loading="eager" decoding="async" data-nimg="fill" class="object-contain" sizes="320px"  src="https://cdn.sanity.io/images/2ylxvaa2/production/3cc1ece7ee9dd135f711049f1960b3bc66def8f9-264x56.png?w=2048&fm=webp&q=75&fit=max" style="position: absolute; height: 100%; width: 100%; inset: 0px; color: transparent;"></li><li class="relative transform-gpu" style="width: calc(344px * var(--logo-scale)); aspect-ratio: 344 / 48;"><img alt="Humain" loading="eager" decoding="async" data-nimg="fill" class="object-contain" sizes="320px"  src="https://cdn.sanity.io/images/2ylxvaa2/production/37a25c7f2095d49814b1940c640b3c0cd06ab69e-344x48.png?w=2048&fm=webp&q=75&fit=max" style="position: absolute; height: 100%; width: 100%; inset: 0px; color: transparent;"></li><li class="relative transform-gpu" style="width: calc(377px * var(--logo-scale)); aspect-ratio: 377 / 56;"><img alt="Aperture" loading="eager" decoding="async" data-nimg="fill" class="object-contain" sizes="320px"  src="https://cdn.sanity.io/images/2ylxvaa2/production/f762baba31d95136de73a962e7f8c159a926d7d6-377x56.png?w=2048&fm=webp&q=75&fit=max" style="position: absolute; height: 100%; width: 100%; inset: 0px; color: transparent;"></li><li class="relative transform-gpu" style="width: calc(132px * var(--logo-scale)); aspect-ratio: 132 / 128;"><img alt="Publicis Groupe" loading="eager" decoding="async" data-nimg="fill" class="object-contain" sizes="320px"  src="https://cdn.sanity.io/images/2ylxvaa2/production/ed9c9f11052fade2a2c2488b3dc070b43cf1679c-132x128.png?w=2048&fm=webp&q=75&fit=max" style="position: absolute; height: 100%; width: 100%; inset: 0px; color: transparent;"></li><li class="relative transform-gpu" style="width: calc(362px * var(--logo-scale)); aspect-ratio: 362 / 87;"><img alt="Boundless" loading="eager" decoding="async" data-nimg="fill" class="object-contain" sizes="320px"  src="https://cdn.sanity.io/images/2ylxvaa2/production/04b81b6c20c77ce8b28ec26269008a61ef2e73e2-362x87.png?w=2048&fm=webp&q=75&fit=max" style="position: absolute; height: 100%; width: 100%; inset: 0px; color: transparent;"></li><li class="relative transform-gpu" style="width: calc(112px * var(--logo-scale)); aspect-ratio: 112 / 99;"><img alt="Mazda" loading="eager" decoding="async" data-nimg="fill" class="object-contain" sizes="320px"  src="https://cdn.sanity.io/images/2ylxvaa2/production/fff4fd15dc4bbd586ce4fee59472542fa58f358c-112x99.png?w=2048&fm=webp&q=75&fit=max" style="position: absolute; height: 100%; width: 100%; inset: 0px; color: transparent;"></li><li class="relative transform-gpu" style="width: calc(277px * var(--logo-scale)); aspect-ratio: 277 / 60;"><img alt="Uncharted" loading="eager" decoding="async" data-nimg="fill" class="object-contain" sizes="320px"  src="https://cdn.sanity.io/images/2ylxvaa2/production/d94398a074cc20aa1c8b6518b3676f9077f8e14a-277x60.png?w=2048&fm=webp&q=75&fit=max" style="position: absolute; height: 100%; width: 100%; inset: 0px; color: transparent;"></li></ul></div></div></div><section class="container-lg space-y-10 md:space-y-20"><div class="flex flex-col gap-3 text-balance lg:flex-row lg:items-start lg:justify-between"><div class="flex flex-col gap-2.5 md:gap-5 lg:w-3xl"><h2 class="typo-h2">Where ideas become the work</h2><p class="max-w-4xl typo-subhead text-secondary">Work that's right for your brand, your audience, and this exact moment. Luma is built to get you there, and to get there fast.</p></div></div><div class="grid gap-10 grid-cols-1 md:grid-cols-2"><div class="group relative grid w-full auto-rows-min grid-cols-1 gap-3 md:gap-5 [&amp;:has(.card-link)]:cursor-pointer col-span-full lg:grid-cols-[2fr_1fr]"><div class="relative w-full overflow-hidden transition-transform duration-300 ease-out [.group:has(.card-link):hover_&amp;]:scale-[1.02] aspect-video md:aspect-16/7 lg:col-span-full rounded-xl md:rounded-3xl"><img alt="" loading="eager" width="2328" height="960" decoding="async" data-nimg="1" class="h-full w-full object-cover" sizes="100vw"  src="https://cdn.sanity.io/images/2ylxvaa2/production/0bfd4636b5e513ee7950e36e123f32bb8b25f924-2328x960.png?w=2048&fm=webp&q=75&fit=max" style="color: transparent;"></div><div class="flex flex-col gap-1 text-balance md:gap-2.5"><div class="flex items-center gap-4"><h3 class="typo-h3">Luma</h3></div><div class="typo-body-m text-secondary"><p>Agents research, generate, and refine across video, image, audio, and text, and your brand holds steady through all of it. Ten directions before the morning standup. Fifty variants by end of day. The client meeting opens with the work.</p></div></div><div class="flex shrink-0 self-start lg:justify-end lg:self-start"><a class="flex items-center justify-center rounded-full border font-medium transition duration-150 border-transparent bg-surface-inverted-primary text-inverted-primary can-hover:hover:bg-surface-inverted-subtle h-8 px-4 text-sm md:h-10 md:px-6 md:text-base card-link" href="/app">Learn more</a></div></div></div></section></div><div class="dark grow pt-20 md:pt-32 lg:pt-40 pb-20 md:pb-32 lg:pb-40 flex flex-col gap-20 md:gap-32 lg:gap-40 [clip-path:inset(0)]"><div class="pointer-events-none fixed top-0 right-0 left-0 z-10 h-top-nav transform-gpu bg-surface-primary/80 backdrop-blur-xl"></div><section class="container-lg space-y-10 md:space-y-20"><div class="flex flex-col gap-3 text-balance lg:flex-row lg:items-start lg:justify-between"><div class="flex flex-col gap-2.5 md:gap-5 lg:w-3xl"><h2 class="typo-h2">Research</h2><p class="max-w-4xl typo-subhead text-secondary">Speed like this doesn't come from a wrapper. We build the models underneath Luma, and frontier research ships straight into the hands of working creatives.</p></div></div><div class="grid gap-10 grid-cols-1 md:grid-cols-2"><div class="group relative grid w-full auto-rows-min grid-cols-1 gap-3 md:gap-5 [&amp;:has(.card-link)]:cursor-pointer col-span-full lg:grid-cols-[2fr_1fr]"><div class="relative w-full overflow-hidden transition-transform duration-300 ease-out [.group:has(.card-link):hover_&amp;]:scale-[1.02] aspect-video md:aspect-16/7 lg:col-span-full rounded-xl md:rounded-3xl"><img alt="" loading="eager" width="1920" height="1080" decoding="async" data-nimg="1" class="h-full w-full object-cover" sizes="100vw"  src="https://cdn.sanity.io/images/2ylxvaa2/production/099e66ae6ba403cb556111d6a1aadf6a8f4cb79b-1920x1080.png?w=1920&fm=webp&q=75&fit=max" style="color: transparent;"></div><div class="flex flex-col gap-1 text-balance md:gap-2.5"><div class="flex items-center gap-4"><h3 class="typo-h3 font-bold">The Open Physical AI Lab</h3></div><div class="typo-body-m text-secondary"><p>An open science effort to solve generalization in physical AI, built in the open for the benefit of all humanity.</p></div></div><div class="flex shrink-0 self-start lg:justify-end lg:self-start"><a class="flex items-center justify-center rounded-full border font-medium transition duration-150 border-transparent bg-surface-inverted-primary text-inverted-primary can-hover:hover:bg-surface-inverted-subtle h-8 px-4 text-sm md:h-10 md:px-6 md:text-base card-link" href="/news/luma-open-physical-ai-lab">Learn more</a></div></div><div class="group relative grid w-full auto-rows-min grid-cols-1 gap-3 md:gap-5 [&amp;:has(.card-link)]:cursor-pointer"><div class="relative w-full overflow-hidden transition-transform duration-300 ease-out [.group:has(.card-link):hover_&amp;]:scale-[1.02] aspect-video rounded-xl md:rounded-3xl"><video preload="metadata" class="h-full w-full object-cover" playsinline="" loop="" autoplay="" muted=""><source src="https://static.cdn-luma.com/files/sanity/522455bf-ff1f-41c5-a048-a9f40b06763c.mp4#t=0.001" type="video/mp4"></video></div><div class="flex flex-col gap-1 text-balance md:gap-2.5"><div class="flex items-center gap-4"><h3 class="typo-h3 font-bold">RAY3.2</h3><span class="inline-block w-fit font-semibold uppercase typo-label rounded-md md:rounded-lg px-2.5 py-1 md:px-3 md:py-1.5 bg-surface-inverted-primary text-inverted-primary">new</span></div><div class="typo-body-m text-secondary"><p>Direct video the way you would direct a shoot. Ray 3.2 puts every frame under your control, holds continuity across every cut, and finishes in cinematic quality.</p></div></div><div class="flex shrink-0 self-start"><a class="flex items-center justify-center rounded-full border font-medium transition duration-150 border-transparent bg-surface-inverted-primary text-inverted-primary can-hover:hover:bg-surface-inverted-subtle h-8 px-4 text-sm md:h-10 md:px-6 md:text-base card-link" href="/ray3-2">Discover Ray3.2</a></div></div><div class="group relative grid w-full auto-rows-min grid-cols-1 gap-3 md:gap-5 [&amp;:has(.card-link)]:cursor-pointer"><div class="relative w-full overflow-hidden transition-transform duration-300 ease-out [.group:has(.card-link):hover_&amp;]:scale-[1.02] aspect-video rounded-xl md:rounded-3xl"><img alt="" loading="eager" width="2688" height="1536" decoding="async" data-nimg="1" class="h-full w-full object-cover" sizes="(max-width: 768px) 100vw, 50vw"  src="https://cdn.sanity.io/images/2ylxvaa2/production/97f67e5a2d71508ea393b791c2dce49693c30c3d-2688x1536.png?w=2048&fm=webp&q=75&fit=max" style="color: transparent;"></div><div class="flex flex-col gap-1 text-balance md:gap-2.5"><div class="flex items-center gap-4"><h3 class="typo-h3 font-bold">UNI-1</h3></div><div class="typo-body-m text-secondary"><p>Uni-1 is brand intelligence at the model level. It understands your brand as deeply as it generates for it, carrying style references, character references, and visual grounding into every asset.</p></div></div><div class="flex shrink-0 self-start"><a class="flex items-center justify-center rounded-full border font-medium transition duration-150 border-transparent bg-surface-inverted-primary text-inverted-primary can-hover:hover:bg-surface-inverted-subtle h-8 px-4 text-sm md:h-10 md:px-6 md:text-base card-link" href="/uni-1">Discover Uni-1</a></div></div></div><div class="grid gap-x-5 gap-y-5 md:gap-y-10 grid-cols-1 md:grid-cols-2 lg:grid-cols-3"><div class="group relative grid w-full auto-rows-min grid-cols-1 gap-3 md:gap-5 [&amp;:has(.card-link)]:cursor-pointer"><div class="relative w-full overflow-hidden transition-transform duration-300 ease-out [.group:has(.card-link):hover_&amp;]:scale-[1.02] aspect-video rounded-xl md:rounded-3xl"><img alt="" loading="eager" width="1920" height="1080" decoding="async" data-nimg="1" class="h-full w-full object-cover" sizes="(max-width: 768px) 100vw, (max-width: 1024px) 50vw, 33vw"  src="https://cdn.sanity.io/images/2ylxvaa2/production/3ca793f40bb00da97c7e23195f699a013b07866e-1920x1080.png?w=1920&fm=webp&q=75&fit=max" style="color: transparent;"></div><div class="flex flex-col gap-1 text-balance md:gap-2.5"><div class="flex items-center gap-2"><span class="inline-block w-fit font-semibold uppercase border typo-label rounded-md md:rounded-lg px-2.5 py-1 md:px-3 md:py-1.5 border-current text-secondary">Engineering</span><span class="typo-body-s text-secondary">Nov 26, 2025</span></div><h3 class="typo-h4"><a class="card-link" href="/news/tvm">Pushing the Limit of Efficient Inference-Time Scaling with Terminal Velocity Matching</a></h3></div></div><div class="group relative grid w-full auto-rows-min grid-cols-1 gap-3 md:gap-5 [&amp;:has(.card-link)]:cursor-pointer"><div class="relative w-full overflow-hidden transition-transform duration-300 ease-out [.group:has(.card-link):hover_&amp;]:scale-[1.02] aspect-video rounded-xl md:rounded-3xl"><img alt="" loading="eager" width="1920" height="1080" decoding="async" data-nimg="1" class="h-full w-full object-cover" sizes="(max-width: 768px) 100vw, (max-width: 1024px) 50vw, 33vw"  src="https://cdn.sanity.io/images/2ylxvaa2/production/e2c2088ceca80060ea2b8c03fb010d1c9aa2a745-1920x1080.png?w=1920&fm=webp&q=75&fit=max" style="color: transparent;"></div><div class="flex flex-col gap-1 text-balance md:gap-2.5"><div class="flex items-center gap-2"><span class="inline-block w-fit font-semibold uppercase border typo-label rounded-md md:rounded-lg px-2.5 py-1 md:px-3 md:py-1.5 border-current text-secondary">Engineering</span><span class="typo-body-s text-secondary">Oct 14, 2025</span></div><h3 class="typo-h4"><a class="card-link" href="/news/ray3-eval">Ray3 Evaluation Report – State-of-the-Art Performance for Pro Video Generation</a></h3></div></div><div class="group relative grid w-full auto-rows-min grid-cols-1 gap-3 md:gap-5 [&amp;:has(.card-link)]:cursor-pointer"><div class="relative w-full overflow-hidden transition-transform duration-300 ease-out [.group:has(.card-link):hover_&amp;]:scale-[1.02] aspect-video rounded-xl md:rounded-3xl"><img alt="" loading="eager" width="0" height="0" decoding="async" data-nimg="1" class="h-full w-full object-cover" sizes="(max-width: 768px) 100vw, (max-width: 1024px) 50vw, 33vw"  src="https://static.cdn-luma.com/files/sanity/6a602554-8735-4dd7-a46c-45adbd93268f.jpg" style="color: transparent;"></div><div class="flex flex-col gap-1 text-balance md:gap-2.5"><div class="flex items-center gap-2"><span class="inline-block w-fit font-semibold uppercase border typo-label rounded-md md:rounded-lg px-2.5 py-1 md:px-3 md:py-1.5 border-current text-secondary">Engineering</span><span class="typo-body-s text-secondary">Mar 11, 2025</span></div><h3 class="typo-h4"><a class="card-link" href="/news/inductive-moment-matching">Breaking the Algorithmic Ceiling in Pre-Training with Inductive Moment Matching</a></h3></div></div></div></section></div><div class="light grow pt-20 md:pt-32 lg:pt-40 flex flex-col gap-20 md:gap-32 lg:gap-40 [clip-path:inset(0)]"><div class="pointer-events-none fixed top-0 right-0 left-0 z-10 h-top-nav transform-gpu bg-surface-primary/80 backdrop-blur-xl"></div><section class="container-lg space-y-10 md:space-y-20"><div class="flex flex-col gap-3 text-balance lg:flex-row lg:items-start lg:justify-between"><div class="flex flex-col gap-2.5 md:gap-5 lg:w-3xl"><h2 class="typo-h2">
-
-    <!-- 2. PHẦN WORKSPACE / STUDIO TẠO VIDEO -->
-    <!-- Thẻ Đăng nhập & Đăng ký (Modal nằm giữa trang, nền mờ) -->
-    <div id="login-modal" class="auth-modal" aria-hidden="true" role="dialog" aria-modal="true">
-        <div class="auth-card-modal">
-            <button id="login-close-btn" class="modal-close-btn" type="button" aria-label="Đóng">
-                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
-                    stroke-linecap="round" stroke-linejoin="round">
-                    <line x1="18" y1="6" x2="6" y2="18"></line>
-                    <line x1="6" y1="6" x2="18" y2="18"></line>
-                </svg>
-            </button>
-
-            <!-- Header có User Icon badge -->
-            <div class="auth-header">
-                <div class="auth-user-badge">
-                    <svg xmlns="http://www.w3.org/2000/svg" width="22" height="22" viewBox="0 0 24 24" fill="none"
-                        stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-                        <path d="M19 21v-2a4 4 0 0 0-4-4H9a4 4 0 0 0-4 4v2" />
-                        <circle cx="12" cy="7" r="4" />
-                    </svg>
-                </div>
-                <div>
-                    <h2 id="auth-title" class="auth-title">Chào mừng trở lại</h2>
-                    <p id="auth-subtitle" class="auth-subtitle">Nhập thông tin tài khoản của bạn để đăng nhập</p>
-                </div>
-            </div>
-
-            <!-- Đăng nhập mạng xã hội: Apple & Google (đã bỏ X, cân đối 2 cột) -->
-            <div id="auth-social-row" class="auth-social-row">
-                <button id="apple-login-btn" class="auth-social-btn" type="button" aria-label="Đăng nhập với Apple">
-                    <svg class="auth-social-svg" xmlns="http://www.w3.org/2000/svg" width="20" height="20"
-                        viewBox="0 0 24 24">
-                        <path fill="currentColor"
-                            d="M18.71 19.5C17.88 20.74 17 21.95 15.66 21.97C14.32 22 13.89 21.18 12.37 21.18C10.84 21.18 10.37 21.95 9.09997 22C7.78997 22.05 6.79997 20.68 5.95997 19.47C4.24997 17 2.93997 12.45 4.69997 9.39C5.56997 7.87 7.12997 6.91 8.81997 6.88C10.1 6.86 11.32 7.75 12.11 7.75C12.89 7.75 14.37 6.68 15.92 6.84C16.57 6.87 18.39 7.1 19.56 8.82C19.47 8.88 17.39 10.1 17.41 12.63C17.44 15.65 20.06 16.66 20.09 16.67C20.06 16.74 19.67 18.11 18.71 19.5ZM13 3.5C13.73 2.67 14.94 2.04 15.94 2C16.07 3.17 15.6 4.35 14.9 5.19C14.21 6.04 13.07 6.7 11.95 6.61C11.8 5.46 12.36 4.26 13 3.5Z" />
-                    </svg>
-                    <span>Apple</span>
-                </button>
-                <button id="google-login-btn" class="auth-social-btn" type="button" aria-label="Đăng nhập với Google">
-                    <svg class="auth-social-svg" xmlns="http://www.w3.org/2000/svg" width="20" height="20"
-                        viewBox="0 0 24 24">
-                        <path
-                            d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z"
-                            fill="#4285F4"></path>
-                        <path
-                            d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z"
-                            fill="#34A853"></path>
-                        <path
-                            d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.07H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.93l3.66-2.84z"
-                            fill="#FBBC05"></path>
-                        <path
-                            d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z"
-                            fill="#EA4335"></path>
-                    </svg>
-                    <span>Google</span>
-                </button>
-            </div>
-
-            <!-- Divider -->
-            <div id="auth-divider" class="auth-divider">
-                <span class="auth-divider-line"></span>
-                <span class="auth-divider-text">Hoặc tiếp tục với</span>
-                <span class="auth-divider-line"></span>
-            </div>
-
-            <!-- Login Form -->
-            <form id="login-form" class="auth-form-fields" onsubmit="return false;">
-                <div class="auth-input-group">
-                    <label for="login-username">Tên đăng nhập hoặc Email</label>
-                    <div class="auth-input-wrapper">
-                        <span class="auth-input-left-icon">
-                            <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24"
-                                fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"
-                                stroke-linejoin="round">
-                                <path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"></path>
-                                <circle cx="12" cy="7" r="4"></circle>
-                            </svg>
-                        </span>
-                        <input id="login-username" class="clean-auth-input with-left-icon" type="text"
-                            placeholder="name@example.com" autocomplete="username">
-                    </div>
-                </div>
-                <div class="auth-input-group">
-                    <label for="login-password">Mật khẩu</label>
-                    <div class="auth-input-wrapper">
-                        <span class="auth-input-left-icon">
-                            <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24"
-                                fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"
-                                stroke-linejoin="round">
-                                <rect x="3" y="11" width="18" height="11" rx="2" ry="2"></rect>
-                                <circle cx="12" cy="16" r="1"></circle>
-                                <path d="M7 11V7a5 5 0 0 1 10 0v4"></path>
-                            </svg>
-                        </span>
-                        <input id="login-password" class="clean-auth-input with-left-icon with-right-icon"
-                            type="password" placeholder="Nhập mật khẩu" autocomplete="current-password">
-                        <button id="login-password-toggle" class="auth-password-toggle" type="button"
-                            aria-label="Hiện/ẩn mật khẩu">
-                            <svg class="eye-icon" xmlns="http://www.w3.org/2000/svg" width="16" height="16"
-                                viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
-                                stroke-linecap="round" stroke-linejoin="round">
-                                <path d="M2 12s3-7 10-7 10 7 10 7-3 7-10 7-10-7-10-7Z" />
-                                <circle cx="12" cy="12" r="3" />
-                            </svg>
-                        </button>
-                    </div>
-                </div>
-                <button id="login-submit-btn" class="btn-auth-submit" type="submit">Đăng nhập</button>
-                <p id="login-message" class="auth-status-msg"></p>
-
-                <div class="auth-foot-actions">
-                    <p class="auth-foot-text">
-                        Chưa có tài khoản?
-                        <button id="show-register-btn" class="link-switch-auth" type="button">Đăng ký ngay</button>
-                    </p>
-                    <a href="#" id="forgot-password-link" class="link-forgot-pass">Quên mật khẩu?</a>
-                </div>
-            </form>
-
-            <!-- Register Form (theo form mẫu đăng ký mới) -->
-            <form id="register-form" class="auth-form-fields" style="display: none;" onsubmit="return false;">
-                <div class="auth-input-group">
-                    <label for="register-username">Họ và tên / Tên đăng nhập</label>
-                    <div class="auth-input-wrapper">
-                        <span class="auth-input-left-icon">
-                            <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24"
-                                fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"
-                                stroke-linejoin="round">
-                                <path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"></path>
-                                <circle cx="12" cy="7" r="4"></circle>
-                            </svg>
-                        </span>
-                        <input id="register-username" class="clean-auth-input with-left-icon" type="text"
-                            placeholder="Nhập tên của bạn" autocomplete="username">
-                    </div>
-                </div>
-
-                <div class="auth-input-group">
-                    <label for="register-email">Địa chỉ Email</label>
-                    <div class="auth-input-wrapper">
-                        <span class="auth-input-left-icon">
-                            <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24"
-                                fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"
-                                stroke-linejoin="round">
-                                <path d="M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2z">
-                                </path>
-                                <polyline points="22,6 12,13 2,6"></polyline>
-                            </svg>
-                        </span>
-                        <input id="register-email" class="clean-auth-input with-left-icon" type="email"
-                            placeholder="name@example.com" autocomplete="email">
-                    </div>
-                </div>
-
-                <div class="auth-input-group">
-                    <label for="register-password">Mật khẩu</label>
-                    <div class="auth-input-wrapper">
-                        <span class="auth-input-left-icon">
-                            <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24"
-                                fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"
-                                stroke-linejoin="round">
-                                <rect x="3" y="11" width="18" height="11" rx="2" ry="2"></rect>
-                                <circle cx="12" cy="16" r="1"></circle>
-                                <path d="M7 11V7a5 5 0 0 1 10 0v4"></path>
-                            </svg>
-                        </span>
-                        <input id="register-password" class="clean-auth-input with-left-icon with-right-icon"
-                            type="password" placeholder="Tạo mật khẩu (tối thiểu 6 ký tự)" autocomplete="new-password">
-                        <button id="register-password-toggle" class="auth-password-toggle" type="button"
-                            aria-label="Hiện/ẩn mật khẩu">
-                            <svg class="eye-icon" xmlns="http://www.w3.org/2000/svg" width="16" height="16"
-                                viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
-                                stroke-linecap="round" stroke-linejoin="round">
-                                <path d="M2 12s3-7 10-7 10 7 10 7-3 7-10 7-10-7-10-7Z" />
-                                <circle cx="12" cy="12" r="3" />
-                            </svg>
-                        </button>
-                    </div>
-                </div>
-
-                <div class="auth-terms-group">
-                    <label class="auth-checkbox-label" for="register-terms">
-                        <input type="checkbox" id="register-terms" checked>
-                        <span class="auth-checkbox-box">
-                            <svg class="check-icon" xmlns="http://www.w3.org/2000/svg" width="12" height="12"
-                                viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3"
-                                stroke-linecap="round" stroke-linejoin="round">
-                                <polyline points="20,6 9,17 4,12"></polyline>
-                            </svg>
-                        </span>
-                        <span class="auth-terms-text">
-                            Tôi đồng ý với <a href="#" class="auth-terms-link open-terms-btn" data-legal="terms">Điều
-                                khoản dịch vụ</a> và <a href="#" class="auth-terms-link open-privacy-btn"
-                                data-legal="privacy">Chính sách bảo mật</a>
-                        </span>
-                    </label>
-                </div>
-
-                <button id="register-submit-btn" class="btn-auth-submit" type="submit">Tạo tài khoản</button>
-                <p id="register-message" class="auth-status-msg"></p>
-
-                <div class="auth-foot-actions">
-                    <p class="auth-foot-text">
-                        Đã có tài khoản?
-                        <button id="show-login-btn" class="link-switch-auth" type="button">Đăng nhập</button>
-                    </p>
-                </div>
-            </form>
-
-            <!-- Forgot Password Form -->
-            <form id="forgot-form" class="auth-form-fields" style="display: none;" onsubmit="return false;">
-                <div class="auth-note-box">
-                    <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none"
-                        stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-                        <circle cx="12" cy="12" r="10"></circle>
-                        <line x1="12" y1="8" x2="12" y2="12"></line>
-                        <line x1="12" y1="16" x2="12.01" y2="16"></line>
-                    </svg>
-                    <span>Nhập tên đăng nhập hoặc email cùng mật khẩu mới để thiết lập lại mật khẩu của bạn.</span>
-                </div>
-
-                <div class="auth-input-group">
-                    <label for="forgot-username">Tên đăng nhập hoặc Email</label>
-                    <div class="auth-input-wrapper">
-                        <span class="auth-input-left-icon">
-                            <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24"
-                                fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"
-                                stroke-linejoin="round">
-                                <path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"></path>
-                                <circle cx="12" cy="7" r="4"></circle>
-                            </svg>
-                        </span>
-                        <input id="forgot-username" class="clean-auth-input with-left-icon" type="text"
-                            placeholder="name@example.com" autocomplete="username">
-                    </div>
-                </div>
-
-                <div class="auth-input-group">
-                    <label for="forgot-password">Mật khẩu mới</label>
-                    <div class="auth-input-wrapper">
-                        <span class="auth-input-left-icon">
-                            <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24"
-                                fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"
-                                stroke-linejoin="round">
-                                <rect x="3" y="11" width="18" height="11" rx="2" ry="2"></rect>
-                                <circle cx="12" cy="16" r="1"></circle>
-                                <path d="M7 11V7a5 5 0 0 1 10 0v4"></path>
-                            </svg>
-                        </span>
-                        <input id="forgot-password" class="clean-auth-input with-left-icon with-right-icon"
-                            type="password" placeholder="Nhập mật khẩu mới (tối thiểu 6 ký tự)"
-                            autocomplete="new-password">
-                        <button id="forgot-password-toggle" class="auth-password-toggle" type="button"
-                            aria-label="Hiện/ẩn mật khẩu">
-                            <svg class="eye-icon" xmlns="http://www.w3.org/2000/svg" width="16" height="16"
-                                viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
-                                stroke-linecap="round" stroke-linejoin="round">
-                                <path d="M2 12s3-7 10-7 10 7 10 7-3 7-10 7-10-7-10-7Z" />
-                                <circle cx="12" cy="12" r="3" />
-                            </svg>
-                        </button>
-                    </div>
-                </div>
-
-                <div class="auth-input-group">
-                    <label for="forgot-confirm-password">Xác nhận mật khẩu mới</label>
-                    <div class="auth-input-wrapper">
-                        <span class="auth-input-left-icon">
-                            <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24"
-                                fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"
-                                stroke-linejoin="round">
-                                <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"></path>
-                            </svg>
-                        </span>
-                        <input id="forgot-confirm-password" class="clean-auth-input with-left-icon with-right-icon"
-                            type="password" placeholder="Nhập lại mật khẩu mới để xác nhận" autocomplete="new-password">
-                        <button id="forgot-confirm-password-toggle" class="auth-password-toggle" type="button"
-                            aria-label="Hiện/ẩn mật khẩu">
-                            <svg class="eye-icon" xmlns="http://www.w3.org/2000/svg" width="16" height="16"
-                                viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
-                                stroke-linecap="round" stroke-linejoin="round">
-                                <path d="M2 12s3-7 10-7 10 7 10 7-3 7-10 7-10-7-10-7Z" />
-                                <circle cx="12" cy="12" r="3" />
-                            </svg>
-                        </button>
-                    </div>
-                </div>
-
-                <button id="forgot-submit-btn" class="btn-auth-submit" type="submit">Đặt lại mật khẩu</button>
-                <p id="forgot-message" class="auth-status-msg"></p>
-
-                <div class="auth-foot-actions">
-                    <p class="auth-foot-text">
-                        Đã nhớ mật khẩu?
-                        <button id="show-login-from-forgot-btn" class="link-switch-auth" type="button">Đăng
-                            nhập</button>
-                    </p>
-                </div>
-            </form>
-        </div>
-    </div>
-
-    <!-- Modal Điều khoản dịch vụ & Chính sách bảo mật (Demo) -->
-    <div id="legal-modal" class="legal-modal" aria-hidden="true" role="dialog" aria-modal="true">
-        <div class="legal-card-modal">
-            <button id="legal-close-btn" class="modal-close-btn" type="button" aria-label="Đóng">
-                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
-                    stroke-linecap="round" stroke-linejoin="round">
-                    <line x1="18" y1="6" x2="6" y2="18"></line>
-                    <line x1="6" y1="6" x2="18" y2="18"></line>
-                </svg>
-            </button>
-
-            <!-- Header -->
-            <div class="legal-modal-head">
-                <div class="legal-modal-badge">✦ Pháp lý &amp; Chính sách LIME (Demo)</div>
-                <h3 class="legal-modal-title">Điều khoản &amp; Chính sách bảo mật</h3>
-                <p class="legal-modal-subtitle">Quy định sử dụng nền tảng LIME AI Video Studio và cam kết bảo vệ dữ liệu
-                    người dùng</p>
-                <div class="legal-modal-tabs">
-                    <button type="button" class="legal-tab-trigger active" id="legal-tab-terms">
-                        1. Điều khoản dịch vụ
-                    </button>
-                    <button type="button" class="legal-tab-trigger" id="legal-tab-privacy">
-                        2. Chính sách bảo mật
-                    </button>
-                </div>
-            </div>
-
-            <!-- Scrollable Content -->
-            <div class="legal-modal-body soft-scrollbar">
-                <!-- PANE 1: ĐIỀU KHOẢN DỊCH VỤ -->
-                <div id="legal-content-terms" class="legal-tab-content active">
-                    <div class="legal-sec-title"><span class="legal-badge-num">1</span> Giới thiệu &amp; Chấp thuận dịch
-                        vụ</div>
-                    <p>LIME là nền tảng sáng tạo video tự động ứng dụng trí tuệ nhân tạo, hoạt họa Web (HTML5/CSS3/GSAP)
+<!-- ================= LIME DYNAMIC NAVBAR ================= -->
+<nav class="group fixed top-0 left-0 z-50 h-0 w-full text-primary dark mix-blend-difference max-md:transition-[height] max-md:delay-200 max-md:duration-0 max-md:data-[state=mobile-open]:z-50 max-md:data-[state=mobile-open]:h-full max-md:data-[state=mobile-open]:overflow-y-scroll max-md:data-[state=mobile-open]:delay-0 max-md:data-[state=loading]:transition-none max-md:data-[state=loading]:delay-0" data-hidden="false" data-state="desktop"><div class="container grid h-top-nav grid-cols-[1fr_auto] gap-3 md:grid-cols-[1fr_auto_auto] lg:gap-6"><div class="pointer-events-none absolute top-0 left-0 container flex h-top-nav w-full items-end"><div class="h-px w-full bg-surface-inverted-primary/30"></div></div><div class="relative z-20 flex items-center"><a class="block hover:opacity-70" href="/"><img alt="LIME" class="h-10 md:h-12 w-auto object-contain" src="/logo.png" style="height: 48px; width: auto; filter: brightness(0) invert(1); display: block;"/></a></div><div class="relative flex md:items-center md:justify-center md:gap-3 lg:gap-4 max-md:pointer-events-none max-md:absolute max-md:inset-0 max-md:scrollbar-hide max-md:h-full max-md:flex-col max-md:gap-4 max-md:overflow-x-hidden max-md:overflow-y-scroll max-md:bg-surface-primary max-md:px-6 max-md:pt-24 max-md:pb-12 max-md:opacity-0 max-md:transition-opacity max-md:duration-200 max-md:ease-in-out max-md:group-data-[state=mobile-open]:pointer-events-auto max-md:group-data-[state=mobile-open]:opacity-100 max-md:max-md:group-data-[state=loading]:transition-none max-md:max-md:group-data-[state=loading]:duration-0"><div class="fixed top-0 left-0 container w-full bg-surface-primary/80 backdrop-blur-xl group-data-[state=mobile-open]:overflow-y-scroll md:hidden"><div class="h-top-nav border-b border-primary/30"></div></div><a class="typo-label tracking-normal whitespace-nowrap uppercase transition-opacity max-md:text-xl hover:opacity-70" href="/" target="_self">Trang chủ</a><a class="typo-label tracking-normal whitespace-nowrap uppercase transition-opacity max-md:text-xl hover:opacity-70" href="#templates" target="_self">Mẫu thiết kế</a><a class="typo-label tracking-normal whitespace-nowrap uppercase transition-opacity max-md:text-xl hover:opacity-70" href="#pricing" target="_self">Bảng giá</a><a class="typo-label tracking-normal whitespace-nowrap uppercase transition-opacity max-md:text-xl hover:opacity-70" href="/profile" id="nav-profile-link" style="display: none;" target="_self">Hồ sơ</a><a class="typo-label tracking-normal whitespace-nowrap uppercase transition-opacity max-md:text-xl hover:opacity-70" href="/setting" id="nav-setting-link" style="display: none;" target="_self">Cài đặt</a><a class="typo-label tracking-normal whitespace-nowrap uppercase transition-opacity max-md:text-xl hover:opacity-70 text-red-500" href="/admin" id="nav-admin-link" style="display: none;" target="_self">Quản trị</a><div class="flex items-center gap-4 mt-auto pt-12 md:hidden"><a class="transition-opacity will-change-transform hover:opacity-70" href="https://www.instagram.com/lumalabsai" rel="noopener noreferrer nofollow" target="_blank"><svg class="size-8 md:size-10" fill="currentColor" viewbox="0 0 32 32"><path clip-rule="evenodd" d="M16 32C24.8366 32 32 24.8366 32 16C32 7.16344 24.8366 0 16 0C7.16344 0 0 7.16344 0 16C0 24.8366 7.16344 32 16 32ZM10.0472 7.47896C10.6111 7.25739 11.2561 7.10665 12.2007 7.06209C13.1475 7.01592 13.4494 7.00563 15.8602 7.00101C18.2711 6.99639 18.5753 7.00687 19.5202 7.0477C20.4651 7.08854 21.1104 7.2375 21.6754 7.45606C22.26 7.68119 22.7558 7.9839 23.2497 8.47659C23.7436 8.96928 24.0481 9.46339 24.2763 10.047C24.4977 10.6114 24.648 11.2543 24.6929 12.201C24.7379 13.1476 24.7487 13.4498 24.7533 15.8602C24.7579 18.2705 24.7482 18.5731 24.7068 19.5206C24.6658 20.4648 24.5172 21.1105 24.2984 21.6751C24.0728 22.26 23.7699 22.7553 23.2779 23.2496C22.7859 23.7439 22.2911 24.0482 21.7075 24.2765C21.1433 24.497 20.5018 24.6483 19.555 24.6932C18.6081 24.7382 18.3047 24.7488 15.8947 24.7534C13.4847 24.758 13.1805 24.7485 12.2357 24.7071C11.2908 24.6657 10.645 24.5169 10.0804 24.2987C9.49453 24.0725 8.99989 23.7702 8.50578 23.2778C8.01167 22.7855 7.70682 22.291 7.47903 21.7075C7.25746 21.1434 7.10725 20.4985 7.06216 19.5542C7.01635 18.6072 7.0057 18.305 7.00108 15.8943C6.99646 13.4835 7.0057 13.1798 7.04742 12.2347C7.08914 11.2896 7.23722 10.6441 7.45577 10.0789C7.68161 9.49446 7.98468 8.99946 8.47684 8.50553C8.96899 8.0116 9.46363 7.7064 10.0472 7.47896ZM10.6557 22.8082C10.9689 22.9286 11.4388 23.0724 12.3044 23.1101H12.3045C13.2407 23.1505 13.5204 23.1601 15.891 23.155C18.2615 23.1498 18.5421 23.1406 19.4783 23.0966C20.3427 23.0554 20.8127 22.9098 21.1252 22.7878C21.5396 22.6259 21.8348 22.4338 22.1448 22.122C22.4548 21.8103 22.6474 21.5146 22.8072 21.1001C22.9278 20.7865 23.0712 20.3164 23.1091 19.4509C23.1501 18.5154 23.1584 18.234 23.1542 15.8644C23.1499 13.4949 23.1398 13.2142 23.0952 12.278C23.0544 11.4123 22.9091 10.9431 22.7868 10.6311C22.6249 10.216 22.4326 9.92146 22.1207 9.61111C21.8087 9.30076 21.5135 9.10883 21.0985 8.94904C20.7859 8.82813 20.3152 8.68485 19.4504 8.64721C18.5138 8.60602 18.2326 8.59714 15.8629 8.60229C13.4932 8.60744 13.2127 8.61632 12.2765 8.6607C11.4113 8.7019 10.9419 8.84713 10.629 8.96928C10.2148 9.1312 9.91922 9.3233 9.6094 9.63525C9.29958 9.9472 9.10712 10.2421 8.94733 10.6574C8.82713 10.9704 8.68244 11.4409 8.64551 12.3057C8.60449 13.2416 8.59544 13.5221 8.60059 15.8921C8.60574 18.2622 8.61497 18.5431 8.659 19.4785C8.69948 20.3441 8.84595 20.8135 8.96757 21.1267C9.12949 21.5406 9.32124 21.8371 9.63337 22.1462C9.94549 22.4553 10.2409 22.6484 10.6557 22.8082ZM19.7218 11.7242C19.6045 11.5492 19.5416 11.3434 19.5413 11.1327C19.5408 10.8502 19.6526 10.5791 19.8519 10.379C20.0513 10.1789 20.322 10.0662 20.6044 10.0656C20.8151 10.0652 21.0212 10.1273 21.1967 10.244C21.3721 10.3607 21.509 10.5268 21.59 10.7213C21.671 10.9159 21.6925 11.13 21.6518 11.3368C21.611 11.5435 21.5099 11.7335 21.3612 11.8828C21.2125 12.032 21.0228 12.1338 20.8163 12.1753C20.6097 12.2168 20.3954 12.1961 20.2006 12.1158C20.0058 12.0355 19.8392 11.8992 19.7218 11.7242ZM15.8858 20.4352C13.3687 20.44 11.3241 18.4037 11.3192 15.8861C11.3144 13.3689 13.351 11.3239 15.8684 11.3189C18.3858 11.3139 20.431 13.3507 20.4358 15.8683C20.4406 18.3859 18.4029 20.4304 15.8858 20.4352ZM13.4136 14.2379C13.0894 14.7252 12.917 15.2976 12.9181 15.8829C12.9189 16.2715 12.9961 16.6562 13.1455 17.0149C13.2949 17.3737 13.5136 17.6995 13.7889 17.9737C14.0642 18.248 14.3909 18.4653 14.7502 18.6133C15.1096 18.7613 15.4945 18.837 15.8831 18.8362C16.4684 18.835 17.0402 18.6603 17.5262 18.3342C18.0122 18.0081 18.3905 17.5452 18.6134 17.004C18.8363 16.4629 18.8937 15.8678 18.7784 15.294C18.6631 14.7202 18.3802 14.1935 17.9656 13.7805C17.5509 13.3674 17.0231 13.0867 16.4488 12.9736C15.8746 12.8606 15.2797 12.9204 14.7395 13.1454C14.1992 13.3704 13.7378 13.7506 13.4136 14.2379Z" fill-rule="evenodd"></path></svg></a><a class="transition-opacity will-change-transform hover:opacity-70" href="https://www.youtube.com/@lumalabsai" rel="noopener noreferrer nofollow" target="_blank"><svg class="size-8 md:size-10" fill="currentColor" viewbox="0 0 32 32"><path d="M16 32C24.8366 32 32 24.8366 32 16C32 7.16344 24.8366 0 16 0C7.16344 0 0 7.16344 0 16C0 24.8366 7.16344 32 16 32ZM23.3995 10.386C24.1918 10.5983 24.8156 11.2241 25.0273 12.0187C25.4121 13.4589 25.4121 16.4638 25.4121 16.4638C25.4121 16.4638 25.4121 19.4687 25.0273 20.9091C24.8156 21.7036 24.1918 22.3293 23.3995 22.5418C21.9637 22.9277 16.2061 22.9277 16.2061 22.9277C16.2061 22.9277 10.4484 22.9277 9.01256 22.5418C8.22039 22.3293 7.59646 21.7036 7.38474 20.9091C7 19.4687 7 16.4638 7 16.4638C7 16.4638 7 13.4589 7.38474 12.0187C7.59646 11.2241 8.22039 10.5983 9.01256 10.386C10.4484 10 16.2061 10 16.2061 10C16.2061 10 21.9637 10 23.3995 10.386Z"></path><path clip-rule="evenodd" d="M13.4164 20.2199L20.0419 16.4638L13.4164 12.7074V20.2199Z" fill-rule="evenodd"></path></svg></a><a class="transition-opacity will-change-transform hover:opacity-70" href="https://x.com/LumaLabsAI" rel="noopener noreferrer nofollow" target="_blank"><svg class="size-8 md:size-10" fill="currentColor" viewbox="0 0 32 32"><path clip-rule="evenodd" d="M16 32C24.8366 32 32 24.8366 32 16C32 7.16344 24.8366 0 16 0C7.16344 0 0 7.16344 0 16C0 24.8366 7.16344 32 16 32ZM23.4491 9H20.9402L16.8139 13.7735L13.2157 9H8L14.206 17.1548L8.33011 23.9172H10.8389L15.3944 18.7128L19.3557 23.9172H24.4394L17.9693 15.3315L23.4491 9ZM21.4354 22.3924H20.049L10.938 10.4254H12.4565L21.4354 22.3924Z" fill-rule="evenodd"></path></svg></a><a class="transition-opacity will-change-transform hover:opacity-70" href="https://www.tiktok.com/@lumalabsai" rel="noopener noreferrer nofollow" target="_blank"><svg class="size-8 md:size-10" fill="currentColor" viewbox="0 0 32 32"><path clip-rule="evenodd" d="M16 32C24.8366 32 32 24.8366 32 16C32 7.16344 24.8366 0 16 0C7.16344 0 0 7.16344 0 16C0 24.8366 7.16344 32 16 32ZM21.5645 11.4409C21.6728 11.5114 21.7845 11.5764 21.8992 11.6357C22.6458 12.0079 23.3749 12.1212 23.7341 12.0823V14.9806C23.7341 14.9806 22.7091 14.9381 21.9484 14.7363C20.8881 14.4526 20.2085 14.017 20.2085 14.017C20.2085 14.017 19.7368 13.705 19.7014 13.6837V19.6731C19.7014 20.006 19.6132 20.839 19.349 21.5335C19.1174 22.1273 18.7864 22.6774 18.3701 23.1601C18.3701 23.1601 17.7185 23.9679 16.5739 24.5101C15.6198 24.9622 14.7711 24.987 14.434 24.9968C14.4065 24.9976 14.3823 24.9983 14.3619 24.9992C14.3619 24.9992 12.7947 25.0622 11.3813 24.1017L11.3743 24.0947V24.1017C10.8964 23.7683 10.4703 23.3663 10.1096 22.9086C9.6623 22.3381 9.38783 21.6613 9.317 21.463V21.4559C9.20438 21.1191 8.96817 20.3042 9.00358 19.5176C9.05989 18.1318 9.52489 17.278 9.64813 17.0655C9.97199 16.4828 10.3951 15.9611 10.8983 15.5239C11.4726 15.0425 12.1404 14.6853 12.8597 14.4748C13.5789 14.2644 14.334 14.2054 15.0772 14.3014L15.0737 17.2741C14.8289 17.1943 14.573 17.1538 14.3155 17.154C12.9552 17.154 11.8527 18.2632 11.8527 19.6331C11.8527 21.0029 12.9552 22.1121 14.3155 22.1121C14.739 22.1127 15.1553 22.0028 15.5235 21.7934C15.8767 21.5927 16.1752 21.3083 16.3927 20.9652C16.6102 20.6221 16.74 20.2308 16.7708 19.8257V19.8194C16.7725 19.8109 16.7725 19.8024 16.7725 19.7942C16.7729 19.7878 16.7733 19.7816 16.7737 19.7756C16.7746 19.7632 16.7754 19.7514 16.7754 19.739C16.7818 19.5909 16.7818 19.4411 16.7818 19.2896V8H19.7014C19.6968 8 19.6663 8.27978 19.74 8.71219H19.7364C19.8246 9.23315 20.064 9.97721 20.705 10.7107C20.9612 10.9877 21.2498 11.2328 21.5645 11.4409Z" fill-rule="evenodd"></path></svg></a><a class="transition-opacity will-change-transform hover:opacity-70" href="https://www.linkedin.com/company/lumalabsai" rel="noopener noreferrer nofollow" target="_blank"><svg class="size-8 md:size-10" fill="currentColor" viewbox="0 0 32 32"><path clip-rule="evenodd" d="M16 32C24.8366 32 32 24.8366 32 16C32 7.16344 24.8366 0 16 0C7.16344 0 0 7.16344 0 16C0 24.8366 7.16344 32 16 32ZM21.3 23.5H24.5V16.7465C24.5 13.8889 22.8296 12.5078 20.5664 12.5078C18.304 12.5078 17.3 14.2695 17.3 14.2695V13.1H14.1V23.5H17.3V17.9008C17.3 16.4008 18.0848 15.5078 19.4072 15.5078C20.6224 15.5078 21.3 16.3648 21.3 17.9008V23.5ZM8.5 9.46797C8.5 10.5552 9.3744 11.4367 10.4536 11.4367C11.532 11.4367 12.4072 10.5552 12.4064 9.46797C12.4064 8.38157 11.532 7.5 10.4536 7.5C9.3744 7.5 8.5 8.38157 8.5 9.46797ZM12.5 23.5H8.5V13.1H12.5V23.5Z" fill-rule="evenodd"></path></svg></a></div></div><div class="relative z-20 ml-auto flex items-center gap-3" id="home-user"><a class="flex items-center justify-center rounded-full border font-medium transition duration-150 border-transparent bg-surface-inverted-primary text-inverted-primary can-hover:hover:bg-surface-inverted-subtle h-8 px-3 text-sm whitespace-nowrap" href="#" id="login-open-btn" target="_self">Đăng nhập</a><button aria-hidden="true" aria-label="Toggle mobile navigation menu" class="cursor-pointer md:hidden" tabindex="-1" type="button"><svg fill="currentColor" height="20" viewbox="0 0 20 20" width="20"><path clip-rule="evenodd" d="M1 7C1 6.44772 1.44772 6 2 6L18 6C18.5523 6 19 6.44772 19 7C19 7.55228 18.5523 8 18 8L2 8C1.44772 8 1 7.55229 1 7Z" fill-rule="evenodd" style="transform-origin: center center; transform: scale(1) rotateZ(0deg) translateY(0px);"></path><path clip-rule="evenodd" d="M19 13C19 13.5523 18.5523 14 18 14L2 14C1.44772 14 1 13.5523 1 13C1 12.4477 1.44772 12 2 12L18 12C18.5523 12 19 12.4477 19 13Z" fill-rule="evenodd" style="transform-origin: center center; transform: scale(1) rotateZ(0deg) translateY(0px);"></path></svg></button><div hidden="" id="home-user-dropdown" style="position: absolute; top: calc(100% + 10px); right: 0; min-width: 170px; background: rgba(18, 18, 18, 0.95); border: 1px solid rgba(255, 255, 255, 0.15); border-radius: 12px; padding: 6px; z-index: 100; display: flex; flex-direction: column; gap: 2px;"><a href="/profile" style="display: block; padding: 8px 12px; font-size: 13px; font-weight: 500; border-radius: 8px; color: #fff; text-decoration: none;">Hồ sơ cá nhân</a><a href="/workspace" style="display: block; padding: 8px 12px; font-size: 13px; font-weight: 500; border-radius: 8px; color: #fff; text-decoration: none;">Studio</a><a href="/setting" style="display: block; padding: 8px 12px; font-size: 13px; font-weight: 500; border-radius: 8px; color: #fff; text-decoration: none;">Cài đặt</a><a hidden="" href="/admin" id="home-admin-item" style="display: block; padding: 8px 12px; font-size: 13px; font-weight: 500; border-radius: 8px; color: #ef4444; text-decoration: none;">Quản trị</a><button id="home-logout-btn" style="display: block; width: 100%; text-align: left; padding: 8px 12px; font-size: 13px; font-weight: 500; border-radius: 8px; color: #ef4444; background: none; border: none; cursor: pointer;" type="button">Đăng xuất</button></div></div></div></nav>
+<!-- ================= HERO SECTION ================= -->
+<div class="dark relative z-20" data-nav-theme="dark" id="hero-section">
+<div class="bg-surface-inverted-primary">
+<div class="relative flex min-h-screen items-center justify-center bg-inverted-primary">
+<div class="absolute inset-0" style="opacity: 0.35;">
+<video autoplay="" class="h-full w-full object-cover" loop="" muted="" playsinline="" preload="metadata">
+<source src="https://static.cdn-luma.com/files/sanity/7b077029-d756-49ad-9d9b-9ee0ad54ad02.mp4#t=0.001" type="video/mp4"/>
+</video>
+</div>
+<div class="relative flex w-full max-w-xl flex-col items-center gap-5 py-48 text-center">
+<h1 class="typo-h1 text-balance">
+       Lime is your creative partner
+      </h1>
+<div class="typo-subhead text-balance text-primary/70">
+<p>
+        You have the idea. Luma helps make it real.
+       </p>
+</div>
+<div class="flex shrink-0 items-center">
+<a class="flex items-center justify-center rounded-full border font-medium transition duration-150 border-transparent bg-surface-inverted-primary text-inverted-primary can-hover:hover:bg-surface-inverted-subtle h-10 px-6 text-base md:h-12 md:px-8 md:text-lg" href="https://app.lumalabs.ai/" target="_self">
+        Try for free
+       </a>
+</div>
+</div>
+</div>
+<div class="relative mx-auto w-full max-w-2xl self-end px-2.5">
+<div class="flex flex-col items-center justify-between rounded-xl bg-linear-to-br from-surface-inverted-primary/50 to-surface-primary/50 px-5 py-5 shadow-md outline outline-inverted-primary/20 backdrop-blur-xl sm:px-10 sm:py-6 md:rounded-3xl -mt-40" style="width: 652px; max-width: 100%; min-height: 288px; height: 288px; box-sizing: border-box;">
+<h3 class="text-center typo-h4 text-balance text-primary/70" style="margin: 0; font-weight: 500;">
+       What’s due this week?
+      </h3>
+<form action="/workspace" class="relative rounded-2xl bg-white shadow-xl transition-all" method="GET" style="width: 572px; height: 127.56px; max-width: 100%; box-sizing: border-box; padding: 16px 56px 14px 18px; display: flex; flex-direction: column; justify-content: space-between;">
+<textarea autocomplete="off" class="block w-full resize-none bg-transparent typo-body-m text-black outline-none placeholder:text-gray-400" id="home-prompt-input" name="prompt" placeholder="Generate 5 ad variations for a sneaker campaign in 16:9 and 9:16" style="height: 64px; font-size: 15px; line-height: 1.45; border: none; padding: 0; margin: 0;"></textarea>
+<div style="display: flex; justify-content: space-between; align-items: flex-end; width: 100%;">
+<span style="font-size: 11.5px; color: #9CA3AF; letter-spacing: 0.2px; font-weight: 500;">
+         tab to accept
+        </span>
+<button aria-label="Submit prompt" class="cursor-pointer text-black hover:opacity-70 transition-opacity" id="home-prompt-btn" style="position: absolute; right: 14px; bottom: 14px; background: none; border: none; padding: 0; display: flex; align-items: center; justify-content: center;" type="submit">
+<svg fill="currentColor" style="width: 36px; height: 36px;" viewbox="0 0 41 41">
+<path d="M20.582 40.8203C17.8346 40.8203 15.2565 40.2995 12.8477 39.2578C10.4388 38.2292 8.32292 36.8034 6.5 34.9805C4.67708 33.1445 3.24479 31.0286 2.20312 28.6328C1.17448 26.224 0.660156 23.6458 0.660156 20.8984C0.660156 18.151 1.17448 15.5729 2.20312 13.1641C3.24479 10.7552 4.67708 8.63932 6.5 6.81641C8.32292 4.99349 10.4388 3.56771 12.8477 2.53906C15.2565 1.4974 17.8346 0.976562 20.582 0.976562C23.3294 0.976562 25.9076 1.4974 28.3164 2.53906C30.7253 3.56771 32.8411 4.99349 34.6641 6.81641C36.487 8.63932 37.9128 10.7552 38.9414 13.1641C39.9831 15.5729 40.5039 18.151 40.5039 20.8984C40.5039 23.6458 39.9831 26.224 38.9414 28.6328C37.9128 31.0286 36.487 33.1445 34.6641 34.9805C32.8411 36.8034 30.7253 38.2292 28.3164 39.2578C25.9076 40.2995 23.3294 40.8203 20.582 40.8203ZM20.6016 10.7422C20.3932 10.7422 20.1979 10.7812 20.0156 10.8594C19.8333 10.9245 19.638 11.0612 19.4297 11.2695L12.7891 17.6758C12.6328 17.819 12.5156 17.9818 12.4375 18.1641C12.3594 18.3333 12.3203 18.5286 12.3203 18.75C12.3203 19.1536 12.457 19.4922 12.7305 19.7656C13.0039 20.026 13.349 20.1562 13.7656 20.1562C14.2344 20.1562 14.6055 19.9935 14.8789 19.668L17.9453 16.4062L19.1172 15.1758L18.9805 18.1836V29.4922C18.9805 29.9219 19.1367 30.293 19.4492 30.6055C19.7747 30.9049 20.1589 31.0547 20.6016 31.0547C21.0443 31.0547 21.4219 30.9049 21.7344 30.6055C22.0469 30.293 22.2031 29.9219 22.2031 29.4922V18.1836L22.0859 15.1758L23.2578 16.4062L26.3242 19.668C26.5846 19.9935 26.9492 20.1562 27.418 20.1562C27.8346 20.1562 28.1797 20.026 28.4531 19.7656C28.7396 19.4922 28.8828 19.1536 28.8828 18.75C28.8828 18.5286 28.8372 18.3333 28.7461 18.1641C28.668 17.9818 28.5508 17.819 28.3945 17.6758L21.7734 11.2695C21.5651 11.0612 21.3698 10.9245 21.1875 10.8594C21.0052 10.7812 20.8099 10.7422 20.6016 10.7422Z">
+</path>
+</svg>
+</button>
+</div>
+</form>
+<div class="flex flex-wrap justify-center gap-1.5 sm:gap-2.5">
+<button class="flex items-center justify-center rounded-full border font-medium transition duration-150 border-transparent bg-surface-inverted-primary text-inverted-primary can-hover:hover:bg-surface-inverted-subtle h-8 px-3 text-sm cursor-pointer max-sm:text-xs" onclick="document.getElementById('home-prompt-input').value='Product Hero Shots for luxury sneaker brand in 16:9'" type="button">
+        Product Hero Shots
+       </button>
+<button class="flex items-center justify-center rounded-full border font-medium transition duration-150 border-transparent bg-surface-inverted-primary text-inverted-primary can-hover:hover:bg-surface-inverted-subtle h-8 px-3 text-sm cursor-pointer max-sm:text-xs" onclick="document.getElementById('home-prompt-input').value='Generate 3 paid social video variants for Instagram Reels and TikTok'" type="button">
+        Paid Social Variants
+       </button>
+<button class="flex items-center justify-center rounded-full border font-medium transition duration-150 border-transparent bg-surface-inverted-primary text-inverted-primary can-hover:hover:bg-surface-inverted-subtle h-8 px-3 text-sm cursor-pointer max-sm:text-xs" onclick="document.getElementById('home-prompt-input').value='Cut a 15-second teaser trailer with high-tempo cinematic beats'" type="button">
+        Cut a Teaser
+       </button>
+</div>
+</div>
+</div>
+</div>
+</div>
+<div class="light grow pb-20 md:pb-32 lg:pb-40 flex flex-col gap-20 md:gap-32 lg:gap-40 [clip-path:inset(0)]" data-nav-theme="light" id="features-section">
+<div class="pointer-events-none fixed top-0 right-0 left-0 z-10 h-top-nav transform-gpu bg-surface-primary/80 backdrop-blur-xl">
+</div>
+<div class="container-lg flex min-h-[12dvh] items-center justify-center py-5">
+<div class="flex h-14 w-fit items-center gap-3 rounded-full border border-primary/10 bg-surface-elevated px-6 md:gap-4">
+<p class="flex-1 font-medium text-balance max-md:text-sm">
+<span>
+       Ray 3.2 Is Here
+      </span>
+<span class="max-lg:hidden">
+       : Direct Every Frame Finish Every Cut
+      </span>
+</p>
+<a class="flex items-center justify-center rounded-full border font-medium transition duration-150 border-transparent bg-surface-primary text-primary can-hover:hover:bg-surface-subtle h-8 px-3 text-sm" href="https://app.lumalabs.ai/" target="_self">
+      Try Free
+     </a>
+<a class="flex items-center justify-center rounded-full border font-medium transition duration-150 border-transparent bg-surface-primary text-primary can-hover:hover:bg-surface-subtle h-8 px-3 text-sm max-md:hidden" href="/ray3-2" target="_self">
+      Learn more
+     </a>
+</div>
+</div>
+<div class="container-lg flex max-h-[50dvh] items-center justify-center py-[10vmax] text-center">
+<div class="typo-h1 text-balance">
+<p>
+      Our Mission is to build unified general intelligence that can generate, understand, and operate in the physical world
+     </p>
+</div>
+</div>
+<div class="relative container-lg space-y-10 text-center md:space-y-10">
+<p class="typo-subhead text-secondary">
+     The fastest creative teams in the world make here.
+    </p>
+<div class="relative -left-[50vw] ml-[50%] flex w-screen items-center justify-center overflow-hidden">
+<div class="relative w-[calc(100%+var(--mask-size)*2)] mask-[linear-gradient(to_right,transparent_0%,black_var(--mask-size),black_calc(100%-var(--mask-size)),transparent_100%)] [--mask-size:6rem] max-w-7xl items-center gap-10 [--logo-scale:0.35] md:gap-20 md:[--logo-scale:0.5]">
+<ul class="items-[inherit] flex w-full justify-start gap-[inherit] will-change-transform *:shrink-0">
+<li class="relative transform-gpu" style="width: calc(739px * var(--logo-scale)); aspect-ratio: 739 / 76;">
+<img alt="Serviceplan" class="object-contain" data-nimg="fill" decoding="async" loading="eager" sizes="320px" src="https://cdn.sanity.io/images/2ylxvaa2/production/4b9c323d4e5322022a2e39d24d16a70d8a259fad-739x76.png?w=2048&amp;fm=webp&amp;q=75&amp;fit=max" style="position: absolute; height: 100%; width: 100%; inset: 0px; color: transparent;"/>
+</li>
+<li class="relative transform-gpu" style="width: calc(264px * var(--logo-scale)); aspect-ratio: 264 / 56;">
+<img alt="Dentsu" class="object-contain" data-nimg="fill" decoding="async" loading="eager" sizes="320px" src="https://cdn.sanity.io/images/2ylxvaa2/production/3cc1ece7ee9dd135f711049f1960b3bc66def8f9-264x56.png?w=2048&amp;fm=webp&amp;q=75&amp;fit=max" style="position: absolute; height: 100%; width: 100%; inset: 0px; color: transparent;"/>
+</li>
+<li class="relative transform-gpu" style="width: calc(344px * var(--logo-scale)); aspect-ratio: 344 / 48;">
+<img alt="Humain" class="object-contain" data-nimg="fill" decoding="async" loading="eager" sizes="320px" src="https://cdn.sanity.io/images/2ylxvaa2/production/37a25c7f2095d49814b1940c640b3c0cd06ab69e-344x48.png?w=2048&amp;fm=webp&amp;q=75&amp;fit=max" style="position: absolute; height: 100%; width: 100%; inset: 0px; color: transparent;"/>
+</li>
+<li class="relative transform-gpu" style="width: calc(377px * var(--logo-scale)); aspect-ratio: 377 / 56;">
+<img alt="Aperture" class="object-contain" data-nimg="fill" decoding="async" loading="eager" sizes="320px" src="https://cdn.sanity.io/images/2ylxvaa2/production/f762baba31d95136de73a962e7f8c159a926d7d6-377x56.png?w=2048&amp;fm=webp&amp;q=75&amp;fit=max" style="position: absolute; height: 100%; width: 100%; inset: 0px; color: transparent;"/>
+</li>
+<li class="relative transform-gpu" style="width: calc(132px * var(--logo-scale)); aspect-ratio: 132 / 128;">
+<img alt="Publicis Groupe" class="object-contain" data-nimg="fill" decoding="async" loading="eager" sizes="320px" src="https://cdn.sanity.io/images/2ylxvaa2/production/ed9c9f11052fade2a2c2488b3dc070b43cf1679c-132x128.png?w=2048&amp;fm=webp&amp;q=75&amp;fit=max" style="position: absolute; height: 100%; width: 100%; inset: 0px; color: transparent;"/>
+</li>
+<li class="relative transform-gpu" style="width: calc(362px * var(--logo-scale)); aspect-ratio: 362 / 87;">
+<img alt="Boundless" class="object-contain" data-nimg="fill" decoding="async" loading="eager" sizes="320px" src="https://cdn.sanity.io/images/2ylxvaa2/production/04b81b6c20c77ce8b28ec26269008a61ef2e73e2-362x87.png?w=2048&amp;fm=webp&amp;q=75&amp;fit=max" style="position: absolute; height: 100%; width: 100%; inset: 0px; color: transparent;"/>
+</li>
+<li class="relative transform-gpu" style="width: calc(112px * var(--logo-scale)); aspect-ratio: 112 / 99;">
+<img alt="Mazda" class="object-contain" data-nimg="fill" decoding="async" loading="eager" sizes="320px" src="https://cdn.sanity.io/images/2ylxvaa2/production/fff4fd15dc4bbd586ce4fee59472542fa58f358c-112x99.png?w=2048&amp;fm=webp&amp;q=75&amp;fit=max" style="position: absolute; height: 100%; width: 100%; inset: 0px; color: transparent;"/>
+</li>
+<li class="relative transform-gpu" style="width: calc(277px * var(--logo-scale)); aspect-ratio: 277 / 60;">
+<img alt="Uncharted" class="object-contain" data-nimg="fill" decoding="async" loading="eager" sizes="320px" src="https://cdn.sanity.io/images/2ylxvaa2/production/d94398a074cc20aa1c8b6518b3676f9077f8e14a-277x60.png?w=2048&amp;fm=webp&amp;q=75&amp;fit=max" style="position: absolute; height: 100%; width: 100%; inset: 0px; color: transparent;"/>
+</li>
+<li class="relative transform-gpu" style="width: calc(739px * var(--logo-scale)); aspect-ratio: 739 / 76;">
+<img alt="Serviceplan" class="object-contain" data-nimg="fill" decoding="async" loading="eager" sizes="320px" src="https://cdn.sanity.io/images/2ylxvaa2/production/4b9c323d4e5322022a2e39d24d16a70d8a259fad-739x76.png?w=2048&amp;fm=webp&amp;q=75&amp;fit=max" style="position: absolute; height: 100%; width: 100%; inset: 0px; color: transparent;"/>
+</li>
+<li class="relative transform-gpu" style="width: calc(264px * var(--logo-scale)); aspect-ratio: 264 / 56;">
+<img alt="Dentsu" class="object-contain" data-nimg="fill" decoding="async" loading="eager" sizes="320px" src="https://cdn.sanity.io/images/2ylxvaa2/production/3cc1ece7ee9dd135f711049f1960b3bc66def8f9-264x56.png?w=2048&amp;fm=webp&amp;q=75&amp;fit=max" style="position: absolute; height: 100%; width: 100%; inset: 0px; color: transparent;"/>
+</li>
+<li class="relative transform-gpu" style="width: calc(344px * var(--logo-scale)); aspect-ratio: 344 / 48;">
+<img alt="Humain" class="object-contain" data-nimg="fill" decoding="async" loading="eager" sizes="320px" src="https://cdn.sanity.io/images/2ylxvaa2/production/37a25c7f2095d49814b1940c640b3c0cd06ab69e-344x48.png?w=2048&amp;fm=webp&amp;q=75&amp;fit=max" style="position: absolute; height: 100%; width: 100%; inset: 0px; color: transparent;"/>
+</li>
+<li class="relative transform-gpu" style="width: calc(377px * var(--logo-scale)); aspect-ratio: 377 / 56;">
+<img alt="Aperture" class="object-contain" data-nimg="fill" decoding="async" loading="eager" sizes="320px" src="https://cdn.sanity.io/images/2ylxvaa2/production/f762baba31d95136de73a962e7f8c159a926d7d6-377x56.png?w=2048&amp;fm=webp&amp;q=75&amp;fit=max" style="position: absolute; height: 100%; width: 100%; inset: 0px; color: transparent;"/>
+</li>
+<li class="relative transform-gpu" style="width: calc(132px * var(--logo-scale)); aspect-ratio: 132 / 128;">
+<img alt="Publicis Groupe" class="object-contain" data-nimg="fill" decoding="async" loading="eager" sizes="320px" src="https://cdn.sanity.io/images/2ylxvaa2/production/ed9c9f11052fade2a2c2488b3dc070b43cf1679c-132x128.png?w=2048&amp;fm=webp&amp;q=75&amp;fit=max" style="position: absolute; height: 100%; width: 100%; inset: 0px; color: transparent;"/>
+</li>
+<li class="relative transform-gpu" style="width: calc(362px * var(--logo-scale)); aspect-ratio: 362 / 87;">
+<img alt="Boundless" class="object-contain" data-nimg="fill" decoding="async" loading="eager" sizes="320px" src="https://cdn.sanity.io/images/2ylxvaa2/production/04b81b6c20c77ce8b28ec26269008a61ef2e73e2-362x87.png?w=2048&amp;fm=webp&amp;q=75&amp;fit=max" style="position: absolute; height: 100%; width: 100%; inset: 0px; color: transparent;"/>
+</li>
+<li class="relative transform-gpu" style="width: calc(112px * var(--logo-scale)); aspect-ratio: 112 / 99;">
+<img alt="Mazda" class="object-contain" data-nimg="fill" decoding="async" loading="eager" sizes="320px" src="https://cdn.sanity.io/images/2ylxvaa2/production/fff4fd15dc4bbd586ce4fee59472542fa58f358c-112x99.png?w=2048&amp;fm=webp&amp;q=75&amp;fit=max" style="position: absolute; height: 100%; width: 100%; inset: 0px; color: transparent;"/>
+</li>
+<li class="relative transform-gpu" style="width: calc(277px * var(--logo-scale)); aspect-ratio: 277 / 60;">
+<img alt="Uncharted" class="object-contain" data-nimg="fill" decoding="async" loading="eager" sizes="320px" src="https://cdn.sanity.io/images/2ylxvaa2/production/d94398a074cc20aa1c8b6518b3676f9077f8e14a-277x60.png?w=2048&amp;fm=webp&amp;q=75&amp;fit=max" style="position: absolute; height: 100%; width: 100%; inset: 0px; color: transparent;"/>
+</li>
+<li class="relative transform-gpu" style="width: calc(739px * var(--logo-scale)); aspect-ratio: 739 / 76;">
+<img alt="Serviceplan" class="object-contain" data-nimg="fill" decoding="async" loading="eager" sizes="320px" src="https://cdn.sanity.io/images/2ylxvaa2/production/4b9c323d4e5322022a2e39d24d16a70d8a259fad-739x76.png?w=2048&amp;fm=webp&amp;q=75&amp;fit=max" style="position: absolute; height: 100%; width: 100%; inset: 0px; color: transparent;"/>
+</li>
+<li class="relative transform-gpu" style="width: calc(264px * var(--logo-scale)); aspect-ratio: 264 / 56;">
+<img alt="Dentsu" class="object-contain" data-nimg="fill" decoding="async" loading="eager" sizes="320px" src="https://cdn.sanity.io/images/2ylxvaa2/production/3cc1ece7ee9dd135f711049f1960b3bc66def8f9-264x56.png?w=2048&amp;fm=webp&amp;q=75&amp;fit=max" style="position: absolute; height: 100%; width: 100%; inset: 0px; color: transparent;"/>
+</li>
+<li class="relative transform-gpu" style="width: calc(344px * var(--logo-scale)); aspect-ratio: 344 / 48;">
+<img alt="Humain" class="object-contain" data-nimg="fill" decoding="async" loading="eager" sizes="320px" src="https://cdn.sanity.io/images/2ylxvaa2/production/37a25c7f2095d49814b1940c640b3c0cd06ab69e-344x48.png?w=2048&amp;fm=webp&amp;q=75&amp;fit=max" style="position: absolute; height: 100%; width: 100%; inset: 0px; color: transparent;"/>
+</li>
+<li class="relative transform-gpu" style="width: calc(377px * var(--logo-scale)); aspect-ratio: 377 / 56;">
+<img alt="Aperture" class="object-contain" data-nimg="fill" decoding="async" loading="eager" sizes="320px" src="https://cdn.sanity.io/images/2ylxvaa2/production/f762baba31d95136de73a962e7f8c159a926d7d6-377x56.png?w=2048&amp;fm=webp&amp;q=75&amp;fit=max" style="position: absolute; height: 100%; width: 100%; inset: 0px; color: transparent;"/>
+</li>
+<li class="relative transform-gpu" style="width: calc(132px * var(--logo-scale)); aspect-ratio: 132 / 128;">
+<img alt="Publicis Groupe" class="object-contain" data-nimg="fill" decoding="async" loading="eager" sizes="320px" src="https://cdn.sanity.io/images/2ylxvaa2/production/ed9c9f11052fade2a2c2488b3dc070b43cf1679c-132x128.png?w=2048&amp;fm=webp&amp;q=75&amp;fit=max" style="position: absolute; height: 100%; width: 100%; inset: 0px; color: transparent;"/>
+</li>
+<li class="relative transform-gpu" style="width: calc(362px * var(--logo-scale)); aspect-ratio: 362 / 87;">
+<img alt="Boundless" class="object-contain" data-nimg="fill" decoding="async" loading="eager" sizes="320px" src="https://cdn.sanity.io/images/2ylxvaa2/production/04b81b6c20c77ce8b28ec26269008a61ef2e73e2-362x87.png?w=2048&amp;fm=webp&amp;q=75&amp;fit=max" style="position: absolute; height: 100%; width: 100%; inset: 0px; color: transparent;"/>
+</li>
+<li class="relative transform-gpu" style="width: calc(112px * var(--logo-scale)); aspect-ratio: 112 / 99;">
+<img alt="Mazda" class="object-contain" data-nimg="fill" decoding="async" loading="eager" sizes="320px" src="https://cdn.sanity.io/images/2ylxvaa2/production/fff4fd15dc4bbd586ce4fee59472542fa58f358c-112x99.png?w=2048&amp;fm=webp&amp;q=75&amp;fit=max" style="position: absolute; height: 100%; width: 100%; inset: 0px; color: transparent;"/>
+</li>
+<li class="relative transform-gpu" style="width: calc(277px * var(--logo-scale)); aspect-ratio: 277 / 60;">
+<img alt="Uncharted" class="object-contain" data-nimg="fill" decoding="async" loading="eager" sizes="320px" src="https://cdn.sanity.io/images/2ylxvaa2/production/d94398a074cc20aa1c8b6518b3676f9077f8e14a-277x60.png?w=2048&amp;fm=webp&amp;q=75&amp;fit=max" style="position: absolute; height: 100%; width: 100%; inset: 0px; color: transparent;"/>
+</li>
+</ul>
+</div>
+</div>
+</div>
+<section class="container-lg space-y-10 md:space-y-20">
+<div class="flex flex-col gap-3 text-balance lg:flex-row lg:items-start lg:justify-between">
+<div class="flex flex-col gap-2.5 md:gap-5 lg:w-3xl">
+<h2 class="typo-h2">
+       Where ideas become the work
+      </h2>
+<p class="max-w-4xl typo-subhead text-secondary">
+       Work that's right for your brand, your audience, and this exact moment. Luma is built to get you there, and to get there fast.
+      </p>
+</div>
+</div>
+<div class="grid gap-10 grid-cols-1 md:grid-cols-2">
+<div class="group relative grid w-full auto-rows-min grid-cols-1 gap-3 md:gap-5 [&amp;:has(.card-link)]:cursor-pointer col-span-full lg:grid-cols-[2fr_1fr]">
+<div class="relative w-full overflow-hidden transition-transform duration-300 ease-out [.group:has(.card-link):hover_&amp;]:scale-[1.02] aspect-video md:aspect-16/7 lg:col-span-full rounded-xl md:rounded-3xl">
+<img alt="" class="h-full w-full object-cover" data-nimg="1" decoding="async" height="960" loading="eager" sizes="100vw" src="https://cdn.sanity.io/images/2ylxvaa2/production/0bfd4636b5e513ee7950e36e123f32bb8b25f924-2328x960.png?w=2048&amp;fm=webp&amp;q=75&amp;fit=max" style="color: transparent;" width="2328"/>
+</div>
+<div class="flex flex-col gap-1 text-balance md:gap-2.5">
+<div class="flex items-center gap-4">
+<h3 class="typo-h3">
+         Luma
+        </h3>
+</div>
+<div class="typo-body-m text-secondary">
+<p>
+         Agents research, generate, and refine across video, image, audio, and text, and your brand holds steady through all of it. Ten directions before the morning standup. Fifty variants by end of day. The client meeting opens with the work.
+        </p>
+</div>
+</div>
+<div class="flex shrink-0 self-start lg:justify-end lg:self-start">
+<a class="flex items-center justify-center rounded-full border font-medium transition duration-150 border-transparent bg-surface-inverted-primary text-inverted-primary can-hover:hover:bg-surface-inverted-subtle h-8 px-4 text-sm md:h-10 md:px-6 md:text-base card-link" href="/app">
+        Learn more
+       </a>
+</div>
+</div>
+</div>
+</section>
+</div>
+<div class="dark grow pt-20 md:pt-32 lg:pt-40 pb-20 md:pb-32 lg:pb-40 flex flex-col gap-20 md:gap-32 lg:gap-40 [clip-path:inset(0)]" data-nav-theme="dark" id="research-section">
+<div class="pointer-events-none fixed top-0 right-0 left-0 z-10 h-top-nav transform-gpu bg-surface-primary/80 backdrop-blur-xl">
+</div>
+<section class="container-lg space-y-10 md:space-y-20">
+<div class="flex flex-col gap-3 text-balance lg:flex-row lg:items-start lg:justify-between">
+<div class="flex flex-col gap-2.5 md:gap-5 lg:w-3xl">
+<h2 class="typo-h2">
+       Research
+      </h2>
+<p class="max-w-4xl typo-subhead text-secondary">
+       Speed like this doesn't come from a wrapper. We build the models underneath Luma, and frontier research ships straight into the hands of working creatives.
+      </p>
+</div>
+</div>
+<div class="grid gap-10 grid-cols-1 md:grid-cols-2">
+<div class="group relative grid w-full auto-rows-min grid-cols-1 gap-3 md:gap-5 [&amp;:has(.card-link)]:cursor-pointer col-span-full lg:grid-cols-[2fr_1fr]">
+<div class="relative w-full overflow-hidden transition-transform duration-300 ease-out [.group:has(.card-link):hover_&amp;]:scale-[1.02] aspect-video md:aspect-16/7 lg:col-span-full rounded-xl md:rounded-3xl">
+<img alt="" class="h-full w-full object-cover" data-nimg="1" decoding="async" height="1080" loading="eager" sizes="100vw" src="https://cdn.sanity.io/images/2ylxvaa2/production/099e66ae6ba403cb556111d6a1aadf6a8f4cb79b-1920x1080.png?w=1920&amp;fm=webp&amp;q=75&amp;fit=max" style="color: transparent;" width="1920"/>
+</div>
+<div class="flex flex-col gap-1 text-balance md:gap-2.5">
+<div class="flex items-center gap-4">
+<h3 class="typo-h3 font-bold">
+         The Open Physical AI Lab
+        </h3>
+</div>
+<div class="typo-body-m text-secondary">
+<p>
+         An open science effort to solve generalization in physical AI, built in the open for the benefit of all humanity.
+        </p>
+</div>
+</div>
+<div class="flex shrink-0 self-start lg:justify-end lg:self-start">
+<a class="flex items-center justify-center rounded-full border font-medium transition duration-150 border-transparent bg-surface-inverted-primary text-inverted-primary can-hover:hover:bg-surface-inverted-subtle h-8 px-4 text-sm md:h-10 md:px-6 md:text-base card-link" href="/news/luma-open-physical-ai-lab">
+        Learn more
+       </a>
+</div>
+</div>
+<div class="group relative grid w-full auto-rows-min grid-cols-1 gap-3 md:gap-5 [&amp;:has(.card-link)]:cursor-pointer">
+<div class="relative w-full overflow-hidden transition-transform duration-300 ease-out [.group:has(.card-link):hover_&amp;]:scale-[1.02] aspect-video rounded-xl md:rounded-3xl">
+<video autoplay="" class="h-full w-full object-cover" loop="" muted="" playsinline="" preload="metadata">
+<source src="https://static.cdn-luma.com/files/sanity/522455bf-ff1f-41c5-a048-a9f40b06763c.mp4#t=0.001" type="video/mp4"/>
+</video>
+</div>
+<div class="flex flex-col gap-1 text-balance md:gap-2.5">
+<div class="flex items-center gap-4">
+<h3 class="typo-h3 font-bold">
+         RAY3.2
+        </h3>
+<span class="inline-block w-fit font-semibold uppercase typo-label rounded-md md:rounded-lg px-2.5 py-1 md:px-3 md:py-1.5 bg-surface-inverted-primary text-inverted-primary">
+         new
+        </span>
+</div>
+<div class="typo-body-m text-secondary">
+<p>
+         Direct video the way you would direct a shoot. Ray 3.2 puts every frame under your control, holds continuity across every cut, and finishes in cinematic quality.
+        </p>
+</div>
+</div>
+<div class="flex shrink-0 self-start">
+<a class="flex items-center justify-center rounded-full border font-medium transition duration-150 border-transparent bg-surface-inverted-primary text-inverted-primary can-hover:hover:bg-surface-inverted-subtle h-8 px-4 text-sm md:h-10 md:px-6 md:text-base card-link" href="/ray3-2">
+        Discover Ray3.2
+       </a>
+</div>
+</div>
+<div class="group relative grid w-full auto-rows-min grid-cols-1 gap-3 md:gap-5 [&amp;:has(.card-link)]:cursor-pointer">
+<div class="relative w-full overflow-hidden transition-transform duration-300 ease-out [.group:has(.card-link):hover_&amp;]:scale-[1.02] aspect-video rounded-xl md:rounded-3xl">
+<img alt="" class="h-full w-full object-cover" data-nimg="1" decoding="async" height="1536" loading="eager" sizes="(max-width: 768px) 100vw, 50vw" src="https://cdn.sanity.io/images/2ylxvaa2/production/97f67e5a2d71508ea393b791c2dce49693c30c3d-2688x1536.png?w=2048&amp;fm=webp&amp;q=75&amp;fit=max" style="color: transparent;" width="2688"/>
+</div>
+<div class="flex flex-col gap-1 text-balance md:gap-2.5">
+<div class="flex items-center gap-4">
+<h3 class="typo-h3 font-bold">
+         UNI-1
+        </h3>
+</div>
+<div class="typo-body-m text-secondary">
+<p>
+         Uni-1 is brand intelligence at the model level. It understands your brand as deeply as it generates for it, carrying style references, character references, and visual grounding into every asset.
+        </p>
+</div>
+</div>
+<div class="flex shrink-0 self-start">
+<a class="flex items-center justify-center rounded-full border font-medium transition duration-150 border-transparent bg-surface-inverted-primary text-inverted-primary can-hover:hover:bg-surface-inverted-subtle h-8 px-4 text-sm md:h-10 md:px-6 md:text-base card-link" href="/uni-1">
+        Discover Uni-1
+       </a>
+</div>
+</div>
+</div>
+<div class="grid gap-x-5 gap-y-5 md:gap-y-10 grid-cols-1 md:grid-cols-2 lg:grid-cols-3">
+<div class="group relative grid w-full auto-rows-min grid-cols-1 gap-3 md:gap-5 [&amp;:has(.card-link)]:cursor-pointer">
+<div class="relative w-full overflow-hidden transition-transform duration-300 ease-out [.group:has(.card-link):hover_&amp;]:scale-[1.02] aspect-video rounded-xl md:rounded-3xl">
+<img alt="" class="h-full w-full object-cover" data-nimg="1" decoding="async" height="1080" loading="eager" sizes="(max-width: 768px) 100vw, (max-width: 1024px) 50vw, 33vw" src="https://cdn.sanity.io/images/2ylxvaa2/production/3ca793f40bb00da97c7e23195f699a013b07866e-1920x1080.png?w=1920&amp;fm=webp&amp;q=75&amp;fit=max" style="color: transparent;" width="1920"/>
+</div>
+<div class="flex flex-col gap-1 text-balance md:gap-2.5">
+<div class="flex items-center gap-2">
+<span class="inline-block w-fit font-semibold uppercase border typo-label rounded-md md:rounded-lg px-2.5 py-1 md:px-3 md:py-1.5 border-current text-secondary">
+         Engineering
+        </span>
+<span class="typo-body-s text-secondary">
+         Nov 26, 2025
+        </span>
+</div>
+<h3 class="typo-h4">
+<a class="card-link" href="/news/tvm">
+         Pushing the Limit of Efficient Inference-Time Scaling with Terminal Velocity Matching
+        </a>
+</h3>
+</div>
+</div>
+<div class="group relative grid w-full auto-rows-min grid-cols-1 gap-3 md:gap-5 [&amp;:has(.card-link)]:cursor-pointer">
+<div class="relative w-full overflow-hidden transition-transform duration-300 ease-out [.group:has(.card-link):hover_&amp;]:scale-[1.02] aspect-video rounded-xl md:rounded-3xl">
+<img alt="" class="h-full w-full object-cover" data-nimg="1" decoding="async" height="1080" loading="eager" sizes="(max-width: 768px) 100vw, (max-width: 1024px) 50vw, 33vw" src="https://cdn.sanity.io/images/2ylxvaa2/production/e2c2088ceca80060ea2b8c03fb010d1c9aa2a745-1920x1080.png?w=1920&amp;fm=webp&amp;q=75&amp;fit=max" style="color: transparent;" width="1920"/>
+</div>
+<div class="flex flex-col gap-1 text-balance md:gap-2.5">
+<div class="flex items-center gap-2">
+<span class="inline-block w-fit font-semibold uppercase border typo-label rounded-md md:rounded-lg px-2.5 py-1 md:px-3 md:py-1.5 border-current text-secondary">
+         Engineering
+        </span>
+<span class="typo-body-s text-secondary">
+         Oct 14, 2025
+        </span>
+</div>
+<h3 class="typo-h4">
+<a class="card-link" href="/news/ray3-eval">
+         Ray3 Evaluation Report – State-of-the-Art Performance for Pro Video Generation
+        </a>
+</h3>
+</div>
+</div>
+<div class="group relative grid w-full auto-rows-min grid-cols-1 gap-3 md:gap-5 [&amp;:has(.card-link)]:cursor-pointer">
+<div class="relative w-full overflow-hidden transition-transform duration-300 ease-out [.group:has(.card-link):hover_&amp;]:scale-[1.02] aspect-video rounded-xl md:rounded-3xl">
+<img alt="" class="h-full w-full object-cover" data-nimg="1" decoding="async" height="0" loading="eager" sizes="(max-width: 768px) 100vw, (max-width: 1024px) 50vw, 33vw" src="https://static.cdn-luma.com/files/sanity/6a602554-8735-4dd7-a46c-45adbd93268f.jpg" style="color: transparent;" width="0"/>
+</div>
+<div class="flex flex-col gap-1 text-balance md:gap-2.5">
+<div class="flex items-center gap-2">
+<span class="inline-block w-fit font-semibold uppercase border typo-label rounded-md md:rounded-lg px-2.5 py-1 md:px-3 md:py-1.5 border-current text-secondary">
+         Engineering
+        </span>
+<span class="typo-body-s text-secondary">
+         Mar 11, 2025
+        </span>
+</div>
+<h3 class="typo-h4">
+<a class="card-link" href="/news/inductive-moment-matching">
+         Breaking the Algorithmic Ceiling in Pre-Training with Inductive Moment Matching
+        </a>
+</h3>
+</div>
+</div>
+</div>
+</section>
+</div>
+<div aria-hidden="true" aria-modal="true" class="legal-modal" id="legal-modal" role="dialog">
+<div class="legal-card-modal">
+<button aria-label="Đóng" class="modal-close-btn" id="legal-close-btn" type="button">
+<svg fill="none" height="16" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2" viewbox="0 0 24 24" width="16">
+<line x1="18" x2="6" y1="6" y2="18">
+</line>
+<line x1="6" x2="18" y1="6" y2="18">
+</line>
+</svg>
+</button>
+<!-- Header -->
+<div class="legal-modal-head">
+<div class="legal-modal-badge">
+      ✦ Pháp lý &amp; Chính sách LIME (Demo)
+     </div>
+<h3 class="legal-modal-title">
+      Điều khoản &amp; Chính sách bảo mật
+     </h3>
+<p class="legal-modal-subtitle">
+      Quy định sử dụng nền tảng LIME AI Video Studio và cam kết bảo vệ dữ liệu
+                    người dùng
+     </p>
+<div class="legal-modal-tabs">
+<button class="legal-tab-trigger active" id="legal-tab-terms" type="button">
+       1. Điều khoản dịch vụ
+      </button>
+<button class="legal-tab-trigger" id="legal-tab-privacy" type="button">
+       2. Chính sách bảo mật
+      </button>
+</div>
+</div>
+<!-- Scrollable Content -->
+<div class="legal-modal-body soft-scrollbar">
+<!-- PANE 1: ĐIỀU KHOẢN DỊCH VỤ -->
+<div class="legal-tab-content active" id="legal-content-terms">
+<div class="legal-sec-title">
+<span class="legal-badge-num">
+        1
+       </span>
+       Giới thiệu &amp; Chấp thuận dịch
+                        vụ
+      </div>
+<p>
+       LIME là nền tảng sáng tạo video tự động ứng dụng trí tuệ nhân tạo, hoạt họa Web (HTML5/CSS3/GSAP)
                         và giọng đọc tổng hợp (TTS). Khi đăng ký tài khoản hoặc sử dụng dịch vụ, bạn xác nhận đã đọc,
-                        hiểu và đồng ý với toàn bộ các điều khoản này.</p>
-
-                    <div class="legal-sec-title"><span class="legal-badge-num">2</span> Tài khoản người dùng &amp; Bảo
-                        mật</div>
-                    <p>Người dùng có trách nhiệm bảo mật mật khẩu và chịu trách nhiệm với mọi hoạt động diễn ra dưới tài
-                        khoản của mình. Tuyệt đối không chia sẻ tài khoản cho bên thứ ba trái phép.</p>
-
-                    <div class="legal-callout">
-                        <b>✦ Bản quyền thành phẩm (Output):</b> Toàn bộ video MP4 và kịch bản do bạn tạo bằng LIME thuộc
+                        hiểu và đồng ý với toàn bộ các điều khoản này.
+      </p>
+<div class="legal-sec-title">
+<span class="legal-badge-num">
+        2
+       </span>
+       Tài khoản người dùng &amp; Bảo
+                        mật
+      </div>
+<p>
+       Người dùng có trách nhiệm bảo mật mật khẩu và chịu trách nhiệm với mọi hoạt động diễn ra dưới tài
+                        khoản của mình. Tuyệt đối không chia sẻ tài khoản cho bên thứ ba trái phép.
+      </p>
+<div class="legal-callout">
+<b>
+        ✦ Bản quyền thành phẩm (Output):
+       </b>
+       Toàn bộ video MP4 và kịch bản do bạn tạo bằng LIME thuộc
                         quyền sở hữu của bạn. Bạn được toàn quyền tải về, chỉnh sửa và khai thác thương mại hợp pháp.
-                    </div>
-
-                    <div class="legal-sec-title"><span class="legal-badge-num">3</span> Hành vi bị nghiêm cấm</div>
-                    <ul>
-                        <li>Tạo video vi phạm pháp luật, khiêu dâm, bạo lực, vu khống danh dự hoặc kích động thù địch.
-                        </li>
-                        <li>Sử dụng văn bản giọng đọc AI để giả mạo danh tính cá nhân hoặc lừa đảo tài chính.</li>
-                        <li>Tấn công kỹ thuật: spam API, can thiệp trái phép vào hàng đợi render hoặc khai thác lỗ hổng
-                            bảo mật.</li>
-                    </ul>
-
-                    <div class="legal-sec-title"><span class="legal-badge-num">4</span> Giới hạn trách nhiệm (Bản Demo)
-                    </div>
-                    <p>Hệ thống hiện đang vận hành dưới dạng thử nghiệm công nghệ. LIME không chịu trách nhiệm với sự cố
+      </div>
+<div class="legal-sec-title">
+<span class="legal-badge-num">
+        3
+       </span>
+       Hành vi bị nghiêm cấm
+      </div>
+<ul>
+<li>
+        Tạo video vi phạm pháp luật, khiêu dâm, bạo lực, vu khống danh dự hoặc kích động thù địch.
+       </li>
+<li>
+        Sử dụng văn bản giọng đọc AI để giả mạo danh tính cá nhân hoặc lừa đảo tài chính.
+       </li>
+<li>
+        Tấn công kỹ thuật: spam API, can thiệp trái phép vào hàng đợi render hoặc khai thác lỗ hổng
+                            bảo mật.
+       </li>
+</ul>
+<div class="legal-sec-title">
+<span class="legal-badge-num">
+        4
+       </span>
+       Giới hạn trách nhiệm (Bản Demo)
+      </div>
+<p>
+       Hệ thống hiện đang vận hành dưới dạng thử nghiệm công nghệ. LIME không chịu trách nhiệm với sự cố
                         gián đoạn từ các dịch vụ bên thứ ba (LLM/TTS) hoặc tranh chấp bản quyền do prompt người dùng đưa
-                        vào.</p>
-                </div>
-
-                <!-- PANE 2: CHÍNH SÁCH BẢO MẬT -->
-                <div id="legal-content-privacy" class="legal-tab-content">
-                    <div class="legal-sec-title"><span class="legal-badge-num">1</span> Dữ liệu thu thập</div>
-                    <p>Chúng tôi chỉ thu thập thông tin tối thiểu cần thiết để vận hành:</p>
-                    <ul>
-                        <li><b>Tài khoản:</b> Email, tên đăng nhập, mật khẩu được mã hóa một chiều an toàn bằng thuật
-                            toán <code>bcrypt</code> (không lưu plaintext).</li>
-                        <li><b>Dữ liệu dự án:</b> Câu lệnh prompt, kịch bản phân cảnh, cấu hình giọng nói và video kết
-                            xuất MP4/HTML.</li>
-                        <li><b>Phiên làm việc:</b> Cookie kỹ thuật và JSON Web Token (JWT) an toàn.</li>
-                    </ul>
-
-                    <div class="legal-callout">
-                        <b>✦ Cam kết bảo vệ dữ liệu:</b> LIME cam kết <b>KHÔNG BAO GIỜ</b> bán, cho thuê hoặc chuyển
+                        vào.
+      </p>
+</div>
+<!-- PANE 2: CHÍNH SÁCH BẢO MẬT -->
+<div class="legal-tab-content" id="legal-content-privacy">
+<div class="legal-sec-title">
+<span class="legal-badge-num">
+        1
+       </span>
+       Dữ liệu thu thập
+      </div>
+<p>
+       Chúng tôi chỉ thu thập thông tin tối thiểu cần thiết để vận hành:
+      </p>
+<ul>
+<li>
+<b>
+         Tài khoản:
+        </b>
+        Email, tên đăng nhập, mật khẩu được mã hóa một chiều an toàn bằng thuật
+                            toán
+        <code>
+         bcrypt
+        </code>
+        (không lưu plaintext).
+       </li>
+<li>
+<b>
+         Dữ liệu dự án:
+        </b>
+        Câu lệnh prompt, kịch bản phân cảnh, cấu hình giọng nói và video kết
+                            xuất MP4/HTML.
+       </li>
+<li>
+<b>
+         Phiên làm việc:
+        </b>
+        Cookie kỹ thuật và JSON Web Token (JWT) an toàn.
+       </li>
+</ul>
+<div class="legal-callout">
+<b>
+        ✦ Cam kết bảo vệ dữ liệu:
+       </b>
+       LIME cam kết
+       <b>
+        KHÔNG BAO GIỜ
+       </b>
+       bán, cho thuê hoặc chuyển
                         nhượng thông tin cá nhân hay kịch bản sáng tạo của bạn cho bất kỳ bên thứ ba quảng cáo nào.
-                    </div>
-
-                    <div class="legal-sec-title"><span class="legal-badge-num">2</span> Nhà cung cấp AI &amp; TTS bên
-                        thứ ba</div>
-                    <p>Nội dung prompt và văn bản kịch bản được gửi tới các dịch vụ giọng đọc (Microsoft Edge TTS,
-                        VieNeu, OpenAI, ElevenLabs) phục vụ trực tiếp việc tổng hợp âm thanh theo thiết lập của bạn.</p>
-
-                    <div class="legal-sec-title"><span class="legal-badge-num">3</span> Quyền hạn của người dùng</div>
-                    <p>Bạn có toàn quyền tải về video của mình, yêu cầu xóa dự án hoặc xóa vĩnh viễn tài khoản và toàn
-                        bộ dữ liệu liên quan khỏi hệ thống bất cứ lúc nào.</p>
-                    <p>Liên hệ giải đáp: <b>support@lime.vn</b> hoặc <b>privacy@lime.vn</b>.</p>
-                </div>
-            </div>
-
-            <!-- Footer -->
-            <div class="legal-modal-foot">
-                <a href="/legal.html" target="_blank" class="legal-foot-link">
-                    <span>Xem văn bản đầy đủ</span>
-                    <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
-                        stroke-linecap="round" stroke-linejoin="round">
-                        <line x1="7" y1="17" x2="17" y2="7"></line>
-                        <polyline points="7 7 17 7 17 17"></polyline>
-                    </svg>
-                </a>
-                <button type="button" class="btn-legal-accept" id="btn-legal-accept">Đã hiểu &amp; Đồng ý</button>
-            </div>
-        </div>
-    </div>
-
-    <!-- ================= MODAL THANH TOÁN VIETQR ================= -->
-    <div id="vietqr-modal" class="vietqr-modal" aria-hidden="true" role="dialog" aria-modal="true">
-        <div class="vietqr-card">
-            <!-- Nút đóng -->
-            <button id="vietqr-close-btn" class="vietqr-close-btn" type="button" aria-label="Đóng thanh toán">
-                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
-                    stroke-linecap="round" stroke-linejoin="round">
-                    <line x1="18" y1="6" x2="6" y2="18"></line>
-                    <line x1="6" y1="6" x2="18" y2="18"></line>
-                </svg>
-            </button>
-
-            <!-- Top bar -->
-            <div class="vietqr-header-bar">
-                <div class="vietqr-trust-badge">
-                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"
-                        stroke-linecap="round" stroke-linejoin="round">
-                        <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"></path>
-                    </svg>
-                    <span>Cổng thanh toán VietQR 24/7 · Tự động kích hoạt</span>
-                </div>
-                <div class="vietqr-timer-pill" title="Thời gian giữ mã giao dịch">
-                    <span class="vietqr-timer-dot"></span>
-                    <span>Hiệu lực: <b id="vietqr-timer-text">15:00</b></span>
-                </div>
-            </div>
-
-            <!-- Body Grid (QR + Chi tiết chuyển khoản) -->
-            <div class="vietqr-body-grid">
-                <!-- CỘT TRÁI: Mã QR -->
-                <div class="vietqr-qr-col">
-                    <div class="vietqr-brand-row">
-                        <div class="vietqr-logo-tag">
-                            <span class="blue">Viet</span><span class="red">QR</span>
-                        </div>
-                        <span class="vietqr-napas-tag">NAPAS 247</span>
-                    </div>
-
-                    <div class="vietqr-code-box">
-                        <div class="vietqr-scanline"></div>
-                        <img id="vietqr-img" class="vietqr-code-img" src="" alt="Mã VietQR thanh toán">
-                    </div>
-
-                    <div class="vietqr-code-caption">
-                        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor"
-                            stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-                            <path d="M4 7V4h3"></path>
-                            <path d="M20 7V4h-3"></path>
-                            <path d="M4 17v3h3"></path>
-                            <path d="M20 17v3h-3"></path>
-                        </svg>
-                        <span>Mở App ngân hàng bất kỳ để quét mã</span>
-                    </div>
-
-                    <div class="vietqr-actions-row">
-                        <button type="button" id="vietqr-download-btn" class="vietqr-btn-sub">
-                            <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor"
-                                stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-                                <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path>
-                                <polyline points="7 10 12 15 17 10"></polyline>
-                                <line x1="12" y1="15" x2="12" y2="3"></line>
-                            </svg>
-                            <span>Lưu ảnh QR</span>
-                        </button>
-                        <button type="button" id="vietqr-guide-btn" class="vietqr-btn-sub" aria-expanded="false"
-                            aria-controls="vietqr-guide-panel">
-                            <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor"
-                                stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-                                <circle cx="12" cy="12" r="10"></circle>
-                                <path d="m9 12 2 2 4-4"></path>
-                            </svg>
-                            <span>HD Quét mã</span>
-                        </button>
-                    </div>
-                    <div id="vietqr-guide-panel" class="vietqr-guide-panel" hidden>
-                        <p class="vietqr-guide-title">Cách quét mã thanh toán</p>
-                        <ol class="vietqr-guide-steps">
-                            <li>Mở app ngân hàng của bạn, chọn tính năng quét mã QR.</li>
-                            <li>Đưa camera vào mã QR bên trên, hoặc bấm "Lưu ảnh QR" rồi tải ảnh lên trong app ngân
-                                hàng.</li>
-                            <li>Kiểm tra đúng số tiền và giữ nguyên nội dung ở ô Lời nhắn / Memo, không sửa và không
-                                thêm ký tự.</li>
-                            <li>Xác nhận chuyển khoản, quay lại trang này và chờ hệ thống tự kích hoạt, thường trong
-                                khoảng 30 giây.</li>
-                        </ol>
-                    </div>
-                </div>
-
-                <!-- CỘT PHẢI: Thông tin chuyển khoản -->
-                <div class="vietqr-info-col">
-                    <!-- Gói dịch vụ & Chu kỳ -->
-                    <div class="vietqr-plan-card">
-                        <div class="vietqr-plan-meta">
-                            <h3>PRO</h3>
-                            <p>50 video 4K/tháng · Brand kit &amp; Ưu tiên render</p>
-                        </div>
-                        <div class="vietqr-cycle-toggle">
-                            <button type="button" class="vietqr-cycle-btn active" data-cycle="month">Tháng</button>
-                            <button type="button" class="vietqr-cycle-btn" data-cycle="year">Năm
-                                <small>-20%</small></button>
-                        </div>
-                    </div>
-
-                    <!-- Danh sách trường chuyển khoản -->
-                    <div class="vietqr-details-table">
-                        <!-- Ngân hàng -->
-                        <div class="vietqr-field-row">
-                            <span class="vietqr-field-label">
-                                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor"
-                                    stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-                                    <path d="M3 21h18"></path>
-                                    <path d="M3 10h18"></path>
-                                    <path d="M5 6l7-3 7 3"></path>
-                                    <path d="M4 10v11"></path>
-                                    <path d="M20 10v11"></path>
-                                    <path d="M8 14v3"></path>
-                                    <path d="M12 14v3"></path>
-                                    <path d="M16 14v3"></path>
-                                </svg>
-                                Ngân hàng
-                            </span>
-                            <div class="vietqr-field-content">
-                                <span class="vietqr-field-val" id="vietqr-val-bank">MBBank (Quân Đội)</span>
-                            </div>
-                        </div>
-
-                        <!-- Số tài khoản -->
-                        <div class="vietqr-field-row">
-                            <span class="vietqr-field-label">
-                                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor"
-                                    stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-                                    <rect width="20" height="14" x="2" y="5" rx="2"></rect>
-                                    <line x1="2" x2="22" y1="10" y2="10"></line>
-                                </svg>
-                                Số tài khoản
-                            </span>
-                            <div class="vietqr-field-content">
-                                <span class="vietqr-field-val" id="vietqr-val-account"
-                                    data-copy="0982618707">0982618707</span>
-                                <button type="button" class="vietqr-copy-btn" data-target="vietqr-val-account"
-                                    title="Sao chép số tài khoản">
-                                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor"
-                                        stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-                                        <rect width="14" height="14" x="8" y="8" rx="2" ry="2"></rect>
-                                        <path d="M4 16c-1.1 0-2-.9-2-2V4c0-1.1.9-2 2-2h10c1.1 0 2 .9 2 2"></path>
-                                    </svg>
-                                    <span class="vietqr-copied-tip">Đã chép!</span>
-                                </button>
-                            </div>
-                        </div>
-
-                        <!-- Chủ tài khoản -->
-                        <div class="vietqr-field-row">
-                            <span class="vietqr-field-label">
-                                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor"
-                                    stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-                                    <path d="M19 21v-2a4 4 0 0 0-4-4H9a4 4 0 0 0-4 4v2"></path>
-                                    <circle cx="12" cy="7" r="4"></circle>
-                                </svg>
-                                Chủ tài khoản
-                            </span>
-                            <div class="vietqr-field-content">
-                                <span class="vietqr-field-val" id="vietqr-val-name">NGUYEN QUANG KHANH</span>
-                            </div>
-                        </div>
-
-                        <!-- Số tiền -->
-                        <div class="vietqr-field-row highlight">
-                            <span class="vietqr-field-label">
-                                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor"
-                                    stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-                                    <line x1="12" x2="12" y1="2" y2="22"></line>
-                                    <path d="M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"></path>
-                                </svg>
-                                Số tiền
-                            </span>
-                            <div class="vietqr-field-content">
-                                <span class="vietqr-field-val amount" id="vietqr-val-amount" data-copy="99000">99.000
-                                    đ</span>
-                                <button type="button" class="vietqr-copy-btn" data-target="vietqr-val-amount"
-                                    title="Sao chép số tiền">
-                                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor"
-                                        stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-                                        <rect width="14" height="14" x="8" y="8" rx="2" ry="2"></rect>
-                                        <path d="M4 16c-1.1 0-2-.9-2-2V4c0-1.1.9-2 2-2h10c1.1 0 2 .9 2 2"></path>
-                                    </svg>
-                                    <span class="vietqr-copied-tip">Đã chép!</span>
-                                </button>
-                            </div>
-                        </div>
-
-                        <!-- Nội dung chuyển khoản -->
-                        <div class="vietqr-field-row highlight">
-                            <span class="vietqr-field-label">
-                                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor"
-                                    stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-                                    <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path>
-                                    <polyline points="14 2 14 8 20 8"></polyline>
-                                </svg>
-                                Lời nhắn / Memo
-                            </span>
-                            <div class="vietqr-field-content">
-                                <span class="vietqr-field-val code" id="vietqr-val-memo" data-copy="">LIME 8826</span>
-                                <button type="button" class="vietqr-copy-btn" data-target="vietqr-val-memo"
-                                    title="Sao chép nội dung chuyển khoản">
-                                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor"
-                                        stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-                                        <rect width="14" height="14" x="8" y="8" rx="2" ry="2"></rect>
-                                        <path d="M4 16c-1.1 0-2-.9-2-2V4c0-1.1.9-2 2-2h10c1.1 0 2 .9 2 2"></path>
-                                    </svg>
-                                    <span class="vietqr-copied-tip">Đã chép!</span>
-                                </button>
-                            </div>
-                        </div>
-                    </div>
-
-                    <!-- Ghi chú nội dung -->
-                    <div class="vietqr-memo-note">
-                        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor"
-                            stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-                            <circle cx="12" cy="12" r="10"></circle>
-                            <line x1="12" y1="8" x2="12" y2="12"></line>
-                            <line x1="12" y1="16" x2="12.01" y2="16"></line>
-                        </svg>
-                        <span>Vui lòng giữ <b>chính xác</b> nội dung chuyển khoản để hệ thống bot nhận diện và kích hoạt
-                            tự động trong 30 giây.</span>
-                    </div>
-
-                    <!-- Trạng thái chờ -->
-                    <div class="vietqr-status-indicator">
-                        <span class="vietqr-status-radar"></span>
-                        <span>Đang chờ tín hiệu chuyển khoản từ ngân hàng...</span>
-                    </div>
-
-                    <!-- Nút xác nhận thanh toán -->
-                    <button type="button" id="vietqr-submit-btn" class="vietqr-submit-btn">
-                        <span class="vietqr-btn-spinner"></span>
-                        <span>Tôi đã hoàn tất chuyển khoản</span>
-                        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor"
-                            stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
-                            <polyline points="20 6 9 17 4 12"></polyline>
-                        </svg>
-                    </button>
-                </div>
-            </div>
-
-            <!-- SUCCESS SCREEN -->
-            <div class="vietqr-success-card">
-                <div class="vietqr-success-icon-wrap">
-                    <svg width="36" height="36" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3"
-                        stroke-linecap="round" stroke-linejoin="round">
-                        <polyline points="20 6 9 17 4 12"></polyline>
-                    </svg>
-                </div>
-                <h3 class="vietqr-success-title">Thanh toán thành công!</h3>
-                <p class="vietqr-success-desc">
-                    Hệ thống đã ghi nhận giao dịch của bạn. Gói dịch vụ đã được kích hoạt trực tiếp vào tài khoản của
+      </div>
+<div class="legal-sec-title">
+<span class="legal-badge-num">
+        2
+       </span>
+       Nhà cung cấp AI &amp; TTS bên
+                        thứ ba
+      </div>
+<p>
+       Nội dung prompt và văn bản kịch bản được gửi tới các dịch vụ giọng đọc (Microsoft Edge TTS,
+                        VieNeu, OpenAI, ElevenLabs) phục vụ trực tiếp việc tổng hợp âm thanh theo thiết lập của bạn.
+      </p>
+<div class="legal-sec-title">
+<span class="legal-badge-num">
+        3
+       </span>
+       Quyền hạn của người dùng
+      </div>
+<p>
+       Bạn có toàn quyền tải về video của mình, yêu cầu xóa dự án hoặc xóa vĩnh viễn tài khoản và toàn
+                        bộ dữ liệu liên quan khỏi hệ thống bất cứ lúc nào.
+      </p>
+<p>
+       Liên hệ giải đáp:
+       <b>
+        support@lime.vn
+       </b>
+       hoặc
+       <b>
+        privacy@lime.vn
+       </b>
+       .
+      </p>
+</div>
+</div>
+<!-- Footer -->
+<div class="legal-modal-foot">
+<a class="legal-foot-link" href="/legal.html" target="_blank">
+<span>
+       Xem văn bản đầy đủ
+      </span>
+<svg fill="none" height="12" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2" viewbox="0 0 24 24" width="12">
+<line x1="7" x2="17" y1="17" y2="7">
+</line>
+<polyline points="7 7 17 7 17 17">
+</polyline>
+</svg>
+</a>
+<button class="btn-legal-accept" id="btn-legal-accept" type="button">
+      Đã hiểu &amp; Đồng ý
+     </button>
+</div>
+</div>
+</div>
+<div aria-hidden="true" aria-modal="true" class="vietqr-modal" id="vietqr-modal" role="dialog">
+<div class="vietqr-card">
+<!-- Nút đóng -->
+<button aria-label="Đóng thanh toán" class="vietqr-close-btn" id="vietqr-close-btn" type="button">
+<svg fill="none" height="18" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2" viewbox="0 0 24 24" width="18">
+<line x1="18" x2="6" y1="6" y2="18">
+</line>
+<line x1="6" x2="18" y1="6" y2="18">
+</line>
+</svg>
+</button>
+<!-- Top bar -->
+<div class="vietqr-header-bar">
+<div class="vietqr-trust-badge">
+<svg fill="none" height="14" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" viewbox="0 0 24 24" width="14">
+<path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z">
+</path>
+</svg>
+<span>
+       Cổng thanh toán VietQR 24/7 · Tự động kích hoạt
+      </span>
+</div>
+<div class="vietqr-timer-pill" title="Thời gian giữ mã giao dịch">
+<span class="vietqr-timer-dot">
+</span>
+<span>
+       Hiệu lực:
+       <b id="vietqr-timer-text">
+        15:00
+       </b>
+</span>
+</div>
+</div>
+<!-- Body Grid (QR + Chi tiết chuyển khoản) -->
+<div class="vietqr-body-grid">
+<!-- CỘT TRÁI: Mã QR -->
+<div class="vietqr-qr-col">
+<div class="vietqr-brand-row">
+<div class="vietqr-logo-tag">
+<span class="blue">
+         Viet
+        </span>
+<span class="red">
+         QR
+        </span>
+</div>
+<span class="vietqr-napas-tag">
+        NAPAS 247
+       </span>
+</div>
+<div class="vietqr-code-box">
+<div class="vietqr-scanline">
+</div>
+<img alt="Mã VietQR thanh toán" class="vietqr-code-img" id="vietqr-img" src=""/>
+</div>
+<div class="vietqr-code-caption">
+<svg fill="none" height="14" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2" viewbox="0 0 24 24" width="14">
+<path d="M4 7V4h3">
+</path>
+<path d="M20 7V4h-3">
+</path>
+<path d="M4 17v3h3">
+</path>
+<path d="M20 17v3h-3">
+</path>
+</svg>
+<span>
+        Mở App ngân hàng bất kỳ để quét mã
+       </span>
+</div>
+<div class="vietqr-actions-row">
+<button class="vietqr-btn-sub" id="vietqr-download-btn" type="button">
+<svg fill="none" height="13" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2" viewbox="0 0 24 24" width="13">
+<path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4">
+</path>
+<polyline points="7 10 12 15 17 10">
+</polyline>
+<line x1="12" x2="12" y1="15" y2="3">
+</line>
+</svg>
+<span>
+         Lưu ảnh QR
+        </span>
+</button>
+<button aria-controls="vietqr-guide-panel" aria-expanded="false" class="vietqr-btn-sub" id="vietqr-guide-btn" type="button">
+<svg fill="none" height="13" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2" viewbox="0 0 24 24" width="13">
+<circle cx="12" cy="12" r="10">
+</circle>
+<path d="m9 12 2 2 4-4">
+</path>
+</svg>
+<span>
+         HD Quét mã
+        </span>
+</button>
+</div>
+<div class="vietqr-guide-panel" hidden="" id="vietqr-guide-panel">
+<p class="vietqr-guide-title">
+        Cách quét mã thanh toán
+       </p>
+<ol class="vietqr-guide-steps">
+<li>
+         Mở app ngân hàng của bạn, chọn tính năng quét mã QR.
+        </li>
+<li>
+         Đưa camera vào mã QR bên trên, hoặc bấm "Lưu ảnh QR" rồi tải ảnh lên trong app ngân
+                                hàng.
+        </li>
+<li>
+         Kiểm tra đúng số tiền và giữ nguyên nội dung ở ô Lời nhắn / Memo, không sửa và không
+                                thêm ký tự.
+        </li>
+<li>
+         Xác nhận chuyển khoản, quay lại trang này và chờ hệ thống tự kích hoạt, thường trong
+                                khoảng 30 giây.
+        </li>
+</ol>
+</div>
+</div>
+<!-- CỘT PHẢI: Thông tin chuyển khoản -->
+<div class="vietqr-info-col">
+<!-- Gói dịch vụ & Chu kỳ -->
+<div class="vietqr-plan-card">
+<div class="vietqr-plan-meta">
+<h3>
+         PRO
+        </h3>
+<p>
+         50 video 4K/tháng · Brand kit &amp; Ưu tiên render
+        </p>
+</div>
+<div class="vietqr-cycle-toggle">
+<button class="vietqr-cycle-btn active" data-cycle="month" type="button">
+         Tháng
+        </button>
+<button class="vietqr-cycle-btn" data-cycle="year" type="button">
+         Năm
+         <small>
+          -20%
+         </small>
+</button>
+</div>
+</div>
+<!-- Danh sách trường chuyển khoản -->
+<div class="vietqr-details-table">
+<!-- Ngân hàng -->
+<div class="vietqr-field-row">
+<span class="vietqr-field-label">
+<svg fill="none" height="14" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2" viewbox="0 0 24 24" width="14">
+<path d="M3 21h18">
+</path>
+<path d="M3 10h18">
+</path>
+<path d="M5 6l7-3 7 3">
+</path>
+<path d="M4 10v11">
+</path>
+<path d="M20 10v11">
+</path>
+<path d="M8 14v3">
+</path>
+<path d="M12 14v3">
+</path>
+<path d="M16 14v3">
+</path>
+</svg>
+         Ngân hàng
+        </span>
+<div class="vietqr-field-content">
+<span class="vietqr-field-val" id="vietqr-val-bank">
+          MBBank (Quân Đội)
+         </span>
+</div>
+</div>
+<!-- Số tài khoản -->
+<div class="vietqr-field-row">
+<span class="vietqr-field-label">
+<svg fill="none" height="14" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2" viewbox="0 0 24 24" width="14">
+<rect height="14" rx="2" width="20" x="2" y="5">
+</rect>
+<line x1="2" x2="22" y1="10" y2="10">
+</line>
+</svg>
+         Số tài khoản
+        </span>
+<div class="vietqr-field-content">
+<span class="vietqr-field-val" data-copy="0982618707" id="vietqr-val-account">
+          0982618707
+         </span>
+<button class="vietqr-copy-btn" data-target="vietqr-val-account" title="Sao chép số tài khoản" type="button">
+<svg fill="none" height="14" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2" viewbox="0 0 24 24" width="14">
+<rect height="14" rx="2" ry="2" width="14" x="8" y="8">
+</rect>
+<path d="M4 16c-1.1 0-2-.9-2-2V4c0-1.1.9-2 2-2h10c1.1 0 2 .9 2 2">
+</path>
+</svg>
+<span class="vietqr-copied-tip">
+           Đã chép!
+          </span>
+</button>
+</div>
+</div>
+<!-- Chủ tài khoản -->
+<div class="vietqr-field-row">
+<span class="vietqr-field-label">
+<svg fill="none" height="14" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2" viewbox="0 0 24 24" width="14">
+<path d="M19 21v-2a4 4 0 0 0-4-4H9a4 4 0 0 0-4 4v2">
+</path>
+<circle cx="12" cy="7" r="4">
+</circle>
+</svg>
+         Chủ tài khoản
+        </span>
+<div class="vietqr-field-content">
+<span class="vietqr-field-val" id="vietqr-val-name">
+          NGUYEN QUANG KHANH
+         </span>
+</div>
+</div>
+<!-- Số tiền -->
+<div class="vietqr-field-row highlight">
+<span class="vietqr-field-label">
+<svg fill="none" height="14" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2" viewbox="0 0 24 24" width="14">
+<line x1="12" x2="12" y1="2" y2="22">
+</line>
+<path d="M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6">
+</path>
+</svg>
+         Số tiền
+        </span>
+<div class="vietqr-field-content">
+<span class="vietqr-field-val amount" data-copy="99000" id="vietqr-val-amount">
+          99.000
+                                    đ
+         </span>
+<button class="vietqr-copy-btn" data-target="vietqr-val-amount" title="Sao chép số tiền" type="button">
+<svg fill="none" height="14" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2" viewbox="0 0 24 24" width="14">
+<rect height="14" rx="2" ry="2" width="14" x="8" y="8">
+</rect>
+<path d="M4 16c-1.1 0-2-.9-2-2V4c0-1.1.9-2 2-2h10c1.1 0 2 .9 2 2">
+</path>
+</svg>
+<span class="vietqr-copied-tip">
+           Đã chép!
+          </span>
+</button>
+</div>
+</div>
+<!-- Nội dung chuyển khoản -->
+<div class="vietqr-field-row highlight">
+<span class="vietqr-field-label">
+<svg fill="none" height="14" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2" viewbox="0 0 24 24" width="14">
+<path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z">
+</path>
+<polyline points="14 2 14 8 20 8">
+</polyline>
+</svg>
+         Lời nhắn / Memo
+        </span>
+<div class="vietqr-field-content">
+<span class="vietqr-field-val code" data-copy="" id="vietqr-val-memo">
+          LIME 8826
+         </span>
+<button class="vietqr-copy-btn" data-target="vietqr-val-memo" title="Sao chép nội dung chuyển khoản" type="button">
+<svg fill="none" height="14" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2" viewbox="0 0 24 24" width="14">
+<rect height="14" rx="2" ry="2" width="14" x="8" y="8">
+</rect>
+<path d="M4 16c-1.1 0-2-.9-2-2V4c0-1.1.9-2 2-2h10c1.1 0 2 .9 2 2">
+</path>
+</svg>
+<span class="vietqr-copied-tip">
+           Đã chép!
+          </span>
+</button>
+</div>
+</div>
+</div>
+<!-- Ghi chú nội dung -->
+<div class="vietqr-memo-note">
+<svg fill="none" height="16" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2" viewbox="0 0 24 24" width="16">
+<circle cx="12" cy="12" r="10">
+</circle>
+<line x1="12" x2="12" y1="8" y2="12">
+</line>
+<line x1="12" x2="12.01" y1="16" y2="16">
+</line>
+</svg>
+<span>
+        Vui lòng giữ
+        <b>
+         chính xác
+        </b>
+        nội dung chuyển khoản để hệ thống bot nhận diện và kích hoạt
+                            tự động trong 30 giây.
+       </span>
+</div>
+<!-- Trạng thái chờ -->
+<div class="vietqr-status-indicator">
+<span class="vietqr-status-radar">
+</span>
+<span>
+        Đang chờ tín hiệu chuyển khoản từ ngân hàng...
+       </span>
+</div>
+<!-- Nút xác nhận thanh toán -->
+<button class="vietqr-submit-btn" id="vietqr-submit-btn" type="button">
+<span class="vietqr-btn-spinner">
+</span>
+<span>
+        Tôi đã hoàn tất chuyển khoản
+       </span>
+<svg fill="none" height="16" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" viewbox="0 0 24 24" width="16">
+<polyline points="20 6 9 17 4 12">
+</polyline>
+</svg>
+</button>
+</div>
+</div>
+<!-- SUCCESS SCREEN -->
+<div class="vietqr-success-card">
+<div class="vietqr-success-icon-wrap">
+<svg fill="none" height="36" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="3" viewbox="0 0 24 24" width="36">
+<polyline points="20 6 9 17 4 12">
+</polyline>
+</svg>
+</div>
+<h3 class="vietqr-success-title">
+      Thanh toán thành công!
+     </h3>
+<p class="vietqr-success-desc">
+      Hệ thống đã ghi nhận giao dịch của bạn. Gói dịch vụ đã được kích hoạt trực tiếp vào tài khoản của
                     bạn.
-                </p>
-                <div class="vietqr-success-plan-info">
-                    <span>Gói dịch vụ: <b id="vietqr-success-plan-name">Gói Sáng tạo (1 Tháng)</b></span>
-                    <span>·</span>
-                    <span>Mã đơn: <b id="vietqr-success-code">LIME 8826</b></span>
-                </div>
-                <button type="button" id="vietqr-success-btn" class="vietqr-success-btn">
-                    Vào Studio tạo video ngay →
-                </button>
-            </div>
-        </div>
-    </div>
-
-    <!-- Core App Logic -->
-    <script src="legal-modal.js"></script>
-    <script src="vietqr-modal.js"></script>
-    <script src="app.js"></script>
-    <script type="module" src="/js/broadcast.js"></script>
-    <script type="module" src="/js/support-widget.js"></script>
+     </p>
+<div class="vietqr-success-plan-info">
+<span>
+       Gói dịch vụ:
+       <b id="vietqr-success-plan-name">
+        Gói Sáng tạo (1 Tháng)
+       </b>
+</span>
+<span>
+       ·
+      </span>
+<span>
+       Mã đơn:
+       <b id="vietqr-success-code">
+        LIME 8826
+       </b>
+</span>
+</div>
+<button class="vietqr-success-btn" id="vietqr-success-btn" type="button">
+      Vào Studio tạo video ngay →
+     </button>
+</div>
+</div>
+</div>
+<div aria-hidden="true" aria-modal="true" class="auth-modal" id="login-modal" role="dialog">
+<div class="auth-card-modal">
+<button aria-label="Đóng" class="modal-close-btn" id="login-close-btn" type="button">
+<svg fill="none" height="16" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2" viewbox="0 0 24 24" width="16">
+<line x1="18" x2="6" y1="6" y2="18">
+</line>
+<line x1="6" x2="18" y1="6" y2="18">
+</line>
+</svg>
+</button>
+<!-- Header có User Icon badge -->
+<div class="auth-header">
+<div class="auth-user-badge">
+<svg fill="none" height="22" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2" viewbox="0 0 24 24" width="22" xmlns="http://www.w3.org/2000/svg">
+<path d="M19 21v-2a4 4 0 0 0-4-4H9a4 4 0 0 0-4 4v2">
+</path>
+<circle cx="12" cy="7" r="4">
+</circle>
+</svg>
+</div>
+<div>
+<h2 class="auth-title" id="auth-title">
+       Chào mừng trở lại
+      </h2>
+<p class="auth-subtitle" id="auth-subtitle">
+       Nhập thông tin tài khoản của bạn để đăng nhập
+      </p>
+</div>
+</div>
+<!-- Đăng nhập mạng xã hội: Apple & Google (đã bỏ X, cân đối 2 cột) -->
+<div class="auth-social-row" id="auth-social-row">
+<button aria-label="Đăng nhập với Apple" class="auth-social-btn" id="apple-login-btn" type="button">
+<svg class="auth-social-svg" height="20" viewbox="0 0 24 24" width="20" xmlns="http://www.w3.org/2000/svg">
+<path d="M18.71 19.5C17.88 20.74 17 21.95 15.66 21.97C14.32 22 13.89 21.18 12.37 21.18C10.84 21.18 10.37 21.95 9.09997 22C7.78997 22.05 6.79997 20.68 5.95997 19.47C4.24997 17 2.93997 12.45 4.69997 9.39C5.56997 7.87 7.12997 6.91 8.81997 6.88C10.1 6.86 11.32 7.75 12.11 7.75C12.89 7.75 14.37 6.68 15.92 6.84C16.57 6.87 18.39 7.1 19.56 8.82C19.47 8.88 17.39 10.1 17.41 12.63C17.44 15.65 20.06 16.66 20.09 16.67C20.06 16.74 19.67 18.11 18.71 19.5ZM13 3.5C13.73 2.67 14.94 2.04 15.94 2C16.07 3.17 15.6 4.35 14.9 5.19C14.21 6.04 13.07 6.7 11.95 6.61C11.8 5.46 12.36 4.26 13 3.5Z" fill="currentColor">
+</path>
+</svg>
+<span>
+       Apple
+      </span>
+</button>
+<button aria-label="Đăng nhập với Google" class="auth-social-btn" id="google-login-btn" type="button">
+<svg class="auth-social-svg" height="20" viewbox="0 0 24 24" width="20" xmlns="http://www.w3.org/2000/svg">
+<path d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z" fill="#4285F4">
+</path>
+<path d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z" fill="#34A853">
+</path>
+<path d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.07H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.93l3.66-2.84z" fill="#FBBC05">
+</path>
+<path d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z" fill="#EA4335">
+</path>
+</svg>
+<span>
+       Google
+      </span>
+</button>
+</div>
+<!-- Divider -->
+<div class="auth-divider" id="auth-divider">
+<span class="auth-divider-line">
+</span>
+<span class="auth-divider-text">
+      Hoặc tiếp tục với
+     </span>
+<span class="auth-divider-line">
+</span>
+</div>
+<!-- Login Form -->
+<form class="auth-form-fields" id="login-form" onsubmit="return false;">
+<div class="auth-input-group">
+<label for="login-username">
+       Tên đăng nhập hoặc Email
+      </label>
+<div class="auth-input-wrapper">
+<span class="auth-input-left-icon">
+<svg fill="none" height="16" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2" viewbox="0 0 24 24" width="16" xmlns="http://www.w3.org/2000/svg">
+<path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2">
+</path>
+<circle cx="12" cy="7" r="4">
+</circle>
+</svg>
+</span>
+<input autocomplete="username" class="clean-auth-input with-left-icon" id="login-username" placeholder="name@example.com" type="text"/>
+</div>
+</div>
+<div class="auth-input-group">
+<label for="login-password">
+       Mật khẩu
+      </label>
+<div class="auth-input-wrapper">
+<span class="auth-input-left-icon">
+<svg fill="none" height="16" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2" viewbox="0 0 24 24" width="16" xmlns="http://www.w3.org/2000/svg">
+<rect height="11" rx="2" ry="2" width="18" x="3" y="11">
+</rect>
+<circle cx="12" cy="16" r="1">
+</circle>
+<path d="M7 11V7a5 5 0 0 1 10 0v4">
+</path>
+</svg>
+</span>
+<input autocomplete="current-password" class="clean-auth-input with-left-icon with-right-icon" id="login-password" placeholder="Nhập mật khẩu" type="password"/>
+<button aria-label="Hiện/ẩn mật khẩu" class="auth-password-toggle" id="login-password-toggle" type="button">
+<svg class="eye-icon" fill="none" height="16" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2" viewbox="0 0 24 24" width="16" xmlns="http://www.w3.org/2000/svg">
+<path d="M2 12s3-7 10-7 10 7 10 7-3 7-10 7-10-7-10-7Z">
+</path>
+<circle cx="12" cy="12" r="3">
+</circle>
+</svg>
+</button>
+</div>
+</div>
+<button class="btn-auth-submit" id="login-submit-btn" type="submit">
+      Đăng nhập
+     </button>
+<p class="auth-status-msg" id="login-message">
+</p>
+<div class="auth-foot-actions">
+<p class="auth-foot-text">
+       Chưa có tài khoản?
+       <button class="link-switch-auth" id="show-register-btn" type="button">
+        Đăng ký ngay
+       </button>
+</p>
+<a class="link-forgot-pass" href="#" id="forgot-password-link">
+       Quên mật khẩu?
+      </a>
+</div>
+</form>
+<!-- Register Form (theo form mẫu đăng ký mới) -->
+<form class="auth-form-fields" id="register-form" onsubmit="return false;" style="display: none;">
+<div class="auth-input-group">
+<label for="register-username">
+       Họ và tên / Tên đăng nhập
+      </label>
+<div class="auth-input-wrapper">
+<span class="auth-input-left-icon">
+<svg fill="none" height="16" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2" viewbox="0 0 24 24" width="16" xmlns="http://www.w3.org/2000/svg">
+<path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2">
+</path>
+<circle cx="12" cy="7" r="4">
+</circle>
+</svg>
+</span>
+<input autocomplete="username" class="clean-auth-input with-left-icon" id="register-username" placeholder="Nhập tên của bạn" type="text"/>
+</div>
+</div>
+<div class="auth-input-group">
+<label for="register-email">
+       Địa chỉ Email
+      </label>
+<div class="auth-input-wrapper">
+<span class="auth-input-left-icon">
+<svg fill="none" height="16" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2" viewbox="0 0 24 24" width="16" xmlns="http://www.w3.org/2000/svg">
+<path d="M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2z">
+</path>
+<polyline points="22,6 12,13 2,6">
+</polyline>
+</svg>
+</span>
+<input autocomplete="email" class="clean-auth-input with-left-icon" id="register-email" placeholder="name@example.com" type="email"/>
+</div>
+</div>
+<div class="auth-input-group">
+<label for="register-password">
+       Mật khẩu
+      </label>
+<div class="auth-input-wrapper">
+<span class="auth-input-left-icon">
+<svg fill="none" height="16" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2" viewbox="0 0 24 24" width="16" xmlns="http://www.w3.org/2000/svg">
+<rect height="11" rx="2" ry="2" width="18" x="3" y="11">
+</rect>
+<circle cx="12" cy="16" r="1">
+</circle>
+<path d="M7 11V7a5 5 0 0 1 10 0v4">
+</path>
+</svg>
+</span>
+<input autocomplete="new-password" class="clean-auth-input with-left-icon with-right-icon" id="register-password" placeholder="Tạo mật khẩu (tối thiểu 6 ký tự)" type="password"/>
+<button aria-label="Hiện/ẩn mật khẩu" class="auth-password-toggle" id="register-password-toggle" type="button">
+<svg class="eye-icon" fill="none" height="16" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2" viewbox="0 0 24 24" width="16" xmlns="http://www.w3.org/2000/svg">
+<path d="M2 12s3-7 10-7 10 7 10 7-3 7-10 7-10-7-10-7Z">
+</path>
+<circle cx="12" cy="12" r="3">
+</circle>
+</svg>
+</button>
+</div>
+</div>
+<div class="auth-terms-group">
+<label class="auth-checkbox-label" for="register-terms">
+<input checked="" id="register-terms" type="checkbox"/>
+<span class="auth-checkbox-box">
+<svg class="check-icon" fill="none" height="12" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="3" viewbox="0 0 24 24" width="12" xmlns="http://www.w3.org/2000/svg">
+<polyline points="20,6 9,17 4,12">
+</polyline>
+</svg>
+</span>
+<span class="auth-terms-text">
+        Tôi đồng ý với
+        <a class="auth-terms-link open-terms-btn" data-legal="terms" href="#">
+         Điều
+                                khoản dịch vụ
+        </a>
+        và
+        <a class="auth-terms-link open-privacy-btn" data-legal="privacy" href="#">
+         Chính sách bảo mật
+        </a>
+</span>
+</label>
+</div>
+<button class="btn-auth-submit" id="register-submit-btn" type="submit">
+      Tạo tài khoản
+     </button>
+<p class="auth-status-msg" id="register-message">
+</p>
+<div class="auth-foot-actions">
+<p class="auth-foot-text">
+       Đã có tài khoản?
+       <button class="link-switch-auth" id="show-login-btn" type="button">
+        Đăng nhập
+       </button>
+</p>
+</div>
+</form>
+<!-- Forgot Password Form -->
+<form class="auth-form-fields" id="forgot-form" onsubmit="return false;" style="display: none;">
+<div class="auth-note-box">
+<svg fill="none" height="16" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2" viewbox="0 0 24 24" width="16" xmlns="http://www.w3.org/2000/svg">
+<circle cx="12" cy="12" r="10">
+</circle>
+<line x1="12" x2="12" y1="8" y2="12">
+</line>
+<line x1="12" x2="12.01" y1="16" y2="16">
+</line>
+</svg>
+<span>
+       Nhập tên đăng nhập hoặc email cùng mật khẩu mới để thiết lập lại mật khẩu của bạn.
+      </span>
+</div>
+<div class="auth-input-group">
+<label for="forgot-username">
+       Tên đăng nhập hoặc Email
+      </label>
+<div class="auth-input-wrapper">
+<span class="auth-input-left-icon">
+<svg fill="none" height="16" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2" viewbox="0 0 24 24" width="16" xmlns="http://www.w3.org/2000/svg">
+<path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2">
+</path>
+<circle cx="12" cy="7" r="4">
+</circle>
+</svg>
+</span>
+<input autocomplete="username" class="clean-auth-input with-left-icon" id="forgot-username" placeholder="name@example.com" type="text"/>
+</div>
+</div>
+<div class="auth-input-group">
+<label for="forgot-password">
+       Mật khẩu mới
+      </label>
+<div class="auth-input-wrapper">
+<span class="auth-input-left-icon">
+<svg fill="none" height="16" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2" viewbox="0 0 24 24" width="16" xmlns="http://www.w3.org/2000/svg">
+<rect height="11" rx="2" ry="2" width="18" x="3" y="11">
+</rect>
+<circle cx="12" cy="16" r="1">
+</circle>
+<path d="M7 11V7a5 5 0 0 1 10 0v4">
+</path>
+</svg>
+</span>
+<input autocomplete="new-password" class="clean-auth-input with-left-icon with-right-icon" id="forgot-password" placeholder="Nhập mật khẩu mới (tối thiểu 6 ký tự)" type="password"/>
+<button aria-label="Hiện/ẩn mật khẩu" class="auth-password-toggle" id="forgot-password-toggle" type="button">
+<svg class="eye-icon" fill="none" height="16" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2" viewbox="0 0 24 24" width="16" xmlns="http://www.w3.org/2000/svg">
+<path d="M2 12s3-7 10-7 10 7 10 7-3 7-10 7-10-7-10-7Z">
+</path>
+<circle cx="12" cy="12" r="3">
+</circle>
+</svg>
+</button>
+</div>
+</div>
+<div class="auth-input-group">
+<label for="forgot-confirm-password">
+       Xác nhận mật khẩu mới
+      </label>
+<div class="auth-input-wrapper">
+<span class="auth-input-left-icon">
+<svg fill="none" height="16" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2" viewbox="0 0 24 24" width="16" xmlns="http://www.w3.org/2000/svg">
+<path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z">
+</path>
+</svg>
+</span>
+<input autocomplete="new-password" class="clean-auth-input with-left-icon with-right-icon" id="forgot-confirm-password" placeholder="Nhập lại mật khẩu mới để xác nhận" type="password"/>
+<button aria-label="Hiện/ẩn mật khẩu" class="auth-password-toggle" id="forgot-confirm-password-toggle" type="button">
+<svg class="eye-icon" fill="none" height="16" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2" viewbox="0 0 24 24" width="16" xmlns="http://www.w3.org/2000/svg">
+<path d="M2 12s3-7 10-7 10 7 10 7-3 7-10 7-10-7-10-7Z">
+</path>
+<circle cx="12" cy="12" r="3">
+</circle>
+</svg>
+</button>
+</div>
+</div>
+<button class="btn-auth-submit" id="forgot-submit-btn" type="submit">
+      Đặt lại mật khẩu
+     </button>
+<p class="auth-status-msg" id="forgot-message">
+</p>
+<div class="auth-foot-actions">
+<p class="auth-foot-text">
+       Đã nhớ mật khẩu?
+       <button class="link-switch-auth" id="show-login-from-forgot-btn" type="button">
+        Đăng
+                            nhập
+       </button>
+</p>
+</div>
+</form>
+</div>
+</div>
+<script src="legal-modal.js">
+</script>
+<script src="vietqr-modal.js">
+</script>
+<script src="app.js">
+</script>
+<script src="/js/broadcast.js" type="module">
+</script>
+<script src="/js/support-widget.js" type="module">
+</script>
 </body>
-
 </html>
