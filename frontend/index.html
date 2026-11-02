@@ -835,7 +835,8 @@
 
                     <div class="vietqr-code-box">
                         <div class="vietqr-scanline"></div>
-                        <img id="vietqr-img" class="vietqr-code-img" src="" alt="Mã VietQR thanh toán">
+                        <!-- Issue #130: bỏ src rỗng gây lỗi broken image — vietqr-modal.js sẽ gán src khi mở modal thanh toán -->
+                        <img id="vietqr-img" class="vietqr-code-img" alt="Mã VietQR thanh toán">
                     </div>
 
                     <div class="vietqr-code-caption">
