@@ -2112,6 +2112,7 @@ select:focus-visible {
     --line: #E7E5DC;
     --lime: #B9E72B;
     --lime-deep: #8FBE0A;
+    --lime-text: #557C04; /* màu chữ xanh lá đậm cho chữ trên nền sáng, tương phản 4.71–4.92:1 đạt WCAG AA (issue #130) */
     --lime-ink: #22300A;
     --dark: #15170F;
     --soft: #EAF6C3;
@@ -2305,7 +2306,7 @@ body {
     font-weight: 700;
     letter-spacing: 1.6px;
     text-transform: uppercase;
-    color: var(--lime-deep);
+    color: var(--lime-text);
     margin-bottom: 14px;
 }
 
@@ -2772,7 +2773,7 @@ h2.sec em {
 
 .stat b em {
     font-style: normal;
-    color: var(--lime-deep);
+    color: var(--lime-text);
 }
 
 .stat span {
@@ -3556,7 +3557,7 @@ h2.sec em {
 
 .bill-toggle span small {
     font-weight: 500;
-    color: var(--lime-deep);
+    color: var(--lime-text);
 }
 
 .plans {
@@ -3692,7 +3693,8 @@ h2.sec em {
 }
 
 .feats li.off {
-    color: #B9BCB2;
+    /* Issue #130: màu cũ #B9BCB2 tương phản chỉ 1.93:1 — đổi sang --muted đạt 4.92:1 */
+    color: var(--muted);
 }
 
 .feats li.off::before {
@@ -3743,7 +3745,7 @@ h2.sec em {
 
 .foot .tag {
     font-family: var(--font-display);
-    color: var(--lime-deep);
+    color: var(--lime-text);
     font-weight: 600;
     letter-spacing: 1px;
     font-size: 12.5px;
