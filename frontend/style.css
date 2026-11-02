@@ -2800,7 +2800,8 @@ h2.sec em {
 }
 
 .shot-main {
-    width: 500px;
+    /* Issue #130: tăng khung video hero từ 500px lên tối đa 580px để tạo điểm nhấn ở màn hình đầu (giới hạn theo bề ngang cột chứa để không tràn ở desktop hẹp) */
+    width: min(580px, calc(100% - 30px));
     left: 30px;
     top: 0;
     z-index: 2;
