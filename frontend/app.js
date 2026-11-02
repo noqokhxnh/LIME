@@ -353,7 +353,28 @@ document.querySelectorAll('.plan-cta').forEach(b => {
     };
     btn.addEventListener('click', go);
     input.addEventListener('keydown', (e) => {
-        if (e.key === 'Enter') { e.preventDefault(); go(); }
+        if (e.key === 'Tab' && !input.value.trim()) {
+            e.preventDefault();
+            const firstSuggestion = document.querySelector('.home-prompt-suggestion');
+            if (firstSuggestion) {
+                input.value = firstSuggestion.getAttribute('data-prompt') || '';
+            } else if (input.placeholder) {
+                input.value = input.placeholder;
+            }
+        } else if (e.key === 'Enter') {
+            e.preventDefault();
+            go();
+        }
+    });
+
+    document.querySelectorAll('.home-prompt-suggestion').forEach(btn => {
+        btn.addEventListener('click', () => {
+            const p = btn.getAttribute('data-prompt');
+            if (p) {
+                input.value = p;
+                input.focus();
+            }
+        });
     });
 })();
 
@@ -896,3 +917,26 @@ function initFlipWords() {
             }
         });
 })();
+
+// Quản lý hiển thị đường kẻ dưới navbar: ẩn khi ở Hero video trên cùng, hiện khi lướt xuống các phần sáng bên dưới
+(function initNavBorderScroll() {
+    const border = document.getElementById('nav-bottom-border');
+    const hero = document.getElementById('hero-section');
+    if (!border || !hero) return;
+
+    function updateNavBorder() {
+        const heroBottom = hero.getBoundingClientRect().bottom;
+        if (heroBottom <= 64) {
+            border.classList.remove('opacity-0');
+            border.classList.add('opacity-100');
+        } else {
+            border.classList.add('opacity-0');
+            border.classList.remove('opacity-100');
+        }
+    }
+
+    window.addEventListener('scroll', updateNavBorder, { passive: true });
+    window.addEventListener('resize', updateNavBorder, { passive: true });
+    updateNavBorder();
+})();
+
