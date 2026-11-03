@@ -561,7 +561,9 @@
         }
         if (el.playerRestore) {
             el.playerRestore.disabled = !item.canRestore;
-            el.playerRestore.title = item.canRestore ? '' : 'Job này không lưu kịch bản/prompt để khôi phục.';
+            el.playerRestore.title = item.canRestore
+                ? 'Mở prompt/storyboard đã lưu trong trình chỉnh sửa; không tự render lại hay tiêu credit.'
+                : 'Job này không lưu kịch bản/prompt để khôi phục.';
         }
         if (el.playerDelete) el.playerDelete.disabled = ACTIVE_STATUSES.has(item.status);
         state.detail = item;

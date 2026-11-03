@@ -958,7 +958,21 @@ function restoreJob(detail, options = {}) {
     }
 
     switchWorkspaceTab('script');
-    log(`Đã mở video ${detail.jobId} trong trình chỉnh sửa (không tạo job mới).`, 'info');
+    if (scenes.length) {
+        log(
+            `Đã khôi phục prompt + storyboard của ${detail.jobId}. Video đã render vẫn giữ nguyên; ` +
+            'bấm Render để tạo bản mới nếu cần.',
+            'info'
+        );
+    } else if (prompt) {
+        log(
+            `Chỉ khôi phục được prompt của ${detail.jobId} (job không lưu storyboard). ` +
+            'Cần tạo storyboard và render lại nếu muốn video mới.',
+            'info'
+        );
+    } else {
+        log(`Đã mở ${detail.jobId} nhưng job không lưu prompt/storyboard để khôi phục.`, 'info');
+    }
     return { ok: true };
 }
 
