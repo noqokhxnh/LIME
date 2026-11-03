@@ -1,7 +1,7 @@
 /* ============ LIME Workspace v2 — light Premiere-style editor ============ */
 body.ws{
   --wbg:#F3F5EF; --wpanel:#FFFFFF; --wpanel2:#F8F9F5; --wline:#E1E5DA;
-  --wtxt:#20251B; --wmuted:#626A58; --wdim:#818978;
+  --wtxt:#20251B; --wmuted:#626A58; --wdim:#52584A; /* màu chữ phụ: tương phản 7.36:1 trên nền trắng, đạt chuẩn WCAG AA (issue #129) */
   --wlime:#65A30D; --wdeep:#84CC16; --wink:#1A2E05;
   --wcaro:linear-gradient(rgba(32,37,27,.045) 1px,transparent 1px),
           linear-gradient(90deg,rgba(32,37,27,.045) 1px,transparent 1px);
@@ -21,6 +21,9 @@ body.ws .topbar{height:52px;flex:none;display:flex;align-items:center;justify-co
 body.ws .proj{display:flex;align-items:center;gap:12px}
 body.ws .logo{font-family:'Space Grotesk',sans-serif;font-weight:700;font-size:19px;color:var(--wtxt);text-decoration:none}
 body.ws .logo i{font-style:normal;color:var(--wdeep)}
+/* Issue #129: h1 bọc ngoài nút tên dự án để trang có heading đúng chuẩn cho trình đọc màn hình;
+   reset margin và cỡ chữ của h1 để không phá bố cục topbar — nút bên trong giữ nguyên chức năng */
+body.ws .proj-title{margin:0;font-size:inherit;font-weight:inherit;display:flex;align-items:center}
 body.ws .proj-name{font-family:inherit;font-size:13px;color:var(--wmuted);border:1px solid var(--wline);border-radius:8px;
   padding:7px 12px;background:var(--wpanel2);max-width:280px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;
   cursor:pointer;transition:color .14s,border-color .14s,background .14s}
@@ -159,10 +162,13 @@ body.ws .ws-main{flex:1;display:none;min-height:0;
 body.ws .ws-main.on{display:grid}
 body.ws .panel{background:var(--wpanel);border-right:1px solid var(--wline);
   display:flex;flex-direction:column;min-height:0;min-width:0}
+/* Issue #129 — typography & khoảng cách: giảm giãn chữ tiêu đề panel cho dễ đọc lướt,
+   nâng mọi cỡ chữ nội dung trong panel lên tối thiểu 11px (nhãn đè trên thumbnail giữ nguyên);
+   padding panel tăng lên 16px để chữ không áp sát mép màn hình */
 body.ws .p-head{height:40px;flex:none;display:flex;align-items:center;justify-content:space-between;
-  padding:0 14px;border-bottom:1px solid var(--wline);font-size:11px;font-weight:700;
-  letter-spacing:1.4px;text-transform:uppercase;color:var(--wmuted)}
-body.ws .p-body{flex:1;overflow-y:auto;overflow-x:hidden;padding:14px;display:flex;flex-direction:column;gap:12px;min-height:0}
+  padding:0 16px;border-bottom:1px solid var(--wline);font-size:12px;font-weight:700;
+  letter-spacing:0.8px;text-transform:uppercase;color:var(--wmuted)}
+body.ws .p-body{flex:1;overflow-y:auto;overflow-x:hidden;padding:16px;display:flex;flex-direction:column;gap:12px;min-height:0}
 body.ws .p-body::-webkit-scrollbar{width:8px}
 body.ws .p-body::-webkit-scrollbar-thumb{background:var(--wline);border-radius:8px}
 body.ws #panel-left{grid-area:left}
@@ -182,7 +188,7 @@ body.ws .prompt-foot span{font-size:11px;color:var(--wdim)}
 body.ws .prompt-foot span.warn{color:#FF9D5A}
 body.ws .prompt-assets{margin-top:8px;display:flex;flex-direction:column;gap:8px}
 body.ws .prompt-assets-head{display:flex;align-items:center;gap:8px}
-body.ws .prompt-assets-hint{font-size:10.5px;color:var(--wdim);flex:1;min-width:120px}
+body.ws .prompt-assets-hint{font-size:11px;color:var(--wdim);flex:1;min-width:120px}
 body.ws .prompt-assets-grid{display:flex;flex-wrap:wrap;gap:6px}
 body.ws .btn-lime-sm{background:var(--wlime);color:var(--wink);border:none;font-weight:700;
   font-size:12.5px;padding:9px 16px;border-radius:8px;display:inline-flex;align-items:center;gap:8px}
@@ -201,7 +207,7 @@ body.ws .scn:hover{border-color:var(--wdim)}
 body.ws .scn.active{border-color:var(--wdeep);box-shadow:0 0 0 1px var(--wdeep)}
 body.ws .scn .thumb{width:52px;height:32px;border-radius:6px;flex:none;background-image:var(--wcaro);
   background-size:16px 16px;background-color:#EFF2E9;border:1px solid var(--wline);
-  display:flex;align-items:center;justify-content:center;font-size:10px;font-weight:700;color:var(--wdeep)}
+  display:flex;align-items:center;justify-content:center;font-size:11px;font-weight:700;color:var(--wdeep)}
 body.ws .scn .meta{flex:1;min-width:0}
 body.ws .scn .meta b{display:block;font-size:12.5px;font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 body.ws .scn .meta span{font-size:11px;color:var(--wdim);font-family:ui-monospace,monospace}
@@ -214,7 +220,7 @@ body.ws .monitor{flex:1;display:flex;flex-direction:column;min-height:0;min-widt
 body.ws .screen{flex:1;background-color:#E9EDE3;background-image:var(--wcaro);background-size:28px 28px;
   border:1px solid var(--wline);border-radius:12px;position:relative;overflow:hidden;
   display:flex;align-items:center;justify-content:center;min-height:0}
-body.ws .screen .badge{position:absolute;top:10px;left:10px;font-size:10px;font-weight:700;z-index:3;
+body.ws .screen .badge{position:absolute;top:10px;left:10px;font-size:11px;font-weight:700;z-index:3;
   letter-spacing:1px;background:rgba(255,255,255,.92);border:1px solid var(--wline);
   padding:5px 10px;border-radius:7px;color:var(--wlime)}
 body.ws .screen .tc{position:absolute;top:10px;right:10px;font-family:ui-monospace,monospace;z-index:3;
@@ -301,7 +307,7 @@ body.ws .log-item{color:var(--wmuted)}
 body.ws .log-item.success{color:var(--wlime)}
 body.ws .log-item.error{color:#FF8A8A}
 body.ws .ruler{height:22px;flex:none;position:relative;border-bottom:1px solid var(--wline);
-  font-family:ui-monospace,monospace;font-size:10px;color:var(--wdim);margin-left:64px}
+  font-family:ui-monospace,monospace;font-size:11px;color:var(--wdim);margin-left:64px}
 body.ws .ruler span{position:absolute;top:4px}
 body.ws .tl-tracks{flex:1;position:relative;overflow:hidden;padding:8px 0;min-height:0}
 body.ws .track{display:flex;align-items:stretch;height:44px;margin-bottom:6px}
@@ -322,7 +328,7 @@ body.ws .playhead::before{content:"";position:absolute;top:0;left:-5px;border:6p
   border-top:8px solid #FF5A5A}
 body.ws .trans{position:absolute;top:50%;width:22px;height:22px;margin-top:-11px;border-radius:6px;
   background:var(--wpanel2);border:1px solid var(--wline);display:flex;align-items:center;justify-content:center;
-  font-size:10px;color:var(--wlime);z-index:4;transform:translateX(-50%) rotate(45deg);pointer-events:none}
+  font-size:11px;color:var(--wlime);z-index:4;transform:translateX(-50%) rotate(45deg);pointer-events:none}
 body.ws .trans i{transform:rotate(-45deg);font-style:normal}
 body.ws .tl-empty{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;
   color:var(--wdim);font-size:12px}
@@ -457,7 +463,7 @@ body.ws .step-hint b{color:var(--wmuted)}
 
 /* ---------- HITL: hỏi từng câu ---------- */
 body.ws .ask-top{display:flex;align-items:center;gap:8px}
-body.ws .ask-top>span{font-size:10px;font-weight:700;letter-spacing:.06em;text-transform:uppercase;
+body.ws .ask-top>span{font-size:11px;font-weight:700;letter-spacing:.06em;text-transform:uppercase;
   color:var(--wdim);white-space:nowrap;font-family:ui-monospace,monospace}
 body.ws .ask-bar{flex:1;height:3px;border-radius:2px;background:var(--wline);overflow:hidden}
 body.ws .ask-bar i{display:block;height:100%;width:0;background:var(--wdeep);transition:width .22s ease}
@@ -474,7 +480,7 @@ body.ws .ask-opt .rd{position:relative;flex:none;width:14px;height:14px;margin-t
 body.ws .ask-opt.on .rd{border-color:var(--wlime)}
 body.ws .ask-opt.on .rd::after{content:"";position:absolute;inset:3px;border-radius:50%;background:var(--wlime)}
 body.ws .ask-opt b{display:block;font-size:12px;font-weight:600}
-body.ws .ask-opt small{display:block;margin-top:1px;font-size:10.5px;line-height:1.4;color:var(--wdim)}
+body.ws .ask-opt small{display:block;margin-top:1px;font-size:11px;line-height:1.4;color:var(--wdim)}
 body.ws .ask-opt.on b{color:#3F6212}
 body.ws .ask-back{align-self:flex-start;border:none;background:none;padding:0;font-size:11px;
   font-weight:600;color:var(--wmuted);cursor:pointer}
@@ -482,21 +488,21 @@ body.ws .ask-back:hover{color:var(--wtxt)}
 body.ws .ask-auto-strip{display:flex;flex-direction:column;gap:3px;padding:8px 10px;border-radius:8px;
   background:var(--wpanel2);border:1px solid var(--wline)}
 body.ws .ask-auto-strip[hidden]{display:none}
-body.ws .ask-auto-strip .aa{display:flex;align-items:center;gap:6px;font-size:10.5px;color:var(--wdim)}
+body.ws .ask-auto-strip .aa{display:flex;align-items:center;gap:6px;font-size:11px;color:var(--wdim)}
 body.ws .ask-auto-strip .aa .tick{color:var(--wlime);font-weight:700}
 body.ws .ask-auto-strip .aa b{color:var(--wtxt);font-weight:600}
 body.ws .ask-auto-strip .aa button{margin-left:auto;border:none;background:none;padding:0;
-  color:var(--wlime);font-size:10.5px;font-weight:600;cursor:pointer}
+  color:var(--wlime);font-size:11px;font-weight:600;cursor:pointer}
 body.ws .ask-done{display:flex;flex-direction:column;gap:9px}
 body.ws .ask-done-title{font-size:12px;font-weight:700;color:var(--wtxt)}
 body.ws .ask-chips{display:flex;flex-wrap:wrap;gap:6px}
 body.ws .ask-chip{display:inline-flex;align-items:center;gap:6px;border:1px solid var(--wline);
-  border-radius:999px;background:var(--wpanel2);padding:5px 9px;font-size:10.5px;color:var(--wmuted);
+  border-radius:999px;background:var(--wpanel2);padding:5px 9px;font-size:11px;color:var(--wmuted);
   cursor:pointer;transition:border-color .12s}
 body.ws .ask-chip:hover{border-color:var(--wdim)}
 body.ws .ask-chip>span{font-size:9px;letter-spacing:.04em;text-transform:uppercase;opacity:.75}
 body.ws .ask-chip b{font-size:11px;color:var(--wtxt);font-weight:700}
-body.ws .ask-error{margin:0;font-size:10.5px;line-height:1.5;color:#B45309;background:#FEF3C7;
+body.ws .ask-error{margin:0;font-size:11px;line-height:1.5;color:#B45309;background:#FEF3C7;
   border:1px solid #FDE68A;border-radius:7px;padding:7px 9px}
 
 /* ---------- HITL: footer + switch ---------- */
@@ -512,7 +518,7 @@ body.ws .switch span{position:absolute;top:2px;left:2px;width:16px;height:16px;b
 body.ws .switch[aria-checked="true"]{background:var(--wdeep)}
 body.ws .switch[aria-checked="true"] span{transform:translateX(14px)}
 body.ws .switch:focus-visible{outline:2px solid var(--wlime);outline-offset:2px}
-body.ws .auto-note{margin:0;font-size:10px;line-height:1.45;color:var(--wdim)}
+body.ws .auto-note{margin:0;font-size:11px;line-height:1.45;color:var(--wdim)}
 body.ws .btn-primary{display:flex;align-items:center;justify-content:center;gap:7px;width:100%;height:36px;
   border:none;border-radius:9px;background:var(--wdeep);color:var(--wink);font-size:12.5px;font-weight:700;
   cursor:pointer;transition:background .14s}
@@ -547,7 +553,7 @@ body.ws .rb-card.on .rb-name::after{content:"✓";margin-left:auto;color:var(--w
 body.ws .rb-badge{font-size:9px;font-weight:700;letter-spacing:.04em;text-transform:uppercase;
   color:#3F6212;background:#ECFCCB;border-radius:4px;padding:2px 5px}
 body.ws .rb-hook{font-size:11px;line-height:1.45;color:var(--wmuted)}
-body.ws .rb-metrics{display:flex;align-items:center;gap:7px;font-size:10px;color:var(--wdim);
+body.ws .rb-metrics{display:flex;align-items:center;gap:7px;font-size:11px;color:var(--wdim);
   font-family:ui-monospace,monospace}
 body.ws .rb-fit{flex:1;height:4px;border-radius:2px;background:var(--wline);overflow:hidden}
 body.ws .rb-fit i{display:block;height:100%;background:var(--wlime)}
@@ -562,11 +568,11 @@ body.ws .rb-skel{height:258px;border-radius:12px;border:1px solid var(--wline);
 body.ws .rb-editor{display:flex;flex-direction:column;gap:10px;border-top:1px solid var(--wline);padding-top:14px}
 body.ws .rb-editor:empty{display:none}
 body.ws .rb-editor-head{display:flex;align-items:baseline;gap:8px;font-size:12px;font-weight:700;color:var(--wtxt)}
-body.ws .rb-editor-head span{font-size:10.5px;font-weight:500;color:var(--wdim);font-family:ui-monospace,monospace}
+body.ws .rb-editor-head span{font-size:11px;font-weight:500;color:var(--wdim);font-family:ui-monospace,monospace}
 body.ws .rb-scene{display:grid;grid-template-columns:132px minmax(0,1fr);gap:12px;align-items:start}
 body.ws .rb-scene-head{display:flex;flex-direction:column;gap:1px;padding-top:7px}
 body.ws .rb-scene-head b{font-size:11.5px;font-weight:700;color:var(--wtxt)}
-body.ws .rb-scene-head span{font-size:10px;color:var(--wdim);font-family:ui-monospace,monospace}
+body.ws .rb-scene-head span{font-size:11px;color:var(--wdim);font-family:ui-monospace,monospace}
 body.ws .rb-scene textarea{width:100%;min-height:42px;resize:none;overflow:hidden;border:1px solid var(--wline);
   border-radius:8px;background:var(--wpanel2);padding:8px 10px;color:var(--wtxt);
   font-family:'Inter',sans-serif;font-size:11.5px;line-height:1.55;outline:none}
@@ -576,13 +582,13 @@ body.ws .rb-assets{display:flex;flex-direction:column;gap:8px;padding:10px 12px;
   border-radius:10px;background:var(--wpanel2)}
 body.ws .rb-assets-head{display:flex;align-items:center;gap:8px;flex-wrap:wrap}
 body.ws .rb-assets-head b{font-size:11.5px;font-weight:700;color:var(--wtxt)}
-body.ws .rb-assets-hint{font-size:10px;color:var(--wdim);flex:1;min-width:120px}
+body.ws .rb-assets-hint{font-size:11px;color:var(--wdim);flex:1;min-width:120px}
 body.ws .rb-assets-upload{border:1px solid var(--wlime);background:none;color:var(--wlime);border-radius:7px;
   padding:5px 10px;font-size:11px;font-weight:700;cursor:pointer}
 body.ws .rb-assets-upload:hover:not(:disabled){background:var(--wlime);color:#14200B}
 body.ws .rb-assets-upload:disabled{opacity:.5;cursor:wait}
 body.ws .rb-assets-grid{display:flex;flex-wrap:wrap;gap:6px}
-body.ws .rb-assets-empty{margin:0;font-size:10.5px;color:var(--wdim);font-style:italic}
+body.ws .rb-assets-empty{margin:0;font-size:11px;color:var(--wdim);font-style:italic}
 body.ws .rb-asset{position:relative;width:44px;height:44px;border-radius:7px;overflow:hidden;cursor:pointer;
   border:2px solid var(--wline);background:var(--wpanel);transition:border-color .12s,box-shadow .12s}
 body.ws .rb-asset img{width:100%;height:100%;object-fit:cover;display:block}
@@ -620,4 +626,26 @@ body.ws.board-open .lime-support-root{display:none}
     height: 100%;
     object-fit: cover;
     border-radius: 50%;
+}
+
+/* ============ Issue #129 — responsive dưới 1180px: xếp dọc 3 cột ============
+   Thứ tự ưu tiên khi xếp dọc: khung video (center) → cột trái (left) → cột phải (right).
+   Mọi thay đổi responsive nằm gọn trong khối này để desktop không bị ảnh hưởng. */
+@media (max-width: 1179px){
+  body.ws{min-width:0;height:auto;overflow:visible}
+  body.ws .ws-main{grid-template-columns:1fr;grid-template-rows:none;grid-template-areas:"center" "left" "right"}
+  body.ws .panel{border-right:none;border-bottom:1px solid var(--wline)}
+  body.ws #panel-right{border-left:none}
+  body.ws .p-body{overflow:visible}
+  body.ws .tl-tools{flex-wrap:wrap;height:auto;padding-top:6px;padding-bottom:6px;row-gap:6px}
+  body.ws .tl-progress{min-width:0;flex:1}
+  body.ws .statusbar{flex-wrap:wrap;height:auto;padding-top:6px;padding-bottom:6px;row-gap:4px}
+}
+
+/* Issue #129 — responsive dưới 768px (điện thoại): topbar xuống 2 hàng, thẻ render xếp 1 cột */
+@media (max-width: 768px){
+  body.ws .topbar{flex-wrap:wrap;height:auto;padding:8px 12px;row-gap:8px}
+  body.ws .ws-tabs{order:3;width:100%;overflow-x:auto}
+  body.ws .proj-name{max-width:150px}
+  body.ws .rb-cards{grid-template-columns:1fr}
 }
