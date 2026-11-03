@@ -8,6 +8,7 @@ import {
     assembleHTML,
     assembleHtml,
     assembleCode,
+    buildGoogleFontsHref,
     DEFAULT_TRANSPARENT_GIF,
     GSAP_CDN,
     GSAP_TEXT_PLUGIN_CDN,
@@ -394,5 +395,36 @@ describe('Module 6: HTML & GSAP Packaging (src/pipeline/assembleHtml.ts)', () =>
             assert.equal(decideRequestAllowed('data:image/png;base64,AAAA', 'image', opts).allowed, true);
             assert.equal(decideRequestAllowed('wss://evil.example/socket', 'websocket', opts).allowed, false);
         });
+    });
+});
+
+describe('buildGoogleFontsHref (src/pipeline/assembleHtml.ts)', () => {
+    it('tách chồng font CSS thành từng tham số family hợp lệ', () => {
+        assert.equal(
+            buildGoogleFontsHref("'Patrick Hand', 'Caveat', cursive, sans-serif"),
+            'https://fonts.googleapis.com/css2?family=Patrick+Hand&family=Caveat&display=swap'
+        );
+    });
+
+    it('giữ font đơn và thay khoảng trắng bằng dấu +', () => {
+        assert.equal(
+            buildGoogleFontsHref('Plus Jakarta Sans'),
+            'https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans&display=swap'
+        );
+    });
+
+    it('bỏ họ generic, khử trùng lặp và rơi về Inter khi không còn font thật', () => {
+        assert.equal(
+            buildGoogleFontsHref('cursive, sans-serif'),
+            'https://fonts.googleapis.com/css2?family=Inter&display=swap'
+        );
+        assert.equal(
+            buildGoogleFontsHref("'Inter', Inter, serif"),
+            'https://fonts.googleapis.com/css2?family=Inter&display=swap'
+        );
+        assert.equal(
+            buildGoogleFontsHref(''),
+            'https://fonts.googleapis.com/css2?family=Inter&display=swap'
+        );
     });
 });

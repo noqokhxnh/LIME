@@ -212,6 +212,39 @@ export function processSceneCode(
 /**
  * Assemble toan bo script thanh 1 file HTML doc lap co chua GSAP va Master Timeline
  */
+
+/**
+ * Dựng URL Google Fonts hợp lệ từ chuỗi fontFamily của kịch bản.
+ *
+ * fontFamily trong kịch bản là một chồng CSS (ví dụ "'Patrick Hand', 'Caveat',
+ * cursive, sans-serif"). Nhét nguyên chồng vào tham số family= sẽ sinh URL rác
+ * khiến Google trả lỗi, Chromium chặn theo cơ chế ORB và video render bằng font
+ * dự phòng. Hàm này tách từng tên font thật, bỏ họ generic (cursive, sans-serif...)
+ * rồi sinh một tham số family= cho mỗi font. Không kèm trục wght: không phải font
+ * nào cũng có đủ 300-900 (Patrick Hand chỉ có 400) và xin weight không tồn tại
+ * làm cả URL bị 400.
+ */
+const GENERIC_FONT_FAMILIES = new Set([
+    "serif", "sans-serif", "monospace", "cursive", "fantasy", "system-ui",
+    "ui-sans-serif", "ui-serif", "ui-monospace", "ui-rounded",
+    "emoji", "math", "fangsong", "inherit", "initial", "unset",
+]);
+
+export function buildGoogleFontsHref(fontFamily: string): string {
+    const families: string[] = [];
+    for (const part of String(fontFamily || "").split(",")) {
+        const name = part.trim().replace(/^['"]+|['"]+$/g, "").trim();
+        if (!name || GENERIC_FONT_FAMILIES.has(name.toLowerCase())) continue;
+        if (!families.includes(name)) families.push(name);
+        if (families.length >= 3) break;
+    }
+    const list = families.length > 0 ? families : ["Inter"];
+    const params = list
+        .map((name) => `family=${encodeURIComponent(name).replace(/%20/g, "+")}`)
+        .join("&");
+    return `https://fonts.googleapis.com/css2?${params}&display=swap`;
+}
+
 export async function assembleHTML(
     script: videoScript,
     durations: durationMap,
@@ -411,7 +444,7 @@ ${s.js}
     <title>${script.title || "VidTML Animation"}</title>
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-    <link href="https://fonts.googleapis.com/css2?family=${encodeURIComponent(fontFamily)}:wght@300;400;600;700;800;900&display=swap" rel="stylesheet">
+    <link href="${buildGoogleFontsHref(fontFamily)}" rel="stylesheet">
     
     <!-- GSAP & Plugins -->
     <script src="${options?.customCdn?.gsap || GSAP_CDN}"></script>
