@@ -1,5 +1,6 @@
 import { existsSync, mkdirSync, rmSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
+import { getConfig } from '../config.js';
 import { v4 } from "uuid";
 import { videoPreset, resolveResolution } from "@/config";
 import { videoRequest, pipelineResult, pipelineProgess, progressCallback, pipelinePhase, videoScript, AudioResult, checkRhythm } from "@/llm/schema";
@@ -82,6 +83,8 @@ export interface fullPipelineResult extends pipelineResult {
 export async function runFullPipeline(option: orchestratorOptions): Promise<fullPipelineResult> {
     const { request, script: inputScript, bgmPath, skipPreview, onProgress, outputDir } = option;
     const assets = option.assets ?? [];
+    // Mac dinh tat mo man trap theo config (do toc do render); caller truyen skipShutterBlur thi uu tien gia tri do.
+    const skipShutterBlur = option.skipShutterBlur ?? !getConfig().SHUTTER_BLUR_ENABLED;
 
     const jobId = option.jobId ?? v4();
     const defaultSeed = hashString32(jobId);
@@ -332,7 +335,7 @@ export async function runFullPipeline(option: orchestratorOptions): Promise<full
                     domSampler: option.domSampler,
                     batchDomSampler: option.batchDomSampler,
                     audioAnalyzer: option.audioAnalyzer,
-                    hasShutterBlur: option.skipShutterBlur ? false : undefined,
+                    hasShutterBlur: skipShutterBlur ? false : undefined,
                     tempo: request.tempo,
                     targetDurationSec: request.targetDurationSec,
                     gsapLintStrict: option.gsapLintStrict,
@@ -434,7 +437,7 @@ export async function runFullPipeline(option: orchestratorOptions): Promise<full
                     logProgress("render", scaled, msg);
                 },
                 watermark: request.watermark,
-                skipShutterBlur: option.skipShutterBlur,
+                skipShutterBlur,
                 shutterSamples: option.shutterSamples,
                 seed: currentSeed,
             });

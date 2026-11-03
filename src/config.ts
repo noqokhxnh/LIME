@@ -67,6 +67,8 @@ const envSchema = z.object({
 
     TTS_Provider: z.enum(['edge', 'elevenlabs', 'openai', 'google', 'vieneu']).default('edge'),
     RENDER_MAX_CONCURRENCY: z.coerce.number().int().min(1).max(16).default(1),
+    // Mo man trap (Spec D) mac dinh TAT: do thuc te 03/11/2026 tren cung HTML, bat mo chiem ~89% thoi gian render (3,29s/khung so voi 0,35s/khung khi tat). Bat lai bang SHUTTER_BLUR_ENABLED=true neu can chat luong dien anh.
+    SHUTTER_BLUR_ENABLED: z.enum(['true', 'false', '1', '0']).default('false').transform(val => val === 'true' || val === '1'),
     VIENEU_TTS_URL: z.string().default('http://127.0.0.1:7860'),
     TTS_Voice: z.string().default('alloy'),
 
