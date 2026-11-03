@@ -1,9 +1,12 @@
+import Redis from 'ioredis';
+import { getConfig } from '../config.js';
+
 export interface IRateLimiter {
-    checkRpm(id: string, maxRpm?: number, cost?: number): boolean;
-    acquireConcurrentJob(id: string, maxConcurrent?: number): boolean;
-    releaseConcurrentJob(id: string): void;
-    checkAndIncrementDailyQuota(id: string, maxDaily?: number): boolean;
-    refundDailyQuota(id: string): void;
+    checkRpm(id: string, maxRpm?: number, cost?: number): Promise<boolean> | boolean;
+    acquireConcurrentJob(id: string, maxConcurrent?: number): Promise<boolean> | boolean;
+    releaseConcurrentJob(id: string): Promise<void> | void;
+    checkAndIncrementDailyQuota(id: string, maxDaily?: number): Promise<boolean> | boolean;
+    refundDailyQuota(id: string): Promise<void> | void;
 }
 
 export class InMemoryRateLimiter implements IRateLimiter {
@@ -31,10 +34,6 @@ export class InMemoryRateLimiter implements IRateLimiter {
 
     /**
      * Tiêu `cost` lượt trong cửa sổ 1 phút.
-     *
-     * Một request sinh 3 phương án gọi LLM 3 lần (cộng 1 lần phân loại), nên
-     * tính theo lượt gọi thật thay vì theo request — nếu không, người dùng có
-     * thể nhân chi phí LLM lên 3 lần mà vẫn nằm trong hạn mức.
      */
     public checkRpm(id: string, maxRpm = 20, cost = 1): boolean {
         const now = Date.now();
@@ -88,10 +87,7 @@ export class InMemoryRateLimiter implements IRateLimiter {
     }
 
     /**
-     * Hoàn một lượt quota ngày đã trừ. Dùng khi request bị chính service
-     * từ chối sau bước trừ quota (hết slot đồng thời, enqueue lỗi): quota
-     * ngày chỉ được tính cho job thật sự được nhận — trước đây các lượt
-     * bị từ chối vẫn ăn hạn mức và không có đường nào hoàn lại.
+     * Hoàn một lượt quota ngày đã trừ.
      */
     public refundDailyQuota(id: string): void {
         const record = this.dailyMap.get(id);
@@ -101,4 +97,133 @@ export class InMemoryRateLimiter implements IRateLimiter {
     }
 }
 
-export const rateLimiter = new InMemoryRateLimiter();
+/**
+ * Redis-backed Rate Limiter & Concurrency Manager (#131).
+ * Đồng bộ hạn mức giữa các replica Fastify và BullMQ workers.
+ * Tự động fallback về bộ nhớ cục bộ (InMemoryRateLimiter) khi Redis không khả dụng.
+ */
+export class RedisRateLimiter implements IRateLimiter {
+    private fallback = new InMemoryRateLimiter();
+    private redis: Redis | null = null;
+    private isConnected = false;
+
+    constructor(redisUrl?: string) {
+        if (redisUrl) {
+            try {
+                this.redis = new Redis(redisUrl, {
+                    maxRetriesPerRequest: 1,
+                    connectTimeout: 2000,
+                    retryStrategy: () => null,
+                    enableOfflineQueue: false,
+                });
+                this.redis.on('connect', () => { this.isConnected = true; });
+                this.redis.on('ready', () => { this.isConnected = true; });
+                this.redis.on('error', () => { this.isConnected = false; });
+                this.redis.on('close', () => { this.isConnected = false; });
+            } catch {
+                this.isConnected = false;
+            }
+        }
+    }
+
+    public async checkRpm(id: string, maxRpm = 20, cost = 1): Promise<boolean> {
+        if (!this.isConnected || !this.redis) {
+            return this.fallback.checkRpm(id, maxRpm, cost);
+        }
+        try {
+            const key = `ratelimit:rpm:${id}`;
+            const amount = Math.max(1, Math.floor(cost));
+            const count = await this.redis.incrby(key, amount);
+            if (count === amount) {
+                await this.redis.expire(key, 60);
+            }
+            if (count > maxRpm) {
+                return false;
+            }
+            return true;
+        } catch {
+            return this.fallback.checkRpm(id, maxRpm, cost);
+        }
+    }
+
+    public async acquireConcurrentJob(id: string, maxConcurrent = 2): Promise<boolean> {
+        if (!this.isConnected || !this.redis) {
+            return this.fallback.acquireConcurrentJob(id, maxConcurrent);
+        }
+        try {
+            const key = `ratelimit:concurrent:${id}`;
+            const count = await this.redis.incr(key);
+            if (count === 1) {
+                await this.redis.expire(key, 3600); // 1 giờ tự động xoá tránh treo vĩnh viễn nếu worker sập
+            }
+            if (count > maxConcurrent) {
+                await this.redis.decr(key);
+                return false;
+            }
+            return true;
+        } catch {
+            return this.fallback.acquireConcurrentJob(id, maxConcurrent);
+        }
+    }
+
+    public async releaseConcurrentJob(id: string): Promise<void> {
+        if (!this.isConnected || !this.redis) {
+            this.fallback.releaseConcurrentJob(id);
+            return;
+        }
+        try {
+            const key = `ratelimit:concurrent:${id}`;
+            const count = await this.redis.decr(key);
+            if (count <= 0) {
+                await this.redis.del(key);
+            }
+        } catch {
+            this.fallback.releaseConcurrentJob(id);
+        }
+    }
+
+    public async checkAndIncrementDailyQuota(id: string, maxDaily = 10): Promise<boolean> {
+        if (!this.isConnected || !this.redis) {
+            return this.fallback.checkAndIncrementDailyQuota(id, maxDaily);
+        }
+        try {
+            const key = `ratelimit:daily:${id}`;
+            const count = await this.redis.incr(key);
+            if (count === 1) {
+                await this.redis.expire(key, 86400); // 24 giờ
+            }
+            if (count > maxDaily) {
+                return false;
+            }
+            return true;
+        } catch {
+            return this.fallback.checkAndIncrementDailyQuota(id, maxDaily);
+        }
+    }
+
+    public async refundDailyQuota(id: string): Promise<void> {
+        if (!this.isConnected || !this.redis) {
+            this.fallback.refundDailyQuota(id);
+            return;
+        }
+        try {
+            const key = `ratelimit:daily:${id}`;
+            const count = await this.redis.decr(key);
+            if (count <= 0) {
+                await this.redis.del(key);
+            }
+        } catch {
+            this.fallback.refundDailyQuota(id);
+        }
+    }
+}
+
+export function createRateLimiter(): IRateLimiter {
+    const config = getConfig();
+    if (config.QUEUE_TYPE === 'redis' && config.REDIS_URL) {
+        return new RedisRateLimiter(config.REDIS_URL);
+    }
+    return new InMemoryRateLimiter();
+}
+
+export const rateLimiter: IRateLimiter = createRateLimiter();

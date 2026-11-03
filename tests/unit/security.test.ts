@@ -166,13 +166,15 @@ describe('Module 10: Security Guards', () => {
 
         it('phải từ chối job thứ 11 nếu vượt quá Daily Quota (tối đa 10)', async () => {
             const ip = '192.168.1.101'; 
+            const user2Id = '00000000-0000-4000-a000-000000000002';
+            const cookies = { vidtml_session: createTestSession(user2Id) };
             
             // Limit is 10
             for (let i = 0; i < 10; i++) {
                 const res = await app.inject({
                     method: 'POST',
                     url: '/api/generate',
-                cookies: authCookies(),
+                    cookies,
                     remoteAddress: ip,
                     payload: { prompt: `quota video request ${i}`, async: false, targetDurationSec: 15, aspectRatio: '16:9', language: 'en', style: 'modern' }
                 });
@@ -182,7 +184,7 @@ describe('Module 10: Security Guards', () => {
             const res11 = await app.inject({
                 method: 'POST',
                 url: '/api/generate',
-                cookies: authCookies(),
+                cookies,
                 remoteAddress: ip,
                 payload: { prompt: 'quota video request 11', async: false, targetDurationSec: 15, aspectRatio: '16:9', language: 'en', style: 'modern' }
             });
