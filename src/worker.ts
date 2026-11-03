@@ -4,6 +4,9 @@ import { processVideoJob } from './queue/handler.js';
 import { initDatabase } from './database/index.js';
 import { getBillingWebhookQueue } from './billing/queue.js';
 import { getAssetCaptionQueue } from './queue/assetCaption.js';
+import { installProcessGuards } from './security/processGuards.js';
+
+installProcessGuards('Worker');
 
 async function startWorker() {
     const config = getConfig();

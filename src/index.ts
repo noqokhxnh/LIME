@@ -43,6 +43,7 @@ import { helpdeskStore } from "./helpdesk/store.js";
 import { systemSettings } from "./admin/systemSettings.js";
 import { announcementsStore } from "./admin/announcements.js";
 import { pageViewTracker } from "./security/pageViewTracker.js";
+import { installProcessGuards } from "./security/processGuards.js";
 import { db } from "./database/index.js";
 import { hashString32, parseSeedSafe } from "./pipeline/rng.js";
 
@@ -53,6 +54,23 @@ export async function buildApp(options: { logger?: boolean, queue?: IVideoQueue 
     const app = fastify({
         logger: options.logger ?? false,
         bodyLimit: 10 * 1024 * 1024,
+        connectionTimeout: 30000,
+        requestTimeout: 60000,
+        keepAliveTimeout: 10000,
+    });
+
+    app.setErrorHandler((error: any, request, reply) => {
+        const statusCode = (typeof error?.statusCode === "number" && error.statusCode >= 400 && error.statusCode < 600)
+            ? error.statusCode
+            : 500;
+        if (statusCode >= 500) {
+            request.log.error(error);
+        }
+        const message = error?.message || "Internal Server Error";
+        reply.status(statusCode).send({
+            error: message,
+            statusCode,
+        });
     });
 
     await app.register(fastifyCors, { origin: true , credentials: true });
@@ -1572,6 +1590,7 @@ export async function buildApp(options: { logger?: boolean, queue?: IVideoQueue 
 }
 
 export async function startServer(): Promise<FastifyInstance> {
+    installProcessGuards("API Server");
     const config = getConfig();
     const queue = await getQueue();
     queue.startListeners();
