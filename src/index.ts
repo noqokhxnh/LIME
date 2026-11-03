@@ -5,7 +5,7 @@ import fastifyMultipart from "@fastify/multipart";
 import { existsSync, createReadStream, statSync, writeFileSync, mkdirSync, unlinkSync } from "node:fs";
 import { join } from "node:path";
 import { v4 } from "uuid";
-import { getConfig } from "./config.js";
+import { getConfig, parseCorsOrigins, isCorsOriginAllowed } from "./config.js";
 import { getCurrentUser, cleanupExpiredSessions } from "./auth/session.js";
 import { videoRequestSchema, videoScriptSchema, watermarkConfigSchema, type videoRequest, type videoScript } from "./llm/schema.js";
 import { generateScript } from "./pipeline/scriptGenerator.js";
@@ -55,7 +55,25 @@ export async function buildApp(options: { logger?: boolean, queue?: IVideoQueue 
         bodyLimit: 10 * 1024 * 1024,
     });
 
-    await app.register(fastifyCors, { origin: true , credentials: true });
+    // CORS (đã vá theo issue #133): chỉ phản chiếu những origin nằm trong
+    // danh sách CORS_ORIGIN ở .env. TUYỆT ĐỐI không quay lại origin: true
+    // cùng credentials: true — cấu hình đó phản chiếu mọi origin, cho phép
+    // bất kỳ website nào gắn cookie phiên của người dùng vào request và
+    // đọc trộm dữ liệu API trả về.
+    const corsOrigins = parseCorsOrigins(getConfig().CORS_ORIGIN);
+    await app.register(fastifyCors, {
+        origin: (origin, cb) => {
+            // Request không kèm header Origin (cùng origin, curl, hoặc
+            // server-to-server như webhook) không thuộc diện CORS — cho qua.
+            // Có Origin thì phải nằm trong danh sách cho phép.
+            if (!origin || isCorsOriginAllowed(origin, corsOrigins)) {
+                cb(null, true);
+                return;
+            }
+            cb(null, false);
+        },
+        credentials: true,
+    });
     await app.register(fastifyCookie);
 
     // Đăng ký plugin xử lý upload file (multipart/form-data).

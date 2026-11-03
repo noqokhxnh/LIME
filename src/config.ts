@@ -15,6 +15,13 @@ const envSchema = z.object({
     SESSION_TTL_DAYS: z.coerce.number().int().positive().default(7),
     QUEUE_TYPE: z.enum(['redis', 'memory']).default('memory'),
     REDIS_URL: z.string().optional(),
+    // Danh sách origin được phép gọi API từ trình duyệt khác domain (CORS),
+    // cách nhau bằng dấu phẩy — ví dụ "https://lime.app". Mặc định rỗng =
+    // không cho phép origin nào, vì frontend được chính server này phục vụ
+    // (cùng origin) nên không cần nới CORS. Vá theo issue #133: trước đây
+    // index.ts dùng origin: true kèm credentials: true, phản chiếu mọi
+    // origin và để website lạ đọc trộm dữ liệu phiên của người dùng.
+    CORS_ORIGIN: z.string().default(''),
 
 
     LLM_Provider: z.preprocess(
@@ -109,6 +116,25 @@ export type Config = z.infer<typeof envSchema>;
 export { envSchema };
 
 let _config: Config | null = null;
+/**
+ * Tách chuỗi CORS_ORIGIN trong .env thành danh sách origin sạch
+ * (cắt khoảng trắng thừa, bỏ phần tử rỗng). Chuỗi rỗng/không đặt -> [].
+ */
+export function parseCorsOrigins(raw: string | undefined): string[] {
+    return (raw ?? '')
+        .split(',')
+        .map((origin) => origin.trim())
+        .filter((origin) => origin.length > 0);
+}
+
+/**
+ * Kiểm tra một Origin có nằm trong danh sách được phép gọi API hay không.
+ * Danh sách rỗng nghĩa là chặn mọi origin (mặc định an toàn của issue #133).
+ */
+export function isCorsOriginAllowed(origin: string, allowedOrigins: string[]): boolean {
+    return allowedOrigins.includes(origin);
+}
+
 export function getConfig(): Config {
     if (!_config) {
         // Chấp nhận cả TTS_PROVIDER (chuẩn ALL_CAPS trong .env/docker) lẫn TTS_Provider (schema cũ).
