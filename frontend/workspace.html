@@ -13,6 +13,7 @@
         rel="stylesheet">
     <link rel="stylesheet" href="style.css">
     <link rel="stylesheet" href="workspace.css">
+    <link rel="stylesheet" href="css/video-library.css">
     <link rel="stylesheet" href="/css/broadcast.css">
     <link rel="stylesheet" href="/css/support-widget.css">
 </head>
@@ -27,6 +28,7 @@
         </div>
         <nav class="ws-tabs" id="ws-tabs" aria-label="Không gian làm việc">
             <button type="button" class="ws-tab on" data-ws="script">Kịch bản</button>
+            <button type="button" class="ws-tab" data-ws="library">Video của tôi</button>
         </nav>
         <div class="top-right">
             <div class="ws-user-menu" id="ws-user-menu">
@@ -231,6 +233,79 @@
         </div>
     </section>
 
+    <!-- ============ WORKSPACE: VIDEO CỦA TÔI ============ -->
+    <section class="ws-main ws-library" id="ws-main-library" aria-labelledby="vl-title" hidden>
+        <div class="vl-shell">
+            <header class="vl-head">
+                <div class="vl-head-copy">
+                    <h2 id="vl-title">Video của tôi</h2>
+                    <p>Quản lý và xem lại những video bạn đã tạo</p>
+                </div>
+                <div class="vl-head-actions">
+                    <span class="vl-count" id="vl-count" aria-live="polite">0 video</span>
+                    <button type="button" class="btn-primary vl-create-btn" id="vl-create-btn">Tạo video mới</button>
+                </div>
+            </header>
+
+            <div class="vl-toolbar" role="search">
+                <label class="vl-search" for="vl-search">
+                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                        <circle cx="11" cy="11" r="7"></circle><path d="m20 20-3.5-3.5"></path>
+                    </svg>
+                    <input id="vl-search" type="search" placeholder="Tìm theo tên, mô tả hoặc mã video…" autocomplete="off" maxlength="200">
+                </label>
+                <label class="vl-field">
+                    <span class="vl-sr-only">Trạng thái</span>
+                    <select id="vl-status">
+                        <option value="all">Tất cả trạng thái</option>
+                        <option value="processing">Đang tạo</option>
+                        <option value="completed">Hoàn thành</option>
+                        <option value="failed">Thất bại / chưa đạt</option>
+                        <option value="cancelled">Đã hủy</option>
+                    </select>
+                </label>
+                <label class="vl-field">
+                    <span class="vl-sr-only">Sắp xếp</span>
+                    <select id="vl-sort">
+                        <option value="newest">Mới nhất trước</option>
+                        <option value="oldest">Cũ nhất trước</option>
+                        <option value="name-asc">Tên A–Z</option>
+                        <option value="name-desc">Tên Z–A</option>
+                    </select>
+                </label>
+                <button type="button" class="btn-ghost vl-refresh" id="vl-refresh" title="Tải lại danh sách">
+                    <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M21 12a9 9 0 1 1-2.64-6.36"></path><path d="M21 3v6h-6"></path></svg>
+                    Làm mới
+                </button>
+            </div>
+
+            <div class="vl-alert" id="vl-alert" role="alert" hidden>
+                <span id="vl-alert-text"></span>
+                <button type="button" class="vl-alert-retry" id="vl-alert-retry">Thử lại</button>
+            </div>
+
+            <div class="vl-state" id="vl-loading" hidden>
+                <span class="vl-spinner" aria-hidden="true"></span>
+                <p>Đang tải video của bạn…</p>
+            </div>
+
+            <div class="vl-state vl-empty" id="vl-empty" hidden>
+                <div class="vl-empty-icon" aria-hidden="true">🎬</div>
+                <h3 id="vl-empty-title">Chưa có video nào</h3>
+                <p id="vl-empty-desc">Video bạn tạo sẽ xuất hiện ở đây để xem lại và tải xuống.</p>
+                <button type="button" class="btn-primary" id="vl-empty-cta">Tạo video đầu tiên</button>
+            </div>
+
+            <div class="vl-grid" id="vl-grid" aria-live="polite"></div>
+
+            <nav class="vl-pagination" id="vl-pagination" aria-label="Phân trang video" hidden>
+                <button type="button" class="btn-ghost" id="vl-prev" aria-label="Trang trước">← Trước</button>
+                <span id="vl-page-info">Trang 1</span>
+                <button type="button" class="btn-ghost" id="vl-next" aria-label="Trang sau">Sau →</button>
+            </nav>
+        </div>
+    </section>
+
     <!-- ============ TIMELINE (persistent) ============ -->
     <section class="panel" id="panel-timeline">
         <div class="tl-tools">
@@ -339,7 +414,42 @@
         </div>
     </div>
 
+    <!-- ============ VIDEO PLAYER OVERLAY ============ -->
+    <div class="vl-overlay" id="vl-player-overlay" hidden>
+        <div class="vl-player-card" role="dialog" aria-modal="true" aria-labelledby="vl-player-title">
+            <header class="vl-player-head">
+                <div class="vl-player-heading">
+                    <h2 id="vl-player-title">Video</h2>
+                    <p id="vl-player-meta"></p>
+                </div>
+                <button type="button" class="vl-icon-btn" id="vl-player-close" aria-label="Đóng trình xem video">✕</button>
+            </header>
+            <div class="vl-player-stage">
+                <video id="vl-player-video" controls playsinline preload="metadata"></video>
+                <div class="vl-player-fallback" id="vl-player-fallback" hidden></div>
+            </div>
+            <footer class="vl-player-foot">
+                <a class="btn-primary" id="vl-player-download" href="#" download>Tải MP4</a>
+                <button type="button" class="btn-ghost" id="vl-player-restore">Mở trong trình chỉnh sửa</button>
+                <button type="button" class="btn-ghost vl-danger-ghost" id="vl-player-delete">Xoá video</button>
+            </footer>
+        </div>
+    </div>
+
+    <!-- ============ CONFIRM DIALOG ============ -->
+    <div class="vl-overlay" id="vl-confirm" hidden>
+        <div class="vl-confirm-card" role="alertdialog" aria-modal="true" aria-labelledby="vl-confirm-title" aria-describedby="vl-confirm-desc">
+            <h3 id="vl-confirm-title">Xác nhận</h3>
+            <p id="vl-confirm-desc"></p>
+            <div class="vl-confirm-actions">
+                <button type="button" class="btn-ghost" id="vl-confirm-cancel">Huỷ</button>
+                <button type="button" class="btn-primary vl-danger" id="vl-confirm-ok">Đồng ý</button>
+            </div>
+        </div>
+    </div>
+
     <script src="workspace.js"></script>
+    <script src="js/video-library.js"></script>
     <!-- Live Preview Player Modal (Issue #36) -->
     <div id="preview-modal" style="display:none;position:fixed;top:0;left:0;right:0;bottom:0;background:rgba(0,0,0,0.8);z-index:1000;align-items:center;justify-content:center;">
         <div style="width:90%;max-width:900px;height:80%;background:#1a1a1a;border-radius:12px;display:flex;flex-direction:column;overflow:hidden;">

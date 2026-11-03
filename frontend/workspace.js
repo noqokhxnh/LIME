@@ -502,10 +502,35 @@ const sceneList = document.getElementById('scene-list');
 const sceneCount = document.getElementById('scene-count');
 
 /* ================= WORKSPACE ================= */
-// Workspace rút gọn còn một không gian duy nhất: "Kịch bản" (tạo video trọn gói).
+// Hai không gian trong cùng một trang: "Kịch bản" (tạo video) và "Video của tôi"
+// (thư viện). Chuyển tab chỉ ẩn/hiện section — không điều hướng, không reload,
+// không đụng tới state của trình chỉnh sửa.
 const wsTabs = document.querySelectorAll('.ws-tab');
+const wsMains = document.querySelectorAll('.ws-main');
+let activeWorkspaceTab = 'script';
+
+function switchWorkspaceTab(tab) {
+    const next = tab === 'library' ? 'library' : 'script';
+    activeWorkspaceTab = next;
+    wsTabs.forEach(t => {
+        const isActive = t.getAttribute('data-ws') === next;
+        t.classList.toggle('on', isActive);
+        t.setAttribute('aria-selected', isActive ? 'true' : 'false');
+    });
+    wsMains.forEach(main => {
+        const isActive = main.id === `ws-main-${next}`;
+        main.classList.toggle('on', isActive);
+        if (isActive) main.removeAttribute('hidden');
+        else main.setAttribute('hidden', '');
+    });
+    document.body.classList.toggle('library-mode', next === 'library');
+    window.dispatchEvent(new CustomEvent('lime:workspace-tab', { detail: { tab: next } }));
+}
+
 wsTabs.forEach(t => {
-    t.classList.add('on');
+    t.setAttribute('role', 'tab');
+    t.setAttribute('aria-selected', t.classList.contains('on') ? 'true' : 'false');
+    t.addEventListener('click', () => switchWorkspaceTab(t.getAttribute('data-ws')));
 });
 const topbarExportBtn = document.getElementById('topbar-export-btn');
 
@@ -871,7 +896,73 @@ function resetProject() {
 }
 
 
-/* ================= GENERATE ================= */
+/* ================= HISTORY RESTORE ================= */
+/**
+ * Có thay đổi chưa lưu trong trình chỉnh sửa không?
+ *
+ * Chỉ tính dữ liệu người dùng thật sự nhập: prompt, câu trả lời HITL, phương án
+ * đã duyệt/chỉnh, hoặc JSON script tự sửa. Video được tự khôi phục khi mở
+ * workspace KHÔNG tính là chưa lưu — nếu tính, mở thư viện rồi xem video cũ sẽ
+ * hỏi xác nhận vô nghĩa.
+ */
+function hasUnsavedWork() {
+    if (pollInterval) return true;
+    if (currentPrompt().length > 0) return true;
+    if (hitl.stage !== 'prompt') return true;
+    if ((hitl.questions || []).length || (hitl.drafts || []).length) return true;
+    if (Object.keys(hitl.answers || {}).length) return true;
+    if (customScriptJson && customScriptJson.value.trim() && customScriptJson.value.trim() !== SAMPLE_SCRIPT_JSON.trim()) return true;
+    return false;
+}
+
+/**
+ * Mở một video cũ trong trình chỉnh sửa.
+ *
+ * Chỉ khôi phục dữ liệu backend thực sự có: prompt, storyboard/script (nếu đã
+ * lưu), và video đã render (nếu tệp còn). KHÔNG gọi /api/generate, không tiêu
+ * credit, không tạo job mới. Người dùng phải bấm render lại nếu muốn video mới.
+ */
+function restoreJob(detail, options = {}) {
+    if (!detail || !detail.jobId) {
+        return { ok: false, reason: 'Thiếu thông tin video.' };
+    }
+    if (pollInterval) {
+        return { ok: false, reason: 'Đang có video render. Đợi render xong hoặc huỷ job trước khi mở video khác.' };
+    }
+    if (!options.force && hasUnsavedWork()) {
+        return { ok: false, reason: 'unsaved' };
+    }
+
+    resetProject();
+
+    const prompt = detail.request?.prompt || detail.topic || '';
+    if (prompt) setPrompt(prompt);
+    hitl.prompt = prompt;
+    hitl.stage = 'prompt';
+    hitl.error = '';
+
+    const result = detail.result || {};
+    const scenes = Array.isArray(result.scenes) && result.scenes.length
+        ? result.scenes
+        : (Array.isArray(detail.script?.scenes) ? detail.script.scenes : []);
+    const durationSec = result.durationSec || detail.script?.totalDurationSec || project.durationSec;
+    applyProject({
+        ...detail,
+        result: { ...result, scenes, durationSec },
+    }, prompt);
+
+    const canPlay = result.videoAvailable === true
+        || (result.hasVideo === true && result.videoAvailable !== false);
+    if (canPlay) {
+        displayVideo(detail.jobId);
+    }
+
+    switchWorkspaceTab('script');
+    log(`Đã mở video ${detail.jobId} trong trình chỉnh sửa (không tạo job mới).`, 'info');
+    return { ok: true };
+}
+
+
 async function fetchJobDetail(jobId) {
     const res = await fetch(`${API_BASE}/api/jobs/${jobId}`);
     if (!res.ok) return null;
@@ -1898,13 +1989,20 @@ function trackJob(jobId) {
                 if (full) applyProject(full, project.topic);
                 displayVideo(jobId);
                 setBusy(false);
-            } else if (job.status === 'failed') {
+                window.dispatchEvent(new CustomEvent('lime:jobs-changed'));
+            } else if (['failed', 'qa_failed', 'cancelled'].includes(job.status)) {
                 clearInterval(pollInterval);
                 pollInterval = null;
                 setProgress(0);
                 setStatus('Sẵn sàng', false);
-                log(`Thất bại: ${job.error || 'Lỗi không xác định'}`, 'error');
+                const label = job.status === 'cancelled'
+                    ? 'Đã hủy'
+                    : job.status === 'qa_failed'
+                        ? `Chưa đạt kiểm định: ${job.error || 'QA không đạt'}`
+                        : `Thất bại: ${job.error || 'Lỗi không xác định'}`;
+                log(label, 'error');
                 setBusy(false);
+                window.dispatchEvent(new CustomEvent('lime:jobs-changed'));
             }
         } catch (pollErr) { console.error(pollErr); }
     }, 1000);
@@ -2074,13 +2172,20 @@ if (projName) projName.addEventListener('click', resetProject);
     const jobs = await fetchJobs();
     // Server có thể trả theo thứ tự chèn (memory queue) — luôn lấy video mới nhất.
     const completedJob = (jobs || [])
-        .filter(j => j && j.status === 'completed')
+        .filter(j => j && j.status === 'completed' && j.videoAvailable !== false)
         .sort((a, b) => jobTime(b) - jobTime(a))[0];
-    if (completedJob) {
+    // Chỉ tự khôi phục khi người dùng KHÔNG có bản nháp đang làm. Có prompt/HITL
+    // thì giữ nguyên phiên chỉnh sửa; thư viện vẫn mở được bằng tab.
+    const hasDraft = currentPrompt().length > 0
+        || hitl.stage !== 'prompt'
+        || (hitl.questions || []).length > 0
+        || (hitl.drafts || []).length > 0
+        || Object.keys(hitl.answers || {}).length > 0;
+    if (completedJob && !hasDraft) {
         log(`Đã tìm thấy video trước đó: ${completedJob.topic || completedJob.jobId}`, 'info');
         const full = await fetchJobDetail(completedJob.jobId);
         if (full) applyProject(full, completedJob.topic);
-        displayVideo(completedJob.jobId);
+        if (full?.result?.videoAvailable !== false) displayVideo(completedJob.jobId);
     }
 })();
 
@@ -2172,3 +2277,18 @@ if (previewModalClose && previewModal) {
         }
     });
 }
+
+/* ================= BRIDGE CHO VIDEO LIBRARY ================= */
+// Thư viện là file JS riêng (js/video-library.js) nhưng phải dùng chung state với
+// trình chỉnh sửa. Chỉ expose đúng các thao tác cần thiết — không mở toàn bộ
+// biến nội bộ ra global.
+window.LimeWorkspace = {
+    switchTab: switchWorkspaceTab,
+    currentTab: () => activeWorkspaceTab,
+    hasUnsavedWork,
+    restoreJob,
+    resetProject,
+    fetchJobDetail,
+    getCurrentPrompt: currentPrompt,
+    isRendering: () => Boolean(pollInterval),
+};
