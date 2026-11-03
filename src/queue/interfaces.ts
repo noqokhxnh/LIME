@@ -57,6 +57,8 @@ export interface JobData {
      * lần đọc trạng thái sau trả về `cancelled`.
      */
     cancelled?: boolean;
+    /** Tín hiệu hủy cho phép dừng ngay các subprocess (FFmpeg, Chromium) (#131) */
+    signal?: AbortSignal;
 }
 
 /** Dữ liệu quản trị viên có thể sửa trước khi cho job chạy lại. */

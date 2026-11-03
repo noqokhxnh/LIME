@@ -166,6 +166,9 @@ async function renderSingleChunk(
     });
     await installNetworkGuard(context, { fileRoots: [dirname(resolve(htmlPath))] });
 
+    let activeFf: ChildProcess | null = null;
+    let onAbort: (() => void) | null = null;
+
     try {
         const page = await context.newPage();
         setupBrowserDiagnostics(page, `Renderer-Chunk-${chunk.index}`);
@@ -217,10 +220,18 @@ async function renderSingleChunk(
         ];
 
         const ff = spawn("ffmpeg", ffmpegArgs);
+        activeFf = ff;
         let errorOutput = "";
         ff.stderr.on("data", (data) => {
             errorOutput += data.toString();
         });
+
+        onAbort = () => {
+            if (activeFf && !activeFf.killed && activeFf.exitCode === null) {
+                try { activeFf.kill("SIGKILL"); } catch { }
+            }
+        };
+        signal?.addEventListener("abort", onAbort, { once: true });
 
         let stdinError: any = null;
         ff.stdin.on("error", (err: any) => {
@@ -340,6 +351,10 @@ async function renderSingleChunk(
 
         onProgress?.(`Chunk ${chunk.index + 1} done`, undefined);
     } finally {
+        if (onAbort) signal?.removeEventListener("abort", onAbort);
+        if (activeFf && !activeFf.killed && activeFf.exitCode === null) {
+            try { activeFf.kill("SIGKILL"); } catch { }
+        }
         await context.close().catch(() => { });
     }
 }
@@ -401,8 +416,20 @@ async function renderChunksParallel(
         const proc = spawn("ffmpeg", concatArgs);
         let err = "";
         proc.stderr.on("data", (d) => { err += d.toString(); });
-        proc.on("close", (code) => code === 0 ? res() : rej(new Error(`concat failed: ${err.slice(-300)}`)));
-        proc.on("error", rej);
+        const onAbort = () => {
+            if (!proc.killed && proc.exitCode === null) {
+                try { proc.kill("SIGKILL"); } catch { }
+            }
+        };
+        signal?.addEventListener("abort", onAbort, { once: true });
+        proc.on("close", (code) => {
+            signal?.removeEventListener("abort", onAbort);
+            code === 0 ? res() : rej(new Error(`concat failed: ${err.slice(-300)}`));
+        });
+        proc.on("error", (e) => {
+            signal?.removeEventListener("abort", onAbort);
+            rej(e);
+        });
     });
 
     // Mux audio + watermark vào video đã concat
@@ -444,8 +471,20 @@ async function renderChunksParallel(
         const proc = spawn("ffmpeg", finalArgs);
         let err = "";
         proc.stderr.on("data", (d) => { err += d.toString(); });
-        proc.on("close", (code) => code === 0 ? res() : rej(new Error(`mux failed: ${err.slice(-300)}`)));
-        proc.on("error", rej);
+        const onAbort = () => {
+            if (!proc.killed && proc.exitCode === null) {
+                try { proc.kill("SIGKILL"); } catch { }
+            }
+        };
+        signal?.addEventListener("abort", onAbort, { once: true });
+        proc.on("close", (code) => {
+            signal?.removeEventListener("abort", onAbort);
+            code === 0 ? res() : rej(new Error(`mux failed: ${err.slice(-300)}`));
+        });
+        proc.on("error", (e) => {
+            signal?.removeEventListener("abort", onAbort);
+            rej(e);
+        });
     });
 
     // Dọn file tạm
@@ -475,6 +514,7 @@ export async function renderVideo(options: RenderVideoOptions): Promise<string> 
         skipShutterBlur = false,
         seed = 0,
         useCdpDedup = true,
+        signal,
     } = options;
 
     const shutterSamples = Math.max(1, Math.floor(rawShutterSamples ?? 8));
@@ -489,6 +529,8 @@ export async function renderVideo(options: RenderVideoOptions): Promise<string> 
             }
 
             const browser = await launchPreviewBrowser();
+            let activeFf: ChildProcess | null = null;
+            let onAbort: (() => void) | null = null;
             try {
                 const context = await browser.newContext({
                     viewport: { width, height },
@@ -648,10 +690,18 @@ export async function renderVideo(options: RenderVideoOptions): Promise<string> 
                 );
 
                 const ff = spawn("ffmpeg", ffmpegArgs);
+                activeFf = ff;
                 let errorOutput = "";
                 ff.stderr.on("data", (data) => {
                     errorOutput += data.toString();
                 });
+
+                onAbort = () => {
+                    if (activeFf && !activeFf.killed && activeFf.exitCode === null) {
+                        try { activeFf.kill("SIGKILL"); } catch { }
+                    }
+                };
+                signal?.addEventListener("abort", onAbort, { once: true });
 
                 // Xử lý lỗi EPIPE trên stdin khi FFmpeg thoát sớm để chống crash tiến trình Node
                 let stdinError: any = null;
@@ -675,6 +725,9 @@ export async function renderVideo(options: RenderVideoOptions): Promise<string> 
                 let cachedBoxes0: Record<string, DOMBox | null> | undefined = undefined;
 
                 for (let i = 0; i < totalFrames; i++) {
+                    if (signal?.aborted) {
+                        throw new DOMException("Operation aborted", "AbortError");
+                    }
                     const t0 = i / fps;
                     const t1 = (i + 1) / fps;
 
@@ -840,6 +893,10 @@ export async function renderVideo(options: RenderVideoOptions): Promise<string> 
                 }
                 return outputPath;
             } finally {
+                if (onAbort) signal?.removeEventListener("abort", onAbort);
+                if (activeFf && !activeFf.killed && activeFf.exitCode === null) {
+                    try { activeFf.kill("SIGKILL"); } catch { }
+                }
                 await browser.close().catch(() => { });
             }
         },

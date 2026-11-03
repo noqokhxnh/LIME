@@ -69,6 +69,10 @@ export interface orchestratorOptions {
      * Giữ lại thư mục tạm khi thất bại để chẩn đoán/debug. Mặc định false (tự động dọn dẹp).
      */
     keepWorkDirOnFailure?: boolean;
+    /**
+     * Tín hiệu huỷ tác vụ (AbortSignal) từ người dùng hoặc timeout hệ thống (#131).
+     */
+    signal?: AbortSignal;
 }
 
 export interface fullPipelineResult extends pipelineResult {
@@ -84,7 +88,7 @@ export interface fullPipelineResult extends pipelineResult {
 }
 
 export async function runFullPipeline(option: orchestratorOptions): Promise<fullPipelineResult> {
-    const { request, script: inputScript, bgmPath, skipPreview, onProgress, outputDir } = option;
+    const { request, script: inputScript, bgmPath, skipPreview, onProgress, outputDir, signal } = option;
     const assets = option.assets ?? [];
 
     const jobId = option.jobId ?? v4();
@@ -304,6 +308,7 @@ export async function runFullPipeline(option: orchestratorOptions): Promise<full
                 skipSfx: option.skipSfx,
                 sfxVolume: option.sfxVolume,
                 seed: currentSeed,
+                signal,
                 onProgress: (msg) => {
                     logProgress("audio_synthesis", 76, msg);
                 },
@@ -441,6 +446,7 @@ export async function runFullPipeline(option: orchestratorOptions): Promise<full
                 skipShutterBlur: option.skipShutterBlur,
                 shutterSamples: option.shutterSamples,
                 seed: currentSeed,
+                signal,
             });
             timing["render"] = Date.now() - phaseStart;
         }
