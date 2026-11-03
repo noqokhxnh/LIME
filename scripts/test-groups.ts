@@ -119,6 +119,7 @@ export const HEAVY_SHARDS: string[][] = [
 /** Test tích hợp rẻ, chạy được in-memory nên dùng được ở job PR. */
 export const INTEGRATION: string[] = [
     'tests/integration/billing_vietqr.test.ts',
+    'tests/integration/database_audit_132.test.ts',
     'tests/integration/watermark.test.ts',
 ];
 

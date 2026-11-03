@@ -355,25 +355,25 @@ export class PostgresBillingStorage implements IBillingStorage {
 
     async recordUnmatchedPayment(item: Omit<UnmatchedPayment, 'id' | 'created_at'>): Promise<UnmatchedPayment> {
         const id = randomUUID();
+        // Webhook SePay có thể được gửi lại/đồng thời với cùng sepay_ref: không
+        // để lỗi 23505 làm hỏng cả webhook. Đã có bản ghi cùng khoá thì trả về
+        // bản ghi hiện hữu (không ghi đè dữ liệu hợp lệ đã lưu).
         const res = await db.query(
             `INSERT INTO unmatched_payments (id, sepay_ref, amount_vnd, content, raw, status, admin_note)
              VALUES ($1, $2, $3, $4, $5, $6, $7)
+             ON CONFLICT (sepay_ref) DO NOTHING
              RETURNING *`,
             [id, item.sepay_ref, item.amount_vnd, item.content, JSON.stringify(item.raw), item.status, item.admin_note || null]
         );
-        const r = res.rows[0];
-        return {
-            id: r.id,
-            sepay_ref: r.sepay_ref,
-            amount_vnd: r.amount_vnd,
-            content: r.content,
-            raw: r.raw,
-            status: r.status,
-            admin_note: r.admin_note,
-            resolved_by: r.resolved_by,
-            resolved_at: r.resolved_at ? new Date(r.resolved_at).toISOString() : null,
-            created_at: new Date(r.created_at).toISOString(),
-        };
+        if (res.rows.length > 0) return this.mapUnmatched(res.rows[0]);
+        const existing = await db.query(
+            `SELECT * FROM unmatched_payments WHERE sepay_ref = $1 LIMIT 1`,
+            [item.sepay_ref]
+        );
+        if (existing.rows.length > 0) return this.mapUnmatched(existing.rows[0]);
+        // Không thể xảy ra với ON CONFLICT DO NOTHING trong READ COMMITTED, nhưng
+        // ném lỗi rõ ràng thay vì trả về undefined.
+        throw new Error(`UNMATCHED_PAYMENT_NOT_INSERTED: ${item.sepay_ref}`);
     }
 
     async lockAndFulfillOrder(params: {
@@ -390,7 +390,35 @@ export class PostgresBillingStorage implements IBillingStorage {
         try {
             await client.query('BEGIN');
 
-            // Lock order row
+            // Thứ tự khoá CỐ ĐỊNH: users → orders → các order khác của user.
+            //
+            // Trước đây hàm khoá order trước rồi mới UPDATE users (khoá user) và
+            // cuối cùng UPDATE các order còn lại. Hai webhook cho hai đơn A/B của
+            // cùng một user chạy đồng thời sẽ tạo vòng chờ:
+            //   T1 giữ A, chờ user; T2 giữ B, chờ user; T1 chờ B ⇒ deadlock 40P01.
+            // Khoá user trước biến mọi giao dịch cùng user thành tuần tự, sau đó
+            // mới chạm order — không còn chu trình.
+            const ownerRes = await client.query(
+                'SELECT user_id FROM orders WHERE id = $1',
+                [params.orderId]
+            );
+            if (ownerRes.rows.length === 0) {
+                await client.query('ROLLBACK');
+                return { success: false, reason: 'ORDER_NOT_FOUND' };
+            }
+            const userId = ownerRes.rows[0].user_id;
+
+            // 1) Khoá dòng user trước (điểm tuần tự hoá cho mọi đơn của user).
+            const userRes = await client.query(
+                'SELECT id FROM users WHERE id = $1 FOR UPDATE',
+                [userId]
+            );
+            if (userRes.rows.length === 0) {
+                await client.query('ROLLBACK');
+                return { success: false, reason: 'ORDER_NOT_FOUND' };
+            }
+
+            // 2) Khoá dòng order đang thanh toán.
             const orderRes = await client.query('SELECT * FROM orders WHERE id = $1 FOR UPDATE', [params.orderId]);
             if (orderRes.rows.length === 0) {
                 await client.query('ROLLBACK');
@@ -453,18 +481,11 @@ export class PostgresBillingStorage implements IBillingStorage {
             return {
                 success: true,
                 order: this.mapOrder(updatedOrderRes.rows[0]),
-                payment: {
-                    id: paymentRes.rows[0].id,
-                    order_id: paymentRes.rows[0].order_id,
-                    sepay_ref: paymentRes.rows[0].sepay_ref,
-                    amount_vnd: paymentRes.rows[0].amount_vnd,
-                    raw: paymentRes.rows[0].raw,
-                    received_at: new Date(paymentRes.rows[0].received_at).toISOString(),
-                    result: paymentRes.rows[0].result,
-                },
+                payment: this.mapPayment(paymentRes.rows[0]),
             };
         } catch (err) {
-            await client.query('ROLLBACK');
+            // ROLLBACK có thể lỗi nếu kết nối đã đứt; không che lỗi gốc.
+            await client.query('ROLLBACK').catch(() => undefined);
             throw err;
         } finally {
             client.release();
@@ -477,23 +498,7 @@ export class PostgresBillingStorage implements IBillingStorage {
         amount: number;
         raw: any;
     }): Promise<Payment> {
-        const id = randomUUID();
-        const res = await db.query(
-            `INSERT INTO payments (id, order_id, sepay_ref, amount_vnd, raw, result)
-             VALUES ($1, $2, $3, $4, $5, 'duplicate')
-             RETURNING *`,
-            [id, params.orderId, params.sepayRef, params.amount, JSON.stringify(params.raw)]
-        );
-        const r = res.rows[0];
-        return {
-            id: r.id,
-            order_id: r.order_id,
-            sepay_ref: r.sepay_ref,
-            amount_vnd: r.amount_vnd,
-            raw: r.raw,
-            received_at: new Date(r.received_at).toISOString(),
-            result: 'duplicate',
-        };
+        return this.recordPaymentIdempotent(params, 'duplicate');
     }
 
     async recordUnderpaidPayment(params: {
@@ -502,23 +507,36 @@ export class PostgresBillingStorage implements IBillingStorage {
         amount: number;
         raw: any;
     }): Promise<Payment> {
+        return this.recordPaymentIdempotent(params, 'underpaid');
+    }
+
+    /**
+     * Ghi bút toán trùng/thiếu tiền theo khoá `sepay_ref`.
+     *
+     * Webhook SePay retry (hoặc hai webhook giống nhau chạy song song) có thể
+     * cùng chạm nhánh này. `ON CONFLICT (sepay_ref) DO NOTHING` biến lần ghi thứ
+     * hai thành no-op thay vì lỗi 23505; bản ghi hợp lệ đầu tiên được giữ nguyên.
+     */
+    private async recordPaymentIdempotent(
+        params: { orderId: string; sepayRef: string; amount: number; raw: any },
+        result: 'duplicate' | 'underpaid'
+    ): Promise<Payment> {
         const id = randomUUID();
         const res = await db.query(
             `INSERT INTO payments (id, order_id, sepay_ref, amount_vnd, raw, result)
-             VALUES ($1, $2, $3, $4, $5, 'underpaid')
+             VALUES ($1, $2, $3, $4, $5, $6)
+             ON CONFLICT (sepay_ref) DO NOTHING
              RETURNING *`,
-            [id, params.orderId, params.sepayRef, params.amount, JSON.stringify(params.raw)]
+            [id, params.orderId, params.sepayRef, params.amount, JSON.stringify(params.raw), result]
         );
-        const r = res.rows[0];
-        return {
-            id: r.id,
-            order_id: r.order_id,
-            sepay_ref: r.sepay_ref,
-            amount_vnd: r.amount_vnd,
-            raw: r.raw,
-            received_at: new Date(r.received_at).toISOString(),
-            result: 'underpaid',
-        };
+        if (res.rows.length > 0) return this.mapPayment(res.rows[0]);
+
+        const existing = await db.query(
+            `SELECT * FROM payments WHERE sepay_ref = $1 LIMIT 1`,
+            [params.sepayRef]
+        );
+        if (existing.rows.length > 0) return this.mapPayment(existing.rows[0]);
+        throw new Error(`PAYMENT_NOT_INSERTED: ${params.sepayRef}`);
     }
 
     async getUserPlanExpiry(userId: string): Promise<string | null> {
