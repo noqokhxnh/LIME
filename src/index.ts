@@ -5,7 +5,7 @@ import fastifyMultipart from "@fastify/multipart";
 import { existsSync, createReadStream, statSync, writeFileSync, mkdirSync, unlinkSync } from "node:fs";
 import { join } from "node:path";
 import { v4 } from "uuid";
-import { getConfig } from "./config.js";
+import { getConfig, parseCorsOrigins, isCorsOriginAllowed } from "./config.js";
 import { getCurrentUser, cleanupExpiredSessions } from "./auth/session.js";
 import { videoRequestSchema, videoScriptSchema, watermarkConfigSchema, type videoRequest, type videoScript } from "./llm/schema.js";
 import { generateScript } from "./pipeline/scriptGenerator.js";
@@ -53,9 +53,33 @@ export async function buildApp(options: { logger?: boolean, queue?: IVideoQueue 
     const app = fastify({
         logger: options.logger ?? false,
         bodyLimit: 10 * 1024 * 1024,
+        // trustProxy (vá theo issue #133): chỉ tin X-Forwarded-For khi
+        // TRUST_PROXY=1 (app thật sự chạy sau reverse proxy) — khi đó
+        // request.ip mới là IP thật của client, để rate limit theo IP và
+        // kiểm tra IP webhook SePay hoạt động đúng. Mặc định tắt: bật bừa
+        // khi không có proxy sẽ cho phép client giả mạo IP qua header.
+        trustProxy: getConfig().TRUST_PROXY,
     });
 
-    await app.register(fastifyCors, { origin: true , credentials: true });
+    // CORS (đã vá theo issue #133): chỉ phản chiếu những origin nằm trong
+    // danh sách CORS_ORIGIN ở .env. TUYỆT ĐỐI không quay lại origin: true
+    // cùng credentials: true — cấu hình đó phản chiếu mọi origin, cho phép
+    // bất kỳ website nào gắn cookie phiên của người dùng vào request và
+    // đọc trộm dữ liệu API trả về.
+    const corsOrigins = parseCorsOrigins(getConfig().CORS_ORIGIN);
+    await app.register(fastifyCors, {
+        origin: (origin, cb) => {
+            // Request không kèm header Origin (cùng origin, curl, hoặc
+            // server-to-server như webhook) không thuộc diện CORS — cho qua.
+            // Có Origin thì phải nằm trong danh sách cho phép.
+            if (!origin || isCorsOriginAllowed(origin, corsOrigins)) {
+                cb(null, true);
+                return;
+            }
+            cb(null, false);
+        },
+        credentials: true,
+    });
     await app.register(fastifyCookie);
 
     // Đăng ký plugin xử lý upload file (multipart/form-data).

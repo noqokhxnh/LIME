@@ -135,22 +135,38 @@ export function calculateSceneTimestamps(
 /**
  * Khởi tạo trình duyệt Playwright Chromium tối ưu cho chụp ảnh preview
  */
+/**
+ * Dựng danh sách cờ khởi động Chromium cho bản xem trước.
+ *
+ * Mặc định GIỮ sandbox của Chromium: trang render chứa mã scene do LLM
+ * sinh ra (không đáng tin cậy), sandbox là lớp bảo vệ phía hệ điều hành.
+ * Chỉ khi biến môi trường RENDER_ALLOW_NO_SANDBOX = '1' mới thêm 2 cờ
+ * tắt sandbox — dành cho môi trường Docker chạy bằng root, nơi Chromium
+ * không khởi động được nếu còn sandbox. Vá theo issue #133: trước đây
+ * 2 cờ này bị gán cứng vô điều kiện.
+ */
+export function buildPreviewLaunchArgs(env: NodeJS.ProcessEnv = process.env): string[] {
+    const args = [
+        "--disable-dev-shm-usage",
+        "--disable-gpu",
+        "--no-zygote",
+        "--hide-scrollbars",
+    ];
+    if (env.RENDER_ALLOW_NO_SANDBOX === "1") {
+        args.unshift("--no-sandbox", "--disable-setuid-sandbox");
+    }
+    return args;
+}
+
 export async function launchPreviewBrowser(): Promise<Browser> {
     return await chromium.launch({
         headless: true,
         executablePath: process.env.PLAYWRIGHT_CHROMIUM_EXECUTABLE_PATH || undefined,
-        args: [
-            "--no-sandbox",
-            "--disable-setuid-sandbox",
-            "--disable-dev-shm-usage",
-            "--disable-gpu",
-            "--no-zygote",
-            "--hide-scrollbars",
-            // KHÔNG tắt web security và KHÔNG cho file:// đọc tràn lan nữa:
-            // trang chứa mã scene không đáng tin; việc đọc file/mạng của
-            // trang do networkGuard ở tầng Playwright kiểm soát theo thư
-            // mục job, và fetch file:// vốn bị Chromium hiện đại chặn.
-        ],
+        // KHÔNG tắt web security và KHÔNG cho file:// đọc tràn lan:
+        // trang chứa mã scene không đáng tin; việc đọc file/mạng của
+        // trang do networkGuard ở tầng Playwright kiểm soát theo thư
+        // mục job, và fetch file:// vốn bị Chromium hiện đại chặn.
+        args: buildPreviewLaunchArgs(),
     });
 }
 

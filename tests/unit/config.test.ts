@@ -1,12 +1,14 @@
 import { describe, it, beforeEach, afterEach } from 'node:test';
 import assert from 'node:assert/strict';
-import { getConfig, resetConfig, videoPreset, envSchema } from '../../src/config.js';
+import { getConfig, resetConfig, videoPreset, envSchema, parseCorsOrigins, isCorsOriginAllowed } from '../../src/config.js';
 
 describe('Module 1: Config & Environment (src/config.ts)', () => {
     const originalEnv = { ...process.env };
     const CONFIG_ENV_KEYS = [
         'PORT',
         'NODE_ENV',
+        'CORS_ORIGIN',
+        'TRUST_PROXY',
         'LLM_Provider',
         'LLM_PROVIDER',
         'NINEROUTER_BASE_URL',
@@ -257,6 +259,57 @@ describe('Module 1: Config & Environment (src/config.ts)', () => {
             const c2 = getConfig();
             assert.notStrictEqual(c1, c2, 'Sau khi resetConfig, phải tạo instance mới');
             assert.strictEqual(c2.PORT, 6000, 'Cấu hình mới phải phản ánh giá trị env mới');
+        });
+    });
+
+    describe('TC-CORS-001: Danh sách origin CORS (issue #133)', () => {
+        it('mặc định CORS_ORIGIN rỗng và không origin nào được phép', () => {
+            cleanConfigEnv();
+            resetConfig();
+
+            const config = getConfig();
+            assert.strictEqual(config.CORS_ORIGIN, '');
+            const allowed = parseCorsOrigins(config.CORS_ORIGIN);
+            assert.deepStrictEqual(allowed, []);
+            assert.strictEqual(isCorsOriginAllowed('https://evil.com', allowed), false);
+        });
+
+        it('phải đọc CORS_ORIGIN từ process.env và tách đúng danh sách', () => {
+            cleanConfigEnv();
+            resetConfig();
+            process.env.CORS_ORIGIN = 'https://lime.app, https://admin.lime.app';
+
+            const config = getConfig();
+            const allowed = parseCorsOrigins(config.CORS_ORIGIN);
+            assert.deepStrictEqual(allowed, ['https://lime.app', 'https://admin.lime.app']);
+            assert.strictEqual(isCorsOriginAllowed('https://lime.app', allowed), true);
+            assert.strictEqual(isCorsOriginAllowed('https://evil.com', allowed), false);
+        });
+
+        it('parseCorsOrigins phải cắt khoảng trắng và bỏ phần tử rỗng', () => {
+            assert.deepStrictEqual(parseCorsOrigins(' https://a.com ,, https://b.com , '), ['https://a.com', 'https://b.com']);
+            assert.deepStrictEqual(parseCorsOrigins(''), []);
+            assert.deepStrictEqual(parseCorsOrigins(undefined), []);
+        });
+    });
+
+    describe('TC-TRUST-001: Cờ TRUST_PROXY (issue #133)', () => {
+        it('mặc định tắt khi không đặt biến môi trường', () => {
+            cleanConfigEnv();
+            resetConfig();
+
+            assert.strictEqual(getConfig().TRUST_PROXY, false);
+        });
+
+        it("phải bật khi TRUST_PROXY='1' và tắt khi '0'", () => {
+            cleanConfigEnv();
+            resetConfig();
+            process.env.TRUST_PROXY = '1';
+            assert.strictEqual(getConfig().TRUST_PROXY, true);
+
+            resetConfig();
+            process.env.TRUST_PROXY = '0';
+            assert.strictEqual(getConfig().TRUST_PROXY, false);
         });
     });
 });

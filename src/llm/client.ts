@@ -1,6 +1,6 @@
 import { existsSync, readFileSync } from "node:fs";
 import { join } from "node:path";
-import { execSync } from "node:child_process";
+import { execFileSync } from "node:child_process";
 import { Config, getConfig } from "../config.js";
 
 export interface LLMClient {
@@ -191,7 +191,11 @@ export function getAuto9RouterKey(): string | undefined {
         const home = process.env.HOME || process.env.USERPROFILE || "";
         const dbPath = join(home, ".9router", "db", "data.sqlite");
         if (existsSync(dbPath)) {
-            const out = execSync(`sqlite3 "${dbPath}" "SELECT key FROM apiKeys WHERE isActive = 1 ORDER BY createdAt DESC LIMIT 1;"`, {
+            // Vá command injection (issue #133): dùng execFileSync với mảng
+            // đối số — đường dẫn file được truyền thẳng cho tiến trình
+            // sqlite3, KHÔNG qua shell, nên ký tự đặc biệt trong đường dẫn
+            // (dấu ngoặc kép, ";", "#") không thể biến thành lệnh hệ thống.
+            const out = execFileSync("sqlite3", [dbPath, "SELECT key FROM apiKeys WHERE isActive = 1 ORDER BY createdAt DESC LIMIT 1;"], {
                 encoding: "utf-8",
                 timeout: 1000,
                 stdio: ["ignore", "pipe", "ignore"]

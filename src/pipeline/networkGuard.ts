@@ -54,9 +54,20 @@ export interface RequestDecision {
     reason?: string;
 }
 
+/**
+ * Các thư mục gốc file:// mặc định của app.
+ *
+ * Vá bảo mật theo issue #133: trước đây danh sách này gồm cả cây thư mục
+ * `tmp` — nơi chứa thư mục làm việc của MỌI job (tmp/<job-id>), file log
+ * dùng token tmp/usage.jsonl và các file người dùng tải lên — khiến mã
+ * scene của một người dùng có thể đọc trộm dữ liệu của người dùng khác
+ * (rò rỉ chéo tenant). Nay chỉ giữ `assets` (thư viện tư liệu dùng chung
+ * của app, không chứa dữ liệu riêng của tenant); thư mục của từng job do
+ * nơi gọi guard truyền riêng qua options.fileRoots.
+ */
 function defaultFileRoots(): string[] {
     const cwd = process.cwd();
-    return [join(cwd, "tmp"), join(cwd, "assets"), join(cwd, "uploads")];
+    return [join(cwd, "assets")];
 }
 
 function isPathInside(filePath: string, root: string): boolean {

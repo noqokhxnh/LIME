@@ -52,6 +52,7 @@ export const FAST: string[] = [
     'tests/unit/gsap_linter.test.ts',
     'tests/unit/gsap_motion_grammar.test.ts',
     'tests/unit/motionCoverage.test.ts',
+    'tests/unit/network_guard.test.ts',
     'tests/unit/beat_detector.test.ts',
     'tests/unit/cdp_capture.test.ts',
     'tests/unit/config.test.ts',
