@@ -12,6 +12,12 @@ const envSchema = z.object({
     DATABASE_POOL_MAX: z.coerce.number().int().min(1).max(1000).default(10),
     // Chặn truy vấn treo giữ lock vô hạn và chiếm hết pool. 0 = tắt giới hạn.
     DATABASE_STATEMENT_TIMEOUT_MS: z.coerce.number().int().min(0).default(10000),
+    /**
+     * Số ngày giữ lịch sử video trước khi worker dọn metadata + thư mục job.
+     * 0 = giữ vô thời hạn (mặc định an toàn: không tự xoá video của người dùng).
+     * Chỉ áp dụng cho job đã kết thúc; job đang chờ/đang chạy không bao giờ bị dọn.
+     */
+    VIDEO_RETENTION_DAYS: z.coerce.number().int().min(0).default(0),
     SESSION_TTL_DAYS: z.coerce.number().int().positive().default(7),
     QUEUE_TYPE: z.enum(['redis', 'memory']).default('memory'),
     REDIS_URL: z.string().optional(),

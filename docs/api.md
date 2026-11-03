@@ -44,13 +44,13 @@ The API server is a Fastify app in `src/index.ts`. All endpoints are JSON unless
 | POST | `/api/billing/vietqr/order/:id/claimed` | 🔒 | Confirm payment transfer ("Tôi đã chuyển khoản") |
 | POST | `/api/billing/vietqr/webhook` | — | SePay payment webhook receiver (and `/api/billing/webhook`) |
 | POST | `/api/billing/admin/simulate-test-webhook` | 🔒 | Simulate SePay webhook for sandbox testing |
-| GET | `/api/jobs` | 🔒 | List recent jobs (scoped to current user) |
-| GET | `/api/jobs/:jobId` | 🔒 | Job status + progress logs + result + script |
+| GET | `/api/jobs` | 🔒 | List own video history (filter/sort/pagination; array by default) |
+| GET | `/api/jobs/:jobId` | 🔒 | Job status + progress + request/script + artifact URLs |
 | GET | `/api/jobs/:jobId/events` | 🔒 | Realtime SSE progress stream |
 | GET | `/api/jobs/:jobId/video` | 🔒 | Stream the MP4 (HTTP range supported) |
 | GET | `/api/jobs/:jobId/download` | 🔒 | Download the MP4 as attachment |
 | GET | `/api/jobs/:jobId/preview/:sceneId` | 🔒 | Scene preview thumbnail (WebP) |
-| DELETE | `/api/jobs/:jobId` | 🔒 | Cancel and delete a job + remove its files |
+| DELETE | `/api/jobs/:jobId` | 🔒 | Delete a finished video + its files (409 while active) |
 | GET | `/api/usage` | 🔒 | LLM token usage & cost report |
 
 ## Authentication
@@ -683,89 +683,110 @@ Response `200 OK`:
 
 ### `GET /api/jobs` 🔒
 
-Last 50 jobs **owned by the authenticated user**, newest first. Lightweight summaries for list views:
+Danh sách video thuộc **chính tài khoản đang đăng nhập** (admin thấy toàn bộ qua RBAC), mới nhất trước. Dữ liệu lấy từ `video_history` (PostgreSQL) và được phủ trạng thái live từ queue; job đã bị queue prune vẫn còn trong lịch sử.
+
+Không truyền tham số phân trang → trả **mảng** `JobSummary[]` (tương thích `profile.html` và Workspace cũ). Truyền `page`, `pageSize`/`limit` hoặc `format=page` → trả phong bì phân trang:
 
 ```json
 {
-  "jobs": [
+  "items": [
     {
-      "id": "a1b2c3d4-...",
+      "jobId": "a1b2c3d4-...",
       "status": "completed",
-      "prompt": "Giới thiệu về Hà Nội...",
-      "aspectRatio": "9:16",
-      "style": "cinematic",
-      "durationSec": 44.8,
-      "scenes": 3,
+      "topic": "Giới thiệu về Hà Nội...",
       "createdAt": "2026-08-21T09:00:00.000Z",
       "updatedAt": "2026-08-21T09:03:00.000Z",
-      "lastMessage": "[Pipeline] ✅ Pipeline complete in 182.4s"
+      "completedAt": "2026-08-21T09:03:00.000Z",
+      "durationSec": 44.8,
+      "resolution": "1080x1920",
+      "qaStatus": "pass",
+      "error": null,
+      "progress": null,
+      "hasVideo": true,
+      "videoAvailable": true,
+      "canRestore": true,
+      "thumbnailUrl": "/api/jobs/a1b2c3d4-.../preview/scene_1"
     }
-  ]
+  ],
+  "total": 37,
+  "page": 1,
+  "pageSize": 12,
+  "totalPages": 4,
+  "paginated": true
 }
 ```
+
+Query params:
+
+| Param | Mô tả |
+|---|---|
+| `page` | Trang, mặc định `1` |
+| `pageSize` / `limit` | Số dòng mỗi trang, mặc định `12`, tối đa `50` |
+| `format=page` | Buộc trả phong bì phân trang dù không có `page` |
+| `status` | `all`, `queued`, `running`, `processing` (= queued+running), `completed`, `failed` (= failed+qa_failed), `qa_failed`, `cancelled`; hỗ trợ danh sách phân cách dấu phẩy |
+| `q` | Tìm không phân biệt hoa/thường trong prompt/topic hoặc `jobId` (tối đa 200 ký tự) |
+| `sort` | `newest` (mặc định), `oldest`, `name-asc`, `name-desc` |
+
+- `videoAvailable` — kiểm tra **tệp MP4 thật** trên đĩa, không chỉ `status === "completed"`. `false` nghĩa là metadata còn nhưng tệp đã bị dọn/không tồn tại.
+- `hasVideo` — job từng có đường dẫn video; `canRestore` — còn prompt/script để mở lại trong editor.
+- `thumbnailUrl` — `null` khi chưa có preview WebP; client tự hiển thị fallback.
+- Không trả đường dẫn filesystem. Job không có chủ sở hữu (legacy) chỉ admin đọc được.
+- `400` với `{ "error": "Trạng thái không hợp lệ: ..." }` khi filter status sai.
 
 ---
 
 ### `GET /api/jobs/:jobId` 🔒
 
-Full job state: status, up to the last 15 progress logs, script (when present), draftJobId (when created from a draft), and the result when completed. Returns `404` for jobs owned by other users (no existence leak).
+Chi tiết job cho chủ sở hữu (hoặc admin): trạng thái, progress, request/script đã lưu, kết quả và URL artifact. Job của người khác hoặc job legacy không có `userId` trả `404` — không lộ sự tồn tại.
 
 ```json
 {
-  "id": "a1b2c3d4-...",
+  "jobId": "a1b2c3d4-...",
   "status": "completed",
-  "progress": [
-    { "phase": "script_generation", "progress": 0, "message": "[Pipeline] Phase 1: Generating script..." },
-    { "phase": "render", "progress": 47, "message": "[Render] chunk scene_2: 1410/3000 frames" }
-  ],
-  "result": {
-    "videoPath": "tmp/a1b2c3d4-.../Gioi_thieu_Ha_Noi.mp4",
-    "durationSec": 44.8,
-    "scenes": 3,
-    "resolution": "1080x1920",
-    "timing": { "scriptGeneration": 41.2, "audioSynthesis": 18.3, "imageGeneration": 12.1,
-                "codeAssembly": 0.4, "preview": 3.1, "render": 96.5, "mux": 1.2 },
-    "usage": { "requests": 1, "promptTokens": 2341, "completionTokens": 5120,
-               "totalTokens": 7461, "estCostUsd": 0.012 },
-    "videoUrl": "/api/jobs/a1b2c3d4-.../video",
-    "downloadUrl": "/api/jobs/a1b2c3d4-.../download"
-  },
-  "error": null,
+  "topic": "Giới thiệu về Hà Nội...",
   "createdAt": "2026-08-21T09:00:00.000Z",
   "updatedAt": "2026-08-21T09:03:00.000Z",
-  "script": {
-    "title": "Hà Nội Ngàn Năm",
-    "scenes": [
-      {
-        "id": "scene_1",
-        "title": "Hồ Gươm",
-        "voiceoverText": "Thủ đô Hà Nội...",
-        "imagePrompt": "Hoan Kiem Lake Hanoi",
-        "htmlCode": "...",
-        "cssCode": "...",
-        "jsCode": "..."
-      }
-    ],
-    "colorPalette": { "primary": "#2f6bff", "secondary": "#ff6b4a", "background": "#0d1117", "text": "#ffffff", "accent": "#f59e0b" },
-    "typography": { "headingFont": "Space Grotesk", "bodyFont": "Inter" }
-  },
-  "draftJobId": "d1e2f3a4-..."
+  "completedAt": "2026-08-21T09:03:00.000Z",
+  "progress": { "phase": "render", "progress": 100, "message": "Hoàn tất" },
+  "error": null,
+  "qaStatus": "pass",
+  "qaReport": { "status": "pass", "issues": [] },
+  "request": { "prompt": "Giới thiệu về Hà Nội...", "aspectRatio": "9:16", "targetDurationSec": 45 },
+  "script": { "title": "Hà Nội Ngàn Năm", "scenes": [{ "id": "scene_1", "title": "Hồ Gươm" }] },
+  "canRestore": true,
+  "result": {
+    "durationSec": 44.8,
+    "resolution": "1080x1920",
+    "scenes": [{ "id": "scene_1", "title": "Hồ Gươm" }],
+    "timing": { "scriptGeneration": 41.2, "audioSynthesis": 18.3, "render": 96.5, "mux": 1.2 },
+    "hasVideo": true,
+    "videoAvailable": true,
+    "htmlUrl": "/api/jobs/a1b2c3d4-.../html",
+    "audioUrl": "/api/jobs/a1b2c3d4-.../audio",
+    "previews": {
+      "totalScenes": 3,
+      "durationSec": 44.8,
+      "previews": [
+        { "sceneId": "scene_1", "index": 0, "title": "Hồ Gươm", "timeSec": 0, "url": "/api/jobs/a1b2c3d4-.../preview/scene_1" }
+      ]
+    }
+  }
 }
 ```
 
-- `status` — `queued` \| `running` \| `completed` \| `failed` \| `draft`
-- `script` — present when a draft script has been generated (or attached to a render job)
-- `draftJobId` — present on render jobs created from a confirmed draft
-- `progress` — the `phase`/`progress`/`message` triple for each logged step (`script_generation`, `audio_synthesis`, `image_generation`, `code_assembly`, `preview`, `render`, `mux`)
-- `result` — present only when `status === "completed"`; `usage` may be absent if no LLM usage was recorded for this job (e.g. render jobs created from confirmed drafts where Phase 1 was skipped)
-- `error` — failure message when `status === "failed"`
-- `404` → job not found or not owned by the current user
+- `status` — `queued` \| `running` \| `completed` \| `failed` \| `qa_failed` \| `cancelled`
+- `script` / `request` — đọc từ queue hoặc bản ghi lịch sử PostgreSQL (còn sau restart/queue prune)
+- `canRestore` — dùng cho "Mở trong trình chỉnh sửa"; không đồng nghĩa render lại miễn phí
+- `result.videoAvailable` — tệp MP4 thật còn tồn tại hay không
+- Không trả `workDir`, `videoPath`, `imagePath` hay đường dẫn máy chủ
+- `404` → không tìm thấy hoặc không thuộc người dùng hiện tại
+
 
 ---
 
 ### `GET /api/jobs/:jobId/events` 🔒
 
-Server-Sent Events stream. **Ownership check:** the handler verifies the job belongs to the authenticated user (returns `404` otherwise, no existence leak). On connect it replays the current state (one `status` event + up to 100 historical `progress` events from the job log), then streams live events via Redis pub/sub. Heartbeat comments (`: heartbeat`) every 15 s. The stream closes 500 ms after `completed`/`failed`.
+Server-Sent Events stream. **Ownership check:** the handler verifies the job belongs to the authenticated user (returns an SSE `error` event otherwise, no existence leak). On connect it replays the current state (one `status` event + up to 100 historical `progress` events from the job log), then streams live events via Redis pub/sub. Heartbeat comments (`: heartbeat`) every 15 s. The stream closes 500 ms after a terminal status: `completed`, `failed`, `qa_failed`, or `cancelled`.
 
 Event types:
 
@@ -820,15 +841,20 @@ Scene preview thumbnail (WebP), generated in phase 4 for each scene at its timel
 
 ### `DELETE /api/jobs/:jobId` 🔒
 
-Cancels the job in BullMQ (removes from queue if queued, sets a cancellation flag in Redis), deletes the job row (plus `job_logs`, via FK cascade), and recursively removes the workdir `tmp/<jobId>`. Only the job owner can delete.
+Xoá vĩnh viễn một video **đã kết thúc** khỏi thư viện cá nhân: xoá metadata trong `video_history`, bản ghi queue (nếu còn), log liên quan, và thư mục artifact `tmp/job-<jobId>/` (video, preview, audio, HTML tạm). Chỉ chủ sở hữu hoặc admin được xoá; job người khác trả `404` như không tồn tại.
 
-For a job already running, cancellation is **cooperative**: the worker polls the Redis flag (~0.4 s) and aborts an `AbortSignal` threaded through every pipeline phase — LLM/TTS fetches, image searches/downloads, Playwright preview/render, and ffmpeg — so in-flight work stops within ~0.5 s instead of waiting for a phase boundary.
+Job đang `queued`/`running` **không bị xoá im lặng** — phải đợi render kết thúc (admin có thể hủy qua API quản trị):
 
-- `200` → `{ "message" }`, status-dependent:
-  - running → `"Cancellation requested — the job will stop shortly"`
-  - queued → `"Job removed from queue"`
-  - otherwise → `"Job deleted"`
-- `404` → job not found or not owned by the current user
+- `200` → `{ "deleted": true, "jobId": "a1b2c3d4-..." }`
+- `401` → chưa đăng nhập
+- `404` → không tìm thấy, không thuộc người dùng, hoặc `jobId` không an toàn
+- `409` → `{ "error": "JOB_ACTIVE", "message": "Video đang được tạo. Đợi render xong rồi xoá khỏi thư viện." }`
+- `500` → không xoá được tệp trên đĩa (metadata được giữ lại để có thể thử lại)
+
+Xoá là idempotent ở mức an toàn: hai request đồng thời không làm hỏng job khác; request sau nhận `404`. Chỉ các thư mục thuộc đúng `jobId` (đã kiểm tra đường dẫn an toàn) bị đụng tới.
+
+> Hủy job đang chạy vẫn dùng cơ chế cooperative cancellation cũ (Redis flag + `AbortSignal`). Endpoint này không còn là đường hủy; nó từ chối job đang hoạt động.
+
 
 ---
 

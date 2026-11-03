@@ -2,7 +2,7 @@ import fastify, { FastifyInstance, FastifyRequest, FastifyReply } from "fastify"
 import fastifyCors from "@fastify/cors";
 import fastifyStatic from "@fastify/static";
 import fastifyMultipart from "@fastify/multipart";
-import { existsSync, createReadStream, statSync, writeFileSync, mkdirSync, unlinkSync } from "node:fs";
+import { existsSync, createReadStream, statSync, writeFileSync, mkdirSync, unlinkSync, rmSync } from "node:fs";
 import { join } from "node:path";
 import { v4 } from "uuid";
 import { getConfig, parseCorsOrigins, isCorsOriginAllowed } from "./config.js";
@@ -32,7 +32,18 @@ import { resolveJobVideoPath } from "./queue/jobVideo.js";
 import { validatePrompt } from "./security/promptGuard.js";
 import { rateLimiter } from "./security/rateLimiter.js";
 import { validateUploadedFile, generateSafeFilePath, resolveBgmPath, validateUploadedAsset, generateSafeAssetFilePath, resolveAssetPath, MAX_IMAGE_ASSET_BYTES } from "./security/uploadGuard.js";
-import { isSafeJobId, safeJobDir } from "./queue/jobPaths.js";
+import { isSafeJobId, safeJobDir, jobWorkDirs } from "./queue/jobPaths.js";
+import {
+    canReadJob,
+    findReadableJob,
+    listJobsForUser,
+    serializeJobDetail,
+} from "./history/service.js";
+import {
+    deleteVideoHistory,
+    getVideoHistory,
+    recordVideoQueued,
+} from "./history/store.js";
 import { getBrandKitByUserId, upsertBrandKit } from "./database/brandKit.js";
 import { createAsset, listAssetsByUserId, getAssetByIdForUser, deleteAssetByIdForUser, getAssetsByIdsForUser, getAssetUsageForUser, cleanupOrphanedAssetFiles, type AssetRow } from "./database/assets.js";
 import { getAssetCaptionQueue } from "./queue/assetCaption.js";
@@ -922,6 +933,15 @@ export async function buildApp(options: { logger?: boolean, queue?: IVideoQueue 
                 return { error: "Failed to enqueue job" };
             }
 
+            // Lịch sử "Video của tôi" tồn tại ngay từ lúc job được chấp nhận,
+            // không đợi worker chạy — nhờ vậy queue prune/restart không xoá mất
+            // dấu vết job của người dùng.
+            await recordVideoQueued({
+                jobId,
+                userId,
+                topic: reqData.prompt,
+                request: reqData,
+            });
             reply.status(202);
             return {
                 message: "Video generation queued",
@@ -981,40 +1001,23 @@ export async function buildApp(options: { logger?: boolean, queue?: IVideoQueue 
     app.post("/api/pipeline", handlePipelineRequest);
 
     // Job thuộc về người tạo ra nó: chi tiết và artifact (html/audio/video/
-    // preview/download/SSE) chỉ chủ sở hữu hoặc admin mới đọc được. Job cũ
-    // tạo trước khi có auth (không có userId) thì người dùng đã đăng nhập
-    // nào cũng đọc được, nhưng khách ẩn danh thì không — trước đây các route
-    // này public hoàn toàn, lộ prompt/script/video của mọi user cho bất kỳ
-    // ai biết hoặc đoán được jobId.
-    const canReadJob = (user: { id: string; role: string }, job: { userId?: string } | null | undefined) =>
-        !job?.userId || job.userId === user.id || user.role === "admin";
-
+    // preview/download/SSE) chỉ chủ sở hữu hoặc admin mới đọc được. Chính sách
+    // nằm ở `history/service.ts` — job legacy không có userId KHÔNG còn được
+    // mọi tài khoản đã đăng nhập đọc, chỉ admin RBAC.
     app.get("/api/jobs", async (request: FastifyRequest, reply: FastifyReply) => {
         const user = await getCurrentUser(request);
         if (!user) {
             reply.status(401);
             return { error: "Authentication required" };
         }
-        const jobs = (await queue.getJobs()).filter((j) => canReadJob(user, j));
-        // Mới nhất trước. Không dựa vào thứ tự của queue: memory queue trả theo
-        // thứ tự chèn còn BullMQ trả theo từng state, nên client luôn nhận một
-        // danh sách đã sắp xếp thay vì phải tự đoán.
-        const timeOf = (j: { createdAt?: string; updatedAt?: string }) => {
-            const t = Date.parse(j.createdAt || j.updatedAt || "");
-            return Number.isFinite(t) ? t : 0;
-        };
-        return jobs
-            .map((j) => ({
-                jobId: j.jobId,
-                status: j.status,
-                createdAt: j.createdAt,
-                updatedAt: j.updatedAt,
-                topic: j.request?.prompt ?? j.topic ?? '(job cũ thiếu thông tin yêu cầu)',
-                durationSec: j.result?.durationSec,
-                qaStatus: j.qaStatus ?? j.result?.qaStatus,
-                error: j.error,
-            }))
-            .sort((a, b) => timeOf(b) - timeOf(a));
+        const result = await listJobsForUser(queue, user, (request.query || {}) as any);
+        if ('error' in result) {
+            reply.status(400);
+            return { error: result.error };
+        }
+        // Tương thích ngược: profile.html và workspace.js cũ đọc mảng trực tiếp.
+        // Chỉ trả phong bì phân trang khi client thật sự yêu cầu (page/pageSize/format=page).
+        return result.paginated ? result : result.items;
     });
 
     app.get("/api/jobs/:jobId", async (request: FastifyRequest<{ Params: { jobId: string } }>, reply: FastifyReply) => {
@@ -1024,34 +1027,12 @@ export async function buildApp(options: { logger?: boolean, queue?: IVideoQueue 
             reply.status(401);
             return { error: "Authentication required" };
         }
-        const job = await queue.getJob(jobId);
-        if (!job) {
+        const readable = await findReadableJob(queue, jobId, reader);
+        if (!readable) {
             reply.status(404);
             return { error: "Job not found" };
         }
-        if (!canReadJob(reader, job)) {
-            reply.status(404);
-            return { error: "Job not found" };
-        }
-        return {
-            jobId: job.jobId,
-            status: job.status,
-            createdAt: job.createdAt,
-            updatedAt: job.updatedAt,
-            progress: job.progress,
-            error: job.error,
-            qaStatus: job.qaStatus ?? job.result?.qaStatus,
-            qaReport: job.qaReport ?? job.result?.qaReport,
-            result: job.result ? {
-                durationSec: job.result.durationSec,
-                resolution: job.result.resolution,
-                scenes: job.result.scences,
-                timing: job.result.timing,
-                htmlUrl: `/api/jobs/${job.jobId}/html`,
-                audioUrl: `/api/jobs/${job.jobId}/audio`,
-                preview: job.result.preview,
-            } : undefined,
-        };
+        return serializeJobDetail(readable.job, readable.history);
     });
 
     app.get("/api/jobs/:jobId/events", async (request: FastifyRequest<{ Params: { jobId: string } }>, reply: FastifyReply) => {
@@ -1068,22 +1049,17 @@ export async function buildApp(options: { logger?: boolean, queue?: IVideoQueue 
         reply.raw.setHeader('Connection', 'keep-alive');
         reply.raw.flushHeaders();
 
-        const job = await queue.getJob(jobId);
-        if (!job) {
+        const readable = await findReadableJob(queue, jobId, reader);
+        if (!readable) {
             reply.raw.write(`event: error\ndata: ${JSON.stringify({ error: 'Job not found' })}\n\n`);
             reply.raw.end();
             return;
         }
-
-        if (!canReadJob(reader, job)) {
-            reply.raw.write(`event: error\ndata: ${JSON.stringify({ error: 'Job not found' })}\n\n`);
-            reply.raw.end();
-            return;
-        }
+        const job = readable.job;
 
         reply.raw.write(`data: ${JSON.stringify({ status: job.status, progress: job.progress })}\n\n`);
-        
-        if (job.status === 'completed' || job.status === 'failed') {
+
+        if (['completed', 'failed', 'qa_failed', 'cancelled'].includes(job.status)) {
             reply.raw.end();
             return;
         }
@@ -1114,16 +1090,26 @@ export async function buildApp(options: { logger?: boolean, queue?: IVideoQueue 
             }
         };
 
+        const onCancelled = (args: any) => {
+            if (args.jobId === jobId) {
+                reply.raw.write(`data: ${JSON.stringify({ status: 'cancelled', reason: args.reason })}\n\n`);
+                reply.raw.end();
+                cleanup();
+            }
+        };
+
         const cleanup = () => {
             clearInterval(heartbeatInterval);
             queue.events.removeListener('progress', onProgress);
             queue.events.removeListener('completed', onCompleted);
             queue.events.removeListener('failed', onFailed);
+            queue.events.removeListener('cancelled', onCancelled);
         };
 
         queue.events.on('progress', onProgress);
         queue.events.on('completed', onCompleted);
         queue.events.on('failed', onFailed);
+        queue.events.on('cancelled', onCancelled);
 
         request.raw.on('close', cleanup);
     });
@@ -1135,11 +1121,12 @@ export async function buildApp(options: { logger?: boolean, queue?: IVideoQueue 
             reply.status(401);
             return { error: "Authentication required" };
         }
-        const job = await queue.getJob(jobId);
-        if (!canReadJob(reader, job)) {
+        const readable = await findReadableJob(queue, jobId, reader);
+        if (!readable) {
             reply.status(404);
             return { error: "Job not found" };
         }
+        const job = readable.job;
         const htmlPath = job?.result?.finalHtmlPath ?? join(safeJobDir(jobId) ?? join(process.cwd(), "tmp", "job-__invalid__"), "index.html");
         if (!existsSync(htmlPath)) {
             reply.status(404);
@@ -1161,11 +1148,12 @@ export async function buildApp(options: { logger?: boolean, queue?: IVideoQueue 
             reply.status(401);
             return { error: "Authentication required" };
         }
-        const job = await queue.getJob(jobId);
-        if (!canReadJob(reader, job)) {
+        const readable = await findReadableJob(queue, jobId, reader);
+        if (!readable) {
             reply.status(404);
             return { error: "Job not found" };
         }
+        const job = readable.job;
         const audioPath = job?.result?.audio?.mixAudioPath ?? join(safeJobDir(jobId) ?? join(process.cwd(), "tmp", "job-__invalid__"), "mixed_audio.mp3");
         if (!existsSync(audioPath)) {
             reply.status(404);
@@ -1181,11 +1169,12 @@ export async function buildApp(options: { logger?: boolean, queue?: IVideoQueue 
             reply.status(401);
             return { error: "Authentication required" };
         }
-        const job = await queue.getJob(jobId);
-        if (!canReadJob(reader, job)) {
+        const readable = await findReadableJob(queue, jobId, reader);
+        if (!readable) {
             reply.status(404);
             return { error: "Job not found" };
         }
+        const job = readable.job;
         const workDir = job?.result?.workDir ?? safeJobDir(jobId) ?? join(process.cwd(), "tmp", "job-__invalid__");
         // sceneId cũng là một thành phần đường dẫn: khuôn an toàn như jobId.
         const previewPath = isSafeJobId(sceneId) ? join(workDir, "previews", `${sceneId}.webp`) : join(workDir, "previews", "__invalid__.webp");
@@ -1203,11 +1192,12 @@ export async function buildApp(options: { logger?: boolean, queue?: IVideoQueue 
             reply.status(401);
             return { error: "Authentication required" };
         }
-        const job = await queue.getJob(jobId);
-        if (!canReadJob(reader, job)) {
+        const readable = await findReadableJob(queue, jobId, reader);
+        if (!readable) {
             reply.status(404);
             return { error: "Job not found" };
         }
+        const job = readable.job;
         const videoPath = resolveJobVideoPath(job, jobId);
         if (!existsSync(videoPath)) {
             reply.status(404);
@@ -1267,11 +1257,12 @@ export async function buildApp(options: { logger?: boolean, queue?: IVideoQueue 
             reply.status(401);
             return { error: "Authentication required" };
         }
-        const job = await queue.getJob(jobId);
-        if (!canReadJob(reader, job)) {
+        const readable = await findReadableJob(queue, jobId, reader);
+        if (!readable) {
             reply.status(404);
             return { error: "Job not found" };
         }
+        const job = readable.job;
         const videoPath = resolveJobVideoPath(job, jobId);
         if (!existsSync(videoPath)) {
             reply.status(404);
@@ -1279,6 +1270,74 @@ export async function buildApp(options: { logger?: boolean, queue?: IVideoQueue 
         }
         reply.header("Content-Disposition", `attachment; filename="video-${jobId}.mp4"`);
         reply.type("video/mp4").send(createReadStream(videoPath));
+    });
+
+    /**
+     * DELETE /api/jobs/:jobId — xoá video khỏi thư viện cá nhân.
+     *
+     * Quy tắc:
+     *  - Chỉ chủ sở hữu hoặc admin (RBAC). Không tồn tại/không sở hữu đều 404
+     *    để không lộ sự tồn tại của job người khác.
+     *  - Job đang chờ/đang chạy KHÔNG bị xoá ngầm: trả 409 cho tới khi render
+     *    kết thúc để tránh xoá artifact khi worker còn ghi. Admin có route hủy
+     *    riêng nếu cần dừng job.
+     *  - Chỉ xoá thư mục qua `jobWorkDirs` (đã giam trong tmp/), không đụng job khác.
+     *  - History và queue record bị xoá cùng nhau; file mất trước đó vẫn xoá được metadata.
+     */
+    app.delete("/api/jobs/:jobId", async (request: FastifyRequest<{ Params: { jobId: string } }>, reply: FastifyReply) => {
+        const { jobId } = request.params;
+        const reader = await getCurrentUser(request);
+        if (!reader) {
+            reply.status(401);
+            return { error: "Authentication required" };
+        }
+        if (!isSafeJobId(jobId)) {
+            reply.status(404);
+            return { error: "Job not found" };
+        }
+
+        const queued = await queue.getJob(jobId);
+        const history = queued ? null : await getVideoHistory(jobId);
+        if (!queued && !history) {
+            reply.status(404);
+            return { error: "Job not found" };
+        }
+        if (queued && !canReadJob(reader, queued)) {
+            reply.status(404);
+            return { error: "Job not found" };
+        }
+        if (!queued && history && !canReadJob(reader, history)) {
+            reply.status(404);
+            return { error: "Job not found" };
+        }
+        const currentStatus = queued?.status ?? history?.status;
+        if (currentStatus === 'queued' || currentStatus === 'running') {
+            reply.status(409);
+            return {
+                error: "JOB_ACTIVE",
+                message: "Video đang được tạo. Đợi render xong rồi xoá khỏi thư viện.",
+            };
+        }
+
+        jobIpMap.delete(jobId);
+        if (queued) {
+            try {
+                await queue.removeJob(jobId);
+            } catch {
+                // Queue đã prune/không còn: vẫn tiếp tục xoá artifact + metadata.
+            }
+        }
+        for (const dir of jobWorkDirs(jobId)) {
+            if (!existsSync(dir)) continue;
+            try {
+                rmSync(dir, { recursive: true, force: true });
+            } catch (err: any) {
+                reply.status(500);
+                return { error: "Không xoá được tệp video", details: err?.message };
+            }
+        }
+        await deleteVideoHistory(jobId);
+        return { deleted: true, jobId };
     });
     // ──────────────────────────────────────────────────────────────
     // THƯ VIỆN ASSET (#103): upload ảnh (≤10MB), list, xoá.

@@ -78,9 +78,21 @@ Session-based auth (`src/auth/`). See [api.md § Authentication](api.md#authenti
 
 | Store | What it holds | Notes |
 |---|---|---|
-| PostgreSQL | `users`, `sessions`, `system_settings`, `audit_logs`, `brand_kits`, `plans`, `orders`, `payments`, `unmatched_payments`, `refunds` | Initialized via `src/database/index.ts` (`pg` Pool); schema applied idempotently on startup (`src/database/base.ts`); configured with `DATABASE_URL` |
-| Redis | BullMQ queues (`video-generation`, `script-draft`, `sepay-webhooks`); pub/sub channels `job-events:<jobId>`; rate-limit counters & cancellation flags | Queues retain completed/failed job records per retention policy |
-| Filesystem | Per-job workdir `tmp/<jobId>/`: `html/`, `images/`, TTS audio files, `raw_video.mp4`, final MP4, preview WebPs | Removed on `DELETE /api/jobs/:id` or by the worker's 24 h TTL cleaner |
+| PostgreSQL | `users`, `sessions`, `system_settings`, `audit_logs`, `brand_kits`, `plans`, `orders`, `payments`, `unmatched_payments`, `refunds`, `announcements`, `tickets`, **`video_history`** | Initialized via `src/database/index.ts` (`pg` Pool); schema applied through versioned migrations (`src/database/migrations.ts`, advisory lock, `schema_migrations` table); configured with `DATABASE_URL` |
+| Redis | BullMQ queues (`video-generation`, `script-draft`, `sepay-webhooks`); pub/sub channels `job-events:<jobId>`; rate-limit counters & cancellation flags | Queues retain completed/failed job records per retention policy; video history does **not** depend on queue retention |
+| Filesystem | Per-job workdir `tmp/<jobId>/`: `html/`, `images/`, TTS audio files, `raw_video.mp4`, final MP4, preview WebPs | Removed on `DELETE /api/jobs/:id` (finished jobs only) or by the worker's 24 h TTL cleaner. `VIDEO_RETENTION_DAYS` can additionally prune old history metadata + workdirs |
+
+## Video history persistence ("Video của tôi")
+
+`video_history` is the durable per-account index for the Workspace library (`src/history/store.ts`, `src/history/service.ts`). The BullMQ queue remains the source of live status, but its retention is not a guarantee of history:
+
+- One row per `job_id` (primary key), with `user_id` FK → `users(id)` and `ON DELETE CASCADE`; request/script stored as JSONB, plus topic, status, timestamps, duration, resolution, QA status, error, video path and preview scene id.
+- `recordVideoQueued` runs when the API accepts a job (before/independent of queue retention) and is idempotent (`ON CONFLICT DO NOTHING`). The worker records `running → completed | failed | cancelled | qa_failed` transitions; a worker restart or Redis prune cannot erase the history row.
+- Reads merge the persisted row with the live queue record when present. If the queue no longer has the job, the history record still serves list/detail/script and `videoAvailable` reflects the real file on disk.
+- Ownership is enforced in SQL for lists (`user_id = $1`; admin sees all through RBAC) and again in `canReadJob()` for detail/artifact routes. Legacy jobs with no `user_id` are **not** assigned to anyone and are hidden from normal users.
+- `VIDEO_RETENTION_DAYS=0` (default) keeps metadata indefinitely (artifacts still subject to the 24 h scratch cleaner); a positive value lets the worker's 6-hour sweep delete expired history rows and their workdirs.
+- The MP4 itself is never stored in PostgreSQL — only its path/availability metadata; files stay under the per-job scratch directory.
+- `DELETE /api/jobs/:id` removes both the history row and the job workdir; active jobs are rejected (`409`) so deletion cannot race a render. Admin cancellation (`POST /api/admin/jobs/:id/cancel`) remains the explicit stop path for running jobs.
 
 ## Job & draft lifecycle
 
@@ -437,8 +449,8 @@ LLM (`src/llm/client.ts`) and TTS (`src/pipeline/audioSynth.ts`) use an interfac
 
 - Queue survives restarts (Redis); user accounts and financial data persisted in PostgreSQL.
 - SSE replays state for late-connecting clients (status + historical logs from the job log, then live Redis events).
-- Jobs scratch directories are removed by `DELETE /api/jobs/:id` or by the 24 h TTL cleaner in the worker; video endpoints return 410 once files are pruned.
-- **Cooperative cancellation** — `DELETE /api/jobs/:id` sets a Redis flag (`job-cancelled:<jobId>`, 1 h TTL). The worker polls it every ~0.4 s (`watchJobCancellation`) and aborts an `AbortSignal` threaded through every phase (`src/pipeline/cancel.ts`: `throwIfAborted`/`raceWithAbort`): LLM/TTS fetches, image downloads, Playwright previews, per-frame renders, and ffmpeg subprocesses all stop in-flight, throwing `JobCancelledError` which cleans scratch files without corrupting state.
+- Jobs scratch directories are removed by `DELETE /api/jobs/:id` (finished jobs) or by the 24 h TTL cleaner in the worker; video endpoints return 410 once files are pruned. Metadata in `video_history` survives those file cleanups and reports `videoAvailable: false`.
+- **Cooperative cancellation** — the admin endpoint `POST /api/admin/jobs/:jobId/cancel` calls `queue.cancelJob()`, which sets a Redis flag (`job-cancelled:<jobId>`, 1 h TTL) or removes a queued job. The worker polls the flag every ~0.4 s (`watchJobCancellation`) and aborts an `AbortSignal` threaded through every phase (`src/pipeline/cancel.ts`: `throwIfAborted`/`raceWithAbort`): LLM/TTS fetches, image downloads, Playwright previews, per-frame renders, and ffmpeg subprocesses all stop in-flight, throwing `JobCancelledError` which cleans scratch files without corrupting state. User-facing `DELETE /api/jobs/:id` deliberately refuses active jobs instead of double-acting as cancel.
 
 ## Security model (untrusted LLM code)
 
@@ -462,14 +474,18 @@ LIME has a comprehensive automated test suite:
   - VietQR payment reconciliation and Admin refund operations (`admin.test.ts`, `admin_failed_payments.test.ts`, `billing_refunds.test.ts`)
   - Payment flow safety net: pay-code generation and retry, order ownership checks, every webhook early-exit branch, SePay transaction reconciliation (stubbed `fetch`), and the two background cron jobs with a fake clock (`billing_vietqr_service.test.ts`, `billing_reconciler.test.ts`, `billing_cron.test.ts`)
   - Quota reservations and security guards
+  - Video history ownership/isolation, status filters, safe delete, queue-vs-history fallbacks (`video_history.test.ts`)
 - **Integration tests** (`tests/integration/`):
   - `billing_vietqr.test.ts`: end-to-end VietQR order creation, claiming, and webhook reconciliation flow
   - `watermark.test.ts`: video watermark rendering and composition verification
+  - `video_history_persistence.test.ts`: PostgreSQL-backed history survives a simulated process restart, is filtered by `user_id`, and deletes cleanly (skips without `DATABASE_URL`)
   - `tests/manual/vieneu.manual.ts`: kiểm tra tay kết nối VieNeu-TTS (không phải test tự động — không có `assert`, cần service Docker)
+- **Frontend tests** (`tests/frontend/`, Playwright + stub API):
+  - `video_library.test.ts`: tab switching without reload, list/search/filter/sort/pagination, player overlay, download, delete confirmation, unsaved-draft protection, polling cleanup, 390px layout.
 
 Run tests:
 ```bash
-npm run test:unit:pr     # nhóm chạy ở mọi PR (fast + tích hợp rẻ), nhanh
+npm run test:unit:pr     # nhóm chạy ở mọi PR (fast + tích hợp rẻ + frontend), nhanh
 npm run test:unit        # test đơn vị: fast + heavy
 npm run test:coverage    # đo độ phủ + cổng chất lượng 70% dòng (toàn bộ suite)
 npm run test:e2e         # pipeline 6 giai đoạn (nặng)

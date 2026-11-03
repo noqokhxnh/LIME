@@ -197,6 +197,9 @@ IMAGE_MAX_QUERIES_PER_JOB=10
 QUOTA_MAX_CONCURRENT_JOBS=3
 QUOTA_MAX_DAILY_JOBS=20
 QUOTA_DAILY_BUDGET_USD=2.0
+
+# Video history retention (0 = keep metadata indefinitely; files still use the 24h scratch cleaner)
+VIDEO_RETENTION_DAYS=0
 ```
 
 ---
@@ -209,12 +212,13 @@ QUOTA_DAILY_BUDGET_USD=2.0
 | `POST` | `/api/auth/login` | Log in and receive session cookie |
 | `POST` | `/api/script/draft` | Phase 1: Generate an editable video script draft |
 | `POST` | `/api/generate` | Phase 2: Enqueue full video rendering job |
-| `GET` | `/api/jobs/:id` | Get job status, current phase, and execution logs |
+| `GET` | `/api/jobs` | List own video history (search/filter/sort/pagination; array by default) |
+| `GET` | `/api/jobs/:id` | Get job status, progress, saved script, and artifact URLs |
 | `GET` | `/api/jobs/:id/events` | Server-Sent Events (SSE) live progress stream |
 | `GET` | `/api/jobs/:id/video` | Stream rendered MP4 video with HTTP range support |
 | `GET` | `/api/jobs/:id/download` | Download final MP4 video file |
 | `GET` | `/api/jobs/:id/preview/:sceneId`| Fetch WebP thumbnail for specific scene |
-| `DELETE`| `/api/jobs/:id` | Cancel running job and clean up scratch storage |
+| `DELETE`| `/api/jobs/:id` | Delete a finished video + its files (409 while active) |
 | `GET` | `/api/settings` | Get current user's provider overrides |
 | `PUT` | `/api/settings` | Save runtime provider preferences |
 | `GET` | `/api/usage` | Inspect LLM token usage and estimated spend |
@@ -227,7 +231,7 @@ QUOTA_DAILY_BUDGET_USD=2.0
 LIME is backed by extensive unit and integration test suites:
 
 ```bash
-# Chạy nhóm test dùng ở mọi PR (fast + tích hợp rẻ) — nhanh, không cần PostgreSQL
+# Chạy nhóm test dùng ở mọi PR (fast + tích hợp rẻ + Playwright frontend) — nhanh, không cần PostgreSQL
 npm run test:unit:pr
 
 # Chạy test đơn vị (fast + heavy) và test tích hợp

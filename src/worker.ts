@@ -4,6 +4,7 @@ import { processVideoJob } from './queue/handler.js';
 import { initDatabase, closeDatabase } from './database/index.js';
 import { getBillingWebhookQueue } from './billing/queue.js';
 import { getAssetCaptionQueue } from './queue/assetCaption.js';
+import { cleanupExpiredVideoHistory } from './history/store.js';
 
 async function startWorker() {
     const config = getConfig();
@@ -25,12 +26,26 @@ async function startWorker() {
     await assetCaptionQueue.startWorker();
     console.log('Worker listening for jobs on asset-captioning queue...');
 
+    // Dọn lịch sử quá hạn retention (mặc định VIDEO_RETENTION_DAYS=0 = giữ mãi).
+    // Chỉ job đã kết thúc mới bị xoá; job đang chờ/chạy không bao giờ bị chạm.
+    let retentionTimer: NodeJS.Timeout | null = null;
+    if (config.VIDEO_RETENTION_DAYS > 0) {
+        const sweep = () => {
+            cleanupExpiredVideoHistory(config.VIDEO_RETENTION_DAYS)
+                .then((n) => { if (n > 0) console.log(`[VideoHistory] Đã dọn ${n} video quá hạn lưu trữ.`); })
+                .catch((err) => console.error('[VideoHistory] Lỗi dọn lịch sử:', err));
+        };
+        retentionTimer = setInterval(sweep, 6 * 60 * 60 * 1000);
+        sweep();
+    }
+
     // Tắt an toàn: ngừng nhận job mới, chờ job đang chạy (có timeout), đóng
     // hàng đợi rồi mới đóng pool PostgreSQL. Guard chống SIGINT+SIGTERM trùng.
     let shuttingDown = false;
     const shutdown = async (signal: string) => {
         if (shuttingDown) return;
         shuttingDown = true;
+        if (retentionTimer) clearInterval(retentionTimer);
         console.log(`[Worker] Nhận ${signal}, đang tắt an toàn...`);
         const withTimeout = <T>(promise: Promise<T>, ms: number) =>
             Promise.race([

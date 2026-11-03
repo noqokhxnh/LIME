@@ -1,0 +1,676 @@
+/* ============ LIME — "Video của tôi" (thư viện video trong Workspace) ============ */
+
+body.ws.library-mode #panel-timeline,
+body.ws.library-mode .statusbar {
+    display: none;
+}
+
+body.ws .ws-library.on {
+    display: block;
+    overflow-y: auto;
+    overflow-x: hidden;
+    min-height: 0;
+    padding: 24px clamp(16px, 3vw, 40px) 40px;
+}
+
+body.ws .ws-library::-webkit-scrollbar { width: 10px; }
+body.ws .ws-library::-webkit-scrollbar-thumb { background: var(--wline); border-radius: 8px; }
+
+.vl-shell {
+    width: 100%;
+    max-width: 1440px;
+    margin: 0 auto;
+    display: flex;
+    flex-direction: column;
+    gap: 18px;
+}
+
+.vl-sr-only {
+    position: absolute;
+    width: 1px; height: 1px;
+    padding: 0; margin: -1px;
+    overflow: hidden; clip: rect(0 0 0 0);
+    white-space: nowrap; border: 0;
+}
+
+/* ---------- header ---------- */
+.vl-head {
+    display: flex;
+    align-items: flex-end;
+    justify-content: space-between;
+    gap: 16px;
+    flex-wrap: wrap;
+}
+
+.vl-head-copy h2 {
+    margin: 0;
+    font-family: 'Space Grotesk', sans-serif;
+    font-size: 24px;
+    line-height: 1.2;
+    letter-spacing: -0.4px;
+    color: var(--wtxt);
+}
+
+.vl-head-copy p {
+    margin: 6px 0 0;
+    font-size: 13px;
+    color: var(--wmuted);
+}
+
+.vl-head-actions {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    flex-wrap: wrap;
+}
+
+.vl-count {
+    font-size: 12.5px;
+    font-weight: 600;
+    color: var(--wmuted);
+    background: var(--wpanel);
+    border: 1px solid var(--wline);
+    border-radius: 999px;
+    padding: 7px 12px;
+    white-space: nowrap;
+}
+
+.vl-create-btn { white-space: nowrap; }
+
+/* ---------- toolbar ---------- */
+.vl-toolbar {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    flex-wrap: wrap;
+    background: var(--wpanel);
+    border: 1px solid var(--wline);
+    border-radius: 12px;
+    padding: 10px;
+}
+
+.vl-search {
+    flex: 1 1 280px;
+    min-width: 200px;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    background: var(--wpanel2);
+    border: 1px solid var(--wline);
+    border-radius: 9px;
+    padding: 0 11px;
+    height: 38px;
+    color: var(--wmuted);
+    transition: border-color .15s ease, box-shadow .15s ease;
+}
+
+.vl-search:focus-within {
+    border-color: var(--wlime);
+    box-shadow: 0 0 0 3px rgba(101, 163, 13, .14);
+}
+
+.vl-search input {
+    flex: 1;
+    min-width: 0;
+    border: none;
+    outline: none;
+    background: transparent;
+    font: inherit;
+    font-size: 13px;
+    color: var(--wtxt);
+}
+
+.vl-search input::placeholder { color: var(--wdim); }
+
+.vl-field { flex: 0 0 auto; }
+
+.vl-field select {
+    height: 38px;
+    border: 1px solid var(--wline);
+    border-radius: 9px;
+    background: var(--wpanel2);
+    color: var(--wtxt);
+    font: inherit;
+    font-size: 12.5px;
+    padding: 0 30px 0 11px;
+    cursor: pointer;
+    max-width: 210px;
+}
+
+.vl-field select:focus-visible,
+.vl-refresh:focus-visible,
+.vl-icon-btn:focus-visible,
+.vl-card:focus-visible,
+.vl-menu button:focus-visible {
+    outline: 2px solid var(--wlime);
+    outline-offset: 2px;
+}
+
+.vl-refresh {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    height: 38px;
+    white-space: nowrap;
+}
+
+/* ---------- alert / states ---------- */
+/* Thuộc tính `hidden` là UA style yếu hơn display của class; phải khai báo rõ
+   nếu không alert/loading/empty/pagination vẫn hiện dù đã set hidden. */
+.vl-alert[hidden],
+.vl-state[hidden],
+.vl-pagination[hidden],
+.vl-player-stage video[hidden] { display: none; }
+
+.vl-alert {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+    border: 1px solid #F2C7A8;
+    background: #FFF7F0;
+    color: #7A3B12;
+    border-radius: 10px;
+    padding: 11px 14px;
+    font-size: 13px;
+}
+
+.vl-alert-retry {
+    border: 1px solid #E7B187;
+    background: transparent;
+    color: #7A3B12;
+    border-radius: 7px;
+    padding: 5px 10px;
+    font-weight: 600;
+    font-size: 12.5px;
+}
+
+.vl-state {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 10px;
+    background: var(--wpanel);
+    border: 1px dashed var(--wline);
+    border-radius: 14px;
+    padding: 56px 24px;
+    text-align: center;
+    color: var(--wmuted);
+}
+
+.vl-state p { margin: 0; font-size: 13px; }
+
+.vl-spinner {
+    width: 22px; height: 22px;
+    border: 2.5px solid var(--wline);
+    border-top-color: var(--wlime);
+    border-radius: 50%;
+    animation: vl-spin .8s linear infinite;
+}
+
+@keyframes vl-spin { to { transform: rotate(360deg); } }
+
+.vl-empty h3 {
+    margin: 4px 0 0;
+    font-family: 'Space Grotesk', sans-serif;
+    font-size: 17px;
+    color: var(--wtxt);
+}
+
+.vl-empty p { max-width: 420px; line-height: 1.55; }
+
+.vl-empty-icon {
+    font-size: 34px;
+    line-height: 1;
+    filter: grayscale(.15);
+}
+
+.vl-empty .btn-primary { margin-top: 4px; }
+
+/* ---------- grid + cards ---------- */
+.vl-grid {
+    display: grid;
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+    gap: 16px;
+}
+
+.vl-grid:empty { display: none; }
+
+.vl-card {
+    position: relative;
+    display: flex;
+    flex-direction: column;
+    min-width: 0;
+    background: var(--wpanel);
+    border: 1px solid var(--wline);
+    border-radius: 13px;
+    overflow: visible;
+    transition: border-color .15s ease, box-shadow .15s ease, transform .15s ease;
+}
+
+.vl-card:hover {
+    border-color: #C9D2BC;
+    box-shadow: 0 10px 24px rgba(32, 37, 27, .08);
+    transform: translateY(-1px);
+}
+
+.vl-thumb {
+    position: relative;
+    aspect-ratio: 16 / 9;
+    background: var(--wpanel2);
+    border-radius: 12px 12px 0 0;
+    overflow: hidden;
+    border-bottom: 1px solid var(--wline);
+    cursor: pointer;
+}
+
+.vl-thumb img {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+    display: block;
+    background: var(--wcaro);
+    background-size: 18px 18px;
+}
+
+.vl-thumb-fallback {
+    position: absolute;
+    inset: 0;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 6px;
+    color: var(--wdim);
+    background:
+        radial-gradient(circle at 30% 20%, rgba(132, 204, 22, .16), transparent 55%),
+        var(--wpanel2);
+    font-size: 11.5px;
+    text-align: center;
+    padding: 10px;
+}
+
+.vl-thumb-fallback svg { opacity: .6; }
+
+.vl-thumb-play {
+    position: absolute;
+    left: 50%; top: 50%;
+    width: 46px; height: 46px;
+    margin: -23px 0 0 -23px;
+    border-radius: 50%;
+    border: none;
+    background: rgba(26, 46, 5, .72);
+    color: #F7FFE8;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    opacity: 0;
+    transform: scale(.9);
+    transition: opacity .15s ease, transform .15s ease;
+}
+
+.vl-thumb:hover .vl-thumb-play,
+.vl-thumb:focus-visible .vl-thumb-play {
+    opacity: 1;
+    transform: scale(1);
+}
+
+.vl-thumb-unavailable {
+    position: absolute;
+    inset: auto 8px 8px 8px;
+    background: rgba(32, 37, 27, .82);
+    color: #F3F5EF;
+    border-radius: 7px;
+    padding: 6px 8px;
+    font-size: 11px;
+    line-height: 1.35;
+    text-align: center;
+}
+
+.vl-card-body {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    padding: 12px 13px 13px;
+    flex: 1;
+    min-width: 0;
+}
+
+.vl-card-topline {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 8px;
+}
+
+.vl-title {
+    margin: 0;
+    font-size: 13.5px;
+    font-weight: 600;
+    line-height: 1.4;
+    color: var(--wtxt);
+    display: -webkit-box;
+    -webkit-line-clamp: 2;
+    -webkit-box-orient: vertical;
+    overflow: hidden;
+    word-break: break-word;
+    min-height: 2.8em;
+}
+
+.vl-meta {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 6px;
+    font-size: 11.5px;
+    color: var(--wmuted);
+}
+
+.vl-meta-dot { color: var(--wline); }
+.vl-meta-mono { font-family: ui-monospace, 'JetBrains Mono', monospace; font-size: 11px; }
+
+.vl-card-foot {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 8px;
+    margin-top: auto;
+    padding-top: 8px;
+    border-top: 1px solid var(--wline);
+}
+
+.vl-card-actions {
+    display: flex;
+    align-items: center;
+    gap: 4px;
+}
+
+.vl-link-btn,
+.vl-menu-btn {
+    border: none;
+    background: transparent;
+    color: var(--wmuted);
+    border-radius: 7px;
+    font-size: 12px;
+    font-weight: 600;
+    padding: 6px 8px;
+    line-height: 1;
+}
+
+.vl-link-btn:hover,
+.vl-menu-btn:hover { background: var(--wpanel2); color: var(--wtxt); }
+
+.vl-link-btn[disabled] {
+    opacity: .45;
+    cursor: not-allowed;
+    background: transparent;
+}
+
+/* status chip */
+.vl-status {
+    display: inline-flex;
+    align-items: center;
+    gap: 5px;
+    border-radius: 999px;
+    padding: 4px 8px;
+    font-size: 10.5px;
+    font-weight: 700;
+    letter-spacing: .2px;
+    white-space: nowrap;
+    border: 1px solid transparent;
+}
+
+.vl-status::before {
+    content: '';
+    width: 6px; height: 6px;
+    border-radius: 50%;
+    background: currentColor;
+    flex: none;
+}
+
+.vl-status--completed { color: #3F6212; background: #F1F9E4; border-color: #D7ECB8; }
+.vl-status--running,
+.vl-status--queued { color: #1D4E89; background: #EEF6FF; border-color: #CFE5FA; }
+.vl-status--failed,
+.vl-status--qa_failed { color: #9A3412; background: #FFF3EC; border-color: #F8D5C2; }
+.vl-status--cancelled { color: #5A5F55; background: #F2F3EF; border-color: #DFE2D9; }
+
+.vl-status--running::before,
+.vl-status--queued::before { animation: vl-pulse 1.4s ease-in-out infinite; }
+
+@keyframes vl-pulse { 50% { opacity: .35; } }
+
+.vl-progress {
+    height: 4px;
+    border-radius: 999px;
+    background: var(--wline);
+    overflow: hidden;
+}
+
+.vl-progress i {
+    display: block;
+    height: 100%;
+    border-radius: inherit;
+    background: var(--wlime);
+    transition: width .3s ease;
+}
+
+/* action dropdown */
+.vl-menu-wrap { position: relative; }
+
+.vl-menu {
+    position: absolute;
+    right: 0;
+    bottom: calc(100% + 6px);
+    z-index: 20;
+    min-width: 190px;
+    background: var(--wpanel);
+    border: 1px solid var(--wline);
+    border-radius: 10px;
+    box-shadow: 0 12px 30px rgba(32, 37, 27, .16);
+    padding: 5px;
+    display: none;
+}
+
+.vl-menu.show { display: block; }
+
+.vl-menu button {
+    width: 100%;
+    text-align: left;
+    border: none;
+    background: transparent;
+    color: var(--wtxt);
+    border-radius: 7px;
+    padding: 8px 10px;
+    font-size: 12.5px;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+
+.vl-menu button:hover { background: var(--wpanel2); }
+.vl-menu button.danger { color: #B42318; }
+.vl-menu button.danger:hover { background: #FFF1F0; }
+.vl-menu button:disabled { opacity: .45; cursor: not-allowed; }
+
+/* ---------- pagination ---------- */
+.vl-pagination {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 14px;
+    padding-top: 4px;
+}
+
+.vl-pagination span { font-size: 12.5px; color: var(--wmuted); }
+
+/* ---------- overlay / player ---------- */
+.vl-overlay {
+    position: fixed;
+    inset: 0;
+    z-index: 1200;
+    background: rgba(20, 24, 14, .66);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 20px;
+    overflow-y: auto;
+}
+
+.vl-overlay[hidden] { display: none; }
+
+.vl-player-card {
+    width: min(980px, 100%);
+    max-height: calc(100vh - 40px);
+    background: var(--wpanel);
+    border-radius: 16px;
+    box-shadow: 0 24px 70px rgba(0, 0, 0, .35);
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+}
+
+.vl-player-head {
+    display: flex;
+    align-items: flex-start;
+    justify-content: space-between;
+    gap: 12px;
+    padding: 15px 17px;
+    border-bottom: 1px solid var(--wline);
+}
+
+.vl-player-heading h2 {
+    margin: 0;
+    font-family: 'Space Grotesk', sans-serif;
+    font-size: 16px;
+    line-height: 1.35;
+    color: var(--wtxt);
+    word-break: break-word;
+}
+
+.vl-player-heading p {
+    margin: 4px 0 0;
+    font-size: 12px;
+    color: var(--wmuted);
+}
+
+.vl-icon-btn {
+    border: 1px solid var(--wline);
+    background: var(--wpanel2);
+    color: var(--wmuted);
+    width: 32px; height: 32px;
+    border-radius: 8px;
+    flex: none;
+    font-size: 14px;
+    line-height: 1;
+}
+
+.vl-icon-btn:hover { color: var(--wtxt); border-color: #C9D2BC; }
+
+.vl-player-stage {
+    background: #101408;
+    min-height: 240px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    flex: 1;
+    min-height: 0;
+}
+
+.vl-player-stage video {
+    width: 100%;
+    max-height: min(62vh, 620px);
+    display: block;
+    background: #000;
+}
+
+.vl-player-fallback {
+    color: #E9EDE1;
+    text-align: center;
+    padding: 44px 22px;
+    font-size: 13.5px;
+    line-height: 1.6;
+    max-width: 460px;
+}
+
+.vl-player-foot {
+    display: flex;
+    align-items: center;
+    gap: 9px;
+    flex-wrap: wrap;
+    padding: 13px 17px;
+    border-top: 1px solid var(--wline);
+}
+
+.vl-player-foot .btn-primary { text-decoration: none; display: inline-flex; align-items: center; }
+
+.vl-danger-ghost { color: #B42318; border-color: #F0C9C6; }
+.vl-danger-ghost:hover { background: #FFF1F0; border-color: #E9B3AE; }
+
+/* ---------- confirm ---------- */
+.vl-confirm-card {
+    width: min(440px, 100%);
+    background: var(--wpanel);
+    border-radius: 14px;
+    padding: 20px;
+    box-shadow: 0 24px 70px rgba(0, 0, 0, .35);
+}
+
+.vl-confirm-card h3 {
+    margin: 0 0 8px;
+    font-family: 'Space Grotesk', sans-serif;
+    font-size: 17px;
+    color: var(--wtxt);
+}
+
+.vl-confirm-card p {
+    margin: 0;
+    color: var(--wmuted);
+    font-size: 13px;
+    line-height: 1.55;
+    white-space: pre-line;
+}
+
+.vl-confirm-actions {
+    display: flex;
+    justify-content: flex-end;
+    gap: 8px;
+    margin-top: 18px;
+}
+
+.vl-danger { background: #DC2626 !important; color: #fff !important; }
+.vl-danger:hover { background: #B91C1C !important; }
+
+/* ---------- responsive ---------- */
+@media (max-width: 1280px) {
+    .vl-grid { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+}
+
+@media (max-width: 1024px) {
+    .vl-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+}
+
+@media (max-width: 768px) {
+    body.ws .ws-library.on { padding: 16px 16px 32px; }
+    .vl-head { align-items: flex-start; }
+    .vl-head-copy h2 { font-size: 20px; }
+    .vl-head-actions { width: 100%; justify-content: space-between; }
+    .vl-toolbar { padding: 8px; }
+    .vl-search { flex-basis: 100%; }
+    .vl-field { flex: 1 1 140px; }
+    .vl-field select { width: 100%; max-width: none; }
+    .vl-refresh { flex: 0 0 auto; }
+    .vl-grid { grid-template-columns: 1fr; gap: 13px; }
+    .vl-card:hover { transform: none; }
+    .vl-player-card { border-radius: 12px; }
+    .vl-player-stage video { max-height: 50vh; }
+    .vl-overlay { padding: 10px; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+    .vl-card, .vl-card:hover,
+    .vl-thumb-play,
+    .vl-progress i { transition: none; }
+    .vl-spinner, .vl-status::before { animation: none; }
+}
