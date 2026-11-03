@@ -1,1078 +1,2160 @@
 <!DOCTYPE html>
+
 <html lang="vi">
-
 <head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>lime.</title>
-    <link rel="icon" type="image/png" href="/logo.png">
-    <link rel="preconnect" href="https://fonts.googleapis.com">
-    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-    <link
-        href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@500;600;700&family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap"
-        rel="stylesheet">
-    <link rel="stylesheet" href="style.css">
-    <link rel="stylesheet" href="vietqr.css">
-    <link rel="stylesheet" href="/css/broadcast.css">
-    <link rel="stylesheet" href="/css/support-widget.css">
+<meta charset="utf-8"/>
+<meta content="width=device-width, initial-scale=1.0" name="viewport"/>
+<title>
+   lime.
+  </title>
+<link href="/logo.png" rel="icon" type="image/png"/>
+<link href="https://fonts.googleapis.com" rel="preconnect"/>
+<link crossorigin="" href="https://fonts.gstatic.com" rel="preconnect"/>
+<link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@500;600;700&amp;family=Inter:wght@400;500;600;700&amp;family=JetBrains+Mono:wght@400;500&amp;display=swap" rel="stylesheet"/>
+<!-- <link rel="stylesheet" href="style.css"> -->
+<link href="/css/luma.css" rel="stylesheet"/>
+<link href="/css/auth-modal.css" rel="stylesheet"/>
+<link href="vietqr.css" rel="stylesheet"/>
+<link href="/css/broadcast.css" rel="stylesheet"/>
+<link href="/css/support-widget.css" rel="stylesheet"/>
 </head>
-
 <body>
+<!-- ================= LIME DYNAMIC NAVBAR ================= -->
+<nav class="group fixed top-0 left-0 z-50 h-0 w-full text-primary dark mix-blend-difference max-md:transition-[height] max-md:delay-200 max-md:duration-0 max-md:data-[state=mobile-open]:z-50 max-md:data-[state=mobile-open]:h-full max-md:data-[state=mobile-open]:overflow-y-scroll max-md:data-[state=mobile-open]:delay-0 max-md:data-[state=loading]:transition-none max-md:data-[state=loading]:delay-0" data-hidden="false" data-state="desktop"><div class="container grid h-top-nav grid-cols-[1fr_auto] gap-3 md:grid-cols-[1fr_auto_auto] lg:gap-6"><div class="pointer-events-none absolute top-0 left-0 container flex h-top-nav w-full items-end"><div class="h-px w-full bg-surface-inverted-primary/30 opacity-0 transition-opacity duration-300" id="nav-bottom-border"></div></div><div class="relative z-20 flex items-center"><a class="block hover:opacity-70" href="/"><img alt="LIME" class="h-10 md:h-12 w-auto object-contain" src="/logo.png" style="height: 48px; width: auto; filter: brightness(0) invert(1); display: block;"/></a></div><div class="relative flex md:items-center md:justify-center md:gap-3 lg:gap-4 max-md:pointer-events-none max-md:absolute max-md:inset-0 max-md:scrollbar-hide max-md:h-full max-md:flex-col max-md:gap-4 max-md:overflow-x-hidden max-md:overflow-y-scroll max-md:bg-surface-primary max-md:px-6 max-md:pt-24 max-md:pb-12 max-md:opacity-0 max-md:transition-opacity max-md:duration-200 max-md:ease-in-out max-md:group-data-[state=mobile-open]:pointer-events-auto max-md:group-data-[state=mobile-open]:opacity-100 max-md:max-md:group-data-[state=loading]:transition-none max-md:max-md:group-data-[state=loading]:duration-0"><div class="fixed top-0 left-0 container w-full bg-surface-primary/80 backdrop-blur-xl group-data-[state=mobile-open]:overflow-y-scroll md:hidden"><div class="h-top-nav border-b border-primary/30"></div></div><a class="typo-label tracking-normal whitespace-nowrap uppercase transition-opacity max-md:text-xl hover:opacity-70" href="/" target="_self">Trang chủ</a><a class="typo-label tracking-normal whitespace-nowrap uppercase transition-opacity max-md:text-xl hover:opacity-70" href="#templates" target="_self">Mẫu thiết kế</a><a class="typo-label tracking-normal whitespace-nowrap uppercase transition-opacity max-md:text-xl hover:opacity-70" href="#pricing" target="_self">Bảng giá</a><a class="typo-label tracking-normal whitespace-nowrap uppercase transition-opacity max-md:text-xl hover:opacity-70" href="/profile" id="nav-profile-link" style="display: none;" target="_self">Hồ sơ</a><a class="typo-label tracking-normal whitespace-nowrap uppercase transition-opacity max-md:text-xl hover:opacity-70" href="/setting" id="nav-setting-link" style="display: none;" target="_self">Cài đặt</a><a class="typo-label tracking-normal whitespace-nowrap uppercase transition-opacity max-md:text-xl hover:opacity-70 text-red-500" href="/admin" id="nav-admin-link" style="display: none;" target="_self">Quản trị</a><div class="flex items-center gap-4 mt-auto pt-12 md:hidden"><a class="transition-opacity will-change-transform hover:opacity-70" href="https://www.instagram.com/lime" rel="noopener noreferrer nofollow" target="_blank"><svg class="size-8 md:size-10" fill="currentColor" viewbox="0 0 32 32"><path clip-rule="evenodd" d="M16 32C24.8366 32 32 24.8366 32 16C32 7.16344 24.8366 0 16 0C7.16344 0 0 7.16344 0 16C0 24.8366 7.16344 32 16 32ZM10.0472 7.47896C10.6111 7.25739 11.2561 7.10665 12.2007 7.06209C13.1475 7.01592 13.4494 7.00563 15.8602 7.00101C18.2711 6.99639 18.5753 7.00687 19.5202 7.0477C20.4651 7.08854 21.1104 7.2375 21.6754 7.45606C22.26 7.68119 22.7558 7.9839 23.2497 8.47659C23.7436 8.96928 24.0481 9.46339 24.2763 10.047C24.4977 10.6114 24.648 11.2543 24.6929 12.201C24.7379 13.1476 24.7487 13.4498 24.7533 15.8602C24.7579 18.2705 24.7482 18.5731 24.7068 19.5206C24.6658 20.4648 24.5172 21.1105 24.2984 21.6751C24.0728 22.26 23.7699 22.7553 23.2779 23.2496C22.7859 23.7439 22.2911 24.0482 21.7075 24.2765C21.1433 24.497 20.5018 24.6483 19.555 24.6932C18.6081 24.7382 18.3047 24.7488 15.8947 24.7534C13.4847 24.758 13.1805 24.7485 12.2357 24.7071C11.2908 24.6657 10.645 24.5169 10.0804 24.2987C9.49453 24.0725 8.99989 23.7702 8.50578 23.2778C8.01167 22.7855 7.70682 22.291 7.47903 21.7075C7.25746 21.1434 7.10725 20.4985 7.06216 19.5542C7.01635 18.6072 7.0057 18.305 7.00108 15.8943C6.99646 13.4835 7.0057 13.1798 7.04742 12.2347C7.08914 11.2896 7.23722 10.6441 7.45577 10.0789C7.68161 9.49446 7.98468 8.99946 8.47684 8.50553C8.96899 8.0116 9.46363 7.7064 10.0472 7.47896ZM10.6557 22.8082C10.9689 22.9286 11.4388 23.0724 12.3044 23.1101H12.3045C13.2407 23.1505 13.5204 23.1601 15.891 23.155C18.2615 23.1498 18.5421 23.1406 19.4783 23.0966C20.3427 23.0554 20.8127 22.9098 21.1252 22.7878C21.5396 22.6259 21.8348 22.4338 22.1448 22.122C22.4548 21.8103 22.6474 21.5146 22.8072 21.1001C22.9278 20.7865 23.0712 20.3164 23.1091 19.4509C23.1501 18.5154 23.1584 18.234 23.1542 15.8644C23.1499 13.4949 23.1398 13.2142 23.0952 12.278C23.0544 11.4123 22.9091 10.9431 22.7868 10.6311C22.6249 10.216 22.4326 9.92146 22.1207 9.61111C21.8087 9.30076 21.5135 9.10883 21.0985 8.94904C20.7859 8.82813 20.3152 8.68485 19.4504 8.64721C18.5138 8.60602 18.2326 8.59714 15.8629 8.60229C13.4932 8.60744 13.2127 8.61632 12.2765 8.6607C11.4113 8.7019 10.9419 8.84713 10.629 8.96928C10.2148 9.1312 9.91922 9.3233 9.6094 9.63525C9.29958 9.9472 9.10712 10.2421 8.94733 10.6574C8.82713 10.9704 8.68244 11.4409 8.64551 12.3057C8.60449 13.2416 8.59544 13.5221 8.60059 15.8921C8.60574 18.2622 8.61497 18.5431 8.659 19.4785C8.69948 20.3441 8.84595 20.8135 8.96757 21.1267C9.12949 21.5406 9.32124 21.8371 9.63337 22.1462C9.94549 22.4553 10.2409 22.6484 10.6557 22.8082ZM19.7218 11.7242C19.6045 11.5492 19.5416 11.3434 19.5413 11.1327C19.5408 10.8502 19.6526 10.5791 19.8519 10.379C20.0513 10.1789 20.322 10.0662 20.6044 10.0656C20.8151 10.0652 21.0212 10.1273 21.1967 10.244C21.3721 10.3607 21.509 10.5268 21.59 10.7213C21.671 10.9159 21.6925 11.13 21.6518 11.3368C21.611 11.5435 21.5099 11.7335 21.3612 11.8828C21.2125 12.032 21.0228 12.1338 20.8163 12.1753C20.6097 12.2168 20.3954 12.1961 20.2006 12.1158C20.0058 12.0355 19.8392 11.8992 19.7218 11.7242ZM15.8858 20.4352C13.3687 20.44 11.3241 18.4037 11.3192 15.8861C11.3144 13.3689 13.351 11.3239 15.8684 11.3189C18.3858 11.3139 20.431 13.3507 20.4358 15.8683C20.4406 18.3859 18.4029 20.4304 15.8858 20.4352ZM13.4136 14.2379C13.0894 14.7252 12.917 15.2976 12.9181 15.8829C12.9189 16.2715 12.9961 16.6562 13.1455 17.0149C13.2949 17.3737 13.5136 17.6995 13.7889 17.9737C14.0642 18.248 14.3909 18.4653 14.7502 18.6133C15.1096 18.7613 15.4945 18.837 15.8831 18.8362C16.4684 18.835 17.0402 18.6603 17.5262 18.3342C18.0122 18.0081 18.3905 17.5452 18.6134 17.004C18.8363 16.4629 18.8937 15.8678 18.7784 15.294C18.6631 14.7202 18.3802 14.1935 17.9656 13.7805C17.5509 13.3674 17.0231 13.0867 16.4488 12.9736C15.8746 12.8606 15.2797 12.9204 14.7395 13.1454C14.1992 13.3704 13.7378 13.7506 13.4136 14.2379Z" fill-rule="evenodd"></path></svg></a><a class="transition-opacity will-change-transform hover:opacity-70" href="https://www.youtube.com/@lime" rel="noopener noreferrer nofollow" target="_blank"><svg class="size-8 md:size-10" fill="currentColor" viewbox="0 0 32 32"><path d="M16 32C24.8366 32 32 24.8366 32 16C32 7.16344 24.8366 0 16 0C7.16344 0 0 7.16344 0 16C0 24.8366 7.16344 32 16 32ZM23.3995 10.386C24.1918 10.5983 24.8156 11.2241 25.0273 12.0187C25.4121 13.4589 25.4121 16.4638 25.4121 16.4638C25.4121 16.4638 25.4121 19.4687 25.0273 20.9091C24.8156 21.7036 24.1918 22.3293 23.3995 22.5418C21.9637 22.9277 16.2061 22.9277 16.2061 22.9277C16.2061 22.9277 10.4484 22.9277 9.01256 22.5418C8.22039 22.3293 7.59646 21.7036 7.38474 20.9091C7 19.4687 7 16.4638 7 16.4638C7 16.4638 7 13.4589 7.38474 12.0187C7.59646 11.2241 8.22039 10.5983 9.01256 10.386C10.4484 10 16.2061 10 16.2061 10C16.2061 10 21.9637 10 23.3995 10.386Z"></path><path clip-rule="evenodd" d="M13.4164 20.2199L20.0419 16.4638L13.4164 12.7074V20.2199Z" fill-rule="evenodd"></path></svg></a><a class="transition-opacity will-change-transform hover:opacity-70" href="https://x.com/Lime" rel="noopener noreferrer nofollow" target="_blank"><svg class="size-8 md:size-10" fill="currentColor" viewbox="0 0 32 32"><path clip-rule="evenodd" d="M16 32C24.8366 32 32 24.8366 32 16C32 7.16344 24.8366 0 16 0C7.16344 0 0 7.16344 0 16C0 24.8366 7.16344 32 16 32ZM23.4491 9H20.9402L16.8139 13.7735L13.2157 9H8L14.206 17.1548L8.33011 23.9172H10.8389L15.3944 18.7128L19.3557 23.9172H24.4394L17.9693 15.3315L23.4491 9ZM21.4354 22.3924H20.049L10.938 10.4254H12.4565L21.4354 22.3924Z" fill-rule="evenodd"></path></svg></a><a class="transition-opacity will-change-transform hover:opacity-70" href="https://www.tiktok.com/@lime" rel="noopener noreferrer nofollow" target="_blank"><svg class="size-8 md:size-10" fill="currentColor" viewbox="0 0 32 32"><path clip-rule="evenodd" d="M16 32C24.8366 32 32 24.8366 32 16C32 7.16344 24.8366 0 16 0C7.16344 0 0 7.16344 0 16C0 24.8366 7.16344 32 16 32ZM21.5645 11.4409C21.6728 11.5114 21.7845 11.5764 21.8992 11.6357C22.6458 12.0079 23.3749 12.1212 23.7341 12.0823V14.9806C23.7341 14.9806 22.7091 14.9381 21.9484 14.7363C20.8881 14.4526 20.2085 14.017 20.2085 14.017C20.2085 14.017 19.7368 13.705 19.7014 13.6837V19.6731C19.7014 20.006 19.6132 20.839 19.349 21.5335C19.1174 22.1273 18.7864 22.6774 18.3701 23.1601C18.3701 23.1601 17.7185 23.9679 16.5739 24.5101C15.6198 24.9622 14.7711 24.987 14.434 24.9968C14.4065 24.9976 14.3823 24.9983 14.3619 24.9992C14.3619 24.9992 12.7947 25.0622 11.3813 24.1017L11.3743 24.0947V24.1017C10.8964 23.7683 10.4703 23.3663 10.1096 22.9086C9.6623 22.3381 9.38783 21.6613 9.317 21.463V21.4559C9.20438 21.1191 8.96817 20.3042 9.00358 19.5176C9.05989 18.1318 9.52489 17.278 9.64813 17.0655C9.97199 16.4828 10.3951 15.9611 10.8983 15.5239C11.4726 15.0425 12.1404 14.6853 12.8597 14.4748C13.5789 14.2644 14.334 14.2054 15.0772 14.3014L15.0737 17.2741C14.8289 17.1943 14.573 17.1538 14.3155 17.154C12.9552 17.154 11.8527 18.2632 11.8527 19.6331C11.8527 21.0029 12.9552 22.1121 14.3155 22.1121C14.739 22.1127 15.1553 22.0028 15.5235 21.7934C15.8767 21.5927 16.1752 21.3083 16.3927 20.9652C16.6102 20.6221 16.74 20.2308 16.7708 19.8257V19.8194C16.7725 19.8109 16.7725 19.8024 16.7725 19.7942C16.7729 19.7878 16.7733 19.7816 16.7737 19.7756C16.7746 19.7632 16.7754 19.7514 16.7754 19.739C16.7818 19.5909 16.7818 19.4411 16.7818 19.2896V8H19.7014C19.6968 8 19.6663 8.27978 19.74 8.71219H19.7364C19.8246 9.23315 20.064 9.97721 20.705 10.7107C20.9612 10.9877 21.2498 11.2328 21.5645 11.4409Z" fill-rule="evenodd"></path></svg></a><a class="transition-opacity will-change-transform hover:opacity-70" href="https://www.linkedin.com/company/lime" rel="noopener noreferrer nofollow" target="_blank"><svg class="size-8 md:size-10" fill="currentColor" viewbox="0 0 32 32"><path clip-rule="evenodd" d="M16 32C24.8366 32 32 24.8366 32 16C32 7.16344 24.8366 0 16 0C7.16344 0 0 7.16344 0 16C0 24.8366 7.16344 32 16 32ZM21.3 23.5H24.5V16.7465C24.5 13.8889 22.8296 12.5078 20.5664 12.5078C18.304 12.5078 17.3 14.2695 17.3 14.2695V13.1H14.1V23.5H17.3V17.9008C17.3 16.4008 18.0848 15.5078 19.4072 15.5078C20.6224 15.5078 21.3 16.3648 21.3 17.9008V23.5ZM8.5 9.46797C8.5 10.5552 9.3744 11.4367 10.4536 11.4367C11.532 11.4367 12.4072 10.5552 12.4064 9.46797C12.4064 8.38157 11.532 7.5 10.4536 7.5C9.3744 7.5 8.5 8.38157 8.5 9.46797ZM12.5 23.5H8.5V13.1H12.5V23.5Z" fill-rule="evenodd"></path></svg></a></div></div><div class="relative z-20 ml-auto flex items-center gap-3" id="home-user"><a class="flex items-center justify-center rounded-full border font-medium transition duration-150 border-transparent bg-surface-inverted-primary text-inverted-primary can-hover:hover:bg-surface-inverted-subtle h-8 px-3 text-sm whitespace-nowrap" href="#" id="login-open-btn" target="_self">Đăng nhập</a><button aria-hidden="true" aria-label="Toggle mobile navigation menu" class="cursor-pointer md:hidden" tabindex="-1" type="button"><svg fill="currentColor" height="20" viewbox="0 0 20 20" width="20"><path clip-rule="evenodd" d="M1 7C1 6.44772 1.44772 6 2 6L18 6C18.5523 6 19 6.44772 19 7C19 7.55228 18.5523 8 18 8L2 8C1.44772 8 1 7.55229 1 7Z" fill-rule="evenodd" style="transform-origin: center center; transform: scale(1) rotateZ(0deg) translateY(0px);"></path><path clip-rule="evenodd" d="M19 13C19 13.5523 18.5523 14 18 14L2 14C1.44772 14 1 13.5523 1 13C1 12.4477 1.44772 12 2 12L18 12C18.5523 12 19 12.4477 19 13Z" fill-rule="evenodd" style="transform-origin: center center; transform: scale(1) rotateZ(0deg) translateY(0px);"></path></svg></button><div hidden="" id="home-user-dropdown" style="position: absolute; top: calc(100% + 10px); right: 0; min-width: 170px; background: rgba(18, 18, 18, 0.95); border: 1px solid rgba(255, 255, 255, 0.15); border-radius: 12px; padding: 6px; z-index: 100; display: flex; flex-direction: column; gap: 2px;"><a href="/profile" style="display: block; padding: 8px 12px; font-size: 13px; font-weight: 500; border-radius: 8px; color: #fff; text-decoration: none;">Hồ sơ cá nhân</a><a href="/workspace" style="display: block; padding: 8px 12px; font-size: 13px; font-weight: 500; border-radius: 8px; color: #fff; text-decoration: none;">Studio</a><a href="/setting" style="display: block; padding: 8px 12px; font-size: 13px; font-weight: 500; border-radius: 8px; color: #fff; text-decoration: none;">Cài đặt</a><a hidden="" href="/admin" id="home-admin-item" style="display: block; padding: 8px 12px; font-size: 13px; font-weight: 500; border-radius: 8px; color: #ef4444; text-decoration: none;">Quản trị</a><button id="home-logout-btn" style="display: block; width: 100%; text-align: left; padding: 8px 12px; font-size: 13px; font-weight: 500; border-radius: 8px; color: #ef4444; background: none; border: none; cursor: pointer;" type="button">Đăng xuất</button></div></div></div></nav>
+<!-- ================= HERO SECTION ================= -->
+<div class="dark relative z-20" data-nav-theme="dark" id="hero-section">
+<div class="bg-surface-inverted-primary">
+<div class="relative flex min-h-screen items-center justify-center bg-inverted-primary">
+<div class="absolute inset-0" style="opacity: 0.35;">
+<video autoplay="" class="h-full w-full object-cover" loop="" muted="" playsinline="" preload="metadata">
+<source src="https://static.cdn-luma.com/files/sanity/7b077029-d756-49ad-9d9b-9ee0ad54ad02.mp4#t=0.001" type="video/mp4"/>
+</video>
+</div>
+<div class="relative flex w-full max-w-xl flex-col items-center gap-5 py-48 text-center">
+<h1 class="typo-h1 text-balance">
+       Đồng hành sáng tạo cùng LIME
+      </h1>
+<div class="typo-subhead text-balance text-primary/70">
+<p>
+        Bạn khởi tạo ý tưởng. LIME biến mọi thước phim thành hiện thực.
+       </p>
+</div>
+<div class="flex shrink-0 items-center">
+<a class="flex items-center justify-center rounded-full border font-medium transition duration-150 border-transparent bg-surface-inverted-primary text-inverted-primary can-hover:hover:bg-surface-inverted-subtle h-10 px-6 text-base md:h-12 md:px-8 md:text-lg" href="/workspace" target="_self">
+        Trải nghiệm miễn phí
+       </a>
+</div>
+</div>
+</div>
+<div class="relative mx-auto w-full max-w-2xl self-end px-2.5">
+<div class="flex flex-col items-center justify-between rounded-xl bg-linear-to-br from-surface-inverted-primary/50 to-surface-primary/50 px-5 py-5 shadow-md outline outline-inverted-primary/20 backdrop-blur-xl sm:px-10 sm:py-6 md:rounded-3xl -mt-40" style="width: 652px; max-width: 100%; min-height: 288px; height: 288px; box-sizing: border-box;">
+<h3 class="text-center typo-h4 text-balance text-primary/70" style="margin: 0; font-weight: 500;">
+       Bạn muốn tạo video gì hôm nay?
+      </h3>
+<form action="/workspace" class="relative rounded-2xl bg-white shadow-xl transition-all" method="GET" style="width: 572px; height: 127.56px; max-width: 100%; box-sizing: border-box; padding: 16px 56px 14px 18px; display: flex; flex-direction: column; justify-content: space-between;">
+<textarea autocomplete="off" class="block w-full resize-none bg-transparent typo-body-m text-black outline-none placeholder:text-gray-400" id="home-prompt-input" name="prompt" placeholder="Kể câu chuyện lập trình viên thức trắng đêm trước ngày ra mắt, gõ lệnh git trong terminal..." style="height: 64px; font-size: 15px; line-height: 1.45; border: none; padding: 0; margin: 0;"></textarea>
+<div style="display: flex; justify-content: space-between; align-items: flex-end; width: 100%;">
+<span style="font-size: 11.5px; color: #9CA3AF; letter-spacing: 0.2px; font-weight: 500;">
+          chọn mẫu bên dưới để thử nhanh
+         </span>
+<button aria-label="Submit prompt" class="cursor-pointer text-black hover:opacity-70 transition-opacity" id="home-prompt-btn" style="position: absolute; right: 14px; bottom: 14px; background: none; border: none; padding: 0; display: flex; align-items: center; justify-content: center;" type="submit">
+<svg fill="currentColor" style="width: 36px; height: 36px;" viewbox="0 0 41 41">
+<path d="M20.582 40.8203C17.8346 40.8203 15.2565 40.2995 12.8477 39.2578C10.4388 38.2292 8.32292 36.8034 6.5 34.9805C4.67708 33.1445 3.24479 31.0286 2.20312 28.6328C1.17448 26.224 0.660156 23.6458 0.660156 20.8984C0.660156 18.151 1.17448 15.5729 2.20312 13.1641C3.24479 10.7552 4.67708 8.63932 6.5 6.81641C8.32292 4.99349 10.4388 3.56771 12.8477 2.53906C15.2565 1.4974 17.8346 0.976562 20.582 0.976562C23.3294 0.976562 25.9076 1.4974 28.3164 2.53906C30.7253 3.56771 32.8411 4.99349 34.6641 6.81641C36.487 8.63932 37.9128 10.7552 38.9414 13.1641C39.9831 15.5729 40.5039 18.151 40.5039 20.8984C40.5039 23.6458 39.9831 26.224 38.9414 28.6328C37.9128 31.0286 36.487 33.1445 34.6641 34.9805C32.8411 36.8034 30.7253 38.2292 28.3164 39.2578C25.9076 40.2995 23.3294 40.8203 20.582 40.8203ZM20.6016 10.7422C20.3932 10.7422 20.1979 10.7812 20.0156 10.8594C19.8333 10.9245 19.638 11.0612 19.4297 11.2695L12.7891 17.6758C12.6328 17.819 12.5156 17.9818 12.4375 18.1641C12.3594 18.3333 12.3203 18.5286 12.3203 18.75C12.3203 19.1536 12.457 19.4922 12.7305 19.7656C13.0039 20.026 13.349 20.1562 13.7656 20.1562C14.2344 20.1562 14.6055 19.9935 14.8789 19.668L17.9453 16.4062L19.1172 15.1758L18.9805 18.1836V29.4922C18.9805 29.9219 19.1367 30.293 19.4492 30.6055C19.7747 30.9049 20.1589 31.0547 20.6016 31.0547C21.0443 31.0547 21.4219 30.9049 21.7344 30.6055C22.0469 30.293 22.2031 29.9219 22.2031 29.4922V18.1836L22.0859 15.1758L23.2578 16.4062L26.3242 19.668C26.5846 19.9935 26.9492 20.1562 27.418 20.1562C27.8346 20.1562 28.1797 20.026 28.4531 19.7656C28.7396 19.4922 28.8828 19.1536 28.8828 18.75C28.8828 18.5286 28.8372 18.3333 28.7461 18.1641C28.668 17.9818 28.5508 17.819 28.3945 17.6758L21.7734 11.2695C21.5651 11.0612 21.3698 10.9245 21.1875 10.8594C21.0052 10.7812 20.8099 10.7422 20.6016 10.7422Z">
+</path>
+</svg>
+</button>
+</div>
+</form>
+<div class="flex flex-wrap justify-center gap-1.5 sm:gap-2.5">
+<button class="home-prompt-suggestion flex items-center justify-center rounded-full border font-medium transition duration-150 border-transparent bg-surface-inverted-primary text-inverted-primary can-hover:hover:bg-surface-inverted-subtle h-8 px-3 text-sm cursor-pointer max-sm:text-xs" data-prompt="Kể câu chuyện lập trình viên thức trắng đêm trước ngày ra mắt, gõ lệnh git trong terminal, dòng code chạy liên tục, khoảnh khắc build thành công và con số tăng vọt ăn mừng chiến thắng." onclick="document.getElementById('home-prompt-input').value=this.getAttribute('data-prompt');document.getElementById('home-prompt-input').focus();" type="button">
+        Dev Story: Ra mắt sản phẩm
+       </button>
+<button class="home-prompt-suggestion flex items-center justify-center rounded-full border font-medium transition duration-150 border-transparent bg-surface-inverted-primary text-inverted-primary can-hover:hover:bg-surface-inverted-subtle h-8 px-3 text-sm cursor-pointer max-sm:text-xs" data-prompt="Quảng cáo dọc điện thoại giảm giá bùng nổ, chữ SALE khổng lồ chớp nháy bắt mắt trên nền chuyển màu rực rỡ, con số phần trăm giảm giá đập mạnh thị giác và nút mua ngay nổi bật ở cuối." onclick="document.getElementById('home-prompt-input').value=this.getAttribute('data-prompt');document.getElementById('home-prompt-input').focus();" type="button">
+        Quảng cáo Flash Sale
+       </button>
+<button class="home-prompt-suggestion flex items-center justify-center rounded-full border font-medium transition duration-150 border-transparent bg-surface-inverted-primary text-inverted-primary can-hover:hover:bg-surface-inverted-subtle h-8 px-3 text-sm cursor-pointer max-sm:text-xs" data-prompt="Tạo một bài giảng kiến thức chuẩn chỉnh về chủ đề khoa học tự nhiên, bố cục thông tin mạch lạc khoa học, có biểu đồ so sánh trực quan, các bước thực hiện đánh số thứ tự rõ ràng." onclick="document.getElementById('home-prompt-input').value=this.getAttribute('data-prompt');document.getElementById('home-prompt-input').focus();" type="button">
+        Bài giảng kiến thức
+       </button>
+</div>
+</div>
+</div>
+</div>
+</div>
+<div class="light grow pb-20 md:pb-32 lg:pb-40 flex flex-col gap-20 md:gap-32 lg:gap-40 [clip-path:inset(0)]" data-nav-theme="light" id="features-section">
+<div class="pointer-events-none fixed top-0 right-0 left-0 z-10 h-top-nav transform-gpu bg-surface-primary/80 backdrop-blur-xl">
+</div>
+<div class="container-lg flex min-h-[12dvh] items-center justify-center py-5">
+<div class="flex min-h-14 w-fit max-w-full items-center justify-between gap-4 rounded-full border border-primary/10 bg-surface-elevated px-6 py-2.5 md:gap-6 shadow-xs">
+<p class="font-medium text-balance text-sm md:text-base leading-snug">
+       Khám phá các thiết lập chuyên sâu để tối ưu hóa chất lượng video xuất bản
+      </p>
+<a class="flex items-center justify-center rounded-full border font-medium transition duration-150 border-transparent bg-surface-primary text-primary can-hover:hover:bg-surface-subtle h-8 px-4 text-sm shrink-0 whitespace-nowrap" href="/setting" target="_self">
+      Tìm hiểu ngay →
+     </a>
+</div>
+</div>
+<div class="container-lg flex max-h-[50dvh] items-center justify-center py-[10vmax] text-center">
+<div class="typo-h1 text-balance">
+<p>
+      Sứ mệnh của chúng tôi là kiến tạo nền tảng AI đột phá, có khả năng thấu hiểu ý tưởng và tự động sản xuất video trực quan, sống động cho thế giới thực
+     </p>
+</div>
+</div>
+<div class="relative container-lg space-y-8 text-center md:space-y-8">
+<p class="typo-subhead text-secondary">
+      Hạ tầng công nghệ biến ý tưởng thành video
+    </p>
+<div class="tech-marquee-wrapper">
+<div class="tech-marquee-track">
+<!-- Set A -->
+<div class="tech-marquee-group">
+  <div class="tech-pill">
+    <svg class="size-6 md:size-7 shrink-0" viewBox="0 0 28 28" fill="none">
+      <path d="M14 2C14 8.6 8.6 14 2 14C8.6 14 14 19.4 14 26C14 19.4 19.4 14 26 14C19.4 14 14 8.6 14 2Z" fill="url(#gemini_grad)"/>
+      <defs>
+        <linearGradient id="gemini_grad" x1="2" y1="2" x2="26" y2="26" gradientUnits="userSpaceOnUse">
+          <stop stop-color="#1BA1E2"/>
+          <stop offset="0.5" stop-color="#9C6ADE"/>
+          <stop offset="1" stop-color="#E25141"/>
+        </linearGradient>
+      </defs>
+    </svg>
+    <span class="tech-pill-text">Gemini AI</span>
+  </div>
+  <div class="tech-pill">
+    <svg class="size-6 md:size-7 shrink-0" viewBox="0 0 28 28" fill="none">
+      <rect width="28" height="28" rx="7" fill="url(#vieneu_bg)"/>
+      <path d="M6.5 14v0M10 9.5v9M14 6v16M18 9.5v9M21.5 12v4" stroke="#FFFFFF" stroke-width="2.5" stroke-linecap="round"/>
+      <defs>
+        <linearGradient id="vieneu_bg" x1="0" y1="0" x2="28" y2="28" gradientUnits="userSpaceOnUse">
+          <stop stop-color="#8B5CF6"/>
+          <stop offset="1" stop-color="#EC4899"/>
+        </linearGradient>
+      </defs>
+    </svg>
+    <span class="tech-pill-text">VieNeu TTS</span>
+  </div>
+  <div class="tech-pill">
+    <svg class="size-6 md:size-7 shrink-0 rounded-md" viewBox="0 0 28 28" fill="none">
+      <rect width="28" height="28" rx="7" fill="#111827"/>
+      <path d="M7 15l7-9v6h7l-7 10v-7H7z" fill="#0AE448"/>
+    </svg>
+    <span class="tech-pill-text">GSAP Motion</span>
+  </div>
+  <div class="tech-pill">
+    <svg class="size-6 md:size-7 shrink-0 rounded-md" viewBox="0 0 28 28" fill="none">
+      <rect width="28" height="28" rx="7" fill="#E44D26"/>
+      <path d="M7 6h14l-1.3 14.5L14 23l-5.7-2.5L7 6z" fill="#F16529"/>
+      <path d="M14 8v12.8l4.4-1.9 1-10.9H14z" fill="#EBEBEB"/>
+      <path d="M14 8H8.6l.4 4.5h5V8zm0 6.5H9.2l.4 4.5 4.4 1.8V14.5z" fill="#FFFFFF"/>
+    </svg>
+    <span class="tech-pill-text">HTML5 Canvas</span>
+  </div>
+  <div class="tech-pill">
+    <svg class="size-6 md:size-7 shrink-0" viewBox="0 0 28 28" fill="none">
+      <circle cx="9.5" cy="15" r="5.5" stroke="#2EAD33" stroke-width="2.5"/>
+      <circle cx="18.5" cy="13" r="5.5" stroke="#E34F26" stroke-width="2.5"/>
+      <path d="M9.5 13v4M18.5 11v4" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
+    </svg>
+    <span class="tech-pill-text">Playwright</span>
+  </div>
+  <div class="tech-pill">
+    <svg class="size-6 md:size-7 shrink-0 rounded-md" viewBox="0 0 28 28" fill="none">
+      <rect width="28" height="28" rx="7" fill="#007808"/>
+      <path d="M5 7h9v3.2H8.5v3.2h5.5v3H8.5V21H5V7zm10.5 0h9v3.2h-5.5v3.2h5v3h-5V21h-3.5V7z" fill="#FFFFFF"/>
+    </svg>
+    <span class="tech-pill-text">FFmpeg Engine</span>
+  </div>
+  <div class="tech-pill">
+    <svg class="size-6 md:size-7 shrink-0 rounded-md" viewBox="0 0 28 28" fill="none">
+      <rect width="28" height="28" rx="7" fill="#0078D4"/>
+      <path d="M6 11v6h4l5 5V6l-5 5H6zm11.5-.5a5 5 0 0 1 0 7m2.5-10a8.5 8.5 0 0 1 0 13" stroke="#FFFFFF" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+    </svg>
+    <span class="tech-pill-text">Edge TTS</span>
+  </div>
+</div>
+<!-- Set B (Duplicate for continuous loop) -->
+<div class="tech-marquee-group" aria-hidden="true">
+  <div class="tech-pill">
+    <svg class="size-6 md:size-7 shrink-0" viewBox="0 0 28 28" fill="none">
+      <path d="M14 2C14 8.6 8.6 14 2 14C8.6 14 14 19.4 14 26C14 19.4 19.4 14 26 14C19.4 14 14 8.6 14 2Z" fill="url(#gemini_grad)"/>
+    </svg>
+    <span class="tech-pill-text">Gemini AI</span>
+  </div>
+  <div class="tech-pill">
+    <svg class="size-6 md:size-7 shrink-0" viewBox="0 0 28 28" fill="none">
+      <rect width="28" height="28" rx="7" fill="url(#vieneu_bg)"/>
+      <path d="M6.5 14v0M10 9.5v9M14 6v16M18 9.5v9M21.5 12v4" stroke="#FFFFFF" stroke-width="2.5" stroke-linecap="round"/>
+    </svg>
+    <span class="tech-pill-text">VieNeu TTS</span>
+  </div>
+  <div class="tech-pill">
+    <svg class="size-6 md:size-7 shrink-0 rounded-md" viewBox="0 0 28 28" fill="none">
+      <rect width="28" height="28" rx="7" fill="#111827"/>
+      <path d="M7 15l7-9v6h7l-7 10v-7H7z" fill="#0AE448"/>
+    </svg>
+    <span class="tech-pill-text">GSAP Motion</span>
+  </div>
+  <div class="tech-pill">
+    <svg class="size-6 md:size-7 shrink-0 rounded-md" viewBox="0 0 28 28" fill="none">
+      <rect width="28" height="28" rx="7" fill="#E44D26"/>
+      <path d="M7 6h14l-1.3 14.5L14 23l-5.7-2.5L7 6z" fill="#F16529"/>
+      <path d="M14 8v12.8l4.4-1.9 1-10.9H14z" fill="#EBEBEB"/>
+      <path d="M14 8H8.6l.4 4.5h5V8zm0 6.5H9.2l.4 4.5 4.4 1.8V14.5z" fill="#FFFFFF"/>
+    </svg>
+    <span class="tech-pill-text">HTML5 Canvas</span>
+  </div>
+  <div class="tech-pill">
+    <svg class="size-6 md:size-7 shrink-0" viewBox="0 0 28 28" fill="none">
+      <circle cx="9.5" cy="15" r="5.5" stroke="#2EAD33" stroke-width="2.5"/>
+      <circle cx="18.5" cy="13" r="5.5" stroke="#E34F26" stroke-width="2.5"/>
+      <path d="M9.5 13v4M18.5 11v4" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
+    </svg>
+    <span class="tech-pill-text">Playwright</span>
+  </div>
+  <div class="tech-pill">
+    <svg class="size-6 md:size-7 shrink-0 rounded-md" viewBox="0 0 28 28" fill="none">
+      <rect width="28" height="28" rx="7" fill="#007808"/>
+      <path d="M5 7h9v3.2H8.5v3.2h5.5v3H8.5V21H5V7zm10.5 0h9v3.2h-5.5v3.2h5v3h-5V21h-3.5V7z" fill="#FFFFFF"/>
+    </svg>
+    <span class="tech-pill-text">FFmpeg Engine</span>
+  </div>
+  <div class="tech-pill">
+    <svg class="size-6 md:size-7 shrink-0 rounded-md" viewBox="0 0 28 28" fill="none">
+      <rect width="28" height="28" rx="7" fill="#0078D4"/>
+      <path d="M6 11v6h4l5 5V6l-5 5H6zm11.5-.5a5 5 0 0 1 0 7m2.5-10a8.5 8.5 0 0 1 0 13" stroke="#FFFFFF" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+    </svg>
+    <span class="tech-pill-text">Edge TTS</span>
+  </div>
+</div>
+</div>
+</div>
+</div>
+<section class="container-lg space-y-10 md:space-y-20">
+<div class="flex flex-col gap-3 text-balance lg:flex-row lg:items-start lg:justify-between">
+<div class="flex flex-col gap-2.5 md:gap-5 lg:w-3xl">
+<h2 class="typo-h2">
+       Nơi ý tưởng hóa thành tác phẩm hoàn thiện
+      </h2>
+<p class="max-w-4xl typo-subhead text-secondary">
+       Những thước phim chuẩn xác cho thương hiệu, đúng thị hiếu khán giả và đón đầu xu hướng. LIME được thiết kế để đưa bạn đến đích — với tốc độ vượt bậc.
+      </p>
+</div>
+</div>
+<div class="grid gap-10 grid-cols-1 md:grid-cols-2">
+<div class="group relative grid w-full auto-rows-min grid-cols-1 gap-3 md:gap-5 [&amp;:has(.card-link)]:cursor-pointer col-span-full lg:grid-cols-[2fr_1fr]">
+<div class="relative w-full overflow-hidden transition-transform duration-300 ease-out [.group:has(.card-link):hover_&amp;]:scale-[1.02] aspect-video md:aspect-16/7 lg:col-span-full rounded-xl md:rounded-3xl">
+<img alt="Lime Studio" class="h-full w-full object-cover" data-nimg="1" decoding="async" height="960" loading="eager" sizes="100vw" src="/where-ideas-work.webp" style="color: transparent;" width="2328"/>
+</div>
+<div class="flex flex-col gap-1 text-balance md:gap-2.5">
+<div class="flex items-center gap-4">
+<h3 class="typo-h3">
+         LIME Studio
+        </h3>
+</div>
+<div class="typo-body-m text-secondary">
+<p>
+         Hệ thống AI Agent tự động nghiên cứu kịch bản, sản xuất hình ảnh, lồng tiếng và hiệu ứng — trong khi vẫn giữ trọn nhận diện thương hiệu. Mười định hướng kịch bản trước giờ họp sáng. Năm mươi biến thể video trước khi tan ca. Mọi cuộc gặp đối tác đều bắt đầu bằng tác phẩm hoàn chỉnh.
+        </p>
+</div>
+</div>
+<div class="flex shrink-0 self-start lg:justify-end lg:self-start">
+<a class="flex items-center justify-center rounded-full border font-medium transition duration-150 border-transparent bg-surface-inverted-primary text-inverted-primary can-hover:hover:bg-surface-inverted-subtle h-8 px-4 text-sm md:h-10 md:px-6 md:text-base card-link" href="/workspace">
+        Khám phá Studio →
+       </a>
+</div>
+</div>
+</div>
+</section>
+</div>
+<div class="dark grow pt-20 md:pt-32 lg:pt-40 pb-20 md:pb-32 lg:pb-40 flex flex-col gap-20 md:gap-32 lg:gap-40 [clip-path:inset(0)]" data-nav-theme="dark" id="templates">
+<div class="pointer-events-none fixed top-0 right-0 left-0 z-10 h-top-nav transform-gpu bg-surface-primary/80 backdrop-blur-xl">
+</div>
+<section class="container-lg space-y-10 md:space-y-20">
+<div class="flex flex-col gap-3 text-balance lg:flex-row lg:items-start lg:justify-between">
+<div class="flex flex-col gap-2.5 md:gap-5 lg:w-3xl">
+<h2 class="typo-h2">
+       Kho mẫu kịch bản &amp; giao diện
+      </h2>
+<p class="max-w-4xl typo-subhead text-secondary">
+       Kho mẫu kịch bản và giao diện video tối ưu sẵn sàng biến ý tưởng của bạn thành sản phẩm hoàn chỉnh trong tích tắc.
+      </p>
+</div>
+</div>
+<div class="grid gap-10 grid-cols-1 md:grid-cols-2">
+<div class="group relative grid w-full auto-rows-min grid-cols-1 gap-3 md:gap-5 [&amp;:has(.card-link)]:cursor-pointer">
+<div class="relative w-full overflow-hidden transition-transform duration-300 ease-out [.group:has(.card-link):hover_&amp;]:scale-[1.02] aspect-video rounded-xl md:rounded-3xl">
+<img alt="Dev Story: Ra mắt sản phẩm" class="h-full w-full object-cover" data-nimg="1" decoding="async" height="1080" loading="eager" sizes="(max-width: 768px) 100vw, 50vw" src="/template-dev-story.webp" style="color: transparent;" width="1920"/>
+</div>
+<div class="flex flex-col gap-1 text-balance md:gap-2.5">
+<div class="flex items-center gap-4">
+<h3 class="typo-h3 font-bold">
+          Dev Story: Ra mắt sản phẩm
+         </h3>
+</div>
+<div class="typo-body-m text-secondary">
+<p>
+          Kể câu chuyện lập trình viên thức trắng đêm trước ngày ra mắt, gõ lệnh git trong terminal, dòng code chạy liên tục, khoảnh khắc build thành công và con số tăng vọt ăn mừng chiến thắng.
+         </p>
+</div>
+</div>
+<div class="flex shrink-0 self-start">
+<a class="btn-use-template flex items-center justify-center rounded-full border font-medium transition duration-150 border-transparent bg-surface-inverted-primary text-inverted-primary can-hover:hover:bg-surface-inverted-subtle h-8 px-4 text-sm md:h-10 md:px-6 md:text-base card-link" data-prompt="Kể câu chuyện lập trình viên thức trắng đêm trước ngày ra mắt, gõ lệnh git trong terminal, dòng code chạy liên tục, khoảnh khắc build thành công và con số tăng vọt ăn mừng chiến thắng." data-ratio="16:9" data-style="Dev Story" href="/workspace">
+        Sử dụng mẫu
+       </a>
+</div>
+</div>
+<div class="group relative grid w-full auto-rows-min grid-cols-1 gap-3 md:gap-5 [&amp;:has(.card-link)]:cursor-pointer">
+<div class="relative w-full overflow-hidden transition-transform duration-300 ease-out [.group:has(.card-link):hover_&amp;]:scale-[1.02] aspect-video rounded-xl md:rounded-3xl">
+<img alt="Quảng cáo dọc chớp nhoáng" class="h-full w-full object-cover" data-nimg="1" decoding="async" height="1080" loading="eager" sizes="(max-width: 768px) 100vw, 50vw" src="/template-flash-sale.webp" style="color: transparent;" width="1920"/>
+</div>
+<div class="flex flex-col gap-1 text-balance md:gap-2.5">
+<div class="flex items-center gap-4">
+<h3 class="typo-h3 font-bold">
+          Quảng cáo dọc chớp nhoáng
+         </h3>
+</div>
+<div class="typo-body-m text-secondary">
+<p>
+          Quảng cáo dọc điện thoại giảm giá bùng nổ, chữ SALE khổng lồ chớp nháy bắt mắt trên nền chuyển màu rực rỡ, con số phần trăm giảm giá đập mạnh thị giác và nút mua ngay nổi bật ở cuối.
+         </p>
+</div>
+</div>
+<div class="flex shrink-0 self-start">
+<a class="btn-use-template flex items-center justify-center rounded-full border font-medium transition duration-150 border-transparent bg-surface-inverted-primary text-inverted-primary can-hover:hover:bg-surface-inverted-subtle h-8 px-4 text-sm md:h-10 md:px-6 md:text-base card-link" data-prompt="Quảng cáo dọc điện thoại giảm giá bùng nổ, chữ SALE khổng lồ chớp nháy bắt mắt trên nền chuyển màu rực rỡ, con số phần trăm giảm giá đập mạnh thị giác và nút mua ngay nổi bật ở cuối." data-ratio="9:16" data-style="Flash Sale" href="/workspace">
+        Sử dụng mẫu
+       </a>
+</div>
+</div>
+</div>
+<div class="grid gap-x-5 gap-y-5 md:gap-y-10 grid-cols-1 md:grid-cols-2 lg:grid-cols-3">
+<div class="group relative grid w-full auto-rows-min grid-cols-1 gap-3 md:gap-5 [&amp;:has(.card-link)]:cursor-pointer">
+<div class="relative w-full overflow-hidden transition-transform duration-300 ease-out [.group:has(.card-link):hover_&amp;]:scale-[1.02] aspect-video rounded-xl md:rounded-3xl">
+<img alt="Bài giảng kiến thức" class="h-full w-full object-cover" data-nimg="1" decoding="async" height="1080" loading="eager" sizes="(max-width: 768px) 100vw, (max-width: 1024px) 50vw, 33vw" src="/template-education.webp" style="color: transparent;" width="1920"/>
+</div>
+<div class="flex flex-col gap-1 text-balance md:gap-2.5">
+<div class="flex items-center gap-2">
+<span class="inline-block w-fit font-semibold uppercase border typo-label rounded-md md:rounded-lg px-2.5 py-1 md:px-3 md:py-1.5 border-current text-secondary">
+         Giáo dục · 16:9
+        </span>
+</div>
+<h3 class="typo-h4 font-bold">
+        Bài giảng kiến thức
+       </h3>
+<div class="typo-body-m text-secondary">
+<p class="line-clamp-3">
+         Tạo một bài giảng kiến thức chuẩn chỉnh về chủ đề khoa học tự nhiên, bố cục thông tin mạch lạc khoa học, có biểu đồ so sánh trực quan, các bước thực hiện đánh số thứ tự rõ ràng.
+        </p>
+</div>
+<div class="flex shrink-0 self-start pt-1">
+<a class="btn-use-template flex items-center justify-center rounded-full border font-medium transition duration-150 border-transparent bg-surface-inverted-primary text-inverted-primary can-hover:hover:bg-surface-inverted-subtle h-8 px-4 text-sm card-link" data-prompt="Tạo một bài giảng kiến thức chuẩn chỉnh về chủ đề khoa học tự nhiên, bố cục thông tin mạch lạc khoa học, có biểu đồ so sánh trực quan, các bước thực hiện đánh số thứ tự rõ ràng." data-ratio="16:9" data-style="Knowledge Lecture" href="/workspace">
+         Sử dụng mẫu
+        </a>
+</div>
+</div>
+</div>
+<div class="group relative grid w-full auto-rows-min grid-cols-1 gap-3 md:gap-5 [&amp;:has(.card-link)]:cursor-pointer">
+<div class="relative w-full overflow-hidden transition-transform duration-300 ease-out [.group:has(.card-link):hover_&amp;]:scale-[1.02] aspect-video rounded-xl md:rounded-3xl">
+<img alt="Người que giải thích" class="h-full w-full object-cover" data-nimg="1" decoding="async" height="1080" loading="eager" sizes="(max-width: 768px) 100vw, (max-width: 1024px) 50vw, 33vw" src="/template-stick-figure.webp" style="color: transparent;" width="1920"/>
+</div>
+<div class="flex flex-col gap-1 text-balance md:gap-2.5">
+<div class="flex items-center gap-2">
+<span class="inline-block w-fit font-semibold uppercase border typo-label rounded-md md:rounded-lg px-2.5 py-1 md:px-3 md:py-1.5 border-current text-secondary">
+         Hoạt họa · 9:16
+        </span>
+</div>
+<h3 class="typo-h4 font-bold">
+        Người que giải thích
+       </h3>
+<div class="typo-body-m text-secondary">
+<p class="line-clamp-3">
+         Video người que giải thích hài hước một khái niệm phức tạp bằng nét vẽ tay tối giản, bóng thoại hội thoại thông minh và chuyển động dí dỏm cuốn hút.
+        </p>
+</div>
+<div class="flex shrink-0 self-start pt-1">
+<a class="btn-use-template flex items-center justify-center rounded-full border font-medium transition duration-150 border-transparent bg-surface-inverted-primary text-inverted-primary can-hover:hover:bg-surface-inverted-subtle h-8 px-4 text-sm card-link" data-prompt="Video người que giải thích hài hước một khái niệm phức tạp bằng nét vẽ tay tối giản, bóng thoại hội thoại thông minh và chuyển động dí dỏm cuốn hút." data-ratio="9:16" data-style="Stick Figure" href="/workspace">
+         Sử dụng mẫu
+        </a>
+</div>
+</div>
+</div>
+<div class="group relative grid w-full auto-rows-min grid-cols-1 gap-3 md:gap-5 [&amp;:has(.card-link)]:cursor-pointer">
+<div class="relative w-full overflow-hidden transition-transform duration-300 ease-out [.group:has(.card-link):hover_&amp;]:scale-[1.02] aspect-video rounded-xl md:rounded-3xl">
+<img alt="Pitch deck động" class="h-full w-full object-cover" data-nimg="1" decoding="async" height="1080" loading="eager" sizes="(max-width: 768px) 100vw, (max-width: 1024px) 50vw, 33vw" src="/template-pitch-deck.webp" style="color: transparent;" width="1920"/>
+</div>
+<div class="flex flex-col gap-1 text-balance md:gap-2.5">
+<div class="flex items-center gap-2">
+<span class="inline-block w-fit font-semibold uppercase border typo-label rounded-md md:rounded-lg px-2.5 py-1 md:px-3 md:py-1.5 border-current text-secondary">
+         Gọi vốn · 16:9
+        </span>
+</div>
+<h3 class="typo-h4 font-bold">
+        Pitch deck động
+       </h3>
+<div class="typo-body-m text-secondary">
+<p class="line-clamp-3">
+         Biến bộ slide thuyết trình gọi vốn khô khan thành một video pitch deck chuyển động mượt mà, biểu đồ cột doanh thu tăng trưởng theo quý, dòng tiền dự phóng và lời kêu gọi đầu tư đầy tự tin.
+        </p>
+</div>
+<div class="flex shrink-0 self-start pt-1">
+<a class="btn-use-template flex items-center justify-center rounded-full border font-medium transition duration-150 border-transparent bg-surface-inverted-primary text-inverted-primary can-hover:hover:bg-surface-inverted-subtle h-8 px-4 text-sm card-link" data-prompt="Biến bộ slide thuyết trình gọi vốn khô khan thành một video pitch deck chuyển động mượt mà, biểu đồ cột doanh thu tăng trưởng theo quý, dòng tiền dự phóng và lời kêu gọi đầu tư đầy tự tin." data-ratio="16:9" data-style="Pitch Deck" href="/workspace">
+         Sử dụng mẫu
+        </a>
+</div>
+</div>
+</div>
+</div>
+</section>
+</div>
+<!-- ================= PRICING SECTION (CUSTOM LIME DESIGN) ================= -->
+<div class="light grow pt-28 md:pt-36 lg:pt-40 pb-20 md:pb-32 lg:pb-36 flex flex-col [clip-path:inset(0)]" data-nav-theme="light" id="pricing" style="background-color: #F8F9FA;">
 
-    <nav class="lime-nav">
-        <div class="lime-nav-inner">
-            <a class="brand" href="#home">
-                <img src="/logo.png" alt="lime logo" class="brand-logo-img">
-                <span class="logo">lime<i>.</i></span>
+<div class="pointer-events-none fixed top-0 right-0 left-0 z-10 h-top-nav transform-gpu bg-surface-primary/80 backdrop-blur-xl">
+</div>
+
+<style>
+/* ==========================================================
+   LIME BESPOKE PRICING ARCHITECTURE (V3)
+   ========================================================== */
+/* Tactile Billing Switcher */
+.lime-bill-toggle {
+  display: inline-flex;
+  align-items: center;
+  background: #FFFFFF;
+  border: 1px solid rgba(0, 0, 0, 0.08);
+  border-radius: 999px;
+  padding: 4px;
+  box-shadow: 0 2px 6px rgba(0, 0, 0, 0.04);
+}
+.lime-bill-toggle span {
+  cursor: pointer;
+  font-size: 13.5px;
+  font-weight: 600;
+  padding: 8px 18px;
+  border-radius: 999px;
+  color: #6B7280;
+  transition: all 0.2s cubic-bezier(0.16, 1, 0.3, 1);
+  user-select: none;
+}
+.lime-bill-toggle span.on {
+  background: #111827 !important;
+  color: #FFFFFF !important;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.12);
+}
+
+/* Tier Card: Base */
+.tier-card {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+  border-radius: 28px;
+  padding: 34px 30px;
+  transition: all 0.3s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+/* FREE TIER CARD */
+.tier-card-free {
+  background: #FFFFFF;
+  border: 1px solid rgba(0, 0, 0, 0.08);
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.03);
+}
+.tier-card-free:hover {
+  border-color: rgba(0, 0, 0, 0.16);
+  transform: translateY(-2px);
+  box-shadow: 0 12px 28px rgba(0, 0, 0, 0.06);
+}
+
+/* PRO TIER (HERO SPOTLIGHT) - Clean border without leaking pseudo-elements */
+.tier-card-pro {
+  background: #FFFFFF;
+  border: 2px solid #B9E72B !important;
+  box-shadow: 0 20px 48px -12px rgba(185, 231, 43, 0.28), 0 8px 24px -6px rgba(0, 0, 0, 0.05);
+  transform: scale(1.02);
+  z-index: 2;
+  overflow: hidden;
+}
+@media (max-width: 1023px) {
+  .tier-card-pro {
+    transform: none;
+  }
+}
+.tier-card-pro:hover {
+  box-shadow: 0 24px 56px -10px rgba(185, 231, 43, 0.38), 0 10px 28px -6px rgba(0, 0, 0, 0.08);
+}
+
+/* MAX TIER (DARK OBSIDIAN MONOLITH) */
+.tier-card-max {
+  background: #0B0E14;
+  color: #F9FAFB;
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  box-shadow: 0 16px 36px -10px rgba(0, 0, 0, 0.25);
+  overflow: hidden;
+}
+.tier-card-max:hover {
+  border-color: rgba(255, 255, 255, 0.24);
+  transform: translateY(-2px);
+  box-shadow: 0 20px 44px -8px rgba(0, 0, 0, 0.35);
+}
+.tier-card-max .text-neutral-500 {
+  color: #9CA3AF !important;
+}
+.tier-card-max .text-neutral-400 {
+  color: #6B7280 !important;
+}
+
+/* ENTERPRISE ARCHITECTURAL MONOLITH */
+.tier-card-enterprise {
+  background: linear-gradient(135deg, #0B0E14 0%, #111827 50%, #0F172A 100%);
+  color: #F9FAFB;
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  border-radius: 28px;
+  padding: 36px 40px;
+  box-shadow: 0 20px 48px -10px rgba(0, 0, 0, 0.3), 0 0 0 1px rgba(185, 231, 43, 0.05);
+  position: relative;
+  overflow: hidden;
+  transition: all 0.3s ease;
+}
+.tier-card-enterprise::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  right: 0;
+  width: 320px;
+  height: 100%;
+  background: radial-gradient(circle at top right, rgba(185, 231, 43, 0.12), transparent 70%);
+  pointer-events: none;
+}
+.tier-card-enterprise:hover {
+  border-color: rgba(185, 231, 43, 0.3);
+  box-shadow: 0 24px 56px -10px rgba(0, 0, 0, 0.4), 0 0 20px rgba(185, 231, 43, 0.08);
+}
+
+/* Spec Chips & Meters */
+.spec-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 12px;
+  border-radius: 12px;
+  font-size: 13px;
+  font-weight: 500;
+  transition: all 0.2s ease;
+}
+.spec-pill-light {
+  background: #F3F4F6;
+  border: 1px solid rgba(0, 0, 0, 0.05);
+  color: #1F2937;
+}
+.spec-pill-pro {
+  background: #F4FDE8;
+  border: 1px solid rgba(185, 231, 43, 0.45);
+  color: #14532D;
+}
+.spec-pill-dark {
+  background: rgba(255, 255, 255, 0.06);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  color: #F3F4F6;
+}
+.spec-pill-enterprise {
+  background: rgba(255, 255, 255, 0.05);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  color: #E5E7EB;
+  font-size: 13px;
+  font-weight: 500;
+}
+.spec-pill-enterprise:hover {
+  background: rgba(255, 255, 255, 0.08);
+  border-color: rgba(185, 231, 43, 0.3);
+  color: #FFFFFF;
+}
+
+/* Buttons */
+.btn-tier-pro {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 100%;
+  height: 48px;
+  border-radius: 999px;
+  background: #B9E72B !important;
+  color: #111827 !important;
+  font-size: 14.5px;
+  font-weight: 700;
+  letter-spacing: -0.01em;
+  transition: all 0.2s cubic-bezier(0.16, 1, 0.3, 1);
+  box-shadow: 0 4px 14px rgba(185, 231, 43, 0.35);
+}
+.btn-tier-pro:hover {
+  background: #a6d820 !important;
+  transform: translateY(-1px);
+  box-shadow: 0 6px 20px rgba(185, 231, 43, 0.45);
+}
+
+.btn-tier-max {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 100%;
+  height: 48px;
+  border-radius: 999px;
+  background: #FFFFFF !important;
+  color: #111827 !important;
+  font-size: 14.5px;
+  font-weight: 700;
+  transition: all 0.2s cubic-bezier(0.16, 1, 0.3, 1);
+}
+.btn-tier-max:hover {
+  background: #F3F4F6 !important;
+  transform: translateY(-1px);
+  box-shadow: 0 4px 16px rgba(255, 255, 255, 0.2);
+}
+
+.btn-tier-enterprise {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  height: 48px;
+  padding: 0 28px;
+  border-radius: 999px;
+  background: #B9E72B !important;
+  color: #111827 !important;
+  font-size: 14.5px;
+  font-weight: 700;
+  transition: all 0.2s cubic-bezier(0.16, 1, 0.3, 1);
+  box-shadow: 0 4px 16px rgba(185, 231, 43, 0.3);
+  white-space: nowrap;
+}
+.btn-tier-enterprise:hover {
+  background: #a6d820 !important;
+  transform: translateY(-1px);
+  box-shadow: 0 6px 24px rgba(185, 231, 43, 0.45);
+}
+
+.btn-tier-outline {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 100%;
+  height: 48px;
+  border-radius: 999px;
+  background: #FFFFFF !important;
+  color: #111827 !important;
+  border: 1px solid rgba(0, 0, 0, 0.12) !important;
+  font-size: 14px;
+  font-weight: 600;
+  transition: all 0.2s cubic-bezier(0.16, 1, 0.3, 1);
+}
+.btn-tier-outline:hover {
+  background: rgba(0, 0, 0, 0.03) !important;
+  border-color: rgba(0, 0, 0, 0.2) !important;
+}
+
+/* Feature Matrix Table Styling */
+.matrix-container {
+  border-radius: 24px;
+  background: #FFFFFF;
+  border: 1px solid rgba(0, 0, 0, 0.08);
+  overflow: hidden;
+  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.02);
+}
+.matrix-row {
+  display: grid;
+  grid-template-columns: 2fr 1fr 1fr 1fr 1.2fr;
+  align-items: center;
+  padding: 14px 24px;
+  border-bottom: 1px solid rgba(0, 0, 0, 0.05);
+  font-size: 13.5px;
+}
+@media (max-width: 900px) {
+  .matrix-row {
+    grid-template-columns: 1.8fr 1fr 1fr 1fr 1fr;
+    padding: 12px 14px;
+    font-size: 12px;
+  }
+}
+.matrix-row:last-child {
+  border-bottom: none;
+}
+.matrix-row:nth-child(even) {
+  background: #FAFAFA;
+}
+.matrix-header {
+  background: #F3F4F6 !important;
+  font-weight: 700;
+  text-transform: uppercase;
+  font-size: 11.5px;
+  letter-spacing: 0.05em;
+  color: #4B5563;
+}
+</style>
+
+<section class="container-lg space-y-12 md:space-y-16">
+  
+  <!-- ================= EDITORIAL HERO HEADER (WITHOUT REDUNDANT TAG) ================= -->
+  <div class="flex flex-col lg:flex-row lg:items-end lg:justify-between gap-6 pb-6 border-b border-black/8">
+    <div class="space-y-2.5 max-w-2xl">
+      <h2 class="typo-h2 font-extrabold tracking-tight text-neutral-900 leading-[1.12]">
+        Công suất sáng tạo không giới hạn.
+      </h2>
+      <p class="typo-subhead text-neutral-500 max-w-xl text-balance">
+        Lựa chọn gói công cụ AI tối ưu cho bạn. Nâng cấp linh hoạt theo tháng hoặc năm với VietQR tự động 24/7.
+      </p>
+    </div>
+
+    <!-- Cycle Selector -->
+    <div class="flex flex-col sm:flex-row items-start sm:items-center gap-3 shrink-0">
+      <div class="lime-bill-toggle bill-toggle">
+        <span class="on" data-period="month">Theo tháng</span>
+        <span class="flex items-center gap-1.5" data-period="year">
+          Theo năm
+          <small class="inline-block bg-[#B9E72B] text-black text-[10.5px] font-bold px-1.5 py-0.5 rounded-full">-20%</small>
+        </span>
+      </div>
+    </div>
+  </div>
+
+  <!-- ================= PRIMARY 3-TIER CREATIVE STAGE ================= -->
+  <div class="grid grid-cols-1 lg:grid-cols-3 gap-6 lg:gap-8 items-stretch pt-2">
+
+    <!-- ================= CARD 1: FREE ================= -->
+    <div class="tier-card tier-card-free">
+      <div class="space-y-6">
+        
+        <!-- Header -->
+        <div class="flex items-center justify-between">
+          <span class="text-xs font-bold uppercase tracking-wider text-neutral-400">Trải nghiệm</span>
+          <span class="text-xs font-semibold px-2.5 py-1 rounded-full bg-neutral-100 text-neutral-600">Khởi đầu</span>
+        </div>
+
+        <div>
+          <h3 class="text-2xl font-bold text-neutral-900 tracking-tight">FREE</h3>
+          <p class="text-xs text-neutral-500 mt-1">Dành cho cá nhân mới bắt đầu trải nghiệm tạo video AI.</p>
+        </div>
+
+        <!-- Price -->
+        <div class="py-2.5 border-y border-black/5">
+          <div class="flex items-baseline gap-1.5">
+            <span class="text-4xl lg:text-5xl font-black text-neutral-900 tracking-tight" style="font-size: 3rem; line-height: 1;">0đ</span>
+            <span class="text-sm text-neutral-400 font-medium">/ mãi mãi</span>
+          </div>
+          <p class="text-xs text-neutral-400 mt-1.5">Không cần thẻ tín dụng, đăng ký là dùng</p>
+        </div>
+
+        <!-- Capability Spec Chips -->
+        <div class="space-y-2.5">
+          <div class="spec-pill spec-pill-light w-full justify-between">
+            <span class="text-neutral-500">Hạn mức video:</span>
+            <span class="font-bold text-neutral-900">30 token trải nghiệm</span>
+          </div>
+          <div class="spec-pill spec-pill-light w-full justify-between">
+            <span class="text-neutral-500">Độ phân giải:</span>
+            <span class="font-bold text-neutral-900">Xuất 720p HD</span>
+          </div>
+        </div>
+
+        <!-- Detailed Features -->
+        <div class="space-y-3 pt-2">
+          <p class="text-[11px] font-bold uppercase tracking-wider text-neutral-400">Quyền lợi bao gồm</p>
+          <ul class="space-y-2.5 text-xs text-neutral-600">
+            <li class="flex items-center gap-2.5">
+              <svg class="size-4 text-[#10B981] shrink-0" viewBox="0 0 20 20" fill="currentColor"><path fill-rule="evenodd" d="M16.704 4.153a.75.75 0 01.143 1.052l-8 10.5a.75.75 0 01-1.127.075l-4.5-4.5a.75.75 0 011.06-1.06l3.894 3.893 7.48-9.817a.75.75 0 011.05-.143z" clip-rule="evenodd"/></svg>
+              <span>Giọng đọc tiếng Việt cơ bản</span>
+            </li>
+            <li class="flex items-center gap-2.5">
+              <svg class="size-4 text-[#10B981] shrink-0" viewBox="0 0 20 20" fill="currentColor"><path fill-rule="evenodd" d="M16.704 4.153a.75.75 0 01.143 1.052l-8 10.5a.75.75 0 01-1.127.075l-4.5-4.5a.75.75 0 011.06-1.06l3.894 3.893 7.48-9.817a.75.75 0 011.05-.143z" clip-rule="evenodd"/></svg>
+              <span>10+ mẫu thiết kế kịch bản cơ bản</span>
+            </li>
+            <li class="flex items-center gap-2.5">
+              <svg class="size-4 text-[#10B981] shrink-0" viewBox="0 0 20 20" fill="currentColor"><path fill-rule="evenodd" d="M16.704 4.153a.75.75 0 01.143 1.052l-8 10.5a.75.75 0 01-1.127.075l-4.5-4.5a.75.75 0 011.06-1.06l3.894 3.893 7.48-9.817a.75.75 0 011.05-.143z" clip-rule="evenodd"/></svg>
+              <span class="text-neutral-500">Xuất 720p (watermark LIME)</span>
+            </li>
+            <li class="flex items-center gap-2.5 text-neutral-400 line-through">
+              <svg class="size-4 text-neutral-300 shrink-0" viewBox="0 0 20 20" fill="currentColor"><path fill-rule="evenodd" d="M4 10a.75.75 0 01.75-.75h10.5a.75.75 0 010 1.5H4.75A.75.75 0 014 10z" clip-rule="evenodd"/></svg>
+              <span>Chèn watermark riêng</span>
+            </li>
+            <li class="flex items-center gap-2.5 text-neutral-400 line-through">
+              <svg class="size-4 text-neutral-300 shrink-0" viewBox="0 0 20 20" fill="currentColor"><path fill-rule="evenodd" d="M4 10a.75.75 0 01.75-.75h10.5a.75.75 0 010 1.5H4.75A.75.75 0 014 10z" clip-rule="evenodd"/></svg>
+              <span>Mở khoá toàn bộ giới hạn</span>
+            </li>
+          </ul>
+        </div>
+      </div>
+
+      <!-- CTA -->
+      <div class="pt-8 mt-auto">
+        <a href="/workspace" class="btn-tier-outline">
+          Bắt đầu miễn phí →
+        </a>
+      </div>
+    </div>
+
+    <!-- ================= CARD 2: PRO (FLAGSHIP SPOTLIGHT) ================= -->
+    <div class="tier-card tier-card-pro">
+
+      <div class="space-y-6">
+        
+        <!-- Header: Clean Non-Overlapping Alignment -->
+        <div class="flex items-center justify-between">
+          <span class="text-xs font-bold uppercase tracking-wider text-neutral-500">Creator Suite</span>
+          <span class="text-xs font-bold px-3 py-1 rounded-full bg-[#111827] text-[#B9E72B] shadow-xs">
+            ✦ Phổ biến nhất
+          </span>
+        </div>
+
+        <div>
+          <h3 class="text-2xl font-bold text-neutral-900 tracking-tight">PRO</h3>
+          <p class="text-xs text-neutral-600 mt-1">Cho creator và marketer cá nhân muốn sản xuất video chuyên nghiệp.</p>
+        </div>
+
+        <!-- Price -->
+        <div class="py-2.5 border-y border-black/8">
+          <div class="flex items-baseline gap-1.5">
+            <span class="price-val text-4xl lg:text-5xl font-black text-neutral-900 tracking-tight" data-monthly="99k" data-yearly="79k" style="font-size: 3rem; line-height: 1;">99k</span>
+            <span class="text-sm text-neutral-500 font-semibold">/ tháng</span>
+          </div>
+          <p class="text-xs text-emerald-700 font-semibold mt-1.5">
+            <span>Thanh toán theo năm: 79k/tháng (-20%)</span>
+          </p>
+        </div>
+
+        <!-- Capability Spec Chips -->
+        <div class="space-y-2.5">
+          <div class="spec-pill spec-pill-pro w-full justify-between">
+            <span class="text-neutral-700 font-medium">Hạn mức video:</span>
+            <span class="font-extrabold text-[#15803d]">200 token / tháng</span>
+          </div>
+          <div class="spec-pill spec-pill-pro w-full justify-between">
+            <span class="text-neutral-700 font-medium">Độ phân giải:</span>
+            <span class="font-extrabold text-[#15803d]">Xuất Full HD / 2K</span>
+          </div>
+        </div>
+
+        <!-- Detailed Features -->
+        <div class="space-y-3 pt-2">
+          <p class="text-[11px] font-bold uppercase tracking-wider text-neutral-500">Đặc quyền nâng cao</p>
+          <ul class="space-y-2.5 text-xs text-neutral-800 font-medium">
+            <li class="flex items-center gap-2.5">
+              <svg class="size-4 text-[#10B981] shrink-0" viewBox="0 0 20 20" fill="currentColor"><path fill-rule="evenodd" d="M16.704 4.153a.75.75 0 01.143 1.052l-8 10.5a.75.75 0 01-1.127.075l-4.5-4.5a.75.75 0 011.06-1.06l3.894 3.893 7.48-9.817a.75.75 0 011.05-.143z" clip-rule="evenodd"/></svg>
+              <span>Giọng đọc nhiều hơn, đa ngữ điệu</span>
+            </li>
+            <li class="flex items-center gap-2.5">
+              <svg class="size-4 text-[#10B981] shrink-0" viewBox="0 0 20 20" fill="currentColor"><path fill-rule="evenodd" d="M16.704 4.153a.75.75 0 01.143 1.052l-8 10.5a.75.75 0 01-1.127.075l-4.5-4.5a.75.75 0 011.06-1.06l3.894 3.893 7.48-9.817a.75.75 0 011.05-.143z" clip-rule="evenodd"/></svg>
+              <span>Chèn watermark riêng vào video</span>
+            </li>
+            <li class="flex items-center gap-2.5">
+              <svg class="size-4 text-[#10B981] shrink-0" viewBox="0 0 20 20" fill="currentColor"><path fill-rule="evenodd" d="M16.704 4.153a.75.75 0 01.143 1.052l-8 10.5a.75.75 0 01-1.127.075l-4.5-4.5a.75.75 0 011.06-1.06l3.894 3.893 7.48-9.817a.75.75 0 011.05-.143z" clip-rule="evenodd"/></svg>
+              <span>Tích hợp Brand kit riêng</span>
+            </li>
+            <li class="flex items-center gap-2.5">
+              <svg class="size-4 text-[#10B981] shrink-0" viewBox="0 0 20 20" fill="currentColor"><path fill-rule="evenodd" d="M16.704 4.153a.75.75 0 01.143 1.052l-8 10.5a.75.75 0 01-1.127.075l-4.5-4.5a.75.75 0 011.06-1.06l3.894 3.893 7.48-9.817a.75.75 0 011.05-.143z" clip-rule="evenodd"/></svg>
+              <span>Ưu tiên hàng đợi render</span>
+            </li>
+          </ul>
+        </div>
+      </div>
+
+      <!-- CTA -->
+      <div class="pt-8 mt-auto">
+        <button type="button" class="plan-cta btn-tier-pro cursor-pointer" data-plan="pro" onclick="window.openVietQRModal ? window.openVietQRModal({ plan: 'pro' }) : null">
+          Nâng cấp Pro ngay →
+        </button>
+      </div>
+    </div>
+
+    <!-- ================= CARD 3: MAX (OBSIDIAN STUDIO MONOLITH) ================= -->
+    <div class="tier-card tier-card-max">
+      <div class="space-y-6">
+        
+        <!-- Header -->
+        <div class="flex items-center justify-between">
+          <span class="text-xs font-bold uppercase tracking-wider text-neutral-400">Toàn năng</span>
+          <span class="text-xs font-semibold px-2.5 py-1 rounded-full bg-white/10 text-white">Vô hạn công suất</span>
+        </div>
+
+        <div>
+          <h3 class="text-2xl font-bold text-white tracking-tight">MAX</h3>
+          <p class="text-xs text-neutral-400 mt-1">Mở khoá toàn bộ giới hạn sáng tạo cho studio và team sản xuất.</p>
+        </div>
+
+        <!-- Price -->
+        <div class="py-2.5 border-y border-white/10">
+          <div class="flex items-baseline gap-1.5">
+            <span class="price-val text-4xl lg:text-5xl font-black text-white tracking-tight" data-monthly="499k" data-yearly="399k" style="font-size: 3rem; line-height: 1;">499k</span>
+            <span class="text-sm text-neutral-400 font-medium">/ tháng</span>
+          </div>
+          <p class="text-xs text-[#B9E72B] font-semibold mt-1.5">
+            Thanh toán theo năm: 399k/tháng (-20%)
+          </p>
+        </div>
+
+        <!-- Capability Spec Chips -->
+        <div class="space-y-2.5">
+          <div class="spec-pill spec-pill-dark w-full justify-between">
+            <span class="text-neutral-400">Hạn mức video:</span>
+            <span class="font-extrabold text-[#B9E72B]">Không giới hạn token</span>
+          </div>
+          <div class="spec-pill spec-pill-dark w-full justify-between">
+            <span class="text-neutral-400">Độ phân giải:</span>
+            <span class="font-extrabold text-white">Xuất 4K 60fps siêu nét</span>
+          </div>
+        </div>
+
+        <!-- Detailed Features -->
+        <div class="space-y-3 pt-2">
+          <p class="text-[11px] font-bold uppercase tracking-wider text-neutral-400">Toàn bộ quyền lợi cao cấp</p>
+          <ul class="space-y-2.5 text-xs text-neutral-300">
+            <li class="flex items-center gap-2.5">
+              <svg class="size-4 text-[#B9E72B] shrink-0" viewBox="0 0 20 20" fill="currentColor"><path fill-rule="evenodd" d="M16.704 4.153a.75.75 0 01.143 1.052l-8 10.5a.75.75 0 01-1.127.075l-4.5-4.5a.75.75 0 011.06-1.06l3.894 3.893 7.48-9.817a.75.75 0 011.05-.143z" clip-rule="evenodd"/></svg>
+              <span class="font-bold text-white">Mở khoá toàn bộ giới hạn sáng tạo</span>
+            </li>
+            <li class="flex items-center gap-2.5">
+              <svg class="size-4 text-[#B9E72B] shrink-0" viewBox="0 0 20 20" fill="currentColor"><path fill-rule="evenodd" d="M16.704 4.153a.75.75 0 01.143 1.052l-8 10.5a.75.75 0 01-1.127.075l-4.5-4.5a.75.75 0 011.06-1.06l3.894 3.893 7.48-9.817a.75.75 0 011.05-.143z" clip-rule="evenodd"/></svg>
+              <span>Toàn bộ giọng đọc cao cấp</span>
+            </li>
+            <li class="flex items-center gap-2.5">
+              <svg class="size-4 text-[#B9E72B] shrink-0" viewBox="0 0 20 20" fill="currentColor"><path fill-rule="evenodd" d="M16.704 4.153a.75.75 0 01.143 1.052l-8 10.5a.75.75 0 01-1.127.075l-4.5-4.5a.75.75 0 011.06-1.06l3.894 3.893 7.48-9.817a.75.75 0 011.05-.143z" clip-rule="evenodd"/></svg>
+              <span>Chèn watermark riêng &amp; Brand kit</span>
+            </li>
+            <li class="flex items-center gap-2.5">
+              <svg class="size-4 text-[#B9E72B] shrink-0" viewBox="0 0 20 20" fill="currentColor"><path fill-rule="evenodd" d="M16.704 4.153a.75.75 0 01.143 1.052l-8 10.5a.75.75 0 01-1.127.075l-4.5-4.5a.75.75 0 011.06-1.06l3.894 3.893 7.48-9.817a.75.75 0 011.05-.143z" clip-rule="evenodd"/></svg>
+              <span class="font-medium text-white">Ưu tiên render Turbo Queue</span>
+            </li>
+          </ul>
+        </div>
+      </div>
+
+      <!-- CTA -->
+      <div class="pt-8 mt-auto">
+        <button type="button" class="plan-cta btn-tier-max cursor-pointer" data-plan="max" onclick="window.openVietQRModal ? window.openVietQRModal({ plan: 'max' }) : null">
+          Nâng cấp Max →
+        </button>
+      </div>
+    </div>
+
+  </div>
+
+  <!-- ================= HIGH-END ARCHITECTURAL ENTERPRISE CARD ================= -->
+  <div class="tier-card-enterprise">
+    <div class="flex flex-col lg:flex-row lg:items-center justify-between gap-8 relative z-10">
+      
+      <div class="space-y-4 max-w-2xl">
+        <div class="flex items-center gap-3">
+          <span class="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-bold uppercase tracking-wider bg-[#B9E72B]/15 text-[#B9E72B] border border-[#B9E72B]/30">
+            ✦ Hạ tầng quy mô lớn
+          </span>
+          <span class="text-xs font-semibold px-2.5 py-0.5 rounded-full bg-white/10 text-neutral-300">
+            Agency &amp; Doanh nghiệp
+          </span>
+        </div>
+        
+        <h3 class="text-3xl md:text-4xl font-extrabold text-white tracking-tight">
+          ENTERPRISE
+        </h3>
+        
+        <p class="text-sm text-neutral-300 leading-relaxed max-w-xl">
+          Giải pháp hạ tầng kết xuất chuyên biệt và tự động hóa cho agency và doanh nghiệp lớn sản xuất video hàng loạt, cần tích hợp API và quản trị nhóm phân quyền đa phòng ban.
+        </p>
+
+        <!-- Feature Pills Grid (High contrast dark glass) -->
+        <div class="flex flex-wrap gap-2.5 pt-2">
+          <span class="spec-pill spec-pill-enterprise">
+            <svg class="size-4 text-[#B9E72B] shrink-0" viewBox="0 0 20 20" fill="currentColor"><path fill-rule="evenodd" d="M16.704 4.153a.75.75 0 01.143 1.052l-8 10.5a.75.75 0 01-1.127.075l-4.5-4.5a.75.75 0 011.06-1.06l3.894 3.893 7.48-9.817a.75.75 0 011.05-.143z" clip-rule="evenodd"/></svg>
+            Toàn bộ quyền lợi gói Max
+          </span>
+          <span class="spec-pill spec-pill-enterprise">
+            <svg class="size-4 text-[#B9E72B] shrink-0" viewBox="0 0 20 20" fill="currentColor"><path fill-rule="evenodd" d="M16.704 4.153a.75.75 0 01.143 1.052l-8 10.5a.75.75 0 01-1.127.075l-4.5-4.5a.75.75 0 011.06-1.06l3.894 3.893 7.48-9.817a.75.75 0 011.05-.143z" clip-rule="evenodd"/></svg>
+            Workspace chung nhiều thành viên
+          </span>
+          <span class="spec-pill spec-pill-enterprise">
+            <svg class="size-4 text-[#B9E72B] shrink-0" viewBox="0 0 20 20" fill="currentColor"><path fill-rule="evenodd" d="M16.704 4.153a.75.75 0 01.143 1.052l-8 10.5a.75.75 0 01-1.127.075l-4.5-4.5a.75.75 0 011.06-1.06l3.894 3.893 7.48-9.817a.75.75 0 011.05-.143z" clip-rule="evenodd"/></svg>
+            Hệ thống API render tự động
+          </span>
+          <span class="spec-pill spec-pill-enterprise">
+            <svg class="size-4 text-[#B9E72B] shrink-0" viewBox="0 0 20 20" fill="currentColor"><path fill-rule="evenodd" d="M16.704 4.153a.75.75 0 01.143 1.052l-8 10.5a.75.75 0 01-1.127.075l-4.5-4.5a.75.75 0 011.06-1.06l3.894 3.893 7.48-9.817a.75.75 0 011.05-.143z" clip-rule="evenodd"/></svg>
+            Brand kit phân quyền phòng ban
+          </span>
+          <span class="spec-pill spec-pill-enterprise">
+            <svg class="size-4 text-[#B9E72B] shrink-0" viewBox="0 0 20 20" fill="currentColor"><path fill-rule="evenodd" d="M16.704 4.153a.75.75 0 01.143 1.052l-8 10.5a.75.75 0 01-1.127.075l-4.5-4.5a.75.75 0 011.06-1.06l3.894 3.893 7.48-9.817a.75.75 0 011.05-.143z" clip-rule="evenodd"/></svg>
+            Hỗ trợ kỹ thuật riêng 1-1
+          </span>
+        </div>
+      </div>
+
+      <!-- Right Column: Price & CTA -->
+      <div class="flex flex-col sm:flex-row lg:flex-col items-start lg:items-end justify-between gap-5 shrink-0 pt-4 lg:pt-0 border-t lg:border-t-0 border-white/10">
+        <div class="text-left lg:text-right">
+          <span class="text-3xl lg:text-4xl font-extrabold text-white tracking-tight">Liên hệ</span>
+          <p class="text-xs text-neutral-400 mt-1">Báo giá theo nhu cầu &amp; cam kết SLA</p>
+        </div>
+        <button type="button" onclick="if(window.openSupportWidget){window.openSupportWidget();}else{const b=document.getElementById('support-trigger');if(b)b.click();else window.location.href='mailto:support@limestudio.id.vn';}" class="btn-tier-enterprise cursor-pointer">
+          Liên hệ giải pháp Enterprise →
+        </button>
+      </div>
+
+    </div>
+  </div>
+
+  <!-- ================= INTERACTIVE DETAILED COMPARISON MATRIX ================= -->
+  <div class="space-y-4 pt-2">
+    <div class="text-center">
+      <button type="button" id="toggle-matrix-btn" onclick="const m = document.getElementById('pricing-matrix-wrap'); const btn = this; if(m.classList.contains('hidden')){ m.classList.remove('hidden'); btn.innerHTML='Ẩn bảng so sánh chi tiết ↑'; }else{ m.classList.add('hidden'); btn.innerHTML='Xem bảng so sánh chi tiết tất cả tính năng ↓'; }" class="inline-flex items-center gap-2 text-xs font-bold uppercase tracking-wider text-neutral-500 hover:text-neutral-900 bg-white border border-black/8 px-6 py-3 rounded-full shadow-xs cursor-pointer transition-all hover:shadow-sm">
+        Xem bảng so sánh chi tiết tất cả tính năng ↓
+      </button>
+    </div>
+
+    <div id="pricing-matrix-wrap" class="hidden matrix-container transition-all">
+      <div class="matrix-row matrix-header">
+        <div>Tính năng &amp; Năng lực</div>
+        <div class="text-center">FREE</div>
+        <div class="text-center font-bold text-neutral-900">PRO</div>
+        <div class="text-center font-bold text-neutral-900">MAX</div>
+        <div class="text-center font-bold text-neutral-900">ENTERPRISE</div>
+      </div>
+
+      <div class="matrix-row">
+        <div class="font-medium text-neutral-900">Token video hàng tháng</div>
+        <div class="text-center text-neutral-600">30 token trải nghiệm</div>
+        <div class="text-center font-semibold text-emerald-700">200 token/tháng</div>
+        <div class="text-center font-bold text-neutral-900">Không giới hạn</div>
+        <div class="text-center font-bold text-neutral-900">Tùy biến dung lượng</div>
+      </div>
+
+      <div class="matrix-row">
+        <div class="font-medium text-neutral-900">Độ phân giải xuất video</div>
+        <div class="text-center text-neutral-600">720p HD</div>
+        <div class="text-center font-semibold text-emerald-700">Full HD / 2K</div>
+        <div class="text-center font-bold text-neutral-900">4K 60fps siêu nét</div>
+        <div class="text-center font-bold text-neutral-900">4K 60fps &amp; Raw</div>
+      </div>
+
+      <div class="matrix-row">
+        <div class="font-medium text-neutral-900">Thư viện giọng đọc AI</div>
+        <div class="text-center text-neutral-600">Tiếng Việt cơ bản</div>
+        <div class="text-center font-semibold text-emerald-700">Đa ngữ điệu tự nhiên</div>
+        <div class="text-center font-bold text-neutral-900">Toàn bộ kho cao cấp</div>
+        <div class="text-center font-bold text-neutral-900">Voice clone riêng</div>
+      </div>
+
+      <div class="matrix-row">
+        <div class="font-medium text-neutral-900">Chèn watermark riêng &amp; Brand kit</div>
+        <div class="text-center text-neutral-400">—</div>
+        <div class="text-center text-emerald-600 font-bold">✓ Watermark + Brand kit</div>
+        <div class="text-center text-emerald-600 font-bold">✓ Watermark + Brand kit</div>
+        <div class="text-center text-emerald-600 font-bold">✓ Phân quyền phòng ban</div>
+      </div>
+
+      <div class="matrix-row">
+        <div class="font-medium text-neutral-900">Mở khoá toàn bộ giới hạn sáng tạo</div>
+        <div class="text-center text-neutral-400">—</div>
+        <div class="text-center text-neutral-400">—</div>
+        <div class="text-center text-emerald-600 font-bold">✓ Mở toàn bộ</div>
+        <div class="text-center text-emerald-600 font-bold">✓ Mở toàn bộ</div>
+      </div>
+
+      <div class="matrix-row">
+        <div class="font-medium text-neutral-900">Tốc độ &amp; Hàng đợi kết xuất</div>
+        <div class="text-center text-neutral-600">Tiêu chuẩn</div>
+        <div class="text-center font-semibold text-emerald-700">Ưu tiên hàng đợi</div>
+        <div class="text-center font-bold text-neutral-900">Turbo Queue</div>
+        <div class="text-center font-bold text-neutral-900">Hạ tầng render riêng (API)</div>
+      </div>
+
+      <div class="matrix-row">
+        <div class="font-medium text-neutral-900">Workspace cộng tác nhiều thành viên</div>
+        <div class="text-center text-neutral-400">—</div>
+        <div class="text-center text-neutral-400">—</div>
+        <div class="text-center text-neutral-400">—</div>
+        <div class="text-center text-emerald-600 font-bold">✓ Không gian làm việc đa thành viên</div>
+      </div>
+
+      <div class="matrix-row">
+        <div class="font-medium text-neutral-900">Kênh hỗ trợ kỹ thuật</div>
+        <div class="text-center text-neutral-600">Cộng đồng</div>
+        <div class="text-center font-semibold text-emerald-700">Hỗ trợ ưu tiên</div>
+        <div class="text-center font-bold text-neutral-900">Hỗ trợ 24/7</div>
+        <div class="text-center font-bold text-neutral-900">Kỹ sư riêng 1-1 &amp; SLA</div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ================= CONFIDENCE & TRUST BADGES RIBBON ================= -->
+  <div class="grid grid-cols-2 md:grid-cols-4 gap-4 pt-4 border-t border-black/8">
+    <div class="flex items-center gap-3">
+      <div class="size-8 rounded-full bg-emerald-50 text-emerald-600 flex items-center justify-center shrink-0">
+        <svg class="size-4" viewBox="0 0 20 20" fill="currentColor"><path fill-rule="evenodd" d="M10 1a4.5 4.5 0 00-4.5 4.5V9H5a2 2 0 00-2 2v6a2 2 0 002 2h10a2 2 0 002-2v-6a2 2 0 00-2-2h-.5V5.5A4.5 4.5 0 0010 1zm3 8V5.5a3 3 0 10-6 0V9h6z" clip-rule="evenodd"/></svg>
+      </div>
+      <div>
+        <h4 class="text-xs font-bold text-neutral-900">Quét VietQR 24/7</h4>
+        <p class="text-[11px] text-neutral-500">Mọi ngân hàng &amp; ví điện tử</p>
+      </div>
+    </div>
+
+    <div class="flex items-center gap-3">
+      <div class="size-8 rounded-full bg-emerald-50 text-emerald-600 flex items-center justify-center shrink-0">
+        <svg class="size-4" viewBox="0 0 20 20" fill="currentColor"><path fill-rule="evenodd" d="M11.3 1.046A1 1 0 0112 2v5h4a1 1 0 01.82 1.573l-7 10A1 1 0 018 18v-5H4a1 1 0 01-.82-1.573l7-10a1 1 0 011.12-.38z" clip-rule="evenodd"/></svg>
+      </div>
+      <div>
+        <h4 class="text-xs font-bold text-neutral-900">Kích hoạt tức thì</h4>
+        <p class="text-[11px] text-neutral-500">Tự động sau 30 giây</p>
+      </div>
+    </div>
+
+    <div class="flex items-center gap-3">
+      <div class="size-8 rounded-full bg-emerald-50 text-emerald-600 flex items-center justify-center shrink-0">
+        <svg class="size-4" viewBox="0 0 20 20" fill="currentColor"><path fill-rule="evenodd" d="M4 4a2 2 0 00-2 2v1h16V6a2 2 0 00-2-2H4z" /><path fill-rule="evenodd" d="M18 9H2v5a2 2 0 002 2h12a2 2 0 002-2V9zM4 13a1 1 0 011-1h1a1 1 0 110 2H5a1 1 0 01-1-1zm5-1a1 1 0 100 2h1a1 1 0 100-2H9z" clip-rule="evenodd"/></svg>
+      </div>
+      <div>
+        <h4 class="text-xs font-bold text-neutral-900">Không ẩn phí</h4>
+        <p class="text-[11px] text-neutral-500">Hủy hoặc gia hạn linh hoạt</p>
+      </div>
+    </div>
+
+    <div class="flex items-center gap-3">
+      <div class="size-8 rounded-full bg-emerald-50 text-emerald-600 flex items-center justify-center shrink-0">
+        <svg class="size-4" viewBox="0 0 20 20" fill="currentColor"><path fill-rule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7-4a1 1 0 11-2 0 1 1 0 012 0zM9 9a.75.75 0 000 1.5h.253a.25.25 0 01.244.304l-.459 2.066A1.75 1.75 0 0010.747 15H11a.75.75 0 000-1.5h-.253a.25.25 0 01-.244-.304l.459-2.066A1.75 1.75 0 009.253 9H9z" clip-rule="evenodd"/></svg>
+      </div>
+      <div>
+        <h4 class="text-xs font-bold text-neutral-900">Hỗ trợ kỹ thuật</h4>
+        <p class="text-[11px] text-neutral-500">Giải đáp trực tiếp qua Zalo / Chat</p>
+      </div>
+    </div>
+  </div>
+
+</section>
+</div>
+
+<!-- ================= LIME FOOTER ================= -->
+<footer class="dark relative z-20 border-t border-white/10" data-nav-theme="dark" id="site-footer" style="background-color: #07090E; color: #E5E7EB;">
+  <!-- Top Grid -->
+  <div class="container mx-auto pt-20 md:pt-28 pb-16">
+    <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-12 gap-12 lg:gap-8">
+      
+      <!-- Brand & Mission Column (Col 1-5) -->
+      <div class="lg:col-span-5 flex flex-col items-start gap-6">
+        <a href="/" class="block hover:opacity-80 transition-opacity">
+          <img src="/logo.png" alt="LIME" style="height: 44px; width: auto; filter: brightness(0) invert(1); display: block;" />
+        </a>
+        <p class="text-sm md:text-base text-neutral-400 max-w-md leading-relaxed">
+          <strong class="text-neutral-200 font-semibold">Technology for generating videos from ideas</strong> — Nền tảng kiến tạo hoạt họa AI tiên phong, biến kịch bản và ý tưởng thành video 1080p chuẩn điện ảnh trong chớp mắt.
+        </p>
+
+        <!-- Live System Status Badge -->
+        <div class="inline-flex items-center gap-2.5 px-3.5 py-1.5 rounded-full bg-white/5 border border-white/10 text-xs">
+          <span class="relative flex h-2 w-2">
+            <span class="animate-ping absolute inline-flex h-full w-full rounded-full bg-[#B9E72B] opacity-75"></span>
+            <span class="relative inline-flex rounded-full h-2 w-2 bg-[#B9E72B]"></span>
+          </span>
+          <span class="font-medium text-neutral-300">Tất cả dịch vụ đang hoạt động · Trực tuyến 24/7</span>
+        </div>
+
+        <div class="flex flex-wrap items-center gap-2 pt-2">
+          <span class="text-[11px] font-mono tracking-wider uppercase px-2.5 py-1 rounded-md bg-white/5 border border-white/10 text-neutral-400">VieNeu AI</span>
+          <span class="text-[11px] font-mono tracking-wider uppercase px-2.5 py-1 rounded-md bg-white/5 border border-white/10 text-neutral-400">GSAP 3</span>
+          <span class="text-[11px] font-mono tracking-wider uppercase px-2.5 py-1 rounded-md bg-white/5 border border-white/10 text-neutral-400">1080p 60FPS</span>
+          <span class="text-[11px] font-mono tracking-wider uppercase px-2.5 py-1 rounded-md bg-white/5 border border-white/10 text-neutral-400">TTS Audio</span>
+        </div>
+      </div>
+
+      <!-- Legal & Policies Column (Col 6-8) -->
+      <div class="lg:col-span-3 flex flex-col gap-4">
+        <h3 class="text-xs font-mono font-bold uppercase tracking-wider text-neutral-200">
+          Pháp lý & Quy định
+        </h3>
+        <ul class="flex flex-col gap-2.5 text-sm text-neutral-400">
+          <li>
+            <a href="/legal.html#terms" data-legal="terms" class="open-terms-btn hover:text-white transition-colors flex items-center gap-1.5 cursor-pointer">
+              <span>Điều khoản dịch vụ</span>
             </a>
-            <div class="nav-links">
-                <a href="#home" data-nav="home" class="on">Trang chủ</a>
-                <a href="#templates" data-nav="templates">Mẫu thiết kế</a>
-                <a href="#pricing" data-nav="pricing">Bảng giá</a>
-                <a href="/profile" id="nav-profile-link" style="display: none;">Hồ sơ</a>
-                <a href="/setting" id="nav-setting-link" style="display: none;">Cài đặt</a>
-                <a href="/admin" id="nav-admin-link" style="display: none; color: #f87171;">Quản trị</a>
-            </div>
-            <div class="nav-cta">
-                <div class="nav-user" id="home-user">
-                    <button type="button" class="btn btn-ghost" id="login-open-btn" aria-expanded="false"
-                        aria-controls="home-user-dropdown">
-                        Đăng nhập
-                    </button>
+          </li>
+          <li>
+            <a href="/legal.html#privacy" data-legal="privacy" class="open-privacy-btn hover:text-white transition-colors flex items-center gap-1.5 cursor-pointer">
+              <span>Chính sách bảo mật</span>
+            </a>
+          </li>
+          <li>
+            <a href="/legal" target="_blank" class="hover:text-white transition-colors flex items-center gap-1.5">
+              <span>Trung tâm pháp lý LIME</span>
+              <svg class="size-3 text-neutral-500" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14" /></svg>
+            </a>
+          </li>
+          <li>
+            <a href="/legal#refund" class="hover:text-white transition-colors">
+              Chính sách hoàn tiền & Giao dịch
+            </a>
+          </li>
+          <li>
+            <a href="/legal#copyright" class="hover:text-white transition-colors">
+              Tiêu chuẩn bản quyền AI
+            </a>
+          </li>
+        </ul>
+      </div>
 
-                    <nav class="nav-user-dropdown" id="home-user-dropdown" aria-label="Menu tài khoản" hidden>
-                        <a href="/profile">Hồ sơ cá nhân</a>
-                        <a href="/workspace">Studio</a>
-                        <a href="/setting">Cài đặt</a>
-                        <a href="/admin" id="home-admin-item" hidden>
-                            Quản trị
-                        </a>
+      <!-- Product & Ecosystem Column (Col 9-10) -->
+      <div class="lg:col-span-2 flex flex-col gap-4">
+        <h3 class="text-xs font-mono font-bold uppercase tracking-wider text-neutral-200">
+          Hệ sinh thái
+        </h3>
+        <ul class="flex flex-col gap-2.5 text-sm text-neutral-400">
+          <li>
+            <a href="#hero-section" class="hover:text-white transition-colors">Trang chủ</a>
+          </li>
+          <li>
+            <a href="/workspace" class="hover:text-white transition-colors">LIME Studio</a>
+          </li>
+          <li>
+            <a href="#templates" class="hover:text-white transition-colors">Kho mẫu Playlist</a>
+          </li>
+          <li>
+            <a href="#pricing" class="hover:text-white transition-colors">Bảng giá dịch vụ</a>
+          </li>
+          <li>
+            <a href="#features-section" class="hover:text-white transition-colors">Công nghệ cốt lõi</a>
+          </li>
+        </ul>
+      </div>
 
-                        <button type="button" id="home-logout-btn">
-                            Đăng xuất
-                        </button>
-                    </nav>
-                </div>
-            </div>
+      <!-- Support & Contact Column (Col 11-12) -->
+      <div class="lg:col-span-2 flex flex-col gap-4">
+        <h3 class="text-xs font-mono font-bold uppercase tracking-wider text-neutral-200">
+          Hỗ trợ & Liên hệ
+        </h3>
+        <ul class="flex flex-col gap-2.5 text-sm text-neutral-400">
+          <li>
+            <a href="mailto:support@lime.vn" class="hover:text-white transition-colors">support@lime.vn</a>
+          </li>
+          <li>
+            <a href="mailto:privacy@lime.vn" class="hover:text-white transition-colors">privacy@lime.vn</a>
+          </li>
+          <li>
+            <a href="mailto:contact@lime.vn?subject=Tu%20van%20Enterprise" class="hover:text-white transition-colors">Tư vấn Doanh nghiệp</a>
+          </li>
+          <li>
+            <span class="text-xs text-neutral-500">Giờ làm việc: 24/7</span>
+          </li>
+        </ul>
+        <div class="flex items-center gap-3 pt-2">
+          <a class="text-neutral-400 hover:text-white transition-colors" href="https://x.com/Lime" target="_blank" rel="noopener noreferrer" aria-label="X">
+            <svg class="size-4" fill="currentColor" viewBox="0 0 24 24"><path d="M18.244 2.25h3.308l-7.227 8.26 8.502 11.24H16.17l-5.214-6.817L4.99 21.75H1.68l7.73-8.835L1.254 2.25H8.08l4.713 6.231zm-1.161 17.52h1.833L7.084 4.126H5.117z"/></svg>
+          </a>
+          <a class="text-neutral-400 hover:text-white transition-colors" href="https://www.youtube.com/@lime" target="_blank" rel="noopener noreferrer" aria-label="YouTube">
+            <svg class="size-4.5" fill="currentColor" viewBox="0 0 24 24"><path d="M23.498 6.186a3.016 3.016 0 0 0-2.122-2.136C19.505 3.545 12 3.545 12 3.545s-7.505 0-9.377.505A3.017 3.017 0 0 0 .502 6.186C0 8.07 0 12 0 12s0 3.93.502 5.814a3.016 3.016 0 0 0 2.122 2.136c1.871.505 9.376.505 9.376.505s7.505 0 9.377-.505a3.015 3.015 0 0 0 2.122-2.136C24 15.93 24 12 24 12s0-3.93-.502-5.814zM9.545 15.568V8.432L15.818 12l-6.273 3.568z"/></svg>
+          </a>
+          <a class="text-neutral-400 hover:text-white transition-colors" href="https://www.linkedin.com/company/lime" target="_blank" rel="noopener noreferrer" aria-label="LinkedIn">
+            <svg class="size-4" fill="currentColor" viewBox="0 0 24 24"><path d="M19 3a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h14m-.5 15.5v-5.3a3.26 3.26 0 0 0-3.26-3.26c-.85 0-1.84.52-2.28 1.3v-1.11h-2.79v8.37h2.79v-4.93c0-.77.62-1.4 1.39-1.4a1.4 1.4 0 0 1 1.4 1.4v4.93h2.75M6.46 10.9h2.77v8.6H6.46v-8.6M7.85 6.5a1.63 1.63 0 1 0 1.63 1.63c0-.9-.73-1.63-1.63-1.63z"/></svg>
+          </a>
         </div>
-    </nav>
+      </div>
 
-    <div class="dots" aria-hidden="true">
-        <a href="#home" class="on" title="Trang chủ"></a>
-        <a href="#templates" title="Mẫu thiết kế"></a>
-        <a href="#pricing" title="Bảng giá"></a>
     </div>
 
-    <!-- ================= SECTION 1: HOME ================= -->
-    <section id="home" class="snap-section">
-        <div class="hero">
-            <div>
-                <div class="badge">AI Video Studio</div>
-                <h1>Chữ thành phim.<br>Ý tưởng thành<br><span class="hero-flip-line"><span id="flip-words"
-                            class="flip-words-container hl">chuyển động</span>.</span></h1>
-                <p class="sub">Mô tả ý tưởng bằng một câu - LIME tự viết kịch bản, dựng motion bằng HTML/CSS/GSAP và
-                    lồng tiếng AI. Video sẵn sàng đăng chỉ trong vài phút.</p>
-                <div class="promptbar">
-                    <span class="dot"></span>
-                    <input id="home-prompt-input" placeholder="Mô tả video bạn muốn tạo…" maxlength="500">
-                    <button id="home-prompt-btn" class="shimmer-btn" type="button">
-                        <span class="shimmer-glow"></span>
-                        <span class="shimmer-inner">Tạo video →</span>
-                    </button>
-                </div>
-                <div class="hint">Thử ngay: <b>Quảng cáo trà sữa 15s cho Gen Z</b></div>
-                <div class="stats">
-                    <div class="stat"><b>6</b><span>mẫu dựng sẵn tuyển chọn</span></div>
-                    <div class="stat"><b>3<em> bước</em></b><span>từ prompt tới MP4</span></div>
-                    <div class="stat"><b>2<em> tỉ lệ</em></b><span>ngang 16:9 · dọc 9:16</span></div>
-                </div>
-            </div>
-            <div class="showcase">
-                <div class="shot shot-main">
-                    <div class="shot-browser-bar"><i></i><i></i><i></i></div>
-                    <div class="shot-body shot-video-wrap">
-                        <video class="hero-video" autoplay muted loop playsinline preload="metadata"
-                            poster="/hero-poster.jpg" aria-label="Video gioi thieu LIME do chinh LIME dung tu prompt">
-                            <source src="/hero.webm" type="video/webm">
-                            <source src="/hero.mp4" type="video/mp4">
-                        </video>
-                    </div>
-                </div>
-            </div>
-            <div class="shot shot-term">
-                <div class="term-bar"><i></i><i></i><i></i></div>
-                <div class="term-body">
-                    <div><span class="p">$</span> lime render --style modern</div>
-                    <div class="ok">✓ Build complete in 1.2s</div>
-                    <div class="dim">+ 124 additions · 0 deletions</div>
-                </div>
-            </div>
-            <div class="chip c2"><span class="sw"></span>Xuất Full HD · MP4</div>
-        </div>
-        </div>
-    </section>
+    <!-- Bottom Copyright & Security Badges Bar -->
+    <div class="border-t border-white/10 pt-8 mt-16 flex flex-col md:flex-row items-center justify-between gap-4 text-xs text-neutral-500">
+      <div class="flex flex-wrap items-center gap-x-6 gap-y-2 text-center md:text-left">
+        <span>© 2026 LIME AI Video Studio. Giữ toàn bộ bản quyền.</span>
+        <span class="hidden md:inline text-neutral-700">|</span>
+        <span class="inline-flex items-center gap-1.5 text-neutral-400">
+          <svg class="size-3.5 text-emerald-400" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z" /></svg>
+          Mã hóa bảo vệ AES-256
+        </span>
+        <span class="hidden md:inline text-neutral-700">|</span>
+        <span class="inline-flex items-center gap-1.5 text-neutral-400">
+          <svg class="size-3.5 text-emerald-400" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 10V3L4 14h7v7l9-11h-7z" /></svg>
+          Thanh toán VietQR Napas 24/7
+        </span>
+      </div>
 
-    <!-- ================= SECTION 2: TEMPLATES ================= -->
-    <section id="templates" class="snap-section">
-        <div class="tplp-head wrap">
-            <div>
-                <div class="eyebrow">01 · Thư viện mẫu</div>
-                <h2 class="sec">Mẫu thiết kế <em>&</em> kịch bản</h2>
-                <p class="sec-sub">Chọn một mẫu dựng sẵn — LIME tự điền nội dung của bạn vào đúng nhịp.</p>
-            </div>
-            <div class="tplp-head-note"><b>Xem trước trực tiếp</b><span>Chọn mẫu ở playlist bên phải,<br>sân khấu phát
-                    thử ngay tại chỗ.</span></div>
-        </div>
-
-        <div class="tplp-layout wrap">
-            <!-- SAN KHAU PHAT THU -->
-            <div class="tplp-stage-card">
-                <div class="tplp-screen">
-                    <div class="tplp-art tplp-art-saas is-on" data-art="0">
-                        <div class="tplp-browser">
-                            <div class="tplp-browser-bar"><span class="tplp-dot tplp-dot-on"></span><span
-                                    class="tplp-dot"></span><span class="tplp-dot"></span><span
-                                    class="tplp-url">app.sanphamcuaban.vn</span></div>
-                            <div class="tplp-browser-body">
-                                <div class="tplp-b-left">
-                                    <div class="tplp-b-kicker">RA MẮT SẢN PHẨM</div>
-                                    <div class="tplp-b-h">Nền tảng AI phân tích dữ liệu theo thời gian thực</div>
-                                    <div class="tplp-b-lines"><i></i><i></i></div>
-                                    <span class="tplp-b-cta">Dùng thử miễn phí</span>
-                                </div>
-                                <div class="tplp-b-right">
-                                    <div class="tplp-b-num">+300%<small>tăng trưởng người dùng sau 6 tháng</small></div>
-                                    <div class="tplp-b-chart"><i style="height:30%"></i><i style="height:46%"></i><i
-                                            style="height:40%"></i><i style="height:64%"></i><i style="height:92%"></i>
-                                    </div>
-                                </div>
-                            </div>
-                        </div>
-                    </div>
-                    <div class="tplp-art tplp-art-dev" data-art="1">
-                        <div class="tplp-term-clock">02:14</div>
-                        <div class="tplp-term-cap">ĐÊM TRƯỚC NGÀY RA MẮT</div>
-                        <div class="tplp-term-card">
-                            <div><span class="tplp-tc-dim">$</span> git commit -m "ship it"</div>
-                            <div><span class="tplp-tc-dim">$</span> npm run build</div>
-                            <div class="tplp-tc-ok">✓ Build complete in 1.2s</div>
-                            <div class="tplp-tc-add">+ 124 additions</div>
-                        </div>
-                    </div>
-                    <div class="tplp-art tplp-art-stick" data-art="2">
-                        <div class="tplp-stick-bubble">Ý tưởng đỉnh!</div>
-                        <div class="tplp-stick-fig"><span class="tplp-stick-head"></span><span
-                                class="tplp-stick-body"></span><span class="tplp-stick-arm-l"></span><span
-                                class="tplp-stick-arm-r"></span><span class="tplp-stick-leg-l"></span><span
-                                class="tplp-stick-leg-r"></span></div>
-                        <div class="tplp-stick-ground"></div>
-                    </div>
-                    <div class="tplp-art tplp-art-ad" data-art="3">
-                        <div class="tplp-phone">
-                            <div class="tplp-phone-sale">SALE</div>
-                            <div class="tplp-phone-num">−50%</div>
-                            <div class="tplp-phone-cta">MUA NGAY</div>
-                        </div>
-                    </div>
-                    <div class="tplp-art tplp-art-edu" data-art="4">
-                        <div class="tplp-slide-card">
-                            <b>Bài 3: Quang hợp</b>
-                            <i style="width:88%"></i><i style="width:64%"></i><i style="width:76%"></i>
-                        </div>
-                        <div class="tplp-slide-card">
-                            <b>Tóm tắt</b>
-                            <i style="width:72%"></i><i style="width:84%"></i><i style="width:55%"></i>
-                        </div>
-                    </div>
-                    <div class="tplp-art tplp-art-pitch" data-art="5">
-                        <div class="tplp-deck-card">
-                            <b>Pitch Deck Động</b>
-                            <span>Tăng trưởng theo quý</span>
-                            <div class="tplp-deck-chart"><i style="height:32%"></i><i style="height:48%"></i><i
-                                    style="height:42%"></i><i style="height:70%"></i><i style="height:96%"></i></div>
-                        </div>
-                    </div>
-
-                    <button type="button" class="tplp-play" id="tplp-play" aria-label="Phát thử mẫu">
-                        <svg class="tplp-ic-play" width="26" height="26" viewBox="0 0 24 24" fill="#101012">
-                            <path d="M7 4.8v14.4c0 .9 1 1.5 1.8 1L20 13a1.2 1.2 0 0 0 0-2L8.8 3.9C8 3.4 7 4 7 4.8z" />
-                        </svg>
-                        <svg class="tplp-ic-pause" width="24" height="24" viewBox="0 0 24 24" fill="#101012"
-                            style="display:none">
-                            <rect x="5.5" y="4.5" width="4.6" height="15" rx="1.4"></rect>
-                            <rect x="13.9" y="4.5" width="4.6" height="15" rx="1.4"></rect>
-                        </svg>
-                    </button>
-                    <div class="tplp-screen-bar">
-                        <div class="tplp-track">
-                            <div class="tplp-fill" id="tplp-fill"></div>
-                            <div class="tplp-knob" id="tplp-knob"></div>
-                        </div>
-                        <div class="tplp-bar-row"><span class="tplp-tc" id="tplp-tc">00:12 / 00:30</span><span
-                                class="tplp-q" id="tplp-q">1080p · 16:9 · Có giọng đọc AI</span></div>
-                    </div>
-                </div>
-
-                <div class="tplp-scenes-head"><span class="tplp-scenes-t">Phân cảnh của mẫu</span><span
-                        class="tplp-scenes-m" id="tplp-scenes-meta">5 phân cảnh · tổng 25–40s</span></div>
-                <div class="tplp-scenes" id="tplp-scenes"></div>
-
-                <div class="tplp-prompt">
-                    <div class="tplp-prompt-top"><span class="tplp-prompt-lab">✦ PROMPT MẪU ĐI KÈM</span><span
-                            class="tplp-chip" id="tplp-chip">SaaS · Tech</span></div>
-                    <p id="tplp-prompt-text">“Giới thiệu nền tảng AI SaaS đột phá: tự động phân tích dữ liệu, giao diện
-                        trực quan, biểu đồ tăng trưởng 300% và nút kêu gọi dùng thử miễn phí.”</p>
-                    <div class="tplp-prompt-foot">
-                        <span class="tplp-prompt-meta">Thay bằng nội dung của bạn — nhịp và bố cục giữ nguyên.</span>
-                        <button type="button" class="tplp-cta btn-use-template" id="tplp-cta"
-                            data-prompt="Giới thiệu nền tảng AI SaaS đột phá: tự động phân tích dữ liệu, giao diện trực quan, biểu đồ tăng trưởng 300% và nút kêu gọi dùng thử miễn phí."
-                            data-style="modern" data-ratio="16:9">Tạo video từ mẫu này →</button>
-                    </div>
-                </div>
-            </div>
-
-            <!-- PLAYLIST -->
-            <div class="tplp-rail-card">
-                <div class="tplp-rail-head"><span>Playlist mẫu</span><span class="tplp-rail-c">6 mẫu tuyển chọn</span>
-                </div>
-                <div id="tplp-list">
-                    <button type="button" class="tplp-item is-on" data-i="0">
-                        <span class="tplp-thumb tplp-th-saas"><span class="tplp-th-chart"><i style="height:35%"></i><i
-                                    style="height:55%"></i><i style="height:48%"></i><i style="height:78%"></i><i
-                                    style="height:100%"></i></span></span>
-                        <span class="tplp-info"><span class="tplp-name">SaaS Launch &amp; Product Demo</span><span
-                                class="tplp-meta">SaaS · Tech · 16:9</span><span class="tplp-now">ĐANG XEM</span></span>
-                        <span class="tplp-dur"><span class="tplp-dur-t">25–40s</span><span class="tplp-dur-s">5
-                                cảnh</span></span>
-                    </button>
-                    <button type="button" class="tplp-item" data-i="1">
-                        <span class="tplp-thumb tplp-th-dev"><span class="tplp-th-term">$ git commit<br><span>✓ build
-                                    1.2s</span></span></span>
-                        <span class="tplp-info"><span class="tplp-name">Dev Story: Ship It</span><span
-                                class="tplp-meta">Lập trình · 16:9</span></span>
-                        <span class="tplp-dur"><span class="tplp-dur-t">20–30s</span><span class="tplp-dur-s">4
-                                cảnh</span></span>
-                    </button>
-                    <button type="button" class="tplp-item" data-i="2">
-                        <span class="tplp-thumb tplp-th-stick"><span class="tplp-th-stickfig"></span></span>
-                        <span class="tplp-info"><span class="tplp-name">Người que giải thích</span><span
-                                class="tplp-meta">Người que · 9:16</span></span>
-                        <span class="tplp-dur"><span class="tplp-dur-t">30–45s</span><span class="tplp-dur-s">6
-                                cảnh</span></span>
-                    </button>
-                    <button type="button" class="tplp-item" data-i="3">
-                        <span class="tplp-thumb tplp-th-ad"><span
-                                class="tplp-th-sale"><small>SALE</small>−50%</span></span>
-                        <span class="tplp-info"><span class="tplp-name">Quảng cáo dọc chớp nhoáng</span><span
-                                class="tplp-meta">Quảng cáo · 9:16</span></span>
-                        <span class="tplp-dur"><span class="tplp-dur-t">15s</span><span class="tplp-dur-s">3
-                                cảnh</span></span>
-                    </button>
-                    <button type="button" class="tplp-item" data-i="4">
-                        <span class="tplp-thumb tplp-th-edu"><span class="tplp-th-slide"><i></i><i
-                                    style="width:85%"></i><i style="width:70%"></i><i
-                                    style="width:78%"></i></span></span>
-                        <span class="tplp-info"><span class="tplp-name">Bài giảng kiến thức</span><span
-                                class="tplp-meta">Giáo dục · 16:9</span></span>
-                        <span class="tplp-dur"><span class="tplp-dur-t">60s</span><span class="tplp-dur-s">8
-                                cảnh</span></span>
-                    </button>
-                    <button type="button" class="tplp-item" data-i="5">
-                        <span class="tplp-thumb tplp-th-pitch"><span class="tplp-th-deck"><b>Pitch Deck Động</b><i
-                                    style="width:80%"></i><i style="width:62%"></i><i
-                                    style="width:70%"></i></span></span>
-                        <span class="tplp-info"><span class="tplp-name">Pitch deck động</span><span
-                                class="tplp-meta">SaaS · Tech · 16:9</span></span>
-                        <span class="tplp-dur"><span class="tplp-dur-t">40s</span><span class="tplp-dur-s">5
-                                cảnh</span></span>
-                    </button>
-                </div>
-            </div>
-        </div>
-
-        <div class="tplp-foot wrap"><span>Đang hiển thị 6 trong 50+ mẫu của thư viện đầy đủ.</span><a>Xem tất cả 50+ mẫu
-                thiết kế →</a></div>
-    </section>
-
-    <!-- ================= SECTION 3: PRICING ================= -->
-    <section id="pricing" class="snap-section">
-        <div class="price-head">
-            <div class="eyebrow">02 · Bảng giá</div>
-            <h2 class="sec">Gói dịch vụ cho <em>mọi</em> quy mô</h2>
-            <p class="sec-sub">Bắt đầu miễn phí, nâng cấp khi bạn cần render nhiều hơn và đẹp hơn.</p>
-        </div>
-        <div class="billing">
-            <div class="bill-toggle"><span class="on" data-period="month">Theo tháng</span><span data-period="year">Theo
-                    năm <small>−20%</small></span></div>
-        </div>
-        <div class="plans">
-            <!-- GÓI 1: FREE -->
-            <div class="plan">
-                <div class="pname">Free</div>
-                <div class="price">0đ<small> / mãi mãi</small></div>
-                <p class="pdesc">Trải nghiệm tạo video AI miễn phí.</p>
-                <ul class="feats">
-                    <li>30 token free</li>
-                    <li>Giọng đọc tiếng Việt cơ bản</li>
-                    <li>Xuất 720p (watermark LIME)</li>
-                    <li>10+ mẫu thiết kế cơ bản</li>
-                    <li class="off">Chèn watermark riêng vào video</li>
-                    <li class="off">Mở khoá toàn bộ giới hạn</li>
-                </ul>
-                <button type="button" class="plan-btn plan-cta" data-plan="free">Bắt đầu miễn phí</button>
-            </div>
-
-            <!-- GÓI 2: PRO (99k) - HOT -->
-            <div class="plan hot">
-                <div class="hot-badge">Phổ biến nhất</div>
-                <div class="pname">Pro</div>
-                <div class="price"><span class="price-val" data-monthly="99k" data-yearly="79k">99k</span><small> /
-                        tháng</small></div>
-                <p class="pdesc">Cho creator và marketer cá nhân.</p>
-                <ul class="feats">
-                    <li>200 token / tháng</li>
-                    <li>Giọng đọc nhiều hơn, đa ngữ điệu</li>
-                    <li>Chèn watermark riêng vào video</li>
-                    <li>Tích hợp Brand kit riêng</li>
-                    <li>Xuất video Full HD / 2K</li>
-                    <li>Ưu tiên hàng đợi render</li>
-                </ul>
-                <button type="button" class="plan-btn plan-cta" data-plan="pro">Nâng cấp Pro →</button>
-            </div>
-
-            <!-- GÓI 3: MAX (499k) -->
-            <div class="plan">
-                <div class="pname">Max</div>
-                <div class="price"><span class="price-val" data-monthly="499k" data-yearly="399k">499k</span><small> /
-                        tháng</small></div>
-                <p class="pdesc">Mở khoá toàn bộ giới hạn sáng tạo.</p>
-                <ul class="feats">
-                    <li>Mở khoá toàn bộ giới hạn</li>
-                    <li>Không giới hạn token video</li>
-                    <li>Toàn bộ giọng đọc cao cấp</li>
-                    <li>Chèn watermark riêng &amp; Brand kit</li>
-                    <li>Xuất 4K 60fps siêu nét</li>
-                    <li>Ưu tiên render Turbo Queue</li>
-                </ul>
-                <button type="button" class="plan-btn plan-cta" data-plan="max">Nâng cấp Max →</button>
-            </div>
-
-            <!-- GÓI 4: ENTERPRISE -->
-            <div class="plan">
-                <div class="pname">Enterprise</div>
-                <div class="price">Liên hệ<small></small></div>
-                <p class="pdesc">Cho agency và doanh nghiệp lớn.</p>
-                <ul class="feats">
-                    <li>Toàn bộ quyền lợi gói Max</li>
-                    <li>Workspace chung nhiều thành viên</li>
-                    <li>Hệ thống API render tự động</li>
-                    <li>Brand kit phân quyền phòng ban</li>
-                    <li class="off">Hỗ trợ kỹ thuật riêng 1-1</li>
-                </ul>
-                <button type="button" class="plan-btn plan-cta" data-plan="team">Liên hệ LIME</button>
-            </div>
-        </div>
-        <div class="foot">
-            <div class="logo">lime<i>.</i></div>
-            <div class="tag">LIME IS MOTION, EXCLUSIVE</div>
-            <div class="foot-links">
-                <button type="button" class="foot-link open-terms-btn" data-legal="terms">Điều khoản dịch vụ</button>
-                <span class="foot-sep">·</span>
-                <button type="button" class="foot-link open-privacy-btn" data-legal="privacy">Chính sách bảo
-                    mật</button>
-                <span class="foot-sep">·</span>
-                <a href="/legal.html" class="foot-link" target="_blank">Trung tâm pháp lý ↗</a>
-            </div>
-            <div>© 2026 lime. All rights reserved. Demo Version.</div>
-        </div>
-    </section>
-
-    <!-- 2. PHẦN WORKSPACE / STUDIO TẠO VIDEO -->
-    <!-- Thẻ Đăng nhập & Đăng ký (Modal nằm giữa trang, nền mờ) -->
-    <div id="login-modal" class="auth-modal" aria-hidden="true" role="dialog" aria-modal="true">
-        <div class="auth-card-modal">
-            <button id="login-close-btn" class="modal-close-btn" type="button" aria-label="Đóng">
-                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
-                    stroke-linecap="round" stroke-linejoin="round">
-                    <line x1="18" y1="6" x2="6" y2="18"></line>
-                    <line x1="6" y1="6" x2="18" y2="18"></line>
-                </svg>
-            </button>
-
-            <!-- Header có User Icon badge -->
-            <div class="auth-header">
-                <div class="auth-user-badge">
-                    <svg xmlns="http://www.w3.org/2000/svg" width="22" height="22" viewBox="0 0 24 24" fill="none"
-                        stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-                        <path d="M19 21v-2a4 4 0 0 0-4-4H9a4 4 0 0 0-4 4v2" />
-                        <circle cx="12" cy="7" r="4" />
-                    </svg>
-                </div>
-                <div>
-                    <h2 id="auth-title" class="auth-title">Chào mừng trở lại</h2>
-                    <p id="auth-subtitle" class="auth-subtitle">Nhập thông tin tài khoản của bạn để đăng nhập</p>
-                </div>
-            </div>
-
-            <!-- Đăng nhập mạng xã hội: Apple & Google (đã bỏ X, cân đối 2 cột) -->
-            <div id="auth-social-row" class="auth-social-row">
-                <button id="apple-login-btn" class="auth-social-btn" type="button" aria-label="Đăng nhập với Apple">
-                    <svg class="auth-social-svg" xmlns="http://www.w3.org/2000/svg" width="20" height="20"
-                        viewBox="0 0 24 24">
-                        <path fill="currentColor"
-                            d="M18.71 19.5C17.88 20.74 17 21.95 15.66 21.97C14.32 22 13.89 21.18 12.37 21.18C10.84 21.18 10.37 21.95 9.09997 22C7.78997 22.05 6.79997 20.68 5.95997 19.47C4.24997 17 2.93997 12.45 4.69997 9.39C5.56997 7.87 7.12997 6.91 8.81997 6.88C10.1 6.86 11.32 7.75 12.11 7.75C12.89 7.75 14.37 6.68 15.92 6.84C16.57 6.87 18.39 7.1 19.56 8.82C19.47 8.88 17.39 10.1 17.41 12.63C17.44 15.65 20.06 16.66 20.09 16.67C20.06 16.74 19.67 18.11 18.71 19.5ZM13 3.5C13.73 2.67 14.94 2.04 15.94 2C16.07 3.17 15.6 4.35 14.9 5.19C14.21 6.04 13.07 6.7 11.95 6.61C11.8 5.46 12.36 4.26 13 3.5Z" />
-                    </svg>
-                    <span>Apple</span>
-                </button>
-                <button id="google-login-btn" class="auth-social-btn" type="button" aria-label="Đăng nhập với Google">
-                    <svg class="auth-social-svg" xmlns="http://www.w3.org/2000/svg" width="20" height="20"
-                        viewBox="0 0 24 24">
-                        <path
-                            d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z"
-                            fill="#4285F4"></path>
-                        <path
-                            d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z"
-                            fill="#34A853"></path>
-                        <path
-                            d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.07H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.93l3.66-2.84z"
-                            fill="#FBBC05"></path>
-                        <path
-                            d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z"
-                            fill="#EA4335"></path>
-                    </svg>
-                    <span>Google</span>
-                </button>
-            </div>
-
-            <!-- Divider -->
-            <div id="auth-divider" class="auth-divider">
-                <span class="auth-divider-line"></span>
-                <span class="auth-divider-text">Hoặc tiếp tục với</span>
-                <span class="auth-divider-line"></span>
-            </div>
-
-            <!-- Login Form -->
-            <form id="login-form" class="auth-form-fields" onsubmit="return false;">
-                <div class="auth-input-group">
-                    <label for="login-username">Tên đăng nhập hoặc Email</label>
-                    <div class="auth-input-wrapper">
-                        <span class="auth-input-left-icon">
-                            <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24"
-                                fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"
-                                stroke-linejoin="round">
-                                <path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"></path>
-                                <circle cx="12" cy="7" r="4"></circle>
-                            </svg>
-                        </span>
-                        <input id="login-username" class="clean-auth-input with-left-icon" type="text"
-                            placeholder="name@example.com" autocomplete="username">
-                    </div>
-                </div>
-                <div class="auth-input-group">
-                    <label for="login-password">Mật khẩu</label>
-                    <div class="auth-input-wrapper">
-                        <span class="auth-input-left-icon">
-                            <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24"
-                                fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"
-                                stroke-linejoin="round">
-                                <rect x="3" y="11" width="18" height="11" rx="2" ry="2"></rect>
-                                <circle cx="12" cy="16" r="1"></circle>
-                                <path d="M7 11V7a5 5 0 0 1 10 0v4"></path>
-                            </svg>
-                        </span>
-                        <input id="login-password" class="clean-auth-input with-left-icon with-right-icon"
-                            type="password" placeholder="Nhập mật khẩu" autocomplete="current-password">
-                        <button id="login-password-toggle" class="auth-password-toggle" type="button"
-                            aria-label="Hiện/ẩn mật khẩu">
-                            <svg class="eye-icon" xmlns="http://www.w3.org/2000/svg" width="16" height="16"
-                                viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
-                                stroke-linecap="round" stroke-linejoin="round">
-                                <path d="M2 12s3-7 10-7 10 7 10 7-3 7-10 7-10-7-10-7Z" />
-                                <circle cx="12" cy="12" r="3" />
-                            </svg>
-                        </button>
-                    </div>
-                </div>
-                <button id="login-submit-btn" class="btn-auth-submit" type="submit">Đăng nhập</button>
-                <p id="login-message" class="auth-status-msg"></p>
-
-                <div class="auth-foot-actions">
-                    <p class="auth-foot-text">
-                        Chưa có tài khoản?
-                        <button id="show-register-btn" class="link-switch-auth" type="button">Đăng ký ngay</button>
-                    </p>
-                    <a href="#" id="forgot-password-link" class="link-forgot-pass">Quên mật khẩu?</a>
-                </div>
-            </form>
-
-            <!-- Register Form (theo form mẫu đăng ký mới) -->
-            <form id="register-form" class="auth-form-fields" style="display: none;" onsubmit="return false;">
-                <div class="auth-input-group">
-                    <label for="register-username">Họ và tên / Tên đăng nhập</label>
-                    <div class="auth-input-wrapper">
-                        <span class="auth-input-left-icon">
-                            <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24"
-                                fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"
-                                stroke-linejoin="round">
-                                <path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"></path>
-                                <circle cx="12" cy="7" r="4"></circle>
-                            </svg>
-                        </span>
-                        <input id="register-username" class="clean-auth-input with-left-icon" type="text"
-                            placeholder="Nhập tên của bạn" autocomplete="username">
-                    </div>
-                </div>
-
-                <div class="auth-input-group">
-                    <label for="register-email">Địa chỉ Email</label>
-                    <div class="auth-input-wrapper">
-                        <span class="auth-input-left-icon">
-                            <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24"
-                                fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"
-                                stroke-linejoin="round">
-                                <path d="M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2z">
-                                </path>
-                                <polyline points="22,6 12,13 2,6"></polyline>
-                            </svg>
-                        </span>
-                        <input id="register-email" class="clean-auth-input with-left-icon" type="email"
-                            placeholder="name@example.com" autocomplete="email">
-                    </div>
-                </div>
-
-                <div class="auth-input-group">
-                    <label for="register-password">Mật khẩu</label>
-                    <div class="auth-input-wrapper">
-                        <span class="auth-input-left-icon">
-                            <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24"
-                                fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"
-                                stroke-linejoin="round">
-                                <rect x="3" y="11" width="18" height="11" rx="2" ry="2"></rect>
-                                <circle cx="12" cy="16" r="1"></circle>
-                                <path d="M7 11V7a5 5 0 0 1 10 0v4"></path>
-                            </svg>
-                        </span>
-                        <input id="register-password" class="clean-auth-input with-left-icon with-right-icon"
-                            type="password" placeholder="Tạo mật khẩu (tối thiểu 6 ký tự)" autocomplete="new-password">
-                        <button id="register-password-toggle" class="auth-password-toggle" type="button"
-                            aria-label="Hiện/ẩn mật khẩu">
-                            <svg class="eye-icon" xmlns="http://www.w3.org/2000/svg" width="16" height="16"
-                                viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
-                                stroke-linecap="round" stroke-linejoin="round">
-                                <path d="M2 12s3-7 10-7 10 7 10 7-3 7-10 7-10-7-10-7Z" />
-                                <circle cx="12" cy="12" r="3" />
-                            </svg>
-                        </button>
-                    </div>
-                </div>
-
-                <div class="auth-terms-group">
-                    <label class="auth-checkbox-label" for="register-terms">
-                        <input type="checkbox" id="register-terms" checked>
-                        <span class="auth-checkbox-box">
-                            <svg class="check-icon" xmlns="http://www.w3.org/2000/svg" width="12" height="12"
-                                viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3"
-                                stroke-linecap="round" stroke-linejoin="round">
-                                <polyline points="20,6 9,17 4,12"></polyline>
-                            </svg>
-                        </span>
-                        <span class="auth-terms-text">
-                            Tôi đồng ý với <a href="#" class="auth-terms-link open-terms-btn" data-legal="terms">Điều
-                                khoản dịch vụ</a> và <a href="#" class="auth-terms-link open-privacy-btn"
-                                data-legal="privacy">Chính sách bảo mật</a>
-                        </span>
-                    </label>
-                </div>
-
-                <button id="register-submit-btn" class="btn-auth-submit" type="submit">Tạo tài khoản</button>
-                <p id="register-message" class="auth-status-msg"></p>
-
-                <div class="auth-foot-actions">
-                    <p class="auth-foot-text">
-                        Đã có tài khoản?
-                        <button id="show-login-btn" class="link-switch-auth" type="button">Đăng nhập</button>
-                    </p>
-                </div>
-            </form>
-
-            <!-- Forgot Password Form -->
-            <form id="forgot-form" class="auth-form-fields" style="display: none;" onsubmit="return false;">
-                <div class="auth-note-box">
-                    <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none"
-                        stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-                        <circle cx="12" cy="12" r="10"></circle>
-                        <line x1="12" y1="8" x2="12" y2="12"></line>
-                        <line x1="12" y1="16" x2="12.01" y2="16"></line>
-                    </svg>
-                    <span>Nhập tên đăng nhập hoặc email cùng mật khẩu mới để thiết lập lại mật khẩu của bạn.</span>
-                </div>
-
-                <div class="auth-input-group">
-                    <label for="forgot-username">Tên đăng nhập hoặc Email</label>
-                    <div class="auth-input-wrapper">
-                        <span class="auth-input-left-icon">
-                            <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24"
-                                fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"
-                                stroke-linejoin="round">
-                                <path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"></path>
-                                <circle cx="12" cy="7" r="4"></circle>
-                            </svg>
-                        </span>
-                        <input id="forgot-username" class="clean-auth-input with-left-icon" type="text"
-                            placeholder="name@example.com" autocomplete="username">
-                    </div>
-                </div>
-
-                <div class="auth-input-group">
-                    <label for="forgot-password">Mật khẩu mới</label>
-                    <div class="auth-input-wrapper">
-                        <span class="auth-input-left-icon">
-                            <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24"
-                                fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"
-                                stroke-linejoin="round">
-                                <rect x="3" y="11" width="18" height="11" rx="2" ry="2"></rect>
-                                <circle cx="12" cy="16" r="1"></circle>
-                                <path d="M7 11V7a5 5 0 0 1 10 0v4"></path>
-                            </svg>
-                        </span>
-                        <input id="forgot-password" class="clean-auth-input with-left-icon with-right-icon"
-                            type="password" placeholder="Nhập mật khẩu mới (tối thiểu 6 ký tự)"
-                            autocomplete="new-password">
-                        <button id="forgot-password-toggle" class="auth-password-toggle" type="button"
-                            aria-label="Hiện/ẩn mật khẩu">
-                            <svg class="eye-icon" xmlns="http://www.w3.org/2000/svg" width="16" height="16"
-                                viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
-                                stroke-linecap="round" stroke-linejoin="round">
-                                <path d="M2 12s3-7 10-7 10 7 10 7-3 7-10 7-10-7-10-7Z" />
-                                <circle cx="12" cy="12" r="3" />
-                            </svg>
-                        </button>
-                    </div>
-                </div>
-
-                <div class="auth-input-group">
-                    <label for="forgot-confirm-password">Xác nhận mật khẩu mới</label>
-                    <div class="auth-input-wrapper">
-                        <span class="auth-input-left-icon">
-                            <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24"
-                                fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"
-                                stroke-linejoin="round">
-                                <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"></path>
-                            </svg>
-                        </span>
-                        <input id="forgot-confirm-password" class="clean-auth-input with-left-icon with-right-icon"
-                            type="password" placeholder="Nhập lại mật khẩu mới để xác nhận" autocomplete="new-password">
-                        <button id="forgot-confirm-password-toggle" class="auth-password-toggle" type="button"
-                            aria-label="Hiện/ẩn mật khẩu">
-                            <svg class="eye-icon" xmlns="http://www.w3.org/2000/svg" width="16" height="16"
-                                viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
-                                stroke-linecap="round" stroke-linejoin="round">
-                                <path d="M2 12s3-7 10-7 10 7 10 7-3 7-10 7-10-7-10-7Z" />
-                                <circle cx="12" cy="12" r="3" />
-                            </svg>
-                        </button>
-                    </div>
-                </div>
-
-                <button id="forgot-submit-btn" class="btn-auth-submit" type="submit">Đặt lại mật khẩu</button>
-                <p id="forgot-message" class="auth-status-msg"></p>
-
-                <div class="auth-foot-actions">
-                    <p class="auth-foot-text">
-                        Đã nhớ mật khẩu?
-                        <button id="show-login-from-forgot-btn" class="link-switch-auth" type="button">Đăng
-                            nhập</button>
-                    </p>
-                </div>
-            </form>
-        </div>
+      <div class="flex items-center gap-3">
+        <span class="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-white/5 border border-white/8 text-neutral-400 font-medium">
+          <span>🇻🇳</span>
+          <span>Tiếng Việt (VN)</span>
+        </span>
+      </div>
     </div>
+  </div>
+</footer>
 
-    <!-- Modal Điều khoản dịch vụ & Chính sách bảo mật (Demo) -->
-    <div id="legal-modal" class="legal-modal" aria-hidden="true" role="dialog" aria-modal="true">
-        <div class="legal-card-modal">
-            <button id="legal-close-btn" class="modal-close-btn" type="button" aria-label="Đóng">
-                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
-                    stroke-linecap="round" stroke-linejoin="round">
-                    <line x1="18" y1="6" x2="6" y2="18"></line>
-                    <line x1="6" y1="6" x2="18" y2="18"></line>
-                </svg>
-            </button>
-
-            <!-- Header -->
-            <div class="legal-modal-head">
-                <div class="legal-modal-badge">Pháp lý &amp; Chính sách LIME (Demo)</div>
-                <h3 class="legal-modal-title">Điều khoản &amp; Chính sách bảo mật</h3>
-                <p class="legal-modal-subtitle">Quy định sử dụng nền tảng LIME AI Video Studio và cam kết bảo vệ dữ liệu
-                    người dùng</p>
-                <div class="legal-modal-tabs">
-                    <button type="button" class="legal-tab-trigger active" id="legal-tab-terms">
-                        1. Điều khoản dịch vụ
-                    </button>
-                    <button type="button" class="legal-tab-trigger" id="legal-tab-privacy">
-                        2. Chính sách bảo mật
-                    </button>
-                </div>
-            </div>
-
-            <!-- Scrollable Content -->
-            <div class="legal-modal-body soft-scrollbar">
-                <!-- PANE 1: ĐIỀU KHOẢN DỊCH VỤ -->
-                <div id="legal-content-terms" class="legal-tab-content active">
-                    <div class="legal-sec-title"><span class="legal-badge-num">1</span> Giới thiệu &amp; Chấp thuận dịch
-                        vụ</div>
-                    <p>LIME là nền tảng sáng tạo video tự động ứng dụng trí tuệ nhân tạo, hoạt họa Web (HTML5/CSS3/GSAP)
+<div aria-hidden="true" aria-modal="true" class="legal-modal" id="legal-modal" role="dialog">
+<div class="legal-card-modal">
+<button aria-label="Đóng" class="modal-close-btn" id="legal-close-btn" type="button">
+<svg fill="none" height="16" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2" viewbox="0 0 24 24" width="16">
+<line x1="18" x2="6" y1="6" y2="18">
+</line>
+<line x1="6" x2="18" y1="6" y2="18">
+</line>
+</svg>
+</button>
+<!-- Header -->
+<div class="legal-modal-head">
+<div class="legal-modal-badge">
+      ✦ Pháp lý &amp; Chính sách LIME (Demo)
+     </div>
+<h3 class="legal-modal-title">
+      Điều khoản &amp; Chính sách bảo mật
+     </h3>
+<p class="legal-modal-subtitle">
+      Quy định sử dụng nền tảng LIME AI Video Studio và cam kết bảo vệ dữ liệu
+                    người dùng
+     </p>
+<div class="legal-modal-tabs">
+<button class="legal-tab-trigger active" id="legal-tab-terms" type="button">
+       1. Điều khoản dịch vụ
+      </button>
+<button class="legal-tab-trigger" id="legal-tab-privacy" type="button">
+       2. Chính sách bảo mật
+      </button>
+</div>
+</div>
+<!-- Scrollable Content -->
+<div class="legal-modal-body soft-scrollbar">
+<!-- PANE 1: ĐIỀU KHOẢN DỊCH VỤ -->
+<div class="legal-tab-content active" id="legal-content-terms">
+<div class="legal-sec-title">
+<span class="legal-badge-num">
+        1
+       </span>
+       Giới thiệu &amp; Chấp thuận dịch
+                        vụ
+      </div>
+<p>
+       LIME là nền tảng sáng tạo video tự động ứng dụng trí tuệ nhân tạo, hoạt họa Web (HTML5/CSS3/GSAP)
                         và giọng đọc tổng hợp (TTS). Khi đăng ký tài khoản hoặc sử dụng dịch vụ, bạn xác nhận đã đọc,
-                        hiểu và đồng ý với toàn bộ các điều khoản này.</p>
-
-                    <div class="legal-sec-title"><span class="legal-badge-num">2</span> Tài khoản người dùng &amp; Bảo
-                        mật</div>
-                    <p>Người dùng có trách nhiệm bảo mật mật khẩu và chịu trách nhiệm với mọi hoạt động diễn ra dưới tài
-                        khoản của mình. Tuyệt đối không chia sẻ tài khoản cho bên thứ ba trái phép.</p>
-
-                    <div class="legal-callout">
-                        <b>Bản quyền thành phẩm (Output):</b> Toàn bộ video MP4 và kịch bản do bạn tạo bằng LIME thuộc
+                        hiểu và đồng ý với toàn bộ các điều khoản này.
+      </p>
+<div class="legal-sec-title">
+<span class="legal-badge-num">
+        2
+       </span>
+       Tài khoản người dùng &amp; Bảo
+                        mật
+      </div>
+<p>
+       Người dùng có trách nhiệm bảo mật mật khẩu và chịu trách nhiệm với mọi hoạt động diễn ra dưới tài
+                        khoản của mình. Tuyệt đối không chia sẻ tài khoản cho bên thứ ba trái phép.
+      </p>
+<div class="legal-callout">
+<b>
+        ✦ Bản quyền thành phẩm (Output):
+       </b>
+       Toàn bộ video MP4 và kịch bản do bạn tạo bằng LIME thuộc
                         quyền sở hữu của bạn. Bạn được toàn quyền tải về, chỉnh sửa và khai thác thương mại hợp pháp.
-                    </div>
-
-                    <div class="legal-sec-title"><span class="legal-badge-num">3</span> Hành vi bị nghiêm cấm</div>
-                    <ul>
-                        <li>Tạo video vi phạm pháp luật, khiêu dâm, bạo lực, vu khống danh dự hoặc kích động thù địch.
-                        </li>
-                        <li>Sử dụng văn bản giọng đọc AI để giả mạo danh tính cá nhân hoặc lừa đảo tài chính.</li>
-                        <li>Tấn công kỹ thuật: spam API, can thiệp trái phép vào hàng đợi render hoặc khai thác lỗ hổng
-                            bảo mật.</li>
-                    </ul>
-
-                    <div class="legal-sec-title"><span class="legal-badge-num">4</span> Giới hạn trách nhiệm (Bản Demo)
-                    </div>
-                    <p>Hệ thống hiện đang vận hành dưới dạng thử nghiệm công nghệ. LIME không chịu trách nhiệm với sự cố
+      </div>
+<div class="legal-sec-title">
+<span class="legal-badge-num">
+        3
+       </span>
+       Hành vi bị nghiêm cấm
+      </div>
+<ul>
+<li>
+        Tạo video vi phạm pháp luật, khiêu dâm, bạo lực, vu khống danh dự hoặc kích động thù địch.
+       </li>
+<li>
+        Sử dụng văn bản giọng đọc AI để giả mạo danh tính cá nhân hoặc lừa đảo tài chính.
+       </li>
+<li>
+        Tấn công kỹ thuật: spam API, can thiệp trái phép vào hàng đợi render hoặc khai thác lỗ hổng
+                            bảo mật.
+       </li>
+</ul>
+<div class="legal-sec-title">
+<span class="legal-badge-num">
+        4
+       </span>
+       Giới hạn trách nhiệm (Bản Demo)
+      </div>
+<p>
+       Hệ thống hiện đang vận hành dưới dạng thử nghiệm công nghệ. LIME không chịu trách nhiệm với sự cố
                         gián đoạn từ các dịch vụ bên thứ ba (LLM/TTS) hoặc tranh chấp bản quyền do prompt người dùng đưa
-                        vào.</p>
-                </div>
-
-                <!-- PANE 2: CHÍNH SÁCH BẢO MẬT -->
-                <div id="legal-content-privacy" class="legal-tab-content">
-                    <div class="legal-sec-title"><span class="legal-badge-num">1</span> Dữ liệu thu thập</div>
-                    <p>Chúng tôi chỉ thu thập thông tin tối thiểu cần thiết để vận hành:</p>
-                    <ul>
-                        <li><b>Tài khoản:</b> Email, tên đăng nhập, mật khẩu được mã hóa một chiều an toàn bằng thuật
-                            toán <code>bcrypt</code> (không lưu plaintext).</li>
-                        <li><b>Dữ liệu dự án:</b> Câu lệnh prompt, kịch bản phân cảnh, cấu hình giọng nói và video kết
-                            xuất MP4/HTML.</li>
-                        <li><b>Phiên làm việc:</b> Cookie kỹ thuật và JSON Web Token (JWT) an toàn.</li>
-                    </ul>
-
-                    <div class="legal-callout">
-                        <b>Cam kết bảo vệ dữ liệu:</b> LIME cam kết <b>KHÔNG BAO GIỜ</b> bán, cho thuê hoặc chuyển
+                        vào.
+      </p>
+</div>
+<!-- PANE 2: CHÍNH SÁCH BẢO MẬT -->
+<div class="legal-tab-content" id="legal-content-privacy">
+<div class="legal-sec-title">
+<span class="legal-badge-num">
+        1
+       </span>
+       Dữ liệu thu thập
+      </div>
+<p>
+       Chúng tôi chỉ thu thập thông tin tối thiểu cần thiết để vận hành:
+      </p>
+<ul>
+<li>
+<b>
+         Tài khoản:
+        </b>
+        Email, tên đăng nhập, mật khẩu được mã hóa một chiều an toàn bằng thuật
+                            toán
+        <code>
+         bcrypt
+        </code>
+        (không lưu plaintext).
+       </li>
+<li>
+<b>
+         Dữ liệu dự án:
+        </b>
+        Câu lệnh prompt, kịch bản phân cảnh, cấu hình giọng nói và video kết
+                            xuất MP4/HTML.
+       </li>
+<li>
+<b>
+         Phiên làm việc:
+        </b>
+        Cookie kỹ thuật và JSON Web Token (JWT) an toàn.
+       </li>
+</ul>
+<div class="legal-callout">
+<b>
+        ✦ Cam kết bảo vệ dữ liệu:
+       </b>
+       LIME cam kết
+       <b>
+        KHÔNG BAO GIỜ
+       </b>
+       bán, cho thuê hoặc chuyển
                         nhượng thông tin cá nhân hay kịch bản sáng tạo của bạn cho bất kỳ bên thứ ba quảng cáo nào.
-                    </div>
-
-                    <div class="legal-sec-title"><span class="legal-badge-num">2</span> Nhà cung cấp AI &amp; TTS bên
-                        thứ ba</div>
-                    <p>Nội dung prompt và văn bản kịch bản được gửi tới các dịch vụ giọng đọc (Microsoft Edge TTS,
-                        VieNeu, OpenAI, ElevenLabs) phục vụ trực tiếp việc tổng hợp âm thanh theo thiết lập của bạn.</p>
-
-                    <div class="legal-sec-title"><span class="legal-badge-num">3</span> Quyền hạn của người dùng</div>
-                    <p>Bạn có toàn quyền tải về video của mình, yêu cầu xóa dự án hoặc xóa vĩnh viễn tài khoản và toàn
-                        bộ dữ liệu liên quan khỏi hệ thống bất cứ lúc nào.</p>
-                    <p>Liên hệ giải đáp: <b>support@lime.vn</b> hoặc <b>privacy@lime.vn</b>.</p>
-                </div>
-            </div>
-
-            <!-- Footer -->
-            <div class="legal-modal-foot">
-                <a href="/legal.html" target="_blank" class="legal-foot-link">
-                    <span>Xem văn bản đầy đủ</span>
-                    <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
-                        stroke-linecap="round" stroke-linejoin="round">
-                        <line x1="7" y1="17" x2="17" y2="7"></line>
-                        <polyline points="7 7 17 7 17 17"></polyline>
-                    </svg>
-                </a>
-                <button type="button" class="btn-legal-accept" id="btn-legal-accept">Đã hiểu &amp; Đồng ý</button>
-            </div>
-        </div>
-    </div>
-
-    <!-- ================= MODAL THANH TOÁN VIETQR ================= -->
-    <div id="vietqr-modal" class="vietqr-modal" aria-hidden="true" role="dialog" aria-modal="true">
-        <div class="vietqr-card">
-            <!-- Nút đóng -->
-            <button id="vietqr-close-btn" class="vietqr-close-btn" type="button" aria-label="Đóng thanh toán">
-                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
-                    stroke-linecap="round" stroke-linejoin="round">
-                    <line x1="18" y1="6" x2="6" y2="18"></line>
-                    <line x1="6" y1="6" x2="18" y2="18"></line>
-                </svg>
-            </button>
-
-            <!-- Top bar -->
-            <div class="vietqr-header-bar">
-                <div class="vietqr-trust-badge">
-                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"
-                        stroke-linecap="round" stroke-linejoin="round">
-                        <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"></path>
-                    </svg>
-                    <span>Cổng thanh toán VietQR 24/7 · Tự động kích hoạt</span>
-                </div>
-                <div class="vietqr-timer-pill" title="Thời gian giữ mã giao dịch">
-                    <span class="vietqr-timer-dot"></span>
-                    <span>Hiệu lực: <b id="vietqr-timer-text">15:00</b></span>
-                </div>
-            </div>
-
-            <!-- Body Grid (QR + Chi tiết chuyển khoản) -->
-            <div class="vietqr-body-grid">
-                <!-- CỘT TRÁI: Mã QR -->
-                <div class="vietqr-qr-col">
-                    <div class="vietqr-brand-row">
-                        <div class="vietqr-logo-tag">
-                            <span class="blue">Viet</span><span class="red">QR</span>
-                        </div>
-                        <span class="vietqr-napas-tag">NAPAS 247</span>
-                    </div>
-
-                    <div class="vietqr-code-box">
-                        <div class="vietqr-scanline"></div>
-                        <!-- Issue #130: bỏ src rỗng gây lỗi broken image — vietqr-modal.js sẽ gán src khi mở modal thanh toán -->
-                        <img id="vietqr-img" class="vietqr-code-img" alt="Mã VietQR thanh toán">
-                    </div>
-
-                    <div class="vietqr-code-caption">
-                        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor"
-                            stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-                            <path d="M4 7V4h3"></path>
-                            <path d="M20 7V4h-3"></path>
-                            <path d="M4 17v3h3"></path>
-                            <path d="M20 17v3h-3"></path>
-                        </svg>
-                        <span>Mở App ngân hàng bất kỳ để quét mã</span>
-                    </div>
-
-                    <div class="vietqr-actions-row">
-                        <button type="button" id="vietqr-download-btn" class="vietqr-btn-sub">
-                            <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor"
-                                stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-                                <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path>
-                                <polyline points="7 10 12 15 17 10"></polyline>
-                                <line x1="12" y1="15" x2="12" y2="3"></line>
-                            </svg>
-                            <span>Lưu ảnh QR</span>
-                        </button>
-                        <button type="button" id="vietqr-guide-btn" class="vietqr-btn-sub" aria-expanded="false"
-                            aria-controls="vietqr-guide-panel">
-                            <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor"
-                                stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-                                <circle cx="12" cy="12" r="10"></circle>
-                                <path d="m9 12 2 2 4-4"></path>
-                            </svg>
-                            <span>HD Quét mã</span>
-                        </button>
-                    </div>
-                    <div id="vietqr-guide-panel" class="vietqr-guide-panel" hidden>
-                        <p class="vietqr-guide-title">Cách quét mã thanh toán</p>
-                        <ol class="vietqr-guide-steps">
-                            <li>Mở app ngân hàng của bạn, chọn tính năng quét mã QR.</li>
-                            <li>Đưa camera vào mã QR bên trên, hoặc bấm "Lưu ảnh QR" rồi tải ảnh lên trong app ngân
-                                hàng.</li>
-                            <li>Kiểm tra đúng số tiền và giữ nguyên nội dung ở ô Lời nhắn / Memo, không sửa và không
-                                thêm ký tự.</li>
-                            <li>Xác nhận chuyển khoản, quay lại trang này và chờ hệ thống tự kích hoạt, thường trong
-                                khoảng 30 giây.</li>
-                        </ol>
-                    </div>
-                </div>
-
-                <!-- CỘT PHẢI: Thông tin chuyển khoản -->
-                <div class="vietqr-info-col">
-                    <!-- Gói dịch vụ & Chu kỳ -->
-                    <div class="vietqr-plan-card">
-                        <div class="vietqr-plan-meta">
-                            <h3>PRO</h3>
-                            <p>50 video 4K/tháng · Brand kit &amp; Ưu tiên render</p>
-                        </div>
-                        <div class="vietqr-cycle-toggle">
-                            <button type="button" class="vietqr-cycle-btn active" data-cycle="month">Tháng</button>
-                            <button type="button" class="vietqr-cycle-btn" data-cycle="year">Năm
-                                <small>-20%</small></button>
-                        </div>
-                    </div>
-
-                    <!-- Danh sách trường chuyển khoản -->
-                    <div class="vietqr-details-table">
-                        <!-- Ngân hàng -->
-                        <div class="vietqr-field-row">
-                            <span class="vietqr-field-label">
-                                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor"
-                                    stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-                                    <path d="M3 21h18"></path>
-                                    <path d="M3 10h18"></path>
-                                    <path d="M5 6l7-3 7 3"></path>
-                                    <path d="M4 10v11"></path>
-                                    <path d="M20 10v11"></path>
-                                    <path d="M8 14v3"></path>
-                                    <path d="M12 14v3"></path>
-                                    <path d="M16 14v3"></path>
-                                </svg>
-                                Ngân hàng
-                            </span>
-                            <div class="vietqr-field-content">
-                                <span class="vietqr-field-val" id="vietqr-val-bank">MBBank (Quân Đội)</span>
-                            </div>
-                        </div>
-
-                        <!-- Số tài khoản -->
-                        <div class="vietqr-field-row">
-                            <span class="vietqr-field-label">
-                                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor"
-                                    stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-                                    <rect width="20" height="14" x="2" y="5" rx="2"></rect>
-                                    <line x1="2" x2="22" y1="10" y2="10"></line>
-                                </svg>
-                                Số tài khoản
-                            </span>
-                            <div class="vietqr-field-content">
-                                <span class="vietqr-field-val" id="vietqr-val-account"
-                                    data-copy="0982618707">0982618707</span>
-                                <button type="button" class="vietqr-copy-btn" data-target="vietqr-val-account"
-                                    title="Sao chép số tài khoản">
-                                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor"
-                                        stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-                                        <rect width="14" height="14" x="8" y="8" rx="2" ry="2"></rect>
-                                        <path d="M4 16c-1.1 0-2-.9-2-2V4c0-1.1.9-2 2-2h10c1.1 0 2 .9 2 2"></path>
-                                    </svg>
-                                    <span class="vietqr-copied-tip">Đã chép!</span>
-                                </button>
-                            </div>
-                        </div>
-
-                        <!-- Chủ tài khoản -->
-                        <div class="vietqr-field-row">
-                            <span class="vietqr-field-label">
-                                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor"
-                                    stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-                                    <path d="M19 21v-2a4 4 0 0 0-4-4H9a4 4 0 0 0-4 4v2"></path>
-                                    <circle cx="12" cy="7" r="4"></circle>
-                                </svg>
-                                Chủ tài khoản
-                            </span>
-                            <div class="vietqr-field-content">
-                                <span class="vietqr-field-val" id="vietqr-val-name">NGUYEN QUANG KHANH</span>
-                            </div>
-                        </div>
-
-                        <!-- Số tiền -->
-                        <div class="vietqr-field-row highlight">
-                            <span class="vietqr-field-label">
-                                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor"
-                                    stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-                                    <line x1="12" x2="12" y1="2" y2="22"></line>
-                                    <path d="M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"></path>
-                                </svg>
-                                Số tiền
-                            </span>
-                            <div class="vietqr-field-content">
-                                <span class="vietqr-field-val amount" id="vietqr-val-amount" data-copy="99000">99.000
-                                    đ</span>
-                                <button type="button" class="vietqr-copy-btn" data-target="vietqr-val-amount"
-                                    title="Sao chép số tiền">
-                                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor"
-                                        stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-                                        <rect width="14" height="14" x="8" y="8" rx="2" ry="2"></rect>
-                                        <path d="M4 16c-1.1 0-2-.9-2-2V4c0-1.1.9-2 2-2h10c1.1 0 2 .9 2 2"></path>
-                                    </svg>
-                                    <span class="vietqr-copied-tip">Đã chép!</span>
-                                </button>
-                            </div>
-                        </div>
-
-                        <!-- Nội dung chuyển khoản -->
-                        <div class="vietqr-field-row highlight">
-                            <span class="vietqr-field-label">
-                                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor"
-                                    stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-                                    <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path>
-                                    <polyline points="14 2 14 8 20 8"></polyline>
-                                </svg>
-                                Lời nhắn / Memo
-                            </span>
-                            <div class="vietqr-field-content">
-                                <span class="vietqr-field-val code" id="vietqr-val-memo" data-copy="">LIME 8826</span>
-                                <button type="button" class="vietqr-copy-btn" data-target="vietqr-val-memo"
-                                    title="Sao chép nội dung chuyển khoản">
-                                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor"
-                                        stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-                                        <rect width="14" height="14" x="8" y="8" rx="2" ry="2"></rect>
-                                        <path d="M4 16c-1.1 0-2-.9-2-2V4c0-1.1.9-2 2-2h10c1.1 0 2 .9 2 2"></path>
-                                    </svg>
-                                    <span class="vietqr-copied-tip">Đã chép!</span>
-                                </button>
-                            </div>
-                        </div>
-                    </div>
-
-                    <!-- Ghi chú nội dung -->
-                    <div class="vietqr-memo-note">
-                        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor"
-                            stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-                            <circle cx="12" cy="12" r="10"></circle>
-                            <line x1="12" y1="8" x2="12" y2="12"></line>
-                            <line x1="12" y1="16" x2="12.01" y2="16"></line>
-                        </svg>
-                        <span>Vui lòng giữ <b>chính xác</b> nội dung chuyển khoản để hệ thống bot nhận diện và kích hoạt
-                            tự động trong 30 giây.</span>
-                    </div>
-
-                    <!-- Trạng thái chờ -->
-                    <div class="vietqr-status-indicator">
-                        <span class="vietqr-status-radar"></span>
-                        <span>Đang chờ tín hiệu chuyển khoản từ ngân hàng...</span>
-                    </div>
-
-                    <!-- Nút xác nhận thanh toán -->
-                    <button type="button" id="vietqr-submit-btn" class="vietqr-submit-btn">
-                        <span class="vietqr-btn-spinner"></span>
-                        <span>Tôi đã hoàn tất chuyển khoản</span>
-                        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor"
-                            stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
-                            <polyline points="20 6 9 17 4 12"></polyline>
-                        </svg>
-                    </button>
-                </div>
-            </div>
-
-            <!-- SUCCESS SCREEN -->
-            <div class="vietqr-success-card">
-                <div class="vietqr-success-icon-wrap">
-                    <svg width="36" height="36" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3"
-                        stroke-linecap="round" stroke-linejoin="round">
-                        <polyline points="20 6 9 17 4 12"></polyline>
-                    </svg>
-                </div>
-                <h3 class="vietqr-success-title">Thanh toán thành công!</h3>
-                <p class="vietqr-success-desc">
-                    Hệ thống đã ghi nhận giao dịch của bạn. Gói dịch vụ đã được kích hoạt trực tiếp vào tài khoản của
+      </div>
+<div class="legal-sec-title">
+<span class="legal-badge-num">
+        2
+       </span>
+       Nhà cung cấp AI &amp; TTS bên
+                        thứ ba
+      </div>
+<p>
+       Nội dung prompt và văn bản kịch bản được gửi tới các dịch vụ giọng đọc (Microsoft Edge TTS,
+                        VieNeu, OpenAI, ElevenLabs) phục vụ trực tiếp việc tổng hợp âm thanh theo thiết lập của bạn.
+      </p>
+<div class="legal-sec-title">
+<span class="legal-badge-num">
+        3
+       </span>
+       Quyền hạn của người dùng
+      </div>
+<p>
+       Bạn có toàn quyền tải về video của mình, yêu cầu xóa dự án hoặc xóa vĩnh viễn tài khoản và toàn
+                        bộ dữ liệu liên quan khỏi hệ thống bất cứ lúc nào.
+      </p>
+<p>
+       Liên hệ giải đáp:
+       <b>
+        support@lime.vn
+       </b>
+       hoặc
+       <b>
+        privacy@lime.vn
+       </b>
+       .
+      </p>
+</div>
+</div>
+<!-- Footer -->
+<div class="legal-modal-foot">
+<a class="legal-foot-link" href="/legal.html" target="_blank">
+<span>
+       Xem văn bản đầy đủ
+      </span>
+<svg fill="none" height="12" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2" viewbox="0 0 24 24" width="12">
+<line x1="7" x2="17" y1="17" y2="7">
+</line>
+<polyline points="7 7 17 7 17 17">
+</polyline>
+</svg>
+</a>
+<button class="btn-legal-accept" id="btn-legal-accept" type="button">
+      Đã hiểu &amp; Đồng ý
+     </button>
+</div>
+</div>
+</div>
+<div aria-hidden="true" aria-modal="true" class="vietqr-modal" id="vietqr-modal" role="dialog">
+<div class="vietqr-card">
+<!-- Nút đóng -->
+<button aria-label="Đóng thanh toán" class="vietqr-close-btn" id="vietqr-close-btn" type="button">
+<svg fill="none" height="18" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2" viewbox="0 0 24 24" width="18">
+<line x1="18" x2="6" y1="6" y2="18">
+</line>
+<line x1="6" x2="18" y1="6" y2="18">
+</line>
+</svg>
+</button>
+<!-- Top bar -->
+<div class="vietqr-header-bar">
+<div class="vietqr-trust-badge">
+<svg fill="none" height="14" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" viewbox="0 0 24 24" width="14">
+<path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z">
+</path>
+</svg>
+<span>
+       Cổng thanh toán VietQR 24/7 · Tự động kích hoạt
+      </span>
+</div>
+<div class="vietqr-timer-pill" title="Thời gian giữ mã giao dịch">
+<span class="vietqr-timer-dot">
+</span>
+<span>
+       Hiệu lực:
+       <b id="vietqr-timer-text">
+        15:00
+       </b>
+</span>
+</div>
+</div>
+<!-- Body Grid (QR + Chi tiết chuyển khoản) -->
+<div class="vietqr-body-grid">
+<!-- CỘT TRÁI: Mã QR -->
+<div class="vietqr-qr-col">
+<div class="vietqr-brand-row">
+<div class="vietqr-logo-tag">
+<span class="blue">
+         Viet
+        </span>
+<span class="red">
+         QR
+        </span>
+</div>
+<span class="vietqr-napas-tag">
+        NAPAS 247
+       </span>
+</div>
+<div class="vietqr-code-box">
+<div class="vietqr-scanline">
+</div>
+<img alt="Mã VietQR thanh toán" class="vietqr-code-img" id="vietqr-img" src=""/>
+</div>
+<div class="vietqr-code-caption">
+<svg fill="none" height="14" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2" viewbox="0 0 24 24" width="14">
+<path d="M4 7V4h3">
+</path>
+<path d="M20 7V4h-3">
+</path>
+<path d="M4 17v3h3">
+</path>
+<path d="M20 17v3h-3">
+</path>
+</svg>
+<span>
+        Mở App ngân hàng bất kỳ để quét mã
+       </span>
+</div>
+<div class="vietqr-actions-row">
+<button class="vietqr-btn-sub" id="vietqr-download-btn" type="button">
+<svg fill="none" height="13" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2" viewbox="0 0 24 24" width="13">
+<path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4">
+</path>
+<polyline points="7 10 12 15 17 10">
+</polyline>
+<line x1="12" x2="12" y1="15" y2="3">
+</line>
+</svg>
+<span>
+         Lưu ảnh QR
+        </span>
+</button>
+<button aria-controls="vietqr-guide-panel" aria-expanded="false" class="vietqr-btn-sub" id="vietqr-guide-btn" type="button">
+<svg fill="none" height="13" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2" viewbox="0 0 24 24" width="13">
+<circle cx="12" cy="12" r="10">
+</circle>
+<path d="m9 12 2 2 4-4">
+</path>
+</svg>
+<span>
+         HD Quét mã
+        </span>
+</button>
+</div>
+<div class="vietqr-guide-panel" hidden="" id="vietqr-guide-panel">
+<p class="vietqr-guide-title">
+        Cách quét mã thanh toán
+       </p>
+<ol class="vietqr-guide-steps">
+<li>
+         Mở app ngân hàng của bạn, chọn tính năng quét mã QR.
+        </li>
+<li>
+         Đưa camera vào mã QR bên trên, hoặc bấm "Lưu ảnh QR" rồi tải ảnh lên trong app ngân
+                                hàng.
+        </li>
+<li>
+         Kiểm tra đúng số tiền và giữ nguyên nội dung ở ô Lời nhắn / Memo, không sửa và không
+                                thêm ký tự.
+        </li>
+<li>
+         Xác nhận chuyển khoản, quay lại trang này và chờ hệ thống tự kích hoạt, thường trong
+                                khoảng 30 giây.
+        </li>
+</ol>
+</div>
+</div>
+<!-- CỘT PHẢI: Thông tin chuyển khoản -->
+<div class="vietqr-info-col">
+<!-- Gói dịch vụ & Chu kỳ -->
+<div class="vietqr-plan-card">
+<div class="vietqr-plan-meta">
+<h3>
+         PRO
+        </h3>
+<p>
+         50 video 4K/tháng · Brand kit &amp; Ưu tiên render
+        </p>
+</div>
+<div class="vietqr-cycle-toggle">
+<button class="vietqr-cycle-btn active" data-cycle="month" type="button">
+         Tháng
+        </button>
+<button class="vietqr-cycle-btn" data-cycle="year" type="button">
+         Năm
+         <small>
+          -20%
+         </small>
+</button>
+</div>
+</div>
+<!-- Danh sách trường chuyển khoản -->
+<div class="vietqr-details-table">
+<!-- Ngân hàng -->
+<div class="vietqr-field-row">
+<span class="vietqr-field-label">
+<svg fill="none" height="14" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2" viewbox="0 0 24 24" width="14">
+<path d="M3 21h18">
+</path>
+<path d="M3 10h18">
+</path>
+<path d="M5 6l7-3 7 3">
+</path>
+<path d="M4 10v11">
+</path>
+<path d="M20 10v11">
+</path>
+<path d="M8 14v3">
+</path>
+<path d="M12 14v3">
+</path>
+<path d="M16 14v3">
+</path>
+</svg>
+         Ngân hàng
+        </span>
+<div class="vietqr-field-content">
+<span class="vietqr-field-val" id="vietqr-val-bank">
+          MBBank (Quân Đội)
+         </span>
+</div>
+</div>
+<!-- Số tài khoản -->
+<div class="vietqr-field-row">
+<span class="vietqr-field-label">
+<svg fill="none" height="14" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2" viewbox="0 0 24 24" width="14">
+<rect height="14" rx="2" width="20" x="2" y="5">
+</rect>
+<line x1="2" x2="22" y1="10" y2="10">
+</line>
+</svg>
+         Số tài khoản
+        </span>
+<div class="vietqr-field-content">
+<span class="vietqr-field-val" data-copy="0982618707" id="vietqr-val-account">
+          0982618707
+         </span>
+<button class="vietqr-copy-btn" data-target="vietqr-val-account" title="Sao chép số tài khoản" type="button">
+<svg fill="none" height="14" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2" viewbox="0 0 24 24" width="14">
+<rect height="14" rx="2" ry="2" width="14" x="8" y="8">
+</rect>
+<path d="M4 16c-1.1 0-2-.9-2-2V4c0-1.1.9-2 2-2h10c1.1 0 2 .9 2 2">
+</path>
+</svg>
+<span class="vietqr-copied-tip">
+           Đã chép!
+          </span>
+</button>
+</div>
+</div>
+<!-- Chủ tài khoản -->
+<div class="vietqr-field-row">
+<span class="vietqr-field-label">
+<svg fill="none" height="14" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2" viewbox="0 0 24 24" width="14">
+<path d="M19 21v-2a4 4 0 0 0-4-4H9a4 4 0 0 0-4 4v2">
+</path>
+<circle cx="12" cy="7" r="4">
+</circle>
+</svg>
+         Chủ tài khoản
+        </span>
+<div class="vietqr-field-content">
+<span class="vietqr-field-val" id="vietqr-val-name">
+          NGUYEN QUANG KHANH
+         </span>
+</div>
+</div>
+<!-- Số tiền -->
+<div class="vietqr-field-row highlight">
+<span class="vietqr-field-label">
+<svg fill="none" height="14" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2" viewbox="0 0 24 24" width="14">
+<line x1="12" x2="12" y1="2" y2="22">
+</line>
+<path d="M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6">
+</path>
+</svg>
+         Số tiền
+        </span>
+<div class="vietqr-field-content">
+<span class="vietqr-field-val amount" data-copy="99000" id="vietqr-val-amount">
+          99.000
+                                    đ
+         </span>
+<button class="vietqr-copy-btn" data-target="vietqr-val-amount" title="Sao chép số tiền" type="button">
+<svg fill="none" height="14" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2" viewbox="0 0 24 24" width="14">
+<rect height="14" rx="2" ry="2" width="14" x="8" y="8">
+</rect>
+<path d="M4 16c-1.1 0-2-.9-2-2V4c0-1.1.9-2 2-2h10c1.1 0 2 .9 2 2">
+</path>
+</svg>
+<span class="vietqr-copied-tip">
+           Đã chép!
+          </span>
+</button>
+</div>
+</div>
+<!-- Nội dung chuyển khoản -->
+<div class="vietqr-field-row highlight">
+<span class="vietqr-field-label">
+<svg fill="none" height="14" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2" viewbox="0 0 24 24" width="14">
+<path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z">
+</path>
+<polyline points="14 2 14 8 20 8">
+</polyline>
+</svg>
+         Lời nhắn / Memo
+        </span>
+<div class="vietqr-field-content">
+<span class="vietqr-field-val code" data-copy="" id="vietqr-val-memo">
+          LIME 8826
+         </span>
+<button class="vietqr-copy-btn" data-target="vietqr-val-memo" title="Sao chép nội dung chuyển khoản" type="button">
+<svg fill="none" height="14" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2" viewbox="0 0 24 24" width="14">
+<rect height="14" rx="2" ry="2" width="14" x="8" y="8">
+</rect>
+<path d="M4 16c-1.1 0-2-.9-2-2V4c0-1.1.9-2 2-2h10c1.1 0 2 .9 2 2">
+</path>
+</svg>
+<span class="vietqr-copied-tip">
+           Đã chép!
+          </span>
+</button>
+</div>
+</div>
+</div>
+<!-- Ghi chú nội dung -->
+<div class="vietqr-memo-note">
+<svg fill="none" height="16" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2" viewbox="0 0 24 24" width="16">
+<circle cx="12" cy="12" r="10">
+</circle>
+<line x1="12" x2="12" y1="8" y2="12">
+</line>
+<line x1="12" x2="12.01" y1="16" y2="16">
+</line>
+</svg>
+<span>
+        Vui lòng giữ
+        <b>
+         chính xác
+        </b>
+        nội dung chuyển khoản để hệ thống bot nhận diện và kích hoạt
+                            tự động trong 30 giây.
+       </span>
+</div>
+<!-- Trạng thái chờ -->
+<div class="vietqr-status-indicator">
+<span class="vietqr-status-radar">
+</span>
+<span>
+        Đang chờ tín hiệu chuyển khoản từ ngân hàng...
+       </span>
+</div>
+<!-- Nút xác nhận thanh toán -->
+<button class="vietqr-submit-btn" id="vietqr-submit-btn" type="button">
+<span class="vietqr-btn-spinner">
+</span>
+<span>
+        Tôi đã hoàn tất chuyển khoản
+       </span>
+<svg fill="none" height="16" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" viewbox="0 0 24 24" width="16">
+<polyline points="20 6 9 17 4 12">
+</polyline>
+</svg>
+</button>
+</div>
+</div>
+<!-- SUCCESS SCREEN -->
+<div class="vietqr-success-card">
+<div class="vietqr-success-icon-wrap">
+<svg fill="none" height="36" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="3" viewbox="0 0 24 24" width="36">
+<polyline points="20 6 9 17 4 12">
+</polyline>
+</svg>
+</div>
+<h3 class="vietqr-success-title">
+      Thanh toán thành công!
+     </h3>
+<p class="vietqr-success-desc">
+      Hệ thống đã ghi nhận giao dịch của bạn. Gói dịch vụ đã được kích hoạt trực tiếp vào tài khoản của
                     bạn.
-                </p>
-                <div class="vietqr-success-plan-info">
-                    <span>Gói dịch vụ: <b id="vietqr-success-plan-name">Gói Sáng tạo (1 Tháng)</b></span>
-                    <span>·</span>
-                    <span>Mã đơn: <b id="vietqr-success-code">LIME 8826</b></span>
-                </div>
-                <button type="button" id="vietqr-success-btn" class="vietqr-success-btn">
-                    Vào Studio tạo video ngay →
-                </button>
-            </div>
-        </div>
-    </div>
-
-    <!-- Core App Logic -->
-    <script src="legal-modal.js"></script>
-    <script src="vietqr-modal.js"></script>
-    <script src="app.js"></script>
-    <script type="module" src="/js/broadcast.js"></script>
-    <script type="module" src="/js/support-widget.js"></script>
+     </p>
+<div class="vietqr-success-plan-info">
+<span>
+       Gói dịch vụ:
+       <b id="vietqr-success-plan-name">
+        Gói Sáng tạo (1 Tháng)
+       </b>
+</span>
+<span>
+       ·
+      </span>
+<span>
+       Mã đơn:
+       <b id="vietqr-success-code">
+        LIME 8826
+       </b>
+</span>
+</div>
+<button class="vietqr-success-btn" id="vietqr-success-btn" type="button">
+      Vào Studio tạo video ngay →
+     </button>
+</div>
+</div>
+</div>
+<div aria-hidden="true" aria-modal="true" class="auth-modal" id="login-modal" role="dialog">
+<div class="auth-card-modal">
+<button aria-label="Đóng" class="modal-close-btn" id="login-close-btn" type="button">
+<svg fill="none" height="16" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2" viewbox="0 0 24 24" width="16">
+<line x1="18" x2="6" y1="6" y2="18">
+</line>
+<line x1="6" x2="18" y1="6" y2="18">
+</line>
+</svg>
+</button>
+<!-- Header có User Icon badge -->
+<div class="auth-header">
+<div class="auth-user-badge">
+<svg fill="none" height="22" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2" viewbox="0 0 24 24" width="22" xmlns="http://www.w3.org/2000/svg">
+<path d="M19 21v-2a4 4 0 0 0-4-4H9a4 4 0 0 0-4 4v2">
+</path>
+<circle cx="12" cy="7" r="4">
+</circle>
+</svg>
+</div>
+<div>
+<h2 class="auth-title" id="auth-title">
+       Chào mừng trở lại
+      </h2>
+<p class="auth-subtitle" id="auth-subtitle">
+       Nhập thông tin tài khoản của bạn để đăng nhập
+      </p>
+</div>
+</div>
+<!-- Đăng nhập mạng xã hội: Apple & Google (đã bỏ X, cân đối 2 cột) -->
+<div class="auth-social-row" id="auth-social-row">
+<button aria-label="Đăng nhập với Apple" class="auth-social-btn" id="apple-login-btn" type="button">
+<svg class="auth-social-svg" height="20" viewbox="0 0 24 24" width="20" xmlns="http://www.w3.org/2000/svg">
+<path d="M18.71 19.5C17.88 20.74 17 21.95 15.66 21.97C14.32 22 13.89 21.18 12.37 21.18C10.84 21.18 10.37 21.95 9.09997 22C7.78997 22.05 6.79997 20.68 5.95997 19.47C4.24997 17 2.93997 12.45 4.69997 9.39C5.56997 7.87 7.12997 6.91 8.81997 6.88C10.1 6.86 11.32 7.75 12.11 7.75C12.89 7.75 14.37 6.68 15.92 6.84C16.57 6.87 18.39 7.1 19.56 8.82C19.47 8.88 17.39 10.1 17.41 12.63C17.44 15.65 20.06 16.66 20.09 16.67C20.06 16.74 19.67 18.11 18.71 19.5ZM13 3.5C13.73 2.67 14.94 2.04 15.94 2C16.07 3.17 15.6 4.35 14.9 5.19C14.21 6.04 13.07 6.7 11.95 6.61C11.8 5.46 12.36 4.26 13 3.5Z" fill="currentColor">
+</path>
+</svg>
+<span>
+       Apple
+      </span>
+</button>
+<button aria-label="Đăng nhập với Google" class="auth-social-btn" id="google-login-btn" type="button">
+<svg class="auth-social-svg" height="20" viewbox="0 0 24 24" width="20" xmlns="http://www.w3.org/2000/svg">
+<path d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z" fill="#4285F4">
+</path>
+<path d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z" fill="#34A853">
+</path>
+<path d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.07H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.93l3.66-2.84z" fill="#FBBC05">
+</path>
+<path d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z" fill="#EA4335">
+</path>
+</svg>
+<span>
+       Google
+      </span>
+</button>
+</div>
+<!-- Divider -->
+<div class="auth-divider" id="auth-divider">
+<span class="auth-divider-line">
+</span>
+<span class="auth-divider-text">
+      Hoặc tiếp tục với
+     </span>
+<span class="auth-divider-line">
+</span>
+</div>
+<!-- Login Form -->
+<form class="auth-form-fields" id="login-form" onsubmit="return false;">
+<div class="auth-input-group">
+<label for="login-username">
+       Tên đăng nhập hoặc Email
+      </label>
+<div class="auth-input-wrapper">
+<span class="auth-input-left-icon">
+<svg fill="none" height="16" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2" viewbox="0 0 24 24" width="16" xmlns="http://www.w3.org/2000/svg">
+<path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2">
+</path>
+<circle cx="12" cy="7" r="4">
+</circle>
+</svg>
+</span>
+<input autocomplete="username" class="clean-auth-input with-left-icon" id="login-username" placeholder="name@example.com" type="text"/>
+</div>
+</div>
+<div class="auth-input-group">
+<label for="login-password">
+       Mật khẩu
+      </label>
+<div class="auth-input-wrapper">
+<span class="auth-input-left-icon">
+<svg fill="none" height="16" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2" viewbox="0 0 24 24" width="16" xmlns="http://www.w3.org/2000/svg">
+<rect height="11" rx="2" ry="2" width="18" x="3" y="11">
+</rect>
+<circle cx="12" cy="16" r="1">
+</circle>
+<path d="M7 11V7a5 5 0 0 1 10 0v4">
+</path>
+</svg>
+</span>
+<input autocomplete="current-password" class="clean-auth-input with-left-icon with-right-icon" id="login-password" placeholder="Nhập mật khẩu" type="password"/>
+<button aria-label="Hiện/ẩn mật khẩu" class="auth-password-toggle" id="login-password-toggle" type="button">
+<svg class="eye-icon" fill="none" height="16" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2" viewbox="0 0 24 24" width="16" xmlns="http://www.w3.org/2000/svg">
+<path d="M2 12s3-7 10-7 10 7 10 7-3 7-10 7-10-7-10-7Z">
+</path>
+<circle cx="12" cy="12" r="3">
+</circle>
+</svg>
+</button>
+</div>
+</div>
+<button class="btn-auth-submit" id="login-submit-btn" type="submit">
+      Đăng nhập
+     </button>
+<p class="auth-status-msg" id="login-message">
+</p>
+<div class="auth-foot-actions">
+<p class="auth-foot-text">
+       Chưa có tài khoản?
+       <button class="link-switch-auth" id="show-register-btn" type="button">
+        Đăng ký ngay
+       </button>
+</p>
+<a class="link-forgot-pass" href="#" id="forgot-password-link">
+       Quên mật khẩu?
+      </a>
+</div>
+</form>
+<!-- Register Form (theo form mẫu đăng ký mới) -->
+<form class="auth-form-fields" id="register-form" onsubmit="return false;" style="display: none;">
+<div class="auth-input-group">
+<label for="register-username">
+       Họ và tên / Tên đăng nhập
+      </label>
+<div class="auth-input-wrapper">
+<span class="auth-input-left-icon">
+<svg fill="none" height="16" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2" viewbox="0 0 24 24" width="16" xmlns="http://www.w3.org/2000/svg">
+<path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2">
+</path>
+<circle cx="12" cy="7" r="4">
+</circle>
+</svg>
+</span>
+<input autocomplete="username" class="clean-auth-input with-left-icon" id="register-username" placeholder="Nhập tên của bạn" type="text"/>
+</div>
+</div>
+<div class="auth-input-group">
+<label for="register-email">
+       Địa chỉ Email
+      </label>
+<div class="auth-input-wrapper">
+<span class="auth-input-left-icon">
+<svg fill="none" height="16" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2" viewbox="0 0 24 24" width="16" xmlns="http://www.w3.org/2000/svg">
+<path d="M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2z">
+</path>
+<polyline points="22,6 12,13 2,6">
+</polyline>
+</svg>
+</span>
+<input autocomplete="email" class="clean-auth-input with-left-icon" id="register-email" placeholder="name@example.com" type="email"/>
+</div>
+</div>
+<div class="auth-input-group">
+<label for="register-password">
+       Mật khẩu
+      </label>
+<div class="auth-input-wrapper">
+<span class="auth-input-left-icon">
+<svg fill="none" height="16" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2" viewbox="0 0 24 24" width="16" xmlns="http://www.w3.org/2000/svg">
+<rect height="11" rx="2" ry="2" width="18" x="3" y="11">
+</rect>
+<circle cx="12" cy="16" r="1">
+</circle>
+<path d="M7 11V7a5 5 0 0 1 10 0v4">
+</path>
+</svg>
+</span>
+<input autocomplete="new-password" class="clean-auth-input with-left-icon with-right-icon" id="register-password" placeholder="Tạo mật khẩu (tối thiểu 6 ký tự)" type="password"/>
+<button aria-label="Hiện/ẩn mật khẩu" class="auth-password-toggle" id="register-password-toggle" type="button">
+<svg class="eye-icon" fill="none" height="16" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2" viewbox="0 0 24 24" width="16" xmlns="http://www.w3.org/2000/svg">
+<path d="M2 12s3-7 10-7 10 7 10 7-3 7-10 7-10-7-10-7Z">
+</path>
+<circle cx="12" cy="12" r="3">
+</circle>
+</svg>
+</button>
+</div>
+</div>
+<div class="auth-terms-group">
+<label class="auth-checkbox-label" for="register-terms">
+<input checked="" id="register-terms" type="checkbox"/>
+<span class="auth-checkbox-box">
+<svg class="check-icon" fill="none" height="12" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="3" viewbox="0 0 24 24" width="12" xmlns="http://www.w3.org/2000/svg">
+<polyline points="20,6 9,17 4,12">
+</polyline>
+</svg>
+</span>
+<span class="auth-terms-text">
+        Tôi đồng ý với
+        <a class="auth-terms-link open-terms-btn" data-legal="terms" href="#">
+         Điều
+                                khoản dịch vụ
+        </a>
+        và
+        <a class="auth-terms-link open-privacy-btn" data-legal="privacy" href="#">
+         Chính sách bảo mật
+        </a>
+</span>
+</label>
+</div>
+<button class="btn-auth-submit" id="register-submit-btn" type="submit">
+      Tạo tài khoản
+     </button>
+<p class="auth-status-msg" id="register-message">
+</p>
+<div class="auth-foot-actions">
+<p class="auth-foot-text">
+       Đã có tài khoản?
+       <button class="link-switch-auth" id="show-login-btn" type="button">
+        Đăng nhập
+       </button>
+</p>
+</div>
+</form>
+<!-- Forgot Password Form -->
+<form class="auth-form-fields" id="forgot-form" onsubmit="return false;" style="display: none;">
+<div class="auth-note-box">
+<svg fill="none" height="16" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2" viewbox="0 0 24 24" width="16" xmlns="http://www.w3.org/2000/svg">
+<circle cx="12" cy="12" r="10">
+</circle>
+<line x1="12" x2="12" y1="8" y2="12">
+</line>
+<line x1="12" x2="12.01" y1="16" y2="16">
+</line>
+</svg>
+<span>
+       Nhập tên đăng nhập hoặc email cùng mật khẩu mới để thiết lập lại mật khẩu của bạn.
+      </span>
+</div>
+<div class="auth-input-group">
+<label for="forgot-username">
+       Tên đăng nhập hoặc Email
+      </label>
+<div class="auth-input-wrapper">
+<span class="auth-input-left-icon">
+<svg fill="none" height="16" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2" viewbox="0 0 24 24" width="16" xmlns="http://www.w3.org/2000/svg">
+<path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2">
+</path>
+<circle cx="12" cy="7" r="4">
+</circle>
+</svg>
+</span>
+<input autocomplete="username" class="clean-auth-input with-left-icon" id="forgot-username" placeholder="name@example.com" type="text"/>
+</div>
+</div>
+<div class="auth-input-group">
+<label for="forgot-password">
+       Mật khẩu mới
+      </label>
+<div class="auth-input-wrapper">
+<span class="auth-input-left-icon">
+<svg fill="none" height="16" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2" viewbox="0 0 24 24" width="16" xmlns="http://www.w3.org/2000/svg">
+<rect height="11" rx="2" ry="2" width="18" x="3" y="11">
+</rect>
+<circle cx="12" cy="16" r="1">
+</circle>
+<path d="M7 11V7a5 5 0 0 1 10 0v4">
+</path>
+</svg>
+</span>
+<input autocomplete="new-password" class="clean-auth-input with-left-icon with-right-icon" id="forgot-password" placeholder="Nhập mật khẩu mới (tối thiểu 6 ký tự)" type="password"/>
+<button aria-label="Hiện/ẩn mật khẩu" class="auth-password-toggle" id="forgot-password-toggle" type="button">
+<svg class="eye-icon" fill="none" height="16" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2" viewbox="0 0 24 24" width="16" xmlns="http://www.w3.org/2000/svg">
+<path d="M2 12s3-7 10-7 10 7 10 7-3 7-10 7-10-7-10-7Z">
+</path>
+<circle cx="12" cy="12" r="3">
+</circle>
+</svg>
+</button>
+</div>
+</div>
+<div class="auth-input-group">
+<label for="forgot-confirm-password">
+       Xác nhận mật khẩu mới
+      </label>
+<div class="auth-input-wrapper">
+<span class="auth-input-left-icon">
+<svg fill="none" height="16" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2" viewbox="0 0 24 24" width="16" xmlns="http://www.w3.org/2000/svg">
+<path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z">
+</path>
+</svg>
+</span>
+<input autocomplete="new-password" class="clean-auth-input with-left-icon with-right-icon" id="forgot-confirm-password" placeholder="Nhập lại mật khẩu mới để xác nhận" type="password"/>
+<button aria-label="Hiện/ẩn mật khẩu" class="auth-password-toggle" id="forgot-confirm-password-toggle" type="button">
+<svg class="eye-icon" fill="none" height="16" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2" viewbox="0 0 24 24" width="16" xmlns="http://www.w3.org/2000/svg">
+<path d="M2 12s3-7 10-7 10 7 10 7-3 7-10 7-10-7-10-7Z">
+</path>
+<circle cx="12" cy="12" r="3">
+</circle>
+</svg>
+</button>
+</div>
+</div>
+<button class="btn-auth-submit" id="forgot-submit-btn" type="submit">
+      Đặt lại mật khẩu
+     </button>
+<p class="auth-status-msg" id="forgot-message">
+</p>
+<div class="auth-foot-actions">
+<p class="auth-foot-text">
+       Đã nhớ mật khẩu?
+       <button class="link-switch-auth" id="show-login-from-forgot-btn" type="button">
+        Đăng
+                            nhập
+       </button>
+</p>
+</div>
+</form>
+</div>
+</div>
+<script src="legal-modal.js">
+</script>
+<script src="vietqr-modal.js">
+</script>
+<script src="app.js">
+</script>
+<script src="/js/broadcast.js" type="module">
+</script>
+<script src="/js/support-widget.js" type="module">
+</script>
 </body>
-
 </html>

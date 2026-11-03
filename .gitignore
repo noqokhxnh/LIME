@@ -28,3 +28,11 @@ data/*
 
 # Backup env chứa secret (lime-activate-secrets.sh)
 .env.bak-*
+
+# Taste skill inspection artifacts
+.taste-skill/
+
+# UI Skills
+.agents/skills/design-taste-frontend/
+.agents/skills/hallmark/
+.agents/skills/lime-ui-craft/

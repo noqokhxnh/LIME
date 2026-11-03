@@ -3,6 +3,11 @@ const API_BASE = (window.location.hostname === 'localhost' || window.location.ho
     ? ((window.location.origin && window.location.origin.includes(':3000')) ? '' : 'http://localhost:3000')
     : '';
 
+if (sessionStorage.getItem('lime-scroll-top')) {
+    sessionStorage.removeItem('lime-scroll-top');
+    try { window.scrollTo({ top: 0, behavior: 'instant' }); } catch (e) { window.scrollTo(0, 0); }
+}
+
 // Auth Elements
 const loginOpenBtn = document.getElementById('login-open-btn');
 const loginModal = document.getElementById('login-modal');
@@ -102,20 +107,17 @@ if (forgotPasswordLink) {
 }
 
 if (loginOpenBtn && loginModal) {
-    loginOpenBtn.addEventListener('click', () => {
+    loginOpenBtn.addEventListener('click', (e) => {
+        e.preventDefault();
         if (isLoggedIn) {
-            const dropdown =
-                document.getElementById('home-user-dropdown');
-
+            const dropdown = document.getElementById('home-user-dropdown');
             if (!dropdown) return;
 
             dropdown.hidden = !dropdown.hidden;
-
             loginOpenBtn.setAttribute(
                 'aria-expanded',
                 String(!dropdown.hidden)
             );
-
             return;
         }
         if (loginMessage) loginMessage.textContent = '';
@@ -163,7 +165,19 @@ async function handleLogin() {
             return;
         }
         loginMessage.textContent = '';
-        window.location.href = '/workspace';
+        if (loginModal) loginModal.classList.remove('show');
+
+        // Khi đăng nhập thành công: giao diện xuất hiện là trang chủ ở vị trí trên cùng
+        if (window.location.pathname === '/' || window.location.pathname === '/index.html' || window.location.pathname === '') {
+            window.scrollTo({ top: 0, behavior: 'instant' });
+            if (window.location.hash) {
+                window.history.replaceState(null, '', '/');
+            }
+            await checkCurrentUser();
+        } else {
+            sessionStorage.setItem('lime-scroll-top', '1');
+            window.location.href = '/';
+        }
     } catch (err) {
         loginMessage.textContent = 'Không thể kết nối tới server';
     } finally {
@@ -263,7 +277,19 @@ async function handleRegister() {
             return;
         }
         registerMessage.textContent = '';
-        window.location.href = '/workspace';
+        if (loginModal) loginModal.classList.remove('show');
+
+        // Khi đăng ký thành công: giao diện xuất hiện là trang chủ ở vị trí trên cùng
+        if (window.location.pathname === '/' || window.location.pathname === '/index.html' || window.location.pathname === '') {
+            window.scrollTo({ top: 0, behavior: 'instant' });
+            if (window.location.hash) {
+                window.history.replaceState(null, '', '/');
+            }
+            await checkCurrentUser();
+        } else {
+            sessionStorage.setItem('lime-scroll-top', '1');
+            window.location.href = '/';
+        }
     } catch (err) {
         registerMessage.textContent = 'Không thể kết nối tới server';
     } finally {
@@ -353,7 +379,28 @@ document.querySelectorAll('.plan-cta').forEach(b => {
     };
     btn.addEventListener('click', go);
     input.addEventListener('keydown', (e) => {
-        if (e.key === 'Enter') { e.preventDefault(); go(); }
+        if (e.key === 'Tab' && !input.value.trim()) {
+            e.preventDefault();
+            const firstSuggestion = document.querySelector('.home-prompt-suggestion');
+            if (firstSuggestion) {
+                input.value = firstSuggestion.getAttribute('data-prompt') || '';
+            } else if (input.placeholder) {
+                input.value = input.placeholder;
+            }
+        } else if (e.key === 'Enter') {
+            e.preventDefault();
+            go();
+        }
+    });
+
+    document.querySelectorAll('.home-prompt-suggestion').forEach(btn => {
+        btn.addEventListener('click', () => {
+            const p = btn.getAttribute('data-prompt');
+            if (p) {
+                input.value = p;
+                input.focus();
+            }
+        });
     });
 })();
 
@@ -862,12 +909,17 @@ function initFlipWords() {
 
     items.forEach((it, i) => it.addEventListener('click', () => select(i)));
     select(0);
+})();
+
+// =========================================================
+// HOME USER MENU & LOGOUT
+// =========================================================
+(function initHomeUserMenu() {
     const homeUser = document.getElementById('home-user');
     const homeDropdown = document.getElementById('home-user-dropdown');
 
     function closeHomeUserMenu() {
         if (!homeDropdown) return;
-
         homeDropdown.hidden = true;
         loginOpenBtn?.setAttribute('aria-expanded', 'false');
     }
@@ -884,15 +936,47 @@ function initFlipWords() {
         }
     });
 
-    document.getElementById('home-logout-btn')
-        ?.addEventListener('click', async () => {
-            try {
-                await fetch('/api/auth/logout', {
-                    method: 'POST',
-                    credentials: 'include'
-                });
-            } finally {
-                window.location.href = '/';
-            }
-        });
+    async function doLogout(e) {
+        if (e) {
+            e.preventDefault();
+            e.stopPropagation();
+        }
+        try {
+            await fetch(`${API_BASE}/api/auth/logout`, {
+                method: 'POST',
+                credentials: 'include'
+            });
+        } catch (err) {
+            console.error('Logout error:', err);
+        } finally {
+            try { sessionStorage.removeItem('lime-pending-prompt'); } catch (e) {}
+            window.location.href = '/';
+        }
+    }
+
+    document.getElementById('home-logout-btn')?.addEventListener('click', doLogout);
+    document.getElementById('logout-btn')?.addEventListener('click', doLogout);
 })();
+
+// Quản lý hiển thị đường kẻ dưới navbar: ẩn khi ở Hero video trên cùng, hiện khi lướt xuống các phần sáng bên dưới
+(function initNavBorderScroll() {
+    const border = document.getElementById('nav-bottom-border');
+    const hero = document.getElementById('hero-section');
+    if (!border || !hero) return;
+
+    function updateNavBorder() {
+        const heroBottom = hero.getBoundingClientRect().bottom;
+        if (heroBottom <= 64) {
+            border.classList.remove('opacity-0');
+            border.classList.add('opacity-100');
+        } else {
+            border.classList.add('opacity-0');
+            border.classList.remove('opacity-100');
+        }
+    }
+
+    window.addEventListener('scroll', updateNavBorder, { passive: true });
+    window.addEventListener('resize', updateNavBorder, { passive: true });
+    updateNavBorder();
+})();
+

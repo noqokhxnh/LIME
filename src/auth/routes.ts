@@ -608,7 +608,7 @@ export async function authRoutes(app: FastifyInstance): Promise<void> {
                 provider: 'google',
                 request,
             });
-            return reply.redirect('/workspace');
+            return reply.redirect('/');
         } catch (error) {
             request.log.error(
                 { err: error },
