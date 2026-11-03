@@ -388,3 +388,52 @@ ON page_views(path);
 CREATE INDEX IF NOT EXISTS idx_page_views_ip
 ON page_views(ip);
 `;
+
+/**
+ * Câu lệnh SQL khởi tạo bảng video_history (Thư viện "Video của tôi").
+ *
+ * Hàng đợi Redis/BullMQ là trạng thái *tạm thời*: job bị prune, worker restart
+ * hoặc người dùng logout đều có thể làm mất danh sách job. Bảng này lưu metadata
+ * lịch sử lâu dài để người dùng xem lại video cũ sau restart, trong khi tệp MP4
+ * vẫn nằm trên đĩa (không lưu binary trong PostgreSQL).
+ *
+ * Các cột:
+ *   - job_id          : khoá chính, khớp jobId dùng trong tmp/job-<jobId>
+ *   - user_id         : chủ sở hữu; FK ON DELETE CASCADE để xoá tài khoản là
+ *                       xoá lịch sử của chính tài khoản đó
+ *   - status          : queued | running | completed | failed | qa_failed | cancelled
+ *   - request/script  : JSONB để khôi phục dự án vào trình chỉnh sửa (không phải
+ *                       dữ liệu nhị phân, chỉ metadata do server ghi)
+ *   - video_path      : đường dẫn tuyệt đối phía server tới MP4; KHÔNG trả cho client
+ *   - preview_scene_id: scene dùng làm thumbnail, route preview kiểm tra tệp tồn tại
+ *   - completed_at    : mốc hoàn tất, phục vụ retention (VIDEO_RETENTION_DAYS)
+ */
+export const VIDEO_HISTORY_SQL = `
+CREATE TABLE IF NOT EXISTS video_history (
+    job_id VARCHAR(80) PRIMARY KEY,
+    user_id UUID REFERENCES users(id) ON DELETE CASCADE,
+    topic TEXT NOT NULL DEFAULT '',
+    status VARCHAR(20) NOT NULL DEFAULT 'queued',
+    request JSONB,
+    script JSONB,
+    duration_sec NUMERIC(10,2),
+    resolution VARCHAR(20),
+    qa_status VARCHAR(20),
+    error TEXT,
+    video_path TEXT,
+    preview_scene_id VARCHAR(80),
+    created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    completed_at TIMESTAMPTZ
+);
+
+CREATE INDEX IF NOT EXISTS idx_video_history_user_created
+ON video_history(user_id, created_at DESC);
+CREATE INDEX IF NOT EXISTS idx_video_history_user_status_created
+ON video_history(user_id, status, created_at DESC);
+CREATE INDEX IF NOT EXISTS idx_video_history_created
+ON video_history(created_at DESC);
+CREATE INDEX IF NOT EXISTS idx_video_history_retention
+ON video_history(completed_at)
+WHERE completed_at IS NOT NULL;
+`;

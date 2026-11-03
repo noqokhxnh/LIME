@@ -7,6 +7,7 @@ import {
     HELPDESK_SQL,
     ASSETS_SQL,
     PAGE_VIEWS_SQL,
+    VIDEO_HISTORY_SQL,
 } from './base.js';
 import { CORE_INDEX_SQL, TRIGRAM_INDEX_SQL } from './indexes.js';
 
@@ -80,6 +81,12 @@ const pageViewsMigration: Migration = {
     up: (client) => client.query(PAGE_VIEWS_SQL).then(() => undefined),
 };
 
+const videoHistoryMigration: Migration = {
+    version: '009_video_history',
+    description: 'video_history (lịch sử video của người dùng)',
+    up: (client) => client.query(VIDEO_HISTORY_SQL).then(() => undefined),
+};
+
 const performanceIndexesMigration: Migration = {
     version: '008_performance_indexes',
     description: 'index hiệu năng + dọn index dư thừa',
@@ -111,6 +118,7 @@ export const MIGRATIONS: Migration[] = [
     assetsMigration,
     pageViewsMigration,
     performanceIndexesMigration,
+    videoHistoryMigration,
 ];
 
 export interface MigrationResult {

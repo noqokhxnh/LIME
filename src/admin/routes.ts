@@ -49,6 +49,7 @@ import { videoScriptSchema, type videoScript } from "../llm/schema.js";
 import type { IVideoQueue, JobUpdate } from "../queue/interfaces.js";
 import { jobWorkDirs } from "../queue/jobPaths.js";
 import { isJobVideoAvailable } from "../queue/jobVideo.js";
+import { deleteVideoHistory, recordVideoCancelled } from "../history/store.js";
 import {
     isAllowedContainer,
     getContainersStatus,
@@ -1345,6 +1346,7 @@ export async function adminRoutes(app: FastifyInstance, opts?: { queue?: IVideoQ
         // nên job vẫn nằm trong danh sách sau khi "xoá".
         const queue = getQueue();
         const removedFromQueue = queue ? await queue.removeJob(jobId) : false;
+        const removedHistory = await deleteVideoHistory(jobId);
 
         // Thư mục làm việc thực tế là `tmp/job-<jobId>` (xem handlePipelineRequest).
         // Vẫn dọn thêm `tmp/<jobId>` để tương thích dữ liệu cũ. jobWorkDirs
@@ -1364,15 +1366,15 @@ export async function adminRoutes(app: FastifyInstance, opts?: { queue?: IVideoQ
         auditAdminAction(request, check, {
             action: "admin.job_deleted",
             status: "warning",
-            details: { deletedBy: check.user?.email, jobId, removedFromQueue },
+            details: { deletedBy: check.user?.email, jobId, removedFromQueue, removedHistory },
         });
 
-        if (!removedFromQueue) {
+        if (!removedFromQueue && !removedHistory) {
             reply.status(404);
             return { error: "Không tìm thấy job.", removedFromQueue: false };
         }
 
-        return { success: true, message: `Đã xóa job ${jobId}`, removedFromQueue: true };
+        return { success: true, message: `Đã xóa job ${jobId}`, removedFromQueue, removedHistory };
     });
 
     app.patch("/api/admin/jobs/:jobId", async (request: FastifyRequest<{ Params: { jobId: string } }>, reply: FastifyReply) => {
@@ -1466,6 +1468,7 @@ export async function adminRoutes(app: FastifyInstance, opts?: { queue?: IVideoQ
             reply.status(409);
             return { error: "Không thể hủy job ở trạng thái hiện tại." };
         }
+        await recordVideoCancelled(jobId, 'Đã hủy bởi quản trị viên');
 
         auditAdminAction(request, check, {
             action: "admin.job_cancelled",

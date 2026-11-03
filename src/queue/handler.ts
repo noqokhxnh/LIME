@@ -14,6 +14,13 @@ import { videoRequestSchema, videoScriptSchema, type videoScript } from '../llm/
 import { isSafeJobId, safeJobDir } from './jobPaths.js';
 import { resolveBgmPath } from '../security/uploadGuard.js';
 import { getAssetsByIdsForUser, type AssetRow } from '../database/assets.js';
+import {
+    recordVideoCancelled,
+    recordVideoCompleted,
+    recordVideoFailed,
+    recordVideoQueued,
+    recordVideoStarted,
+} from '../history/store.js';
 import { resolve, sep } from 'node:path';
 
 /**
@@ -158,41 +165,70 @@ export function revalidateJobData(data: JobData): JobData {
 }
 
 export async function processVideoJob(data: JobData, updateProgress: (p: JobProgress) => Promise<void>): Promise<fullPipelineResult> {
-    const clean = revalidateJobData(data);
-    let script = clean.script;
-    if (!script && clean.autoDirect) {
-        script = await autoDirectScript(clean, updateProgress);
+    const trackedJobId = isSafeJobId(data?.jobId) ? data.jobId : null;
+    if (trackedJobId) {
+        // Idempotent: route async đã ghi 'queued' khi nhận job; sync/CLI thì đây
+        // là điểm ghi đầu tiên. createdAt không bị reset khi ghi lại.
+        await recordVideoQueued({
+            jobId: trackedJobId,
+            userId: data.userId,
+            topic: data.request?.prompt,
+            request: data.request,
+        });
     }
+    let script = data.script;
+    try {
+        const clean = revalidateJobData(data);
+        script = clean.script;
+        if (trackedJobId) await recordVideoStarted(trackedJobId);
 
-    // Asset người dùng upload (#103): resolve id -> ảnh (đã kiểm ownership
-    // qua user_id). Lỗi DB/đọc file không làm hỏng job — bỏ qua như không có asset.
-    // Gộp assetIds từ BOTH request (top-level) và từng scene trong script đã duyệt
-    // (HITL): route /api/script/draft trả scene.assetIds do LLM chọn, client gửi
-    // nguyên script lên render mà không kèm assetIds top-level.
-    let assets: Awaited<ReturnType<typeof getAssetsByIdsForUser>> = [];
-    const assetIdSet = new Set<string>(clean.request?.assetIds ?? []);
-    for (const scene of script?.scenes ?? []) {
-        for (const id of scene.assetIds ?? []) assetIdSet.add(id);
-    }
-    if (assetIdSet.size > 0 && clean.userId) {
-        try {
-            assets = await getAssetsByIdsForUser([...assetIdSet], clean.userId);
-        } catch (err) {
-            console.warn(`[Assets] Bỏ qua asset do lỗi resolve: ${(err as Error)?.message}`);
+        if (!script && clean.autoDirect) {
+            script = await autoDirectScript(clean, updateProgress);
         }
-    }
 
-    return await runFullPipeline({
-        request: clean.request,
-        script,
-        bgmPath: clean.bgmPath,
-        skipPreview: clean.skipPreview,
-        outputDir: clean.outputDir,
-        jobId: clean.jobId,
-        seed: clean.seed,
-        assets,
-        onProgress: (p) => {
-            updateProgress(p).catch(err => console.error("Failed to update progress", err));
+        // Asset người dùng upload (#103): resolve id -> ảnh (đã kiểm ownership
+        // qua user_id). Lỗi DB/đọc file không làm hỏng job — bỏ qua như không có asset.
+        // Gộp assetIds từ BOTH request (top-level) và từng scene trong script đã duyệt
+        // (HITL): route /api/script/draft trả scene.assetIds do LLM chọn, client gửi
+        // nguyên script lên render mà không kèm assetIds top-level.
+        let assets: Awaited<ReturnType<typeof getAssetsByIdsForUser>> = [];
+        const assetIdSet = new Set<string>(clean.request?.assetIds ?? []);
+        for (const scene of script?.scenes ?? []) {
+            for (const id of scene.assetIds ?? []) assetIdSet.add(id);
         }
-    });
+        if (assetIdSet.size > 0 && clean.userId) {
+            try {
+                assets = await getAssetsByIdsForUser([...assetIdSet], clean.userId);
+            } catch (err) {
+                console.warn(`[Assets] Bỏ qua asset do lỗi resolve: ${(err as Error)?.message}`);
+            }
+        }
+
+        const result = await runFullPipeline({
+            request: clean.request,
+            script,
+            bgmPath: clean.bgmPath,
+            skipPreview: clean.skipPreview,
+            outputDir: clean.outputDir,
+            jobId: clean.jobId,
+            seed: clean.seed,
+            assets,
+            onProgress: (p) => {
+                updateProgress(p).catch(err => console.error("Failed to update progress", err));
+            }
+        });
+
+        if (trackedJobId) await recordVideoCompleted(trackedJobId, result, script);
+        return result;
+    } catch (err: any) {
+        if (trackedJobId) {
+            const cancelled = err?.name === 'AbortError' || /JOB_CANCELLED|abort/i.test(String(err?.message ?? ''));
+            if (cancelled) {
+                await recordVideoCancelled(trackedJobId, 'Đã hủy');
+            } else {
+                await recordVideoFailed(trackedJobId, err?.message ?? String(err));
+            }
+        }
+        throw err;
+    }
 }
