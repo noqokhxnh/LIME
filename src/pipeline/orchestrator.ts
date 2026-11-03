@@ -1,5 +1,6 @@
 import { existsSync, mkdirSync, rmSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
+import { getConfig } from '../config.js';
 import { v4 } from "uuid";
 import { videoPreset, resolveResolution } from "@/config";
 import { videoRequest, pipelineResult, pipelineProgess, progressCallback, pipelinePhase, videoScript, AudioResult, checkRhythm } from "@/llm/schema";
@@ -24,6 +25,7 @@ export interface orchestratorOptions {
     skipPreview?: boolean;
     skipRender?: boolean;
     skipQa?: boolean;
+    qaEnforce?: boolean;
     forceRender?: boolean;
     requireApprovalOnWarn?: boolean;
     maxQaAttempts?: number;
@@ -82,6 +84,9 @@ export interface fullPipelineResult extends pipelineResult {
 export async function runFullPipeline(option: orchestratorOptions): Promise<fullPipelineResult> {
     const { request, script: inputScript, bgmPath, skipPreview, onProgress, outputDir } = option;
     const assets = option.assets ?? [];
+    // Mac dinh tat mo man trap theo config (do toc do render); caller truyen skipShutterBlur thi uu tien gia tri do.
+    const skipShutterBlur = option.skipShutterBlur ?? !getConfig().SHUTTER_BLUR_ENABLED;
+    const qaEnforce = option.qaEnforce ?? getConfig().QA_ENFORCE_ENABLED;
 
     const jobId = option.jobId ?? v4();
     const defaultSeed = hashString32(jobId);
@@ -332,7 +337,7 @@ export async function runFullPipeline(option: orchestratorOptions): Promise<full
                     domSampler: option.domSampler,
                     batchDomSampler: option.batchDomSampler,
                     audioAnalyzer: option.audioAnalyzer,
-                    hasShutterBlur: option.skipShutterBlur ? false : undefined,
+                    hasShutterBlur: skipShutterBlur ? false : undefined,
                     tempo: request.tempo,
                     targetDurationSec: request.targetDurationSec,
                     gsapLintStrict: option.gsapLintStrict,
@@ -357,6 +362,22 @@ export async function runFullPipeline(option: orchestratorOptions): Promise<full
                 persistQaReport();
 
                 if (qaStatus === 'fail') {
+                    if (!qaEnforce) {
+                        // Che do chi canh bao (mac dinh): khong sinh lai kich ban, khong
+                        // danh dau suy giam. Ha ket luan cap job xuong 'warn' de job hoan
+                        // thanh va user xem duoc video; bao cao QA van giu verdict 'fail'
+                        // va ly do day du kem canh bao giai thich.
+                        const warnOnlyMsg = `[Oracle QA Canh bao] Khong dat nhung van render va hoan thanh (che do chi canh bao): ${qaReport.errors.join("; ")}`;
+                        console.warn(`[Orchestrator] ${warnOnlyMsg}`);
+                        logProgress("oracle_qa", 79, warnOnlyMsg);
+                        qaReport.warnings = [
+                            ...(qaReport.warnings || []),
+                            `[QA warn-only] Da bo qua cong chan QA theo cau hinh: ${qaReport.errors.join("; ")}`,
+                        ];
+                        qaStatus = 'warn';
+                        persistQaReport();
+                        break;
+                    }
                     if (attempt < maxQaAttempts && !inputScript) {
                         qaFeedback = qaReport.errors.join("; ");
                         const retryMsg = `[Oracle QA Thất bại] Lần thử ${attempt}/${maxQaAttempts} không đạt: ${qaFeedback}. Đang tự động tạo lại kịch bản với seed mới ${currentSeed + 1}...`;
@@ -434,7 +455,7 @@ export async function runFullPipeline(option: orchestratorOptions): Promise<full
                     logProgress("render", scaled, msg);
                 },
                 watermark: request.watermark,
-                skipShutterBlur: option.skipShutterBlur,
+                skipShutterBlur,
                 shutterSamples: option.shutterSamples,
                 seed: currentSeed,
             });
