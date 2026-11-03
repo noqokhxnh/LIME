@@ -53,6 +53,12 @@ export async function buildApp(options: { logger?: boolean, queue?: IVideoQueue 
     const app = fastify({
         logger: options.logger ?? false,
         bodyLimit: 10 * 1024 * 1024,
+        // trustProxy (vá theo issue #133): chỉ tin X-Forwarded-For khi
+        // TRUST_PROXY=1 (app thật sự chạy sau reverse proxy) — khi đó
+        // request.ip mới là IP thật của client, để rate limit theo IP và
+        // kiểm tra IP webhook SePay hoạt động đúng. Mặc định tắt: bật bừa
+        // khi không có proxy sẽ cho phép client giả mạo IP qua header.
+        trustProxy: getConfig().TRUST_PROXY,
     });
 
     // CORS (đã vá theo issue #133): chỉ phản chiếu những origin nằm trong

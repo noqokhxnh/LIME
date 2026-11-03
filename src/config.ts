@@ -22,6 +22,15 @@ const envSchema = z.object({
     // index.ts dùng origin: true kèm credentials: true, phản chiếu mọi
     // origin và để website lạ đọc trộm dữ liệu phiên của người dùng.
     CORS_ORIGIN: z.string().default(''),
+    // Chỉ bật (true) khi app chạy sau reverse proxy (Nginx/Cloudflare/Docker):
+    // Fastify mới tin X-Forwarded-For để lấy IP thật của client cho rate limit
+    // và kiểm tra IP webhook. Bật khi KHÔNG có proxy sẽ cho client giả mạo IP
+    // qua header. Nhận '1'/'true' là bật, còn lại (kể cả không đặt) là tắt.
+    // Vá theo issue #133: biến này đã có trong tài liệu nhưng code chưa đọc.
+    TRUST_PROXY: z.preprocess((val) => {
+        if (typeof val === 'string') return val === '1' || val.toLowerCase() === 'true';
+        return Boolean(val);
+    }, z.boolean().default(false)),
 
 
     LLM_Provider: z.preprocess(

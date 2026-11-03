@@ -8,6 +8,7 @@ describe('Module 1: Config & Environment (src/config.ts)', () => {
         'PORT',
         'NODE_ENV',
         'CORS_ORIGIN',
+        'TRUST_PROXY',
         'LLM_Provider',
         'LLM_PROVIDER',
         'NINEROUTER_BASE_URL',
@@ -289,6 +290,26 @@ describe('Module 1: Config & Environment (src/config.ts)', () => {
             assert.deepStrictEqual(parseCorsOrigins(' https://a.com ,, https://b.com , '), ['https://a.com', 'https://b.com']);
             assert.deepStrictEqual(parseCorsOrigins(''), []);
             assert.deepStrictEqual(parseCorsOrigins(undefined), []);
+        });
+    });
+
+    describe('TC-TRUST-001: Cờ TRUST_PROXY (issue #133)', () => {
+        it('mặc định tắt khi không đặt biến môi trường', () => {
+            cleanConfigEnv();
+            resetConfig();
+
+            assert.strictEqual(getConfig().TRUST_PROXY, false);
+        });
+
+        it("phải bật khi TRUST_PROXY='1' và tắt khi '0'", () => {
+            cleanConfigEnv();
+            resetConfig();
+            process.env.TRUST_PROXY = '1';
+            assert.strictEqual(getConfig().TRUST_PROXY, true);
+
+            resetConfig();
+            process.env.TRUST_PROXY = '0';
+            assert.strictEqual(getConfig().TRUST_PROXY, false);
         });
     });
 });
