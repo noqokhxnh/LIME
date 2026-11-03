@@ -201,7 +201,8 @@ ALTER TABLE orders ADD COLUMN IF NOT EXISTS cycle VARCHAR(10) NOT NULL DEFAULT '
 
 CREATE INDEX IF NOT EXISTS idx_orders_user_status ON orders(user_id, status);
 CREATE INDEX IF NOT EXISTS idx_orders_expires_at ON orders(expires_at);
-CREATE INDEX IF NOT EXISTS idx_orders_pay_code ON orders(pay_code);
+-- KHÔNG tạo idx_orders_pay_code: cột pay_code đã có ràng buộc UNIQUE, PostgreSQL
+-- tự tạo B-tree index cùng khoá. Index trùng chỉ làm chậm ghi.
 
 CREATE TABLE IF NOT EXISTS payments (
     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
@@ -214,7 +215,8 @@ CREATE TABLE IF NOT EXISTS payments (
 );
 
 CREATE INDEX IF NOT EXISTS idx_payments_order_id ON payments(order_id);
-CREATE INDEX IF NOT EXISTS idx_payments_result ON payments(result);
+-- KHÔNG tạo idx_payments_result riêng: idx_payments_result_received_at
+-- ON payments(result, received_at DESC) ở indexes.ts đã phủ tiền tố result.
 
 CREATE TABLE IF NOT EXISTS unmatched_payments (
     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
@@ -229,7 +231,8 @@ CREATE TABLE IF NOT EXISTS unmatched_payments (
     created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
 
-CREATE INDEX IF NOT EXISTS idx_unmatched_payments_status ON unmatched_payments(status);
+-- KHÔNG tạo idx_unmatched_payments_status riêng: idx_unmatched_status_created_at
+-- ON unmatched_payments(status, created_at DESC) ở indexes.ts đã phủ tiền tố status.
 
 ALTER TABLE users ADD COLUMN IF NOT EXISTS plan_id VARCHAR(50) REFERENCES plans(id);
 ALTER TABLE users ADD COLUMN IF NOT EXISTS plan_expires_at TIMESTAMPTZ;
@@ -343,4 +346,45 @@ CREATE TABLE IF NOT EXISTS ticket_messages (
 
 CREATE INDEX IF NOT EXISTS idx_ticket_messages_ticket
 ON ticket_messages(ticket_id, created_at);
+`;
+
+/**
+ * Câu lệnh SQL khởi tạo bảng page_views (thống kê lượt truy cập).
+ *
+ * Trước đây `pageViewTracker.ts` INSERT/SELECT/TRUNCATE bảng này nhưng DDL chưa
+ * từng được định nghĩa ⇒ PostgreSQL báo `relation "page_views" does not exist`
+ * và toàn bộ số liệu analytics mất. Kiểu cột khớp chính xác các truy vấn hiện có:
+ *   - id/created_at  : khoá chính + mốc thời gian (sắp xếp DESC, lọc theo ngày)
+ *   - ip             : IPv4/IPv6 dạng text (tối đa 45 ký tự)
+ *   - user_id        : người dùng đã đăng nhập; KHÔNG đặt FK để giữ lại số liệu
+ *                      lịch sử khi tài khoản bị xoá cứng.
+ * DDL idempotent để chạy lại an toàn trên database đã có dữ liệu.
+ */
+export const PAGE_VIEWS_SQL = `
+CREATE TABLE IF NOT EXISTS page_views (
+    id UUID PRIMARY KEY,
+    ip VARCHAR(45),
+    path TEXT NOT NULL,
+    user_agent TEXT,
+    browser VARCHAR(100),
+    os VARCHAR(100),
+    device VARCHAR(20),
+    referrer TEXT,
+    location TEXT,
+    isp TEXT,
+    country VARCHAR(100),
+    city VARCHAR(100),
+    user_id UUID,
+    user_email VARCHAR(255),
+    created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+
+CREATE INDEX IF NOT EXISTS idx_page_views_created_at
+ON page_views(created_at DESC);
+CREATE INDEX IF NOT EXISTS idx_page_views_user
+ON page_views(user_id);
+CREATE INDEX IF NOT EXISTS idx_page_views_path
+ON page_views(path);
+CREATE INDEX IF NOT EXISTS idx_page_views_ip
+ON page_views(ip);
 `;

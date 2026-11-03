@@ -419,7 +419,7 @@ export const userStore = {
                 const res = await db.query(
                     `SELECT id::text AS id FROM users
                      WHERE deleted_at IS NULL
-                       AND (username ILIKE $1 OR email ILIKE $1 OR COALESCE(name, '') ILIKE $1)
+                       AND (username ILIKE $1 OR email ILIKE $1 OR COALESCE(display_name, '') ILIKE $1)
                      LIMIT $2`,
                     [`%${term}%`, limit]
                 );
@@ -492,11 +492,17 @@ export const userStore = {
                 const { whereClause, values } = buildAdminUserWhere(params);
                 const orderClause = buildAdminUserOrder(params);
 
-                const countRes = await db.query(
-                    `WITH base AS (SELECT ${USER_SELECT_SQL} ${USER_SELECT_FROM_SQL})
-                     SELECT COUNT(*)::int AS total FROM base ${whereClause}`,
-                    values
-                );
+                // COUNT không cần 2 subquery LEFT JOIN LATERAL vào audit_logs:
+                // chúng chỉ phục vụ hiển thị IP/vị trí. Khi không tìm kiếm, đếm
+                // thẳng trên users (dùng được index role/tier/status). Khi có
+                // search, các cột IP/vị trí tham gia điều kiện nên phải giữ
+                // nguyên CTE để tổng số trang khớp với danh sách.
+                const hasSearch = Boolean((params.search || "").trim());
+                const countSql = hasSearch
+                    ? `WITH base AS (SELECT ${USER_SELECT_SQL} ${USER_SELECT_FROM_SQL})
+                       SELECT COUNT(*)::int AS total FROM base ${whereClause}`
+                    : `SELECT COUNT(*)::int AS total FROM users u ${whereClause}`;
+                const countRes = await db.query(countSql, values);
                 const total = Number(countRes.rows[0]?.total ?? 0);
 
                 const listValues = [...values, limit, offset];
@@ -649,16 +655,25 @@ export const userStore = {
         const config = getConfig();
         if (config.DATABASE_URL) {
             try {
-                await db.query(
+                // Ghi tuyệt đối là nguyên tử ở tầng SQL (không đọc-sửa-ghi).
+                const res = await db.query(
                     `UPDATE users
                      SET credits = $1,
-                         total_credits = GREATEST(total_credits, $1),
+                         total_credits = GREATEST(COALESCE(total_credits, 0), $1),
                          updated_at = NOW()
-                     WHERE id = $2`,
+                     WHERE id = $2
+                     RETURNING *`,
                     [safeCredits, userId]
                 );
+                if (res.rows.length === 0) return null;
+                const u = formatUserRow(res.rows[0]);
+                inMemoryUsers.set(u.id, u);
+                inMemoryUsers.set(u.email.toLowerCase(), u);
+                return u;
             } catch (err) {
+                // DB là nguồn sự thật: KHÔNG cập nhật cache rồi báo thành công giả.
                 console.error("[UserStore] DB error in setCredits:", err);
+                return null;
             }
         }
         const u = await this.findById(userId);
@@ -674,16 +689,66 @@ export const userStore = {
 
     async addCredits(userId: string, amount: number): Promise<AdminUserRecord | null> {
         ensureLoaded();
+        const delta = Math.max(0, amount);
+        const config = getConfig();
+        if (config.DATABASE_URL) {
+            try {
+                // `credits = credits + $1` trong một câu lệnh: hai request đồng
+                // thời không còn ghi đè số dư của nhau (lost update).
+                const res = await db.query(
+                    `UPDATE users
+                     SET credits = GREATEST(0, COALESCE(credits, 0) + $1),
+                         total_credits = GREATEST(
+                             COALESCE(total_credits, 0),
+                             GREATEST(0, COALESCE(credits, 0) + $1)
+                         ),
+                         updated_at = NOW()
+                     WHERE id = $2
+                     RETURNING *`,
+                    [delta, userId]
+                );
+                if (res.rows.length === 0) return null;
+                const u = formatUserRow(res.rows[0]);
+                inMemoryUsers.set(u.id, u);
+                inMemoryUsers.set(u.email.toLowerCase(), u);
+                return u;
+            } catch (err) {
+                console.error("[UserStore] DB error in addCredits:", err);
+                return null;
+            }
+        }
         const u = await this.findById(userId);
         if (!u) return null;
-        return this.setCredits(userId, u.credits + Math.max(0, amount));
+        return this.setCredits(userId, u.credits + delta);
     },
 
     async deductCredits(userId: string, amount: number): Promise<{ success: boolean; remaining: number }> {
         ensureLoaded();
+        const delta = Math.abs(amount);
+        const config = getConfig();
+        if (config.DATABASE_URL) {
+            try {
+                const res = await db.query(
+                    `UPDATE users
+                     SET credits = GREATEST(0, COALESCE(credits, 0) - $1),
+                         updated_at = NOW()
+                     WHERE id = $2
+                     RETURNING *`,
+                    [delta, userId]
+                );
+                if (res.rows.length === 0) return { success: false, remaining: 0 };
+                const u = formatUserRow(res.rows[0]);
+                inMemoryUsers.set(u.id, u);
+                inMemoryUsers.set(u.email.toLowerCase(), u);
+                return { success: true, remaining: u.credits };
+            } catch (err) {
+                console.error("[UserStore] DB error in deductCredits:", err);
+                return { success: false, remaining: 0 };
+            }
+        }
         const u = await this.findById(userId);
         if (!u) return { success: false, remaining: 0 };
-        const newCredits = Math.max(0, u.credits - Math.abs(amount));
+        const newCredits = Math.max(0, u.credits - delta);
         await this.setCredits(userId, newCredits);
         return { success: true, remaining: newCredits };
     },

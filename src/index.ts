@@ -6,7 +6,7 @@ import { existsSync, createReadStream, statSync, writeFileSync, mkdirSync, unlin
 import { join } from "node:path";
 import { v4 } from "uuid";
 import { getConfig } from "./config.js";
-import { getCurrentUser } from "./auth/session.js";
+import { getCurrentUser, cleanupExpiredSessions } from "./auth/session.js";
 import { videoRequestSchema, videoScriptSchema, watermarkConfigSchema, type videoRequest, type videoScript } from "./llm/schema.js";
 import { generateScript } from "./pipeline/scriptGenerator.js";
 import { estimateDuration } from "./pipeline/estimateDuration.js";
@@ -20,7 +20,7 @@ import {
     mergeAnswers,
 } from "./pipeline/clarify.js";
 import { dedupeVariants, pickVariants, scoreDraft } from "./pipeline/scriptVariants.js";
-import { initDatabase } from "./database/index.js";
+import { initDatabase, closeDatabase } from "./database/index.js";
 import fastifyCookie from "@fastify/cookie";
 import { authRoutes } from "./auth/routes.js";
 import { billingRoutes } from "./billing/routes.js";
@@ -456,27 +456,43 @@ export async function buildApp(options: { logger?: boolean, queue?: IVideoQueue 
         const body = (request.body as any) || {};
         const config = getConfig();
 
-        const currentPrefs = user.preferences || {};
-        const newPrefs = {
-            ...currentPrefs,
-            ...(body.llmProvider ? { llmProvider: body.llmProvider } : {}),
-            ...(body.llmModel ? { llmModel: body.llmModel } : {}),
-            ...(body.ttsProvider ? { ttsProvider: body.ttsProvider } : {}),
-            ...(body.ttsVoice ? { ttsVoice: body.ttsVoice } : {}),
-            ...(body.elevenlabsApiKey !== undefined && body.elevenlabsApiKey !== "••••••••"
-                ? { elevenlabsApiKey: body.elevenlabsApiKey }
-                : {}),
-            ...(body.watermark ? { watermark: body.watermark } : {}),
+        // Chỉ gửi đúng các key người dùng thay đổi. MERGE JSONB ở tầng SQL
+        // (`preferences || patch`) thay vì đọc cả object ra JS rồi ghi đè: hai
+        // tab cập nhật hai key khác nhau không còn xoá mất thay đổi của nhau.
+        const prefsPatch: Record<string, unknown> = {};
+        if (body.llmProvider) prefsPatch.llmProvider = body.llmProvider;
+        if (body.llmModel) prefsPatch.llmModel = body.llmModel;
+        if (body.ttsProvider) prefsPatch.ttsProvider = body.ttsProvider;
+        if (body.ttsVoice) prefsPatch.ttsVoice = body.ttsVoice;
+        if (body.elevenlabsApiKey !== undefined && body.elevenlabsApiKey !== "••••••••") {
+            prefsPatch.elevenlabsApiKey = body.elevenlabsApiKey;
+        }
+        if (body.watermark) prefsPatch.watermark = body.watermark;
+
+        let savedPrefs: Record<string, unknown> = {
+            ...(user.preferences || {}),
+            ...prefsPatch,
         };
 
         if (config.DATABASE_URL) {
             try {
-                await db.query(
-                    `UPDATE users SET preferences = $1, updated_at = NOW() WHERE id = $2`,
-                    [JSON.stringify(newPrefs), user.id]
+                const res = await db.query(
+                    `UPDATE users
+                     SET preferences = COALESCE(preferences, '{}'::jsonb) || $1::jsonb,
+                         updated_at = NOW()
+                     WHERE id = $2
+                     RETURNING preferences`,
+                    [JSON.stringify(prefsPatch), user.id]
                 );
+                if (res.rows.length > 0 && res.rows[0].preferences) {
+                    savedPrefs = res.rows[0].preferences;
+                }
             } catch (err) {
+                // Không nuốt lỗi DB rồi trả "success": người dùng phải biết
+                // cài đặt chưa được lưu (và có thể thử lại).
                 console.error("[Settings] Error updating user preferences:", err);
+                reply.status(500);
+                return { error: "Không lưu được cài đặt. Vui lòng thử lại." };
             }
         }
 
@@ -494,8 +510,8 @@ export async function buildApp(options: { logger?: boolean, queue?: IVideoQueue 
         return {
             success: true,
             preferences: {
-                ...newPrefs,
-                ...(newPrefs.elevenlabsApiKey ? { elevenlabsApiKey: "••••••••" } : {}),
+                ...savedPrefs,
+                ...(savedPrefs.elevenlabsApiKey ? { elevenlabsApiKey: "••••••••" } : {}),
             },
         };
     });
@@ -1717,8 +1733,47 @@ export async function startServer(): Promise<FastifyInstance> {
         }, 30 * 60 * 1000);
         app.addHook('onClose', async () => clearInterval(assetCleanupInterval));
 
+        // Dọn session hết hạn (Issue #132): trước đây bảng sessions chỉ phình
+        // thêm. Chỉ xoá expires_at <= NOW(), không đụng phiên còn hiệu lực.
+        cleanupExpiredSessions().catch(err => console.warn('[Session] Cleanup error:', err));
+        const sessionCleanupInterval = setInterval(() => {
+            cleanupExpiredSessions().catch(err => console.warn('[Session] Cleanup error:', err));
+        }, 30 * 60 * 1000);
+        app.addHook('onClose', async () => clearInterval(sessionCleanupInterval));
+
         await app.listen({ port: config.PORT, host: "0.0.0.0" });
         console.log(`Backend server listening at http://localhost:${config.PORT}`);
+
+        // Tắt máy đúng thứ tự: ngừng nhận request mới (app.close đóng listener
+        // + chạy onClose hook) → đóng queue → đóng pool PostgreSQL MỘT lần.
+        // Guard `shuttingDown` chống SIGINT/SIGTERM bắn hai lần.
+        let shuttingDown = false;
+        const shutdown = async (signal: string) => {
+            if (shuttingDown) return;
+            shuttingDown = true;
+            console.log(`[Server] Nhận ${signal}, đang tắt an toàn...`);
+            const withTimeout = <T>(promise: Promise<T>, ms: number) =>
+                Promise.race([
+                    promise,
+                    new Promise<void>((resolve) => setTimeout(resolve, ms)),
+                ]);
+            try {
+                await withTimeout(app.close(), 30_000);
+            } catch (err) {
+                console.error('[Server] Lỗi khi đóng Fastify:', err);
+            }
+            try {
+                await withTimeout(queue.close(), 15_000);
+            } catch (err) {
+                console.error('[Server] Lỗi khi đóng queue:', err);
+            }
+            await closeDatabase();
+            console.log('[Server] Đã tắt an toàn.');
+            process.exit(0);
+        };
+        process.once('SIGINT', () => { void shutdown('SIGINT'); });
+        process.once('SIGTERM', () => { void shutdown('SIGTERM'); });
+
         return app;
     } catch (err) {
         stopBillingCron();
