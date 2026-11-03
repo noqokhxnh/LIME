@@ -186,7 +186,9 @@ export class BullMQQueue implements IVideoQueue {
             });
         }, {
             connection,
-            concurrency
+            concurrency,
+            lockDuration: 300_000, // 5 phút (#131): render video nhiều frame không bị stalled
+            stalledInterval: 60_000, // Kiểm tra stalled mỗi 60 giây
         });
 
         this.worker.on('error', (err: any) => {

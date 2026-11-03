@@ -2,6 +2,7 @@ import { existsSync, readFileSync } from "node:fs";
 import { join } from "node:path";
 import { execSync } from "node:child_process";
 import { Config, getConfig } from "../config.js";
+import { defaultTokenTracker } from "../usage/tokenTracker.js";
 
 export interface LLMClient {
     generate(systemPrompt: string, userPrompt: string, signal?: AbortSignal): Promise<string>;
@@ -44,6 +45,14 @@ export class OpenAIClient implements LLMClient {
             throw new Error(`OpenAI API Error: ${res.status} - ${err}`);
         }
         const data = await res.json() as any;
+        if (data?.usage) {
+            defaultTokenTracker.record({
+                provider: this.provider,
+                model: this.model,
+                promptTokens: data.usage.prompt_tokens ?? 0,
+                completionTokens: data.usage.completion_tokens ?? 0,
+            });
+        }
         const content = data.choices?.[0]?.message?.content;
         if (!content) {
             throw new Error(`OpenAI API Error: No content in response. Raw: ${JSON.stringify(data)}`);
@@ -88,6 +97,14 @@ export class DeepSeekClient implements LLMClient {
             throw new Error(`DeepSeek API Error: ${res.status} - ${err}`);
         }
         const data = await res.json() as any;
+        if (data?.usage) {
+            defaultTokenTracker.record({
+                provider: this.provider,
+                model: this.model,
+                promptTokens: data.usage.prompt_tokens ?? 0,
+                completionTokens: data.usage.completion_tokens ?? 0,
+            });
+        }
         const content = data.choices?.[0]?.message?.content;
         if (!content) {
             throw new Error(`DeepSeek API Error: No content in response. Raw: ${JSON.stringify(data)}`);
@@ -134,6 +151,14 @@ export class GeminiClient implements LLMClient {
             throw new Error(`Gemini API Error: ${res.status} - ${err}`);
         }
         const data = await res.json() as any;
+        if (data?.usageMetadata) {
+            defaultTokenTracker.record({
+                provider: this.provider,
+                model: this.model,
+                promptTokens: data.usageMetadata.promptTokenCount ?? 0,
+                completionTokens: data.usageMetadata.candidatesTokenCount ?? 0,
+            });
+        }
         const text = data.candidates?.[0]?.content?.parts?.[0]?.text;
         if (!text) {
             throw new Error(`Gemini API Error: No candidate text received. Raw: ${JSON.stringify(data)}`);
@@ -178,6 +203,14 @@ export class ClaudeClient implements LLMClient {
             throw new Error(`Claude API Error: ${res.status} - ${err}`);
         }
         const data = await res.json() as any;
+        if (data?.usage) {
+            defaultTokenTracker.record({
+                provider: this.provider,
+                model: this.model,
+                promptTokens: data.usage.input_tokens ?? 0,
+                completionTokens: data.usage.output_tokens ?? 0,
+            });
+        }
         const text = data.content?.[0]?.text;
         if (!text) {
             throw new Error(`Claude API Error: No text in response. Raw: ${JSON.stringify(data)}`);
@@ -339,6 +372,14 @@ export class NineRouterClient implements LLMClient {
         }
 
         const data = await res.json() as any;
+        if (data?.usage) {
+            defaultTokenTracker.record({
+                provider: this.provider,
+                model: this.model,
+                promptTokens: data.usage.prompt_tokens ?? 0,
+                completionTokens: data.usage.completion_tokens ?? 0,
+            });
+        }
         const content = data.choices?.[0]?.message?.content;
         if (!content) {
             throw new Error(`9router API Error: No content in response. Raw: ${JSON.stringify(data)}`);

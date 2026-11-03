@@ -65,6 +65,14 @@ export interface orchestratorOptions {
      * prompt LLM để LLM chọn assetIds, và resolve thành data URI khi render.
      */
     assets?: AssetRow[];
+    /**
+     * Giữ lại thư mục tạm khi thất bại để chẩn đoán/debug. Mặc định false (tự động dọn dẹp).
+     */
+    keepWorkDirOnFailure?: boolean;
+    /**
+     * Tín hiệu huỷ tác vụ (AbortSignal) từ người dùng hoặc timeout hệ thống (#131).
+     */
+    signal?: AbortSignal;
 }
 
 export interface fullPipelineResult extends pipelineResult {
@@ -80,7 +88,7 @@ export interface fullPipelineResult extends pipelineResult {
 }
 
 export async function runFullPipeline(option: orchestratorOptions): Promise<fullPipelineResult> {
-    const { request, script: inputScript, bgmPath, skipPreview, onProgress, outputDir } = option;
+    const { request, script: inputScript, bgmPath, skipPreview, onProgress, outputDir, signal } = option;
     const assets = option.assets ?? [];
 
     const jobId = option.jobId ?? v4();
@@ -300,6 +308,7 @@ export async function runFullPipeline(option: orchestratorOptions): Promise<full
                 skipSfx: option.skipSfx,
                 sfxVolume: option.sfxVolume,
                 seed: currentSeed,
+                signal,
                 onProgress: (msg) => {
                     logProgress("audio_synthesis", 76, msg);
                 },
@@ -437,6 +446,7 @@ export async function runFullPipeline(option: orchestratorOptions): Promise<full
                 skipShutterBlur: option.skipShutterBlur,
                 shutterSamples: option.shutterSamples,
                 seed: currentSeed,
+                signal,
             });
             timing["render"] = Date.now() - phaseStart;
         }
@@ -458,6 +468,14 @@ export async function runFullPipeline(option: orchestratorOptions): Promise<full
         };
     } catch (err: any) {
         logProgress("script_generation", 100, `Pipeline failed: ${err.message}`);
+        // Issue #131: Dọn dẹp thư mục tạm khi thất bại trừ khi có cờ keepWorkDirOnFailure
+        if (!option.keepWorkDirOnFailure && existsSync(workDir)) {
+            try {
+                rmSync(workDir, { recursive: true, force: true });
+            } catch (cleanupErr) {
+                console.warn(`[Orchestrator] Không thể dọn dẹp workDir ${workDir}:`, cleanupErr);
+            }
+        }
         throw err;
     }
 }

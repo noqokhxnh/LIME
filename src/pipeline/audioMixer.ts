@@ -16,6 +16,7 @@ export interface DuckingOptions {
     attackMs?: number; // Mặc định 40ms
     releaseMs?: number; // Mặc định 250ms
     threshold?: number; // Ngưỡng kích hoạt sidechain
+    signal?: AbortSignal;
 }
 
 /**
@@ -61,7 +62,7 @@ export async function duckBgm(
             "-map", "[out]",
             "-c:a", "pcm_s16le",
             outputPath,
-        ]);
+        ], { signal: options.signal });
         return;
     }
 
@@ -111,7 +112,7 @@ export async function duckBgm(
         "-map", "[ducked_bgm]",
         "-c:a", "pcm_s16le",
         outputPath,
-    ]);
+    ], { signal: options.signal });
 }
 
 /**
@@ -126,6 +127,7 @@ export async function applySharedReverb(
         wet?: number; // Mặc định 0.15 (15%)
         dry?: number; // Mặc định 0.85 (85%)
         seed?: number;
+        signal?: AbortSignal;
     }
 ): Promise<void> {
     const wet = options?.wet ?? 0.15;
@@ -151,7 +153,7 @@ export async function applySharedReverb(
             "-map", "[out]",
             "-c:a", "pcm_s16le",
             outputPath,
-        ]);
+        ], { signal: options?.signal });
     } finally {
         if (cleanupTempIr && existsSync(tempIrPath)) {
             rmSync(tempIrPath, { force: true });
@@ -171,6 +173,7 @@ export async function masterAudio(
         truePeakCeiling?: number; // Mặc định -3.5 dBTP
         lra?: number; // Mặc định 11
         sampleRate?: number; // Mặc định 44100
+        signal?: AbortSignal;
     }
 ): Promise<void> {
     const targetLufs = options?.targetLufs ?? -16;
@@ -193,7 +196,7 @@ export async function masterAudio(
         "-af", `${clarityFilter},loudnorm=I=${targetLufs}:TP=${truePeak}:LRA=${lra},aformat=sample_rates=${sampleRate}:channel_layouts=stereo`,
         ...codecArgs,
         outputPath,
-    ]);
+    ], { signal: options?.signal });
 }
 
 export interface LoudnessMetrics {
@@ -221,7 +224,8 @@ export async function applyMicroFades(
     inputPath: string,
     outputPath: string,
     fadeInMs: number = 30,
-    fadeOutMs: number = 50
+    fadeOutMs: number = 50,
+    signal?: AbortSignal
 ): Promise<void> {
     const fadeInSec = (fadeInMs / 1000).toFixed(3);
     const fadeOutSec = (fadeOutMs / 1000).toFixed(3);
@@ -233,17 +237,17 @@ export async function applyMicroFades(
         "-af", `afade=t=in:st=0:d=${fadeInSec},afade=t=out:d=${fadeOutSec}`,
         "-c:a", "pcm_s16le",
         outputPath,
-    ]);
+    ], { signal });
 }
 
-export async function measureLoudness(audioPath: string): Promise<LoudnessMetrics> {
+export async function measureLoudness(audioPath: string, signal?: AbortSignal): Promise<LoudnessMetrics> {
     try {
         const { stderr } = await execFile("ffmpeg", [
             "-i", audioPath,
             "-af", "ebur128=peak=true",
             "-f", "null",
             "-",
-        ]);
+        ], { signal });
 
         const lufsMatch = stderr.match(/Integrated loudness:\s+I:\s+([-\d.]+)\s+LUFS/);
         const tpMatch = stderr.match(/True peak:\s+Peak:\s+([-\d.]+)\s+(?:dBFS|dBTP)/);
@@ -270,6 +274,7 @@ export interface AudioMixerPipelineOptions {
     sfxVolume?: number;
     bgmVolume?: number;
     seed?: number;
+    signal?: AbortSignal;
     onProgress?: (message: string, progress?: number) => void;
 }
 
@@ -301,6 +306,7 @@ export async function mixAudioPipeline(
         sfxVolume = 1.0,
         bgmVolume = 0.2,
         seed,
+        signal,
         onProgress,
     } = options;
 
@@ -332,6 +338,7 @@ export async function mixAudioPipeline(
             outputPath: duckedBgmPath,
             durationSec,
             bgmVolume,
+            signal,
         });
 
         // Trộn các track: Voice + (SFX nếu có) + Ducked BGM
@@ -360,7 +367,7 @@ export async function mixAudioPipeline(
             "-map", "[mixed]",
             "-c:a", "pcm_s16le",
             dryMixPath,
-        ]);
+        ], { signal });
     } else if (hasSfx && sfxPath) {
         // Chỉ có Voice + SFX
         await execFile("ffmpeg", [
@@ -372,7 +379,7 @@ export async function mixAudioPipeline(
             "-map", "[mixed]",
             "-c:a", "pcm_s16le",
             dryMixPath,
-        ]);
+        ], { signal });
     } else {
         dryMixPath = voicePath;
     }
@@ -384,6 +391,7 @@ export async function mixAudioPipeline(
         wet: 0.15,
         dry: 0.85,
         seed,
+        signal,
     });
 
     // Bước 5: Master đầu ra chuẩn -16 LUFS và -3.5 dBTP
@@ -393,9 +401,10 @@ export async function mixAudioPipeline(
         targetLufs: -16,
         truePeakCeiling: -3.5,
         lra: 11,
+        signal,
     });
 
-    const loudness = await measureLoudness(finalMasterPath);
+    const loudness = await measureLoudness(finalMasterPath, signal);
     onProgress?.(`Hoàn tất Master: ${loudness.integratedLufs.toFixed(1)} LUFS, TP: ${loudness.truePeakDbtp.toFixed(1)} dBTP`, 100);
 
     return {

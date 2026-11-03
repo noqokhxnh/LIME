@@ -43,6 +43,9 @@ import { helpdeskStore } from "./helpdesk/store.js";
 import { systemSettings } from "./admin/systemSettings.js";
 import { announcementsStore } from "./admin/announcements.js";
 import { pageViewTracker } from "./security/pageViewTracker.js";
+import { installProcessGuards } from "./security/processGuards.js";
+import { userStore } from "./admin/userStore.js";
+import { defaultTokenTracker } from "./usage/tokenTracker.js";
 import { db } from "./database/index.js";
 import { hashString32, parseSeedSafe } from "./pipeline/rng.js";
 
@@ -53,6 +56,23 @@ export async function buildApp(options: { logger?: boolean, queue?: IVideoQueue 
     const app = fastify({
         logger: options.logger ?? false,
         bodyLimit: 10 * 1024 * 1024,
+        connectionTimeout: 30000,
+        requestTimeout: 60000,
+        keepAliveTimeout: 10000,
+    });
+
+    app.setErrorHandler((error: any, request, reply) => {
+        const statusCode = (typeof error?.statusCode === "number" && error.statusCode >= 400 && error.statusCode < 600)
+            ? error.statusCode
+            : 500;
+        if (statusCode >= 500) {
+            request.log.error(error);
+        }
+        const message = error?.message || "Internal Server Error";
+        reply.status(statusCode).send({
+            error: message,
+            statusCode,
+        });
     });
 
     await app.register(fastifyCors, { origin: true , credentials: true });
@@ -232,7 +252,7 @@ export async function buildApp(options: { logger?: boolean, queue?: IVideoQueue 
                 rpmCost = 4;
             }
 
-            if (!rateLimiter.checkRpm(ip, 20, rpmCost)) {
+            if (!await rateLimiter.checkRpm(ip, 20, rpmCost)) {
                 reply.status(429).send({ error: "Too Many Requests (RPM exceeded)" });
                 return reply;
             }
@@ -252,18 +272,34 @@ export async function buildApp(options: { logger?: boolean, queue?: IVideoQueue 
         queue.process(processVideoJob);
     }
 
-    // Giải phóng suất chạy song song của IP khi job kết thúc (thành công/thất bại/bị hủy).
-    const releaseJobSlot = (args: any) => {
-        const ip = jobIpMap.get(args?.jobId);
-        if (ip) {
-            rateLimiter.releaseConcurrentJob(ip);
+    // Giải phóng suất chạy song song của user/IP khi job kết thúc (thành công/thất bại/bị hủy).
+    const releaseJobSlot = async (args: any) => {
+        const slotKey = jobIpMap.get(args?.jobId);
+        if (slotKey) {
+            await rateLimiter.releaseConcurrentJob(slotKey);
             jobIpMap.delete(args.jobId);
         }
     };
 
     queue.events.on('completed', releaseJobSlot);
-    queue.events.on('failed', releaseJobSlot);
-    queue.events.on('cancelled', releaseJobSlot);
+    queue.events.on('failed', async (args: any) => {
+        await releaseJobSlot(args);
+        try {
+            const job = await queue.getJob(args?.jobId);
+            if (job?.userId) {
+                await userStore.addCredits(job.userId, 1);
+            }
+        } catch { }
+    });
+    queue.events.on('cancelled', async (args: any) => {
+        await releaseJobSlot(args);
+        try {
+            const job = await queue.getJob(args?.jobId);
+            if (job?.userId) {
+                await userStore.addCredits(job.userId, 1);
+            }
+        } catch { }
+    });
     app.get("/", async (request: FastifyRequest, reply: FastifyReply) => {
         const accept = request.headers.accept || "";
         if (accept.startsWith("text/html")) {
@@ -595,7 +631,7 @@ export async function buildApp(options: { logger?: boolean, queue?: IVideoQueue 
         }
         // Trần ngày theo tài khoản: RPM chỉ chặn theo phút, không có trần
         // ngày thì một tài khoản đốt LLM cả ngày ở nhịp RPM vẫn hợp lệ.
-        if (!rateLimiter.checkAndIncrementDailyQuota(`draft:${authUser.id}`, 50)) {
+        if (!await rateLimiter.checkAndIncrementDailyQuota(`draft:${authUser.id}`, 50)) {
             reply.status(429);
             return { success: false, error: "Daily draft quota exceeded" };
         }
@@ -749,7 +785,7 @@ export async function buildApp(options: { logger?: boolean, queue?: IVideoQueue 
         }
         // Trần ngày theo tài khoản (mỗi lượt clarify là một lần gọi LLM
         // phân loại bằng API key của hệ thống).
-        if (!rateLimiter.checkAndIncrementDailyQuota(`clarify:${authUser.id}`, 100)) {
+        if (!await rateLimiter.checkAndIncrementDailyQuota(`clarify:${authUser.id}`, 100)) {
             reply.status(429);
             return { success: false, error: "Daily clarify quota exceeded" };
         }
@@ -837,15 +873,34 @@ export async function buildApp(options: { logger?: boolean, queue?: IVideoQueue 
         }
 
         const ip = request.ip || '127.0.0.1';
-        if (!rateLimiter.checkAndIncrementDailyQuota(ip)) {
+        // Key quota & concurrency theo userId nếu đã xác thực, fallback theo ip cho khách
+        const rateKey = authUser?.id ? `user:${authUser.id}` : `ip:${ip}`;
+
+        if (!await rateLimiter.checkAndIncrementDailyQuota(rateKey)) {
             reply.status(429);
             return { error: "Daily quota exceeded" };
         }
-        if (!rateLimiter.acquireConcurrentJob(ip)) {
+        if (!await rateLimiter.acquireConcurrentJob(rateKey)) {
             // Không nhận job thì không tính quota ngày.
-            rateLimiter.refundDailyQuota(ip);
+            await rateLimiter.refundDailyQuota(rateKey);
             reply.status(429);
             return { error: "Concurrency limit exceeded" };
+        }
+
+        // Kiểm tra & trừ credit của người dùng (#131)
+        if (authUser.role !== 'admin') {
+            const userRecord = await userStore.findById(authUser.id);
+            const currentCredits = userRecord?.credits ?? authUser.credits ?? 0;
+            if (currentCredits < 1) {
+                await rateLimiter.releaseConcurrentJob(rateKey);
+                await rateLimiter.refundDailyQuota(rateKey);
+                reply.status(402);
+                return {
+                    error: "Insufficient credits",
+                    message: "Tài khoản không đủ credits để tạo video. Vui lòng nạp thêm để tiếp tục."
+                };
+            }
+            await userStore.deductCredits(authUser.id, 1);
         }
 
         // bgmPath đi thẳng vào ffmpeg: chỉ chấp nhận file trong tmp/ hoặc
@@ -867,7 +922,7 @@ export async function buildApp(options: { logger?: boolean, queue?: IVideoQueue 
         const outputDir = join(process.cwd(), "tmp", `job-${jobId}`);
 
         if (isAsync) {
-            jobIpMap.set(jobId, ip);
+            jobIpMap.set(jobId, rateKey);
             try {
                 await queue.addJob(jobId, {
                 jobId,
@@ -884,10 +939,13 @@ export async function buildApp(options: { logger?: boolean, queue?: IVideoQueue 
                 });
             } catch (err) {
                 // Enqueue lỗi: job không chạy nên sẽ không có sự kiện kết
-                // thúc nào tới để nhả slot — nhả ngay tại đây và hoàn quota.
+                // thúc nào tới để nhả slot — nhả ngay tại đây và hoàn quota + credit.
                 jobIpMap.delete(jobId);
-                rateLimiter.releaseConcurrentJob(ip);
-                rateLimiter.refundDailyQuota(ip);
+                await rateLimiter.releaseConcurrentJob(rateKey);
+                await rateLimiter.refundDailyQuota(rateKey);
+                if (authUser.role !== 'admin') {
+                    await userStore.addCredits(authUser.id, 1);
+                }
                 if (isJobIdConflict(err)) {
                     // jobId client chọn đã tồn tại (có thể của người khác):
                     // 409 thay vì âm thầm dedup/ghi đè.
@@ -941,6 +999,9 @@ export async function buildApp(options: { logger?: boolean, queue?: IVideoQueue 
                     audioUrl: `/api/jobs/${result.jobId}/audio`,
                 };
             } catch (err: any) {
+                if (authUser.role !== 'admin') {
+                    await userStore.addCredits(authUser.id, 1);
+                }
                 reply.status(500);
                 return {
                     success: false,
@@ -948,13 +1009,33 @@ export async function buildApp(options: { logger?: boolean, queue?: IVideoQueue 
                     error: err.message,
                 };
             } finally {
-                rateLimiter.releaseConcurrentJob(ip);
+                await rateLimiter.releaseConcurrentJob(rateKey);
             }
         }
     };
 
     app.post("/api/generate", handlePipelineRequest);
     app.post("/api/pipeline", handlePipelineRequest);
+
+    /**
+     * Token Usage & Cost Endpoint (#131).
+     * Trả về tổng lượng token và ước tính chi phí theo model/provider.
+     */
+    app.get("/api/usage", async (request: FastifyRequest, reply: FastifyReply) => {
+        const reader = await getCurrentUser(request);
+        if (!reader) {
+            reply.status(401);
+            return { error: "Authentication required" };
+        }
+        const userId = reader.role === 'admin' ? undefined : reader.id;
+        const summary = defaultTokenTracker.getSummary(userId);
+        const recent = defaultTokenTracker.getRecentRecords(20, userId);
+        return {
+            success: true,
+            summary,
+            recent,
+        };
+    });
 
     // Job thuộc về người tạo ra nó: chi tiết và artifact (html/audio/video/
     // preview/download/SSE) chỉ chủ sở hữu hoặc admin mới đọc được. Job cũ
@@ -1038,70 +1119,105 @@ export async function buildApp(options: { logger?: boolean, queue?: IVideoQueue 
             return { error: "Authentication required" };
         }
 
-        
         reply.raw.setHeader('Content-Type', 'text/event-stream');
         reply.raw.setHeader('Cache-Control', 'no-cache');
         reply.raw.setHeader('Connection', 'keep-alive');
         reply.raw.flushHeaders();
 
+        const safeWrite = (data: string): boolean => {
+            if (!reply.raw.writable || reply.raw.destroyed) {
+                cleanup();
+                return false;
+            }
+            try {
+                reply.raw.write(data);
+                return true;
+            } catch {
+                cleanup();
+                return false;
+            }
+        };
+
+        const safeEnd = () => {
+            if (reply.raw.writable && !reply.raw.destroyed) {
+                try {
+                    reply.raw.end();
+                } catch { }
+            }
+            cleanup();
+        };
+
         const job = await queue.getJob(jobId);
         if (!job) {
-            reply.raw.write(`event: error\ndata: ${JSON.stringify({ error: 'Job not found' })}\n\n`);
-            reply.raw.end();
+            safeWrite(`event: error\ndata: ${JSON.stringify({ error: 'Job not found' })}\n\n`);
+            safeEnd();
             return;
         }
 
         if (!canReadJob(reader, job)) {
-            reply.raw.write(`event: error\ndata: ${JSON.stringify({ error: 'Job not found' })}\n\n`);
-            reply.raw.end();
+            safeWrite(`event: error\ndata: ${JSON.stringify({ error: 'Job not found' })}\n\n`);
+            safeEnd();
             return;
         }
 
-        reply.raw.write(`data: ${JSON.stringify({ status: job.status, progress: job.progress })}\n\n`);
+        safeWrite(`data: ${JSON.stringify({ status: job.status, progress: job.progress })}\n\n`);
         
-        if (job.status === 'completed' || job.status === 'failed') {
-            reply.raw.end();
+        if (job.status === 'completed' || job.status === 'failed' || job.status === 'cancelled' || job.status === 'qa_failed') {
+            safeEnd();
             return;
         }
 
         const heartbeatInterval = setInterval(() => {
-            reply.raw.write(`: heartbeat\n\n`);
+            safeWrite(`: heartbeat\n\n`);
         }, 15000);
 
         const onProgress = (args: any) => {
             if (args.jobId === jobId) {
-                reply.raw.write(`data: ${JSON.stringify({ status: 'running', progress: args.data })}\n\n`);
+                safeWrite(`data: ${JSON.stringify({ status: 'running', progress: args.data })}\n\n`);
             }
         };
 
         const onCompleted = (args: any) => {
             if (args.jobId === jobId) {
-                reply.raw.write(`data: ${JSON.stringify({ status: 'completed', result: args.returnvalue })}\n\n`);
-                reply.raw.end();
-                cleanup();
+                safeWrite(`data: ${JSON.stringify({ status: 'completed', result: args.returnvalue })}\n\n`);
+                safeEnd();
             }
         };
 
         const onFailed = (args: any) => {
             if (args.jobId === jobId) {
-                reply.raw.write(`data: ${JSON.stringify({ status: 'failed', error: args.failedReason })}\n\n`);
-                reply.raw.end();
-                cleanup();
+                safeWrite(`data: ${JSON.stringify({ status: 'failed', error: args.failedReason })}\n\n`);
+                safeEnd();
             }
         };
 
+        const onCancelled = (args: any) => {
+            if (args.jobId === jobId) {
+                safeWrite(`data: ${JSON.stringify({ status: 'cancelled', error: args.reason || 'Job cancelled' })}\n\n`);
+                safeEnd();
+            }
+        };
+
+        let cleanedUp = false;
         const cleanup = () => {
+            if (cleanedUp) return;
+            cleanedUp = true;
             clearInterval(heartbeatInterval);
             queue.events.removeListener('progress', onProgress);
             queue.events.removeListener('completed', onCompleted);
             queue.events.removeListener('failed', onFailed);
+            queue.events.removeListener('cancelled', onCancelled);
         };
 
         queue.events.on('progress', onProgress);
         queue.events.on('completed', onCompleted);
         queue.events.on('failed', onFailed);
+        queue.events.on('cancelled', onCancelled);
 
         request.raw.on('close', cleanup);
+        request.raw.on('error', cleanup);
+        reply.raw.on('error', cleanup);
+        reply.raw.on('close', cleanup);
     });
 
     app.get("/api/jobs/:jobId/html", async (request: FastifyRequest<{ Params: { jobId: string } }>, reply: FastifyReply) => {
@@ -1222,6 +1338,8 @@ export async function buildApp(options: { logger?: boolean, queue?: IVideoQueue 
                 'Content-Length': chunkSize,
                 'Content-Type': 'video/mp4',
             });
+            request.raw.on('close', () => file.destroy());
+            file.on('error', () => file.destroy());
             file.pipe(reply.raw);
             return reply;
         } else {
@@ -1231,7 +1349,10 @@ export async function buildApp(options: { logger?: boolean, queue?: IVideoQueue 
                 'Accept-Ranges': 'bytes',
                 'Content-Type': 'video/mp4',
             });
-            createReadStream(videoPath).pipe(reply.raw);
+            const file = createReadStream(videoPath);
+            request.raw.on('close', () => file.destroy());
+            file.on('error', () => file.destroy());
+            file.pipe(reply.raw);
             return reply;
         }
     });
@@ -1588,6 +1709,7 @@ export async function buildApp(options: { logger?: boolean, queue?: IVideoQueue 
 }
 
 export async function startServer(): Promise<FastifyInstance> {
+    installProcessGuards("API Server");
     const config = getConfig();
     const queue = await getQueue();
     queue.startListeners();

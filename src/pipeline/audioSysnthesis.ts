@@ -616,7 +616,7 @@ const execFile = promisify(execFileCb);
 
 // fluent-ffmpeg 2.x không nhận dạng format lavfi trên FFmpeg 8 (parser -formats
 // không hiểu cột cờ "device" mới) nên chạy ffmpeg trực tiếp cho trường hợp này
-export async function generateSilence(outputPath: string, durationSec: number): Promise<void> {
+export async function generateSilence(outputPath: string, durationSec: number, signal?: AbortSignal): Promise<void> {
     await execFile("ffmpeg", [
         "-y",
         "-f", "lavfi",
@@ -625,7 +625,7 @@ export async function generateSilence(outputPath: string, durationSec: number): 
         "-c:a", "libmp3lame",
         "-b:a", "128k",
         outputPath,
-    ]);
+    ], { signal });
 }
 
 // ---------------------------------------------------------------- Main

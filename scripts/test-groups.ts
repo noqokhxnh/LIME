@@ -79,10 +79,15 @@ export const FAST: string[] = [
     'tests/unit/style_preset_wiring.test.ts',
     'tests/unit/styleMotionGrammar.test.ts',
     'tests/unit/llm_call_timeout.test.ts',
+    'tests/unit/pipeline_cancel.test.ts',
+    'tests/unit/quota_credits_usage.test.ts',
+    'tests/unit/server_guards.test.ts',
+    'tests/unit/stream_leak.test.ts',
     'tests/unit/uploadGuard.test.ts',
     'tests/unit/vision_caption.test.ts',
     'tests/unit/vieneuVoice.test.ts',
     'tests/unit/watermarkFilter.test.ts',
+    'tests/unit/worker_cleanup.test.ts',
 ];
 
 /**

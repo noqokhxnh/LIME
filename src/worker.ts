@@ -1,9 +1,13 @@
 import { getConfig } from './config.js';
 import { getQueue } from './queue/index.js';
 import { processVideoJob } from './queue/handler.js';
-import { initDatabase, closeDatabase } from './database/index.js';
+import { initDatabase, db } from './database/index.js';
 import { getBillingWebhookQueue } from './billing/queue.js';
 import { getAssetCaptionQueue } from './queue/assetCaption.js';
+import { installProcessGuards } from './security/processGuards.js';
+import { cleanStaleJobWorkdirs } from './queue/tmpCleaner.js';
+
+installProcessGuards('Worker');
 
 async function startWorker() {
     const config = getConfig();
@@ -25,43 +29,52 @@ async function startWorker() {
     await assetCaptionQueue.startWorker();
     console.log('Worker listening for jobs on asset-captioning queue...');
 
-    // Tắt an toàn: ngừng nhận job mới, chờ job đang chạy (có timeout), đóng
-    // hàng đợi rồi mới đóng pool PostgreSQL. Guard chống SIGINT+SIGTERM trùng.
-    let shuttingDown = false;
+    // TTL cleanup cron: quét và xoá tmp/job-* quá 24h mỗi 30 phút (#131)
+    cleanStaleJobWorkdirs();
+    const cleanupInterval = setInterval(() => {
+        try {
+            const { deletedCount } = cleanStaleJobWorkdirs();
+            if (deletedCount > 0) {
+                console.log(`[Worker-Cleaner] Đã dọn dẹp ${deletedCount} thư mục tạm quá 24h.`);
+            }
+        } catch (err: any) {
+            console.warn('[Worker-Cleaner] Lỗi khi dọn dẹp thư mục tạm:', err.message);
+        }
+    }, 30 * 60 * 1000);
+
+    // Graceful shutdown handling (SIGTERM, SIGINT) (#131)
+    let isShuttingDown = false;
     const shutdown = async (signal: string) => {
-        if (shuttingDown) return;
-        shuttingDown = true;
-        console.log(`[Worker] Nhận ${signal}, đang tắt an toàn...`);
-        const withTimeout = <T>(promise: Promise<T>, ms: number) =>
-            Promise.race([
-                promise,
-                new Promise<void>((resolve) => setTimeout(resolve, ms)),
+        if (isShuttingDown) return;
+        isShuttingDown = true;
+        console.log(`[Worker] Nhận tín hiệu ${signal}. Bắt đầu graceful shutdown...`);
+
+        clearInterval(cleanupInterval);
+
+        // Force exit sau 30s nếu có tác vụ treo
+        const forceExitTimer = setTimeout(() => {
+            console.error('[Worker] Shutdown timeout (30s) vượt quá giới hạn. Buộc thoát tiến trình.');
+            process.exit(1);
+        }, 30_000);
+        forceExitTimer.unref();
+
+        try {
+            await Promise.allSettled([
+                queue.close(),
+                billingQueue.close(),
+                assetCaptionQueue.close(),
+                db.end(),
             ]);
-
-        // BullMQ Worker.close() chờ job đang chạy xong; timeout bảo vệ để
-        // deployment không bị treo vô hạn khi một render kẹt.
-        try {
-            await withTimeout(queue.close(), 60_000);
+            console.log('[Worker] Graceful shutdown hoàn tất thành công.');
+            process.exit(0);
         } catch (err) {
-            console.error('[Worker] Lỗi khi đóng video queue:', err);
+            console.error('[Worker] Lỗi trong quá trình graceful shutdown:', err);
+            process.exit(1);
         }
-        try {
-            await withTimeout(billingQueue.close(), 15_000);
-        } catch (err) {
-            console.error('[Worker] Lỗi khi đóng billing webhook queue:', err);
-        }
-        try {
-            await withTimeout(assetCaptionQueue.close(), 15_000);
-        } catch (err) {
-            console.error('[Worker] Lỗi khi đóng asset caption queue:', err);
-        }
-
-        await closeDatabase();
-        console.log('[Worker] Đã tắt an toàn.');
-        process.exit(0);
     };
-    process.once('SIGINT', () => { void shutdown('SIGINT'); });
-    process.once('SIGTERM', () => { void shutdown('SIGTERM'); });
+
+    process.on('SIGTERM', () => shutdown('SIGTERM'));
+    process.on('SIGINT', () => shutdown('SIGINT'));
 }
 
 startWorker().catch(err => {
