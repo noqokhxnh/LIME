@@ -5,6 +5,7 @@ import { join } from 'node:path';
 import { mkdtempSync, rmSync, existsSync, writeFileSync } from 'node:fs';
 import {
     calculateSceneTimestamps,
+    buildPreviewLaunchArgs,
     launchPreviewBrowser,
     loadAndPreparePage,
     seekToTimestamp,
@@ -278,6 +279,27 @@ describe('Module 7: Playwright Thumbnail Preview (src/pipeline/preview.ts)', () 
         it('phải đồng nhất giữa các alias hàm previewScenes và generateScenePreviews', () => {
             assert.strictEqual(previewScenes, generatePreviews);
             assert.strictEqual(generateScenePreviews, generatePreviews);
+        });
+    });
+
+    describe('TC-PRV-007: Cờ sandbox Chromium theo biến môi trường (issue #133)', () => {
+        it('mặc định không có cờ tắt sandbox', () => {
+            const args = buildPreviewLaunchArgs({});
+            assert.strictEqual(args.includes('--no-sandbox'), false);
+            assert.strictEqual(args.includes('--disable-setuid-sandbox'), false);
+        });
+
+        it("chỉ thêm 2 cờ tắt sandbox khi RENDER_ALLOW_NO_SANDBOX='1'", () => {
+            const args = buildPreviewLaunchArgs({ RENDER_ALLOW_NO_SANDBOX: '1' });
+            assert.strictEqual(args.includes('--no-sandbox'), true);
+            assert.strictEqual(args.includes('--disable-setuid-sandbox'), true);
+            assert.strictEqual(args.includes('--disable-gpu'), true, 'các cờ tối ưu còn lại vẫn phải có mặt');
+        });
+
+        it("không thêm cờ khi RENDER_ALLOW_NO_SANDBOX khác '1'", () => {
+            const args = buildPreviewLaunchArgs({ RENDER_ALLOW_NO_SANDBOX: '0' });
+            assert.strictEqual(args.includes('--no-sandbox'), false);
+            assert.strictEqual(args.includes('--disable-setuid-sandbox'), false);
         });
     });
 });
