@@ -31,3 +31,8 @@ data/*
 
 # Taste skill inspection artifacts
 .taste-skill/
+
+# UI Design & Custom Skills (kept local, untracked)
+.agents/skills/design-taste-frontend/
+.agents/skills/hallmark/
+.agents/skills/lime-ui-craft/
