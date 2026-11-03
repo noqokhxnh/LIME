@@ -17,6 +17,17 @@ import type { Pool } from 'pg';
  */
 export const CORE_INDEX_SQL = `
 -- ------------------------------------------------------------------
+-- Dọn chỉ mục dư thừa (idempotent — chỉ chạy khi index còn tồn tại).
+--   idx_orders_pay_code           : trùng khoá UNIQUE orders_pay_code_key
+--   idx_payments_result           : tiền tố của (result, received_at DESC)
+--   idx_unmatched_payments_status : tiền tố của (status, created_at DESC)
+-- Trên database cũ các index này đã được tạo; DROP ở đây để dọn thật.
+-- ------------------------------------------------------------------
+DROP INDEX IF EXISTS idx_orders_pay_code;
+DROP INDEX IF EXISTS idx_payments_result;
+DROP INDEX IF EXISTS idx_unmatched_payments_status;
+
+-- ------------------------------------------------------------------
 -- orders: danh sách đơn hàng admin (lọc trạng thái + phân trang theo thời gian)
 -- ------------------------------------------------------------------
 CREATE INDEX IF NOT EXISTS idx_orders_created_at
@@ -25,12 +36,19 @@ CREATE INDEX IF NOT EXISTS idx_orders_status_created_at
     ON orders (status, created_at DESC);
 CREATE INDEX IF NOT EXISTS idx_orders_plan_id
     ON orders (plan_id);
+-- Truy vấn đơn đang chờ của một user:
+--   WHERE user_id = $1 AND status IN ('pending','claimed') ORDER BY created_at DESC LIMIT 1
+CREATE INDEX IF NOT EXISTS idx_orders_user_status_created
+    ON orders (user_id, status, created_at DESC);
 
 -- ------------------------------------------------------------------
 -- payments: danh sách giao dịch trùng lặp (result = 'duplicate')
 -- ------------------------------------------------------------------
 CREATE INDEX IF NOT EXISTS idx_payments_result_received_at
     ON payments (result, received_at DESC);
+-- Lịch sử giao dịch của một đơn, mới nhất trước.
+CREATE INDEX IF NOT EXISTS idx_payments_order_received_at
+    ON payments (order_id, received_at DESC);
 
 -- ------------------------------------------------------------------
 -- unmatched_payments: giao dịch chưa khớp đơn, lọc theo trạng thái

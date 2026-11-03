@@ -166,9 +166,28 @@ POST /api/generate 🔒
 
 Workers share cooperative cancellation (`watchJobCancellation` polling `job-cancelled:<jobId>` in Redis every ~0.4 s) and handle graceful shutdown on process termination signals.
 
-## Database schema & idempotent migrations
+## Database schema & versioned migrations
 
-PostgreSQL schemas are managed in `src/database/base.ts` and executed automatically during startup by `initDatabase()` (`src/database/index.ts`):
+PostgreSQL schemas are defined in `src/database/base.ts` and applied by the versioned
+migration runner in `src/database/migrations.ts` during `initDatabase()`
+(`src/database/index.ts`):
+
+- `schema_migrations(version, description, applied_at)` records every applied step.
+- Each migration runs inside one transaction together with its version row, so a
+  failure rolls back both the DDL and the registration.
+- A fixed `pg_advisory_lock` serialises concurrent startup of the API server,
+  worker and CLI; only one process migrates at a time.
+- Steps are idempotent (`IF NOT EXISTS`, `ADD COLUMN IF NOT EXISTS`) and never drop
+  or recreate business tables, so an existing LIME database upgrades safely and an
+  already-migrated database is a no-op.
+- Migration `007_page_views` adds the analytics table used by
+  `src/security/pageViewTracker.ts` (previously the DML existed without any DDL).
+
+The pool is configured by `DATABASE_URL`, `DATABASE_POOL_MAX` (default 10) and
+`DATABASE_STATEMENT_TIMEOUT_MS` (default 10000, `0` disables). Both processes close
+in order on `SIGINT`/`SIGTERM`: stop accepting work → wait for running jobs/queues
+with a timeout → `db.end()` once. Expired sessions are purged every 30 minutes
+(`expires_at <= NOW()` only; active sessions are untouched).
 
 ```sql
 -- Core user accounts & roles
@@ -273,7 +292,7 @@ CREATE TABLE IF NOT EXISTS refunds (
 );
 ```
 
-All migrations are designed to run idempotently on database initialization using `CREATE TABLE IF NOT EXISTS`, `ALTER TABLE ... ADD COLUMN IF NOT EXISTS`, and `CREATE UNIQUE INDEX IF NOT EXISTS`.
+All migrations are designed to run idempotently on database initialization using `CREATE TABLE IF NOT EXISTS`, `ALTER TABLE ... ADD COLUMN IF NOT EXISTS`, and `CREATE UNIQUE INDEX IF NOT EXISTS`. Once recorded in `schema_migrations`, a step is never re-executed.
 
 ## Pipeline phases
 

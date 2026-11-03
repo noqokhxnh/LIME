@@ -1,6 +1,7 @@
 import { existsSync, mkdirSync, readFileSync, renameSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { v4 } from "uuid";
+import type { PoolClient } from "pg";
 import { db } from "../database/index.js";
 import { getConfig } from "../config.js";
 
@@ -308,10 +309,14 @@ function generateCode(): string {
     return `LIME-T-${code}`;
 }
 
-async function persistMessage(message: TicketMessage): Promise<void> {
+async function persistMessage(message: TicketMessage, client?: PoolClient): Promise<void> {
     const config = getConfig();
     if (config.DATABASE_URL) {
-        await db.query(
+        // Phải dùng CÙNG client của transaction khi được truyền vào, nếu không
+        // INSERT tin nhắn sẽ nằm ở một kết nối/transaction khác và không rollback
+        // cùng ticket.
+        const runner = client ?? db;
+        await runner.query(
             `INSERT INTO ticket_messages
                 (id, ticket_id, sender_type, sender_id, sender_email, body, attachments, is_internal, created_at)
              VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9)`,
@@ -338,17 +343,50 @@ export const helpdeskStore = {
         userId: string,
         options: { page?: number; limit?: number } = {}
     ): Promise<{ items: Ticket[]; total: number; page: number; limit: number; totalPages: number }> {
+        const page = Math.max(1, options.page || 1);
+        const limit = Math.max(1, Math.min(50, options.limit || 20));
+        const offset = (page - 1) * limit;
+        const config = getConfig();
+
+        if (config.DATABASE_URL) {
+            try {
+                // Lọc ngay trong PostgreSQL: trước đây listForUser nạp 5.000 ticket
+                // của TẤT CẢ người dùng rồi .filter() trong RAM — vừa tốn bộ nhớ
+                // vừa lộ dữ liệu của người khác vào tiến trình của request này.
+                const [countRes, listRes] = await Promise.all([
+                    db.query(
+                        `SELECT COUNT(*)::int AS total FROM tickets WHERE user_id = $1`,
+                        [userId]
+                    ),
+                    db.query(
+                        `SELECT * FROM tickets
+                         WHERE user_id = $1
+                         ORDER BY last_message_at DESC
+                         LIMIT $2 OFFSET $3`,
+                        [userId, limit, offset]
+                    ),
+                ]);
+                const total = Number(countRes.rows[0]?.total ?? 0);
+                return {
+                    items: listRes.rows.map(formatTicketRow),
+                    total,
+                    page,
+                    limit,
+                    totalPages: Math.ceil(total / limit) || 1,
+                };
+            } catch (err) {
+                console.error("[Helpdesk] DB error in listForUser, falling back to cache:", err);
+            }
+        }
+
         const all = await loadTickets();
         const owned = all
             .filter((t) => t.userId === userId)
             .sort((a, b) => new Date(b.lastMessageAt).getTime() - new Date(a.lastMessageAt).getTime());
 
-        const page = Math.max(1, options.page || 1);
-        const limit = Math.max(1, Math.min(50, options.limit || 20));
         const totalPages = Math.ceil(owned.length / limit) || 1;
-        const start = (page - 1) * limit;
 
-        return { items: owned.slice(start, start + limit), total: owned.length, page, limit, totalPages };
+        return { items: owned.slice(offset, offset + limit), total: owned.length, page, limit, totalPages };
     },
 
     /** Danh ticket cho admin (lọc nhiều điều kiện + phân trang). */
@@ -404,6 +442,37 @@ export const helpdeskStore = {
 
     /** Tìm ticket sở hữu một file đính kèm (theo tên file) để kiểm quyền tải xuống. */
     async findTicketByAttachment(filename: string): Promise<Ticket | null> {
+        if (!filename) return null;
+        const config = getConfig();
+        if (config.DATABASE_URL) {
+            try {
+                // Một truy vấn duy nhất thay cho N+1: trước đây hàm nạp 5.000
+                // ticket rồi gọi loadMessages() cho TỪNG ticket (tối đa 5.000
+                // round-trip) chỉ để tìm một file. So khớp đuôi URL bằng
+                // RIGHT(...) thay vì LIKE để tên file chứa %/_ không thành wildcard.
+                const res = await db.query(
+                    `SELECT t.*
+                     FROM tickets t
+                     WHERE EXISTS (
+                         SELECT 1
+                         FROM ticket_messages m
+                         WHERE m.ticket_id = t.id
+                           AND EXISTS (
+                               SELECT 1
+                               FROM jsonb_array_elements(COALESCE(m.attachments, '[]'::jsonb)) AS a
+                               WHERE RIGHT(COALESCE(a->>'url', ''), LENGTH($1) + 1) = '/' || $1
+                           )
+                     )
+                     ORDER BY t.last_message_at DESC
+                     LIMIT 1`,
+                    [filename]
+                );
+                return res.rows.length > 0 ? formatTicketRow(res.rows[0]) : null;
+            } catch (err) {
+                console.error("[Helpdesk] DB error in findTicketByAttachment:", err);
+            }
+        }
+
         const all = await loadTickets();
         for (const t of all) {
             const messages = await loadMessages(t.id);
@@ -460,8 +529,14 @@ export const helpdeskStore = {
             for (let attempt = 0; attempt < 5; attempt++) {
                 const id = v4();
                 const code = generateCode();
+                // Ticket + tin nhắn đầu tiên là MỘT đơn vị nguyên tử: nếu INSERT
+                // message thất bại thì rollback cả ticket, không để lại ticket
+                // rỗng vĩnh viễn trong DB. Mỗi lần retry (mã trùng) mở một
+                // transaction mới trên cùng PoolClient.
+                const client = await db.connect();
                 try {
-                    const res = await db.query(
+                    await client.query('BEGIN');
+                    const res = await client.query(
                         `INSERT INTO tickets
                             (id, code, user_id, user_email, subject, category, priority, status, context, last_message_at, created_at, updated_at)
                          VALUES ($1,$2,$3,$4,$5,$6,$7,'open',$8,$9,$9,$9)
@@ -479,12 +554,16 @@ export const helpdeskStore = {
                         ]
                     );
                     ticket = formatTicketRow(res.rows[0]);
-                    await persistMessage({ ...(message as any), ticketId: ticket.id });
+                    await persistMessage({ ...(message as any), ticketId: ticket.id }, client);
+                    await client.query('COMMIT');
                     return { ...ticket, messages: [message] };
                 } catch (err: any) {
+                    await client.query('ROLLBACK').catch(() => undefined);
                     lastError = err;
                     // Mã trùng (23505) → sinh lại mã cho lần thử sau.
                     if (err?.code !== "23505") throw err;
+                } finally {
+                    client.release();
                 }
             }
             throw lastError instanceof Error ? lastError : new Error("Không tạo được ticket.");
