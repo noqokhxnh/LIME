@@ -148,6 +148,42 @@ export async function revokeUserSessions(userId: string): Promise<number> {
 }
 
 
+/**
+ * Dọn phiên ĐÃ HẾT HẠN (bộ nhớ + PostgreSQL).
+ *
+ * Trước đây chỉ logout/admin reset mới xoá session; phiên hết hạn tự nhiên nằm
+ * lại vĩnh viễn khiến bảng `sessions` phình to. Hàm chỉ xoá bản ghi có
+ * `expires_at <= now` — phiên còn hiệu lực (kể cả do instance khác tạo) được
+ * giữ nguyên, nên chạy trên nhiều instance không vô hiệu hoá phiên của nhau.
+ */
+export async function cleanupExpiredSessions(
+    now: Date = new Date()
+): Promise<{ memory: number; database: number }> {
+    let memory = 0;
+    for (const [tokenHash, session] of inMemorySessions) {
+        if (session.expiresAt.getTime() <= now.getTime()) {
+            inMemorySessions.delete(tokenHash);
+            memory++;
+        }
+    }
+
+    let database = 0;
+    const config = getConfig();
+    if (config.DATABASE_URL) {
+        try {
+            const res = await db.query(
+                'DELETE FROM sessions WHERE expires_at <= $1',
+                [now]
+            );
+            database = res.rowCount ?? 0;
+        } catch (err) {
+            console.error('[Session] Error cleaning up expired sessions:', err);
+        }
+    }
+
+    return { memory, database };
+}
+
 export async function getCurrentUser(
     request: FastifyRequest): Promise<AuthUser | null> {
     const token = request.cookies[SESSION_COOKIE];

@@ -2,14 +2,14 @@ import { Pool } from 'pg';
 import { unlinkSync } from 'node:fs';
 import { getConfig } from '../config.js';
 import { resolveAssetPath } from '../security/uploadGuard.js';
-import { AUTH_SQL, BRAND_KIT_SQL, BILLING_SQL, ANNOUNCEMENT_SQL, HELPDESK_SQL, ASSETS_SQL } from './base.js';
-import { initPerformanceIndexes } from './indexes.js';
+import { runMigrations } from './migrations.js';
 
 const config = getConfig();
 
 export const db = new Pool({
     connectionString: config.DATABASE_URL,
-    max: 10,
+    max: config.DATABASE_POOL_MAX,
+    statement_timeout: config.DATABASE_STATEMENT_TIMEOUT_MS,
     connectionTimeoutMillis: 5000,
     idleTimeoutMillis: 30000,
 });
@@ -21,19 +21,35 @@ db.on('error', (error: Error) => {
     );
 });
 
+let isClosing = false;
+let closePromise: Promise<void> | null = null;
+
+/**
+ * Đóng pool đúng MỘT lần dù nhiều tín hiệu tắt máy (SIGINT/SIGTERM) hoặc nhiều
+ * hook `onClose` cùng gọi. Gọi lại là việc rỗng, tránh `db.end()` lần hai ném lỗi
+ * "Called end on pool more than once".
+ */
+export function closeDatabase(): Promise<void> {
+    if (!closePromise) {
+        isClosing = true;
+        closePromise = db.end().catch((err) => {
+            console.error('[Database] Error closing PostgreSQL pool:', err);
+        });
+    }
+    return closePromise;
+}
+
+export function isDatabaseClosing(): boolean {
+    return isClosing;
+}
+
 export async function initDatabase(): Promise<void> {
     if (!config.DATABASE_URL) return;
-    // Chạy tuần tự: AUTH_SQL, BRAND_KIT_SQL, BILLING_SQL
-    await db.query(AUTH_SQL);
-    await db.query(BRAND_KIT_SQL);
-    await db.query(BILLING_SQL);
-    await db.query(ANNOUNCEMENT_SQL);
-    await db.query(HELPDESK_SQL);
-    await db.query(ASSETS_SQL);
+    // Chạy migration có phiên bản, tuần tự và được tuần tự hoá giữa các tiến
+    // trình bằng advisory lock (xem src/database/migrations.ts).
+    await runMigrations(db);
     // Data migration (#103): dọn asset video cũ — loại asset không còn hỗ trợ.
     await removeLegacyVideoAssets();
-    // Tối ưu truy vấn: tạo chỉ mục hiệu năng (idempotent, lỗi không chặn khởi động).
-    await initPerformanceIndexes(db);
 }
 
 /**

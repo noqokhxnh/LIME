@@ -7,6 +7,11 @@ const envSchema = z.object({
     PORT: z.coerce.number().default(3000),
     NODE_ENV: z.enum(['production', 'development']).default('development'),
     DATABASE_URL: z.string().optional(),
+    // Số kết nối tối đa của pool PostgreSQL (mỗi tiến trình). Mặc định 10 như
+    // trước, nay cấu hình được để khớp giới hạn `max_connections` của server.
+    DATABASE_POOL_MAX: z.coerce.number().int().min(1).max(1000).default(10),
+    // Chặn truy vấn treo giữ lock vô hạn và chiếm hết pool. 0 = tắt giới hạn.
+    DATABASE_STATEMENT_TIMEOUT_MS: z.coerce.number().int().min(0).default(10000),
     SESSION_TTL_DAYS: z.coerce.number().int().positive().default(7),
     QUEUE_TYPE: z.enum(['redis', 'memory']).default('memory'),
     REDIS_URL: z.string().optional(),
