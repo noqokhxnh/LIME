@@ -1040,70 +1040,105 @@ export async function buildApp(options: { logger?: boolean, queue?: IVideoQueue 
             return { error: "Authentication required" };
         }
 
-        
         reply.raw.setHeader('Content-Type', 'text/event-stream');
         reply.raw.setHeader('Cache-Control', 'no-cache');
         reply.raw.setHeader('Connection', 'keep-alive');
         reply.raw.flushHeaders();
 
+        const safeWrite = (data: string): boolean => {
+            if (!reply.raw.writable || reply.raw.destroyed) {
+                cleanup();
+                return false;
+            }
+            try {
+                reply.raw.write(data);
+                return true;
+            } catch {
+                cleanup();
+                return false;
+            }
+        };
+
+        const safeEnd = () => {
+            if (reply.raw.writable && !reply.raw.destroyed) {
+                try {
+                    reply.raw.end();
+                } catch { }
+            }
+            cleanup();
+        };
+
         const job = await queue.getJob(jobId);
         if (!job) {
-            reply.raw.write(`event: error\ndata: ${JSON.stringify({ error: 'Job not found' })}\n\n`);
-            reply.raw.end();
+            safeWrite(`event: error\ndata: ${JSON.stringify({ error: 'Job not found' })}\n\n`);
+            safeEnd();
             return;
         }
 
         if (!canReadJob(reader, job)) {
-            reply.raw.write(`event: error\ndata: ${JSON.stringify({ error: 'Job not found' })}\n\n`);
-            reply.raw.end();
+            safeWrite(`event: error\ndata: ${JSON.stringify({ error: 'Job not found' })}\n\n`);
+            safeEnd();
             return;
         }
 
-        reply.raw.write(`data: ${JSON.stringify({ status: job.status, progress: job.progress })}\n\n`);
+        safeWrite(`data: ${JSON.stringify({ status: job.status, progress: job.progress })}\n\n`);
         
-        if (job.status === 'completed' || job.status === 'failed') {
-            reply.raw.end();
+        if (job.status === 'completed' || job.status === 'failed' || job.status === 'cancelled' || job.status === 'qa_failed') {
+            safeEnd();
             return;
         }
 
         const heartbeatInterval = setInterval(() => {
-            reply.raw.write(`: heartbeat\n\n`);
+            safeWrite(`: heartbeat\n\n`);
         }, 15000);
 
         const onProgress = (args: any) => {
             if (args.jobId === jobId) {
-                reply.raw.write(`data: ${JSON.stringify({ status: 'running', progress: args.data })}\n\n`);
+                safeWrite(`data: ${JSON.stringify({ status: 'running', progress: args.data })}\n\n`);
             }
         };
 
         const onCompleted = (args: any) => {
             if (args.jobId === jobId) {
-                reply.raw.write(`data: ${JSON.stringify({ status: 'completed', result: args.returnvalue })}\n\n`);
-                reply.raw.end();
-                cleanup();
+                safeWrite(`data: ${JSON.stringify({ status: 'completed', result: args.returnvalue })}\n\n`);
+                safeEnd();
             }
         };
 
         const onFailed = (args: any) => {
             if (args.jobId === jobId) {
-                reply.raw.write(`data: ${JSON.stringify({ status: 'failed', error: args.failedReason })}\n\n`);
-                reply.raw.end();
-                cleanup();
+                safeWrite(`data: ${JSON.stringify({ status: 'failed', error: args.failedReason })}\n\n`);
+                safeEnd();
             }
         };
 
+        const onCancelled = (args: any) => {
+            if (args.jobId === jobId) {
+                safeWrite(`data: ${JSON.stringify({ status: 'cancelled', error: args.reason || 'Job cancelled' })}\n\n`);
+                safeEnd();
+            }
+        };
+
+        let cleanedUp = false;
         const cleanup = () => {
+            if (cleanedUp) return;
+            cleanedUp = true;
             clearInterval(heartbeatInterval);
             queue.events.removeListener('progress', onProgress);
             queue.events.removeListener('completed', onCompleted);
             queue.events.removeListener('failed', onFailed);
+            queue.events.removeListener('cancelled', onCancelled);
         };
 
         queue.events.on('progress', onProgress);
         queue.events.on('completed', onCompleted);
         queue.events.on('failed', onFailed);
+        queue.events.on('cancelled', onCancelled);
 
         request.raw.on('close', cleanup);
+        request.raw.on('error', cleanup);
+        reply.raw.on('error', cleanup);
+        reply.raw.on('close', cleanup);
     });
 
     app.get("/api/jobs/:jobId/html", async (request: FastifyRequest<{ Params: { jobId: string } }>, reply: FastifyReply) => {
@@ -1224,6 +1259,8 @@ export async function buildApp(options: { logger?: boolean, queue?: IVideoQueue 
                 'Content-Length': chunkSize,
                 'Content-Type': 'video/mp4',
             });
+            request.raw.on('close', () => file.destroy());
+            file.on('error', () => file.destroy());
             file.pipe(reply.raw);
             return reply;
         } else {
@@ -1233,7 +1270,10 @@ export async function buildApp(options: { logger?: boolean, queue?: IVideoQueue 
                 'Accept-Ranges': 'bytes',
                 'Content-Type': 'video/mp4',
             });
-            createReadStream(videoPath).pipe(reply.raw);
+            const file = createReadStream(videoPath);
+            request.raw.on('close', () => file.destroy());
+            file.on('error', () => file.destroy());
+            file.pipe(reply.raw);
             return reply;
         }
     });
